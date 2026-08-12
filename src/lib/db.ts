@@ -13,7 +13,7 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 // per invocation, keeps total connections bounded.
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
-  max: 3,
+  max: 1,
 });
 
 export const db =
