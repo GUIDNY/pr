@@ -1,9 +1,11 @@
 // PREC ecommerce + admin platform schema.
-// Dev datasource is SQLite (zero-config, no external services needed).
-// SQLite has no native enum type, so status/role fields are plain String
-// columns backed by TS unions + Zod schemas in src/lib/enums.ts. Swapping
-// to Postgres later is a provider change plus turning those into real
-// `enum` blocks — everything else (relations, indexes) carries over as-is.
+// Datasource is Postgres (required for Vercel — serverless functions have
+// a read-only, ephemeral filesystem, so file-based SQLite cannot work there).
+// Status/role fields are still plain String columns backed by TS unions +
+// Zod schemas in src/lib/enums.ts rather than native Postgres `enum` blocks;
+// that was originally to stay portable from a SQLite dev DB, and there's no
+// need to churn it now — Strings work identically in Postgres, just without
+// an extra DB-level constraint.
 
 generator client {
   provider = "prisma-client"
@@ -11,7 +13,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 // ---------- Identity ----------
