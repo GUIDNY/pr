@@ -1,8 +1,8 @@
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowLeft, ShieldCheck, Truck, Headset } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { HERO_COLLAGE_IMAGES } from "@/lib/marketing-images";
+import { HeroCarousel } from "@/components/home/hero-carousel";
+import { HERO_CAROUSEL_IMAGES } from "@/lib/marketing-images";
 
 export function Hero({
   title,
@@ -61,36 +61,7 @@ export function Hero({
           </div>
         </div>
 
-        <div className="hidden h-72 grid-cols-2 gap-3 sm:h-96 lg:grid xl:h-[26rem]">
-          <div className="relative row-span-2 overflow-hidden rounded-2xl shadow-2xl ring-1 ring-white/10">
-            <Image
-              src={HERO_COLLAGE_IMAGES.large}
-              alt=""
-              fill
-              sizes="(min-width: 1024px) 22vw, 0px"
-              className="object-cover"
-              priority
-            />
-          </div>
-          <div className="relative overflow-hidden rounded-2xl shadow-xl ring-1 ring-white/10">
-            <Image
-              src={HERO_COLLAGE_IMAGES.topSmall}
-              alt=""
-              fill
-              sizes="(min-width: 1024px) 22vw, 0px"
-              className="object-cover"
-            />
-          </div>
-          <div className="relative overflow-hidden rounded-2xl shadow-xl ring-1 ring-white/10">
-            <Image
-              src={HERO_COLLAGE_IMAGES.bottomSmall}
-              alt=""
-              fill
-              sizes="(min-width: 1024px) 22vw, 0px"
-              className="object-cover"
-            />
-          </div>
-        </div>
+        <HeroCarousel images={HERO_CAROUSEL_IMAGES} />
       </div>
     </section>
   );

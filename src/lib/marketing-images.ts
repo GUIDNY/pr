@@ -9,11 +9,13 @@ function unsplash(id: string, width = 1200) {
   return `https://images.unsplash.com/${id}?fm=jpg&q=80&w=${width}&auto=format&fit=crop`;
 }
 
-export const HERO_COLLAGE_IMAGES = {
-  large: unsplash("photo-1544928879-7342a2f3ce42", 1000), // stainless fridge
-  topSmall: unsplash("photo-1597418048367-7dd01e4404ee", 700), // washing machine
-  bottomSmall: unsplash("photo-1609081219090-a6d81d3085bf", 700), // headphones
-};
+export const HERO_CAROUSEL_IMAGES = [
+  unsplash("photo-1544928879-7342a2f3ce42", 1400), // stainless fridge
+  unsplash("photo-1552831388-6a0b3575b32a", 1400), // tv
+  unsplash("photo-1597418048367-7dd01e4404ee", 1400), // washing machine
+  unsplash("photo-1560885521-4e61e9bc1631", 1400), // espresso machine
+  unsplash("photo-1609081219090-a6d81d3085bf", 1400), // headphones
+];
 
 export const CATEGORY_TILE_IMAGES: Record<string, string> = {
   "tv-multimedia": unsplash("photo-1552831388-6a0b3575b32a"),
