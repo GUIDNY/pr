@@ -3,27 +3,57 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-// Vercel deploys every route as its own serverless function, so without a
-// small explicit pool size each one opens pg's default (up to 10)
-// connections — with dozens of routes that blows past a small Postgres
-// instance's connection limit almost immediately ("too many connections").
-// max: 1 stopped that, but it also serialized every page's parallel
-// Promise.all() queries onto a single connection, which was the bigger
-// contributor to slow page loads. 5 leaves room for a page's queries to
-// actually run concurrently while still bounding total connections per
-// warm instance. Caching the client on globalThis in every environment
-// (not just dev) means a warm instance reuses its pool across requests
-// instead of opening a new one per invocation.
+// Vercel deploys every route as its own serverless function and keeps
+// instances warm between requests, holding their pg connections open the
+// whole time by default. Connections from every warm instance across every
+// route pile up over the deployment's lifetime and never get released —
+// that's what exhausts this database's (low) connection budget over time,
+// not a single burst. `max` bounds each instance's pool; `idleTimeoutMillis`
+// is the actual fix — it makes each connection close itself after a few
+// seconds of inactivity so it's handed back to the database instead of
+// held forever by an idle-but-warm function. Caching the client on
+// globalThis in every environment (not just dev) means a warm instance
+// reuses its pool across requests instead of opening a new one per call.
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
-  max: 5,
+  max: 3,
+  idleTimeoutMillis: 8_000,
+  connectionTimeoutMillis: 10_000,
 });
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+function createClient() {
+  const client = new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-globalForPrisma.prisma = db;
+  // Connection bursts (a cold-start pile-up, a crawler hitting many routes
+  // at once, build-time page collection) can transiently exceed this
+  // database's connection cap even with a capped pool — Postgres error
+  // P2037. Rather than let one unlucky moment 500 a whole page, retry a
+  // couple of times with a short backoff before giving up.
+  return client.$extends({
+    query: {
+      async $allOperations({ args, query }) {
+        const maxAttempts = 3;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+          try {
+            return await query(args);
+          } catch (err) {
+            const isConnectionLimitError =
+              err instanceof Error &&
+              "code" in err &&
+              (err as { code?: string }).code === "P2037";
+            if (!isConnectionLimitError || attempt === maxAttempts) throw err;
+            await new Promise((resolve) => setTimeout(resolve, 150 * attempt));
+          }
+        }
+        throw new Error("unreachable");
+      },
+    },
+  });
+}
+
+export const db = (globalForPrisma.prisma as ReturnType<typeof createClient> | undefined) ?? createClient();
+
+globalForPrisma.prisma = db as unknown as PrismaClient;
