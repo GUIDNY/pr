@@ -176,3 +176,24 @@
 .rtl-flip {
   transform: scaleX(-1);
 }
+
+@keyframes appliance-dance {
+  0%, 100% { transform: rotate(-8deg) translateY(0); }
+  25% { transform: rotate(6deg) translateY(-6px); }
+  50% { transform: rotate(-4deg) translateY(0); }
+  75% { transform: rotate(8deg) translateY(-4px); }
+}
+
+@keyframes appliance-shadow {
+  0%, 50%, 100% { transform: scaleX(1); opacity: 0.15; }
+  25%, 75% { transform: scaleX(0.7); opacity: 0.08; }
+}
+
+.animate-appliance-dance {
+  animation: appliance-dance 1.1s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.animate-appliance-shadow {
+  animation: appliance-shadow 1.1s ease-in-out infinite;
+}

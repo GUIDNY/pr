@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Heebo } from "next/font/google";
 import { DirectionProvider } from "@/components/ui/direction";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
-import { CartHydrator } from "@/components/cart/cart-hydrator";
+import { CartProvider } from "@/components/cart/cart-provider";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
-import { getCart } from "@/lib/cart";
-import { buildCartSummary } from "@/lib/cart-summary";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -25,14 +24,11 @@ export const metadata: Metadata = {
     "PREC - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, במחירים הכי טובים עם משלוח עד הבית ואחריות יבואן רשמי.",
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const cart = await getCart();
-  const cartSummary = await buildCartSummary(cart);
-
   return (
     <html
       lang="he"
@@ -49,7 +45,9 @@ export default async function RootLayout({
         </a>
         <DirectionProvider dir="rtl">
           <TooltipProvider delayDuration={150}>
-            <CartHydrator initialCart={cartSummary} />
+            <Suspense fallback={null}>
+              <CartProvider />
+            </Suspense>
             {children}
             <CartDrawer />
             <CompareTray />
