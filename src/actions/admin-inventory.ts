@@ -30,7 +30,10 @@ export async function uploadInventorySourceAction(formData: FormData) {
 
   const bytes = Buffer.from(await file.arrayBuffer());
   const fileHash = createHash("sha256").update(bytes).digest("hex");
-  const storagePath = `${key}/${Date.now()}-${file.name}`;
+  // Storage object keys must be ASCII — real (often Hebrew) filenames are
+  // kept in the DB `filename` column for display instead.
+  const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : ".xlsx";
+  const storagePath = `${key}/${Date.now()}${ext}`;
 
   try {
     await uploadInventoryFile(
