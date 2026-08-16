@@ -50,16 +50,25 @@ export async function getSession(): Promise<SessionPayload | null> {
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
+  let sub: string, role: UserRole, name: string;
   try {
     const { payload } = await jwtVerify(token, secretKey());
-    return {
-      sub: payload.sub as string,
-      role: payload.role as UserRole,
-      name: payload.name as string,
-    };
+    sub = payload.sub as string;
+    role = payload.role as UserRole;
+    name = payload.name as string;
   } catch {
     return null;
   }
+
+  // The JWT signature alone doesn't prove the user still exists — a
+  // database restore/migration can leave old browsers holding otherwise-
+  // valid sessions for a user id that's gone, which then fails downstream
+  // wherever the id is used as a foreign key (e.g. creating a cart). Treat
+  // that the same as no session rather than letting it 500 later.
+  const user = await db.user.findUnique({ where: { id: sub }, select: { id: true } });
+  if (!user) return null;
+
+  return { sub, role, name };
 }
 
 export async function getCurrentUser() {
