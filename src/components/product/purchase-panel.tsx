@@ -23,7 +23,7 @@ export function PurchasePanel({
   const setCart = useCartStore((s) => s.setCart);
   const openDrawer = useCartStore((s) => s.openDrawer);
   const router = useRouter();
-  const disabled = stockStatus === "OUT_OF_STOCK";
+  const disabled = stockStatus === "OUT_OF_STOCK" || stockStatus === "DISPLAY_ONLY";
 
   function addToCart(then?: "drawer" | "checkout") {
     startTransition(async () => {

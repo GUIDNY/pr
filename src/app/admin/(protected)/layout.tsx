@@ -8,6 +8,7 @@ import {
   Truck,
   LogOut,
   ExternalLink,
+  Boxes,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { logoutAction } from "@/actions/auth";
@@ -16,6 +17,7 @@ const NAV = [
   { href: "/admin", label: "לוח בקרה", icon: LayoutDashboard, exact: true },
   { href: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
   { href: "/admin/products", label: "מוצרים", icon: Package },
+  { href: "/admin/inventory", label: "בקרת מלאי", icon: Boxes },
   { href: "/admin/promotions", label: "מבצעים", icon: TagIcon },
   { href: "/admin/suppliers", label: "ספקים", icon: Truck },
 ];

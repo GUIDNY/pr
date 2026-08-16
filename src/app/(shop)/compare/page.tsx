@@ -135,7 +135,12 @@ export default function ComparePage() {
               <td></td>
               {products.map((p) => (
                 <td key={p.id} className="border-border border p-3">
-                  <AddToCartButton productId={p.id} disabled={p.stockStatus === "OUT_OF_STOCK"} className="w-full" openDrawerOnAdd />
+                  <AddToCartButton
+                    productId={p.id}
+                    disabled={p.stockStatus === "OUT_OF_STOCK" || p.stockStatus === "DISPLAY_ONLY"}
+                    className="w-full"
+                    openDrawerOnAdd
+                  />
                 </td>
               ))}
             </tr>

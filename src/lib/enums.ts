@@ -81,6 +81,9 @@ export const STOCK_STATUSES = [
   "OUT_OF_STOCK",
   "SPECIAL_ORDER",
   "DISCONTINUED",
+  "SUPPLIER_STOCK", // sellable only from bonded/supplier stock, not on-hand
+  "DISPLAY_ONLY", // showroom unit only, not sellable
+  "NEEDS_REVIEW", // inventory data is inconsistent/unmatched — needs a human look
 ] as const;
 export type StockStatus = (typeof STOCK_STATUSES)[number];
 export const stockStatusSchema = z.enum(STOCK_STATUSES);
@@ -91,6 +94,107 @@ export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
   OUT_OF_STOCK: "אזל מהמלאי",
   SPECIAL_ORDER: "בהזמנה מיוחדת",
   DISCONTINUED: "הופסק",
+  SUPPLIER_STOCK: "מלאי ספק",
+  DISPLAY_ONLY: "תצוגה בלבד",
+  NEEDS_REVIEW: "דורש בדיקה",
+};
+
+export const STOCK_STATUS_COLORS: Record<StockStatus, string> = {
+  IN_STOCK: "bg-success/15 text-success",
+  LOW_STOCK: "bg-warning/15 text-warning-foreground",
+  OUT_OF_STOCK: "bg-destructive/15 text-destructive",
+  SPECIAL_ORDER: "bg-accent text-accent-foreground",
+  DISCONTINUED: "bg-muted text-muted-foreground",
+  SUPPLIER_STOCK: "bg-accent text-accent-foreground",
+  DISPLAY_ONLY: "bg-muted text-muted-foreground",
+  NEEDS_REVIEW: "bg-destructive/15 text-destructive",
+};
+
+// ---------- Inventory sync (Excel/ERP source of truth) ----------
+
+export const INVENTORY_CHANGE_TYPES = [
+  "PRICE_CHANGED",
+  "STOCK_INCREASED",
+  "STOCK_DECREASED",
+  "BECAME_OUT_OF_STOCK",
+  "BACK_IN_STOCK",
+  "NEW_PRODUCT",
+  "PRODUCT_MISSING_FROM_SOURCE",
+  "SUPPLIER_STOCK_CHANGED",
+  "SHOWROOM_STOCK_CHANGED",
+  "PRODUCT_DATA_CHANGED",
+  "SOURCE_CONFLICT",
+] as const;
+export type InventoryChangeType = (typeof INVENTORY_CHANGE_TYPES)[number];
+
+export const INVENTORY_CHANGE_TYPE_LABELS: Record<InventoryChangeType, string> = {
+  PRICE_CHANGED: "מחיר השתנה",
+  STOCK_INCREASED: "מלאי גדל",
+  STOCK_DECREASED: "מלאי קטן",
+  BECAME_OUT_OF_STOCK: "אזל מהמלאי",
+  BACK_IN_STOCK: "חזר למלאי",
+  NEW_PRODUCT: "מוצר חדש",
+  PRODUCT_MISSING_FROM_SOURCE: "נעלם מהמקור",
+  SUPPLIER_STOCK_CHANGED: "מלאי ספק השתנה",
+  SHOWROOM_STOCK_CHANGED: "מלאי תצוגה השתנה",
+  PRODUCT_DATA_CHANGED: "פרטי מוצר השתנו",
+  SOURCE_CONFLICT: "התנגשות בין מקורות",
+};
+
+export const INVENTORY_ALERT_TYPES = [
+  "LOW_STOCK",
+  "OUT_OF_STOCK",
+  "UNMATCHED_ROW",
+  "DUPLICATE_SKU",
+  "DUPLICATE_MODEL",
+  "INVALID_PRICE",
+  "MISSING_MODEL",
+  "UNKNOWN_COLUMN",
+  "NEGATIVE_STOCK",
+  "MAJOR_STOCK_CHANGE",
+  "MISSING_FROM_SOURCE",
+  "SOURCE_CONFLICT",
+] as const;
+export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
+
+export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
+  LOW_STOCK: "מלאי נמוך",
+  OUT_OF_STOCK: "אזל מהמלאי",
+  UNMATCHED_ROW: "שורה שלא זוהתה",
+  DUPLICATE_SKU: "מק\"ט כפול",
+  DUPLICATE_MODEL: "דגם כפול",
+  INVALID_PRICE: "מחיר לא תקין",
+  MISSING_MODEL: "חסר דגם",
+  UNKNOWN_COLUMN: "עמודה לא מזוהה",
+  NEGATIVE_STOCK: "מלאי שלילי",
+  MAJOR_STOCK_CHANGE: "שינוי מלאי חריג",
+  MISSING_FROM_SOURCE: "נעלם מהמקור",
+  SOURCE_CONFLICT: "התנגשות בין מקורות",
+};
+
+export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;
+export type InventoryAlertSeverity = (typeof INVENTORY_ALERT_SEVERITIES)[number];
+
+export const SYNC_RUN_STATUSES = ["RUNNING", "SUCCESS", "FAILED", "NO_CHANGES"] as const;
+export type SyncRunStatus = (typeof SYNC_RUN_STATUSES)[number];
+
+export const SYNC_RUN_STATUS_LABELS: Record<SyncRunStatus, string> = {
+  RUNNING: "מסנכרן...",
+  SUCCESS: "הסתיים בהצלחה",
+  FAILED: "נכשל",
+  NO_CHANGES: "לא נמצאו שינויים",
+};
+
+export const SYNC_TRIGGERS = ["MANUAL", "SCHEDULED"] as const;
+export type SyncTrigger = (typeof SYNC_TRIGGERS)[number];
+
+export const ENRICHMENT_STATUSES = ["NOT_ENRICHED", "ENRICHED", "NEEDS_REVIEW"] as const;
+export type EnrichmentStatus = (typeof ENRICHMENT_STATUSES)[number];
+
+export const ENRICHMENT_STATUS_LABELS: Record<EnrichmentStatus, string> = {
+  NOT_ENRICHED: "טרם הועשר",
+  ENRICHED: "הועשר",
+  NEEDS_REVIEW: "דורש בדיקה",
 };
 
 export const USER_ROLES = ["CUSTOMER", "ADMIN", "STAFF"] as const;

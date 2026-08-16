@@ -16,10 +16,16 @@ export function MobileBuyBar({
       <span className="text-lg font-bold tabular-nums">{formatPrice(price)}</span>
       <AddToCartButton
         productId={productId}
-        disabled={stockStatus === "OUT_OF_STOCK"}
+        disabled={stockStatus === "OUT_OF_STOCK" || stockStatus === "DISPLAY_ONLY"}
         size="lg"
         className="h-11 flex-1"
-        label={stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : "הוספה לעגלה"}
+        label={
+          stockStatus === "OUT_OF_STOCK"
+            ? "אזל מהמלאי"
+            : stockStatus === "DISPLAY_ONLY"
+              ? "תצוגה בלבד"
+              : "הוספה לעגלה"
+        }
       />
     </div>
   );

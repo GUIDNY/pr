@@ -28,16 +28,19 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  addresses       Address[]
-  orders          Order[]
-  cart            Cart?
-  favorites       Favorite[]
-  reviews         Review[]
-  supportRequests SupportRequest[]
-  notes           OrderNote[]          @relation("NoteAuthor")
-  statusChanges   OrderStatusHistory[] @relation("StatusChangedBy")
-  assignedOrders  Order[]              @relation("AssignedEmployee")
-  auditLogs       AuditLog[]
+  addresses         Address[]
+  orders            Order[]
+  cart              Cart?
+  favorites         Favorite[]
+  reviews           Review[]
+  supportRequests   SupportRequest[]
+  notes             OrderNote[]          @relation("NoteAuthor")
+  statusChanges     OrderStatusHistory[] @relation("StatusChangedBy")
+  assignedOrders    Order[]              @relation("AssignedEmployee")
+  auditLogs         AuditLog[]
+  uploadedSources   InventorySource[]    @relation("SourceUploadedBy")
+  triggeredSyncRuns InventorySyncRun[]   @relation("SyncTriggeredBy")
+  resolvedAlerts    InventoryAlert[]     @relation("AlertResolvedBy")
 }
 
 model Address {
@@ -143,9 +146,26 @@ model Product {
   supplierId        String?
   supplier          Supplier? @relation(fields: [supplierId], references: [id])
   supplierSku       String?
-  supplierCost      Float?
+  supplierCost      Float? // internal cost — admin-only, never serialized to public pages
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+
+  // ---- Inventory sync (Excel/ERP source of truth) ----
+  minSalePrice           Float? // internal floor price reference from source, admin-only
+  sellableStock          Int? // "יתרה" — what's actually available to sell
+  warehouseStock         Int? // "מלאי" + "טובים" columns, summed
+  showroomStock          Int? // "תצוגה" columns (any branch), summed
+  supplierStock          Int? // "בונדד ספק"
+  bondedStock            Int? // "בונדד עומר" / other bonded-warehouse columns
+  stockBreakdown         String? // JSON snapshot of the raw per-column stock values, for transparency/debugging
+  internalNotes          String? // raw הערות text preserved from source, admin-only
+  enrichmentStatus       String           @default("NOT_ENRICHED") // NOT_ENRICHED | ENRICHED | NEEDS_REVIEW
+  sourceId               String?
+  source                 InventorySource? @relation(fields: [sourceId], references: [id])
+  sourceSheet            String?
+  sourceRowRef           Int?
+  lastExcelSyncAt        DateTime?
+  missingFromSourceSince DateTime? // set when a previously-known product stops appearing in its source; never auto-deleted
 
   images          ProductImage[]
   attributeValues ProductAttributeValue[]
@@ -153,9 +173,12 @@ model Product {
   orderItems      OrderItem[]
   favorites       Favorite[]
   reviews         Review[]
+  changeEvents    InventoryChangeEvent[]
+  alerts          InventoryAlert[]
 
   @@index([categoryId])
   @@index([brandId])
+  @@index([sourceId])
 }
 
 model ProductImage {
@@ -406,4 +429,104 @@ model AuditLog {
   createdAt  DateTime @default(now())
 
   @@index([entityType, entityId])
+}
+
+// ---------- Inventory sync (Excel today, Priority ERP later — see InventorySource) ----------
+
+model InventorySource {
+  id            String    @id @default(cuid())
+  key           String    @unique // stable slug, e.g. "electronics" | "small-appliances" | "white-goods-screens"
+  filename      String
+  storagePath   String? // Supabase Storage object path; null until first upload lands there
+  fileHash      String? // sha256 of file bytes, used to skip a scan when nothing changed
+  fileSizeBytes Int?
+  isActive      Boolean   @default(true) // multiple sources can be active — all active sources are merged on sync
+  uploadedAt    DateTime  @default(now())
+  uploadedById  String?
+  uploadedBy    User?     @relation("SourceUploadedBy", fields: [uploadedById], references: [id])
+  lastScannedAt DateTime? // last time we checked the file hash, whether or not it had changed
+  lastSyncedAt  DateTime? // last time a scan actually found and applied changes
+  createdAt     DateTime  @default(now())
+
+  products     Product[]
+  changeEvents InventoryChangeEvent[]
+  alerts       InventoryAlert[]
+}
+
+model InventorySyncRun {
+  id              String    @id @default(cuid())
+  status          String    @default("RUNNING") // RUNNING | SUCCESS | FAILED | NO_CHANGES
+  trigger         String // MANUAL | SCHEDULED
+  triggeredById   String?
+  triggeredBy     User?     @relation("SyncTriggeredBy", fields: [triggeredById], references: [id])
+  sourceIds       String // JSON array of InventorySource ids included in this run
+  rowsScanned     Int       @default(0)
+  productsAdded   Int       @default(0)
+  productsUpdated Int       @default(0)
+  productsMissing Int       @default(0)
+  priceChanges    Int       @default(0)
+  stockChanges    Int       @default(0)
+  errorCount      Int       @default(0)
+  errorMessage    String?
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+
+  changeEvents InventoryChangeEvent[]
+  alerts       InventoryAlert[]
+}
+
+// Lightweight event stream (not a full catalog snapshot per run) — enough to
+// answer "what changed and when" without storing the whole product state on
+// every sync.
+model InventoryChangeEvent {
+  id            String           @id @default(cuid())
+  syncRunId     String
+  syncRun       InventorySyncRun @relation(fields: [syncRunId], references: [id], onDelete: Cascade)
+  productId     String?
+  product       Product?         @relation(fields: [productId], references: [id])
+  sourceId      String?
+  source        InventorySource? @relation(fields: [sourceId], references: [id])
+  sourceSku     String?
+  sourceSheet   String?
+  changeType    String
+  // PRICE_CHANGED | STOCK_INCREASED | STOCK_DECREASED | BECAME_OUT_OF_STOCK |
+  // BACK_IN_STOCK | NEW_PRODUCT | PRODUCT_MISSING_FROM_SOURCE |
+  // SUPPLIER_STOCK_CHANGED | SHOWROOM_STOCK_CHANGED | PRODUCT_DATA_CHANGED |
+  // SOURCE_CONFLICT
+  previousValue String? // JSON
+  newValue      String? // JSON
+  createdAt     DateTime         @default(now())
+
+  @@index([productId])
+  @@index([syncRunId])
+  @@index([changeType])
+  @@index([createdAt])
+}
+
+model InventoryAlert {
+  id           String            @id @default(cuid())
+  type         String
+  // LOW_STOCK | OUT_OF_STOCK | UNMATCHED_ROW | DUPLICATE_SKU | DUPLICATE_MODEL |
+  // INVALID_PRICE | MISSING_MODEL | UNKNOWN_COLUMN | NEGATIVE_STOCK |
+  // MAJOR_STOCK_CHANGE | MISSING_FROM_SOURCE | SOURCE_CONFLICT
+  severity     String            @default("WARNING") // INFO | WARNING | CRITICAL
+  productId    String?
+  product      Product?          @relation(fields: [productId], references: [id])
+  sourceId     String?
+  source       InventorySource?  @relation(fields: [sourceId], references: [id])
+  syncRunId    String?
+  syncRun      InventorySyncRun? @relation(fields: [syncRunId], references: [id])
+  sourceSku    String?
+  message      String
+  metadata     String? // JSON
+  isResolved   Boolean           @default(false)
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedBy   User?             @relation("AlertResolvedBy", fields: [resolvedById], references: [id])
+  createdAt    DateTime          @default(now())
+
+  @@index([type])
+  @@index([isResolved])
+  @@index([productId])
+  @@index([createdAt])
 }

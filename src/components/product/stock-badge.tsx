@@ -1,4 +1,4 @@
-import { Check, Clock, PackageX } from "lucide-react";
+import { Check, Clock, Eye, PackageX, AlertTriangle } from "lucide-react";
 import { STOCK_STATUS_LABELS, type StockStatus } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 
@@ -8,6 +8,9 @@ const STYLES: Record<StockStatus, string> = {
   OUT_OF_STOCK: "text-muted-foreground",
   SPECIAL_ORDER: "text-accent-foreground",
   DISCONTINUED: "text-muted-foreground",
+  SUPPLIER_STOCK: "text-accent-foreground",
+  DISPLAY_ONLY: "text-muted-foreground",
+  NEEDS_REVIEW: "text-destructive",
 };
 
 const ICONS: Record<StockStatus, typeof Check> = {
@@ -16,6 +19,9 @@ const ICONS: Record<StockStatus, typeof Check> = {
   OUT_OF_STOCK: PackageX,
   SPECIAL_ORDER: Clock,
   DISCONTINUED: PackageX,
+  SUPPLIER_STOCK: Clock,
+  DISPLAY_ONLY: Eye,
+  NEEDS_REVIEW: AlertTriangle,
 };
 
 export function StockBadge({ status, className }: { status: StockStatus; className?: string }) {
