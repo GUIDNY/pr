@@ -28,7 +28,7 @@ import type { StockStatus } from "@/lib/enums";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
-  if (!product) return {};
+  if (!product || !product.isPublished || product.stockQty <= 0) return {};
   return {
     title: product.title,
     description: product.shortDescription ?? product.description ?? undefined,
