@@ -16,7 +16,36 @@ export async function runManualSyncAction() {
   revalidatePath("/admin/inventory");
   revalidatePath("/admin/inventory/history");
   revalidatePath("/admin");
-  return { success: run.status !== "FAILED", status: run.status, error: run.errorMessage };
+  return {
+    success: run.status !== "FAILED",
+    status: run.status,
+    error: run.errorMessage,
+    productsAdded: run.productsAdded,
+    productsUpdated: run.productsUpdated,
+    productsMissing: run.productsMissing,
+    priceChanges: run.priceChanges,
+    stockChanges: run.stockChanges,
+  };
+}
+
+export async function getInventoryDrawerDataAction(id: string) {
+  await requireAdmin();
+  const { getInventoryProductDetail } = await import("@/lib/queries/admin-inventory");
+  return getInventoryProductDetail(id);
+}
+
+export async function resyncSingleProductAction(id: string) {
+  const session = await requireAdmin();
+  const product = await db.product.findUnique({ where: { id }, select: { sourceId: true, title: true } });
+  if (!product?.sourceId) return { success: false, error: "למוצר זה אין מקור מחובר לסנכרון" };
+  // A single product can't be re-fetched in isolation — the source file is
+  // the unit of sync. Force the next sync to actually re-scan by clearing
+  // the stored hash, then run it now.
+  await db.inventorySource.update({ where: { id: product.sourceId }, data: { fileHash: null } });
+  const run = await runFullSync("MANUAL", session.sub);
+  revalidatePath("/admin/inventory");
+  revalidatePath(`/admin/inventory/${id}`);
+  return { success: run.status !== "FAILED", status: run.status };
 }
 
 export async function uploadInventorySourceAction(formData: FormData) {

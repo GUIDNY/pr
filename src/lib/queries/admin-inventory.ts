@@ -46,6 +46,19 @@ export async function getInventorySummary() {
   };
 }
 
+// Groups open alerts by their actual reason (not a single generic "needs
+// review" bucket) so the admin sees exactly what's wrong and how many —
+// clicking a group filters the table straight to those products.
+export async function getAttentionGroups() {
+  const groups = await db.inventoryAlert.groupBy({
+    by: ["type"],
+    _count: true,
+    where: { isResolved: false },
+    orderBy: { _count: { type: "desc" } },
+  });
+  return groups.map((g) => ({ type: g.type, count: g._count }));
+}
+
 export type InventoryTableFilters = {
   search?: string;
   categorySlug?: string;
@@ -54,9 +67,11 @@ export type InventoryTableFilters = {
   sourceId?: string;
   sourceSheet?: string;
   publishStatus?: "PUBLISHED" | "UNPUBLISHED" | "ALL";
+  alertType?: string;
+  hasAnyAlert?: boolean;
+  view?: "ALL" | "NEEDS_ATTENTION" | "LOW_STOCK" | "READY_TO_PUBLISH" | "PUBLISHED" | "UNPUBLISHED";
   changedSince?: Date;
-  sort?: "stock" | "price" | "brand" | "model" | "title" | "updated" | "synced" | "category";
-  sortDir?: "asc" | "desc";
+  sort?: "updated" | "price_desc" | "price_asc" | "stock_desc" | "stock" | "title" | "synced" | "brand" | "model" | "category";
   page?: number;
   pageSize?: number;
 };
@@ -70,14 +85,42 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
     sourceId,
     sourceSheet,
     publishStatus,
+    alertType,
+    hasAnyAlert,
+    view,
     changedSince,
     sort = "updated",
-    sortDir = "desc",
     page = 1,
     pageSize = 25,
   } = filters;
 
   const where: Record<string, unknown> = { sourceId: { not: null } };
+
+  if (alertType) where.alerts = { some: { type: alertType, isResolved: false } };
+  else if (hasAnyAlert) where.alerts = { some: { isResolved: false } };
+
+  switch (view) {
+    case "NEEDS_ATTENTION":
+      where.alerts = { some: { isResolved: false } };
+      break;
+    case "LOW_STOCK":
+      where.stockStatus = "LOW_STOCK";
+      break;
+    case "READY_TO_PUBLISH":
+      where.isPublished = false;
+      where.stockQty = { gt: 0 };
+      where.price = { gt: 0 };
+      where.alerts = { none: { isResolved: false } };
+      break;
+    case "PUBLISHED":
+      where.isPublished = true;
+      break;
+    case "UNPUBLISHED":
+      where.isPublished = false;
+      break;
+    default:
+      break;
+  }
 
   if (search) {
     where.OR = [
@@ -98,20 +141,24 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
 
   const orderBy: Record<string, unknown> =
     sort === "stock"
-      ? { stockQty: sortDir }
-      : sort === "price"
-        ? { price: sortDir }
-        : sort === "brand"
-          ? { brand: { name: sortDir } }
-          : sort === "model"
-            ? { model: sortDir }
-            : sort === "title"
-              ? { title: sortDir }
-              : sort === "category"
-                ? { category: { name: sortDir } }
-                : sort === "synced"
-                  ? { lastExcelSyncAt: sortDir }
-                  : { updatedAt: sortDir };
+      ? { stockQty: "asc" }
+      : sort === "stock_desc"
+        ? { stockQty: "desc" }
+        : sort === "price_asc"
+          ? { price: "asc" }
+          : sort === "price_desc"
+            ? { price: "desc" }
+            : sort === "brand"
+              ? { brand: { name: "asc" } }
+              : sort === "model"
+                ? { model: "asc" }
+                : sort === "title"
+                  ? { title: "asc" }
+                  : sort === "category"
+                    ? { category: { name: "asc" } }
+                    : sort === "synced"
+                      ? { createdAt: "desc" }
+                      : { updatedAt: "desc" };
 
   const [products, total] = await Promise.all([
     db.product.findMany({
@@ -124,6 +171,7 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
         category: { select: { name: true, slug: true } },
         source: { select: { filename: true, key: true } },
         images: { take: 1, orderBy: { sortOrder: "asc" } },
+        _count: { select: { alerts: { where: { isResolved: false } } } },
       },
     }),
     db.product.count({ where }),

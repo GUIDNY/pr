@@ -18,7 +18,12 @@ export function InventorySyncButton() {
         if (result.status === "NO_CHANGES") {
           toast.info("לא נמצאו שינויים במקורות הפעילים");
         } else {
-          toast.success("הסנכרון הושלם בהצלחה");
+          const parts: string[] = [];
+          if (result.productsAdded) parts.push(`${result.productsAdded} חדשים`);
+          if (result.productsUpdated) parts.push(`${result.productsUpdated} עודכנו`);
+          if (result.priceChanges) parts.push(`${result.priceChanges} שינויי מחיר`);
+          if (result.productsMissing) parts.push(`${result.productsMissing} נעלמו`);
+          toast.success(parts.length > 0 ? `הסנכרון הושלם: ${parts.join(", ")}` : "הסנכרון הושלם בהצלחה");
         }
       } else {
         toast.error(result.error ?? "הסנכרון נכשל");
