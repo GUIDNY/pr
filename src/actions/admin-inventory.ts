@@ -7,7 +7,7 @@ import { logAudit } from "@/lib/audit";
 import { runFullSync } from "@/lib/inventory/sync";
 import { uploadInventoryFile } from "@/lib/inventory/storage";
 import { INVENTORY_SOURCES } from "@/lib/inventory/sheet-map";
-import { extractSpreadsheetId, extractGid, fetchSheetCsv } from "@/lib/inventory/google-sheets-source";
+import { extractSpreadsheetId, extractGid, fetchSheetWorkbook } from "@/lib/inventory/google-sheets-source";
 
 export async function runManualSyncAction() {
   const session = await requireAdmin();
@@ -85,14 +85,18 @@ export async function addGoogleSheetSourceAction(formData: FormData) {
   if (!spreadsheetId) return { success: false, error: "קישור הגליון אינו תקין" };
   const gid = extractGid(url);
 
-  let csv: string;
+  // The whole spreadsheet is fetched (every tab), not just one gid — a
+  // multi-tab Google Sheet gets parsed exactly like an Excel workbook, one
+  // category per tab. gid is stored for reference only.
+  let workbookSize: number;
   try {
-    csv = await fetchSheetCsv(spreadsheetId, gid);
+    const bytes = await fetchSheetWorkbook(spreadsheetId);
+    workbookSize = bytes.length;
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "נכשל בטעינת הגליון" };
   }
 
-  const key = `gsheet-${spreadsheetId}-${gid}`;
+  const key = `gsheet-${spreadsheetId}`;
 
   // fileHash left unset here for the same reason as the Excel upload above
   // — runFullSync needs to see it as "changed" on the next sync.
@@ -103,7 +107,7 @@ export async function addGoogleSheetSourceAction(formData: FormData) {
       sheetUrl: url,
       sheetGid: gid,
       categorySlugOverride: categorySlug,
-      fileSizeBytes: csv.length,
+      fileSizeBytes: workbookSize,
       isActive: true,
       uploadedById: session.sub,
       uploadedAt: new Date(),
@@ -115,7 +119,7 @@ export async function addGoogleSheetSourceAction(formData: FormData) {
       sheetUrl: url,
       sheetGid: gid,
       categorySlugOverride: categorySlug,
-      fileSizeBytes: csv.length,
+      fileSizeBytes: workbookSize,
       isActive: true,
       uploadedById: session.sub,
     },

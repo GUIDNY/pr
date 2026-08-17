@@ -1,11 +1,14 @@
 import * as XLSX from "xlsx";
 import { parseSheetRows } from "./excel-parser";
-import type { ParsedSheet } from "./types";
+import { categoryForUnscopedSheet } from "./sheet-map";
+import type { ParsedSheet, ParsedWorkbook } from "./types";
 
-// Public CSV export — works for any sheet shared as "Anyone with the link
-// can view", no Google API credentials needed. This is intentionally the
-// same trade-off as the Excel path: read-only, no OAuth, source of truth
-// stays in Google Sheets.
+// Public export — works for any spreadsheet shared as "Anyone with the link
+// can view", no Google API credentials needed. Fetching the whole
+// spreadsheet as .xlsx (rather than one tab's CSV) means a multi-tab
+// Google Sheet gets parsed exactly like an uploaded Excel workbook, reusing
+// the same per-tab header classifier and one category per tab, instead of
+// being limited to a single flat CSV tab.
 export function extractSpreadsheetId(url: string): string | null {
   const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   return match ? match[1] : null;
@@ -16,12 +19,12 @@ export function extractGid(url: string): string {
   return match ? match[1] : "0";
 }
 
-export function buildCsvExportUrl(spreadsheetId: string, gid: string): string {
-  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`;
+export function buildXlsxExportUrl(spreadsheetId: string): string {
+  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=xlsx`;
 }
 
-export async function fetchSheetCsv(spreadsheetId: string, gid: string): Promise<string> {
-  const url = buildCsvExportUrl(spreadsheetId, gid);
+export async function fetchSheetWorkbook(spreadsheetId: string): Promise<Buffer> {
+  const url = buildXlsxExportUrl(spreadsheetId);
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(
@@ -30,16 +33,34 @@ export async function fetchSheetCsv(spreadsheetId: string, gid: string): Promise
         : `נכשל בטעינת הגליון (HTTP ${res.status})`
     );
   }
-  const text = await res.text();
-  if (text.trimStart().startsWith("<!DOCTYPE") || text.trimStart().startsWith("<html")) {
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("text/html")) {
     throw new Error("אין גישה לגליון — ודא ששיתוף הגליון מוגדר ל'כל מי שיש לו את הקישור - צופה'");
   }
-  return text;
+  return Buffer.from(await res.arrayBuffer());
 }
 
-export function parseSheetCsv(csvText: string, sheetLabel: string): ParsedSheet | null {
-  const wb = XLSX.read(csvText, { type: "string" });
-  const firstSheetName = wb.SheetNames[0];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[firstSheetName], { header: 1, defval: null });
-  return parseSheetRows(sheetLabel, rows);
+// categoryOverride forces every tab to one category (useful for a
+// single-purpose sheet); otherwise each tab's category is looked up by its
+// own name.
+export function parseGoogleWorkbook(buffer: Buffer, categoryOverride?: string | null): ParsedWorkbook {
+  const wb = XLSX.read(buffer, { type: "buffer" });
+  const sheets: ParsedSheet[] = [];
+  const skippedSheets: string[] = [];
+
+  for (const sheetName of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null });
+    const parsed = parseSheetRows(sheetName, rows);
+    if (!parsed) {
+      skippedSheets.push(sheetName);
+      continue;
+    }
+    sheets.push(parsed);
+  }
+
+  return { sheets, skippedSheets };
+}
+
+export function categoryForGoogleSheetTab(sheetName: string, categoryOverride?: string | null): string | null {
+  return categoryOverride ?? categoryForUnscopedSheet(sheetName);
 }

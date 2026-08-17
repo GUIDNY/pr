@@ -74,3 +74,26 @@ export function categoryForSheet(sourceKey: SourceKey, sheetName: string): strin
 export function isProductSheet(sourceKey: SourceKey, sheetName: string): boolean {
   return !(NON_PRODUCT_SHEETS[sourceKey] ?? []).includes(sheetName);
 }
+
+// Google Sheets tab names seen so far that don't exactly match an Excel
+// sheet name (different wording/spacing for the same category) — the
+// spreadsheets appear to be live replacements for individual Excel tabs.
+const EXTRA_TAB_CATEGORY_MAP: Record<string, string> = {
+  "גריל מערכות גז מים ": "water-dispensers",
+  "מוצרי תלייה וכבלים": "tv-mounts",
+};
+
+// Best-effort category lookup for a spreadsheet tab with no known source
+// key (a standalone Google Sheet, not one of the three fixed Excel
+// workbooks) — tries an exact match against every known sheet name across
+// all sources first, then a small set of known naming variants, then null
+// (surfaced to the admin as needing a manual category, never guessed).
+export function categoryForUnscopedSheet(sheetName: string): string | null {
+  const trimmed = sheetName.trim();
+  for (const map of Object.values(SHEET_CATEGORY_MAP)) {
+    for (const [name, slug] of Object.entries(map)) {
+      if (name.trim() === trimmed) return slug;
+    }
+  }
+  return EXTRA_TAB_CATEGORY_MAP[sheetName] ?? null;
+}

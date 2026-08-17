@@ -327,7 +327,9 @@ export type { SyncTrigger };
 export async function runFullSync(trigger: SyncTrigger, triggeredById?: string) {
   const { downloadInventoryFile, isStorageConfigured } = await import("./storage");
   const { parseWorkbook } = await import("./excel-parser");
-  const { fetchSheetCsv, parseSheetCsv } = await import("./google-sheets-source");
+  const { fetchSheetWorkbook, parseGoogleWorkbook, categoryForGoogleSheetTab, extractSpreadsheetId } = await import(
+    "./google-sheets-source"
+  );
   const { normalizeRow, findDuplicates } = await import("./normalizer");
   const { createHash } = await import("crypto");
 
@@ -349,19 +351,21 @@ export async function runFullSync(trigger: SyncTrigger, triggeredById?: string) 
     let sheets: { sheetName: string; unknownLabels: string[]; rows: import("./types").ParsedRow[] }[] = [];
     let contentHash: string;
     let contentSize: number;
+    let categoryResolver: (sheetName: string) => string | null = () =>
+      source.categorySlugOverride ?? null;
 
     try {
       if (source.sourceType === "GOOGLE_SHEET") {
         if (!source.sheetUrl) continue;
-        const { extractSpreadsheetId } = await import("./google-sheets-source");
         const spreadsheetId = extractSpreadsheetId(source.sheetUrl);
         if (!spreadsheetId) throw new Error("קישור הגליון אינו תקין");
-        const csv = await fetchSheetCsv(spreadsheetId, source.sheetGid ?? "0");
-        contentHash = createHash("sha256").update(csv).digest("hex");
-        contentSize = csv.length;
+        const bytes = await fetchSheetWorkbook(spreadsheetId);
+        contentHash = createHash("sha256").update(bytes).digest("hex");
+        contentSize = bytes.length;
         if (contentHash === source.fileHash) continue; // unchanged
-        const parsed = parseSheetCsv(csv, source.filename);
-        if (parsed) sheets = [parsed];
+        const workbook = parseGoogleWorkbook(bytes, source.categorySlugOverride);
+        sheets = workbook.sheets;
+        categoryResolver = (sheetName) => categoryForGoogleSheetTab(sheetName, source.categorySlugOverride);
       } else {
         if (!isStorageConfigured() || !source.storagePath) continue;
         const bytes = await downloadInventoryFile(source.storagePath);
@@ -396,7 +400,7 @@ export async function runFullSync(trigger: SyncTrigger, triggeredById?: string) 
     for (const sheet of sheets) {
       totalRowsScanned += sheet.rows.length;
       for (const row of sheet.rows) {
-        rows.push(normalizeRow(source.key, sheet.sheetName, row, source.categorySlugOverride));
+        rows.push(normalizeRow(source.key, sheet.sheetName, row, categoryResolver(sheet.sheetName)));
       }
     }
     findDuplicates(rows);
