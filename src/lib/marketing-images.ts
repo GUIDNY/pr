@@ -10,11 +10,11 @@ function unsplash(id: string, width = 1200) {
 }
 
 export const HERO_CAROUSEL_IMAGES = [
-  unsplash("photo-1544928879-7342a2f3ce42", 1400), // stainless fridge
-  unsplash("photo-1552831388-6a0b3575b32a", 1400), // tv
-  unsplash("photo-1597418048367-7dd01e4404ee", 1400), // washing machine
-  unsplash("photo-1560885521-4e61e9bc1631", 1400), // espresso machine
-  unsplash("photo-1609081219090-a6d81d3085bf", 1400), // headphones
+  unsplash("photo-1588854337115-1c67d9247e4d", 1400), // stainless fridge
+  unsplash("photo-1593359677879-a4bb92f829d1", 1400), // tv
+  unsplash("photo-1626806787461-102c1bfaaea1", 1400), // washing machine
+  unsplash("photo-1637029436347-e33bf98a5412", 1400), // espresso machine
+  unsplash("photo-1546435770-a3e426bf472b", 1400), // headphones
 ];
 
 export const CATEGORY_TILE_IMAGES: Record<string, string> = {
