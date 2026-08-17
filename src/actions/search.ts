@@ -20,6 +20,7 @@ export async function searchProductsAction(query: string): Promise<SearchResult[
   const rows = await db.product.findMany({
     where: {
       isPublished: true,
+      stockQty: { gt: 0 },
       OR: [
         { title: { contains: q } },
         { sku: { contains: q } },

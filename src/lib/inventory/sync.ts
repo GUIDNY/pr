@@ -183,7 +183,11 @@ export async function applyRowsForSource(
       sourceRowRef: row.rowIndex,
       lastExcelSyncAt: new Date(),
       missingFromSourceSince: null,
-      isPublished: !hasConflict && finalStatus !== "NEEDS_REVIEW" && priceConfirmed && resolved !== null,
+      // Store policy: zero stock means fully off the site, not just
+      // "published but shows out of stock" — enforced again at query time
+      // in src/lib/queries/products.ts (PUBLIC_PRODUCT_WHERE) since that's
+      // the layer that actually can't go stale.
+      isPublished: !hasConflict && finalStatus !== "NEEDS_REVIEW" && priceConfirmed && resolved !== null && stock > 0,
     };
 
     let productId: string;

@@ -47,7 +47,6 @@ export default async function CategoryPage({
   const brandSlugs = sp.brand ? (Array.isArray(sp.brand) ? sp.brand : [sp.brand]) : [];
   const minPrice = sp.min ? Number(sp.min) : undefined;
   const maxPrice = sp.max ? Number(sp.max) : undefined;
-  const inStockOnly = sp.inStock === "1";
 
   const attributeFilters: Record<string, string[]> = {};
   for (const [key, value] of Object.entries(sp)) {
@@ -64,7 +63,6 @@ export default async function CategoryPage({
       brandSlugs,
       minPrice,
       maxPrice,
-      inStockOnly,
       attributeFilters,
     }),
     getCategoryFilterAttributes(slug),

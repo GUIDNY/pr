@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 export async function getProductsForCompareAction(ids: string[]) {
   if (ids.length === 0) return [];
   const products = await db.product.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, isPublished: true, stockQty: { gt: 0 } },
     include: {
       brand: true,
       category: { include: { parent: true } },

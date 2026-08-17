@@ -29,7 +29,6 @@ export function FilterSidebar({
   const searchParams = useSearchParams();
 
   const selectedBrands = searchParams.getAll("brand");
-  const inStockOnly = searchParams.get("inStock") === "1";
   const [minPrice, setMinPrice] = useState(searchParams.get("min") ?? "");
   const [maxPrice, setMaxPrice] = useState(searchParams.get("max") ?? "");
 
@@ -79,7 +78,7 @@ export function FilterSidebar({
   }
 
   const hasActiveFilters =
-    selectedBrands.length > 0 || inStockOnly || searchParams.get("min") || searchParams.get("max") ||
+    selectedBrands.length > 0 || searchParams.get("min") || searchParams.get("max") ||
     attributes.some((a) => searchParams.getAll(`attr_${a.key}`).length > 0);
 
   return (
@@ -92,24 +91,6 @@ export function FilterSidebar({
           </Button>
         )}
       </div>
-
-      <div className="flex items-center gap-2">
-        <Checkbox
-          id="in-stock"
-          checked={inStockOnly}
-          onCheckedChange={() =>
-            pushParams((params) => {
-              if (inStockOnly) params.delete("inStock");
-              else params.set("inStock", "1");
-            })
-          }
-        />
-        <Label htmlFor="in-stock" className="text-sm font-normal">
-          במלאי בלבד
-        </Label>
-      </div>
-
-      <Separator />
 
       <div>
         <p className="mb-2 text-sm font-medium">טווח מחירים</p>

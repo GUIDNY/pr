@@ -8,6 +8,14 @@ const cardInclude = {
   category: { include: { parent: true } },
 } as const;
 
+// Store policy: an out-of-stock product is not shown anywhere on the site
+// at all, not even with an "out of stock" badge — it's treated the same as
+// unpublished. Spread this into every customer-facing product query rather
+// than relying on isPublished alone, since that flag can go stale (e.g. a
+// product sells out after an admin published it) while this is always the
+// live truth.
+const PUBLIC_PRODUCT_WHERE = { isPublished: true, stockQty: { gt: 0 } } as const;
+
 type ProductWithRelations = {
   id: string;
   slug: string;
@@ -42,7 +50,7 @@ export function mapProductToCard(p: ProductWithRelations): ProductCardData {
 
 export async function getFeaturedProducts(take = 8) {
   const rows = await db.product.findMany({
-    where: { isPublished: true, isFeatured: true },
+    where: { ...PUBLIC_PRODUCT_WHERE, isFeatured: true },
     include: cardInclude,
     take,
     orderBy: { createdAt: "desc" },
@@ -52,7 +60,7 @@ export async function getFeaturedProducts(take = 8) {
 
 export async function getBestSellers(take = 8) {
   const rows = await db.product.findMany({
-    where: { isPublished: true, isBestSeller: true },
+    where: { ...PUBLIC_PRODUCT_WHERE, isBestSeller: true },
     include: cardInclude,
     take,
     orderBy: { ratingCount: "desc" },
@@ -62,7 +70,7 @@ export async function getBestSellers(take = 8) {
 
 export async function getDeals(take = 8) {
   const rows = await db.product.findMany({
-    where: { isPublished: true, compareAtPrice: { not: null } },
+    where: { ...PUBLIC_PRODUCT_WHERE, compareAtPrice: { not: null } },
     include: cardInclude,
     take,
     orderBy: { updatedAt: "desc" },
@@ -81,7 +89,6 @@ export async function getProductsByCategorySlug(
     brandSlugs?: string[];
     minPrice?: number;
     maxPrice?: number;
-    inStockOnly?: boolean;
     attributeFilters?: Record<string, string[]>;
   } = {}
 ) {
@@ -91,7 +98,7 @@ export async function getProductsByCategorySlug(
   const categoryIds = category.children.length > 0 ? category.children.map((c) => c.id) : [category.id];
 
   const where: Record<string, unknown> = {
-    isPublished: true,
+    ...PUBLIC_PRODUCT_WHERE,
     categoryId: { in: categoryIds },
   };
 
@@ -103,9 +110,6 @@ export async function getProductsByCategorySlug(
       ...(opts.minPrice !== undefined ? { gte: opts.minPrice } : {}),
       ...(opts.maxPrice !== undefined ? { lte: opts.maxPrice } : {}),
     };
-  }
-  if (opts.inStockOnly) {
-    where.stockStatus = { in: ["IN_STOCK", "LOW_STOCK"] };
   }
   if (opts.attributeFilters && Object.keys(opts.attributeFilters).length > 0) {
     where.AND = Object.entries(opts.attributeFilters).map(([key, values]) => ({
@@ -137,11 +141,11 @@ export async function getProductsByCategorySlug(
     }),
     db.product.count({ where }),
     db.brand.findMany({
-      where: { products: { some: { categoryId: { in: categoryIds }, isPublished: true } } },
+      where: { products: { some: { categoryId: { in: categoryIds }, ...PUBLIC_PRODUCT_WHERE } } },
       orderBy: { name: "asc" },
     }),
     db.product.aggregate({
-      where: { isPublished: true, categoryId: { in: categoryIds } },
+      where: { ...PUBLIC_PRODUCT_WHERE, categoryId: { in: categoryIds } },
       _min: { price: true },
       _max: { price: true },
     }),
@@ -188,7 +192,7 @@ export async function getProductBySlug(slug: string) {
 
 export async function getRelatedProducts(categoryId: string, excludeId: string, take = 4) {
   const rows = await db.product.findMany({
-    where: { categoryId, isPublished: true, id: { not: excludeId } },
+    where: { ...PUBLIC_PRODUCT_WHERE, categoryId, id: { not: excludeId } },
     include: cardInclude,
     take,
     orderBy: { ratingCount: "desc" },
@@ -216,7 +220,7 @@ export async function getProductsByBrandSlug(
 
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 24;
-  const where = { isPublished: true, brandId: brand.id };
+  const where = { ...PUBLIC_PRODUCT_WHERE, brandId: brand.id };
 
   const [rows, total] = await Promise.all([
     db.product.findMany({ where, include: cardInclude, orderBy, skip: (page - 1) * pageSize, take: pageSize }),
@@ -230,7 +234,7 @@ export async function searchProducts(query: string, take = 8) {
   if (!query.trim()) return [];
   const rows = await db.product.findMany({
     where: {
-      isPublished: true,
+      ...PUBLIC_PRODUCT_WHERE,
       OR: [
         { title: { contains: query } },
         { sku: { contains: query } },

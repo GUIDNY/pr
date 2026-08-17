@@ -38,7 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
-  if (!product || !product.isPublished) notFound();
+  if (!product || !product.isPublished || product.stockQty <= 0) notFound();
 
   const [related, favoriteIds] = await Promise.all([
     getRelatedProducts(product.categoryId, product.id, 4),
