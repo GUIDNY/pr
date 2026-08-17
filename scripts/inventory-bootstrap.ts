@@ -16,6 +16,27 @@ import type { NormalizedProductRow } from "../src/lib/inventory/types";
 
 const DESKTOP_DIR = "/Users/idanguindy/Desktop/אקסל פי אר ";
 
+// The local network in this environment has been dropping long-lived
+// connections mid-script (Postgres pool errors, and separately Vercel CLI
+// timeouts) — transient, not a Supabase or app problem, confirmed by
+// production staying healthy throughout. Retrying the whole (idempotent)
+// script from a fresh process worked before, so automate that instead of
+// re-invoking it by hand each time.
+async function withRetry<T>(label: string, fn: () => Promise<T>, attempts = 8): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`  [retry] ${label} failed (attempt ${i}/${attempts}): ${message}`);
+      if (i < attempts) await new Promise((r) => setTimeout(r, 2000 * i));
+    }
+  }
+  throw lastErr;
+}
+
 async function main() {
   const startedAt = Date.now();
   console.log("Starting inventory bootstrap sync...");
@@ -123,9 +144,9 @@ async function main() {
   console.log(`Done in ${elapsed}s. Added ${productsAdded}, updated ${productsUpdated}, missing ${productsMissing}, price changes ${priceChanges}, stock changes ${stockChanges}, alerts(critical) ${errorCount}.`);
 }
 
-main()
+withRetry("bootstrap sync", main, 8)
   .catch(async (e) => {
-    console.error("Bootstrap sync failed:", e);
+    console.error("Bootstrap sync failed after all retries:", e);
     process.exit(1);
   })
   .finally(async () => {

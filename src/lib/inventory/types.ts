@@ -5,6 +5,7 @@ export type ClassifiedField =
   | "DESCRIPTION"
   | "COLOR"
   | "WARRANTY"
+  | "IMAGE_URL"
   | "INTERNAL_COST"
   | "MANAGER_PRICE"
   | "MIN_SALE_PRICE"
@@ -58,6 +59,7 @@ export type NormalizedProductRow = {
   title: string;
   color: string | null;
   warranty: string | null;
+  imageUrl: string | null;
 
   retailPrice: number | null;
   minSalePrice: number | null;

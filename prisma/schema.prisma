@@ -434,19 +434,23 @@ model AuditLog {
 // ---------- Inventory sync (Excel today, Priority ERP later — see InventorySource) ----------
 
 model InventorySource {
-  id            String    @id @default(cuid())
-  key           String    @unique // stable slug, e.g. "electronics" | "small-appliances" | "white-goods-screens"
-  filename      String
-  storagePath   String? // Supabase Storage object path; null until first upload lands there
-  fileHash      String? // sha256 of file bytes, used to skip a scan when nothing changed
-  fileSizeBytes Int?
-  isActive      Boolean   @default(true) // multiple sources can be active — all active sources are merged on sync
-  uploadedAt    DateTime  @default(now())
-  uploadedById  String?
-  uploadedBy    User?     @relation("SourceUploadedBy", fields: [uploadedById], references: [id])
-  lastScannedAt DateTime? // last time we checked the file hash, whether or not it had changed
-  lastSyncedAt  DateTime? // last time a scan actually found and applied changes
-  createdAt     DateTime  @default(now())
+  id                   String    @id @default(cuid())
+  key                  String    @unique // stable slug, e.g. "electronics" | "coffee-machines-sheet"
+  sourceType           String    @default("EXCEL") // EXCEL | GOOGLE_SHEET
+  filename             String
+  storagePath          String? // Supabase Storage object path (EXCEL sources only)
+  sheetUrl             String? // Google Sheets URL (GOOGLE_SHEET sources only)
+  sheetGid             String? // the specific tab's gid within the spreadsheet
+  categorySlugOverride String? // GOOGLE_SHEET sources are usually single-category; skip the per-tab sheet map
+  fileHash             String? // sha256 of the fetched content, used to skip a scan when nothing changed
+  fileSizeBytes        Int?
+  isActive             Boolean   @default(true) // multiple sources can be active — all active sources are merged on sync
+  uploadedAt           DateTime  @default(now())
+  uploadedById         String?
+  uploadedBy           User?     @relation("SourceUploadedBy", fields: [uploadedById], references: [id])
+  lastScannedAt        DateTime? // last time we checked the content hash, whether or not it had changed
+  lastSyncedAt         DateTime? // last time a scan actually found and applied changes
+  createdAt            DateTime  @default(now())
 
   products     Product[]
   changeEvents InventoryChangeEvent[]

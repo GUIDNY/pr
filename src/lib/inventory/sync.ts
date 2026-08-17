@@ -152,6 +152,17 @@ export async function applyRowsForSource(
       result.productsAdded++;
     }
 
+    // Image URL comes only from an explicit column in the source — never
+    // guessed/searched — so it's safe to trust and apply directly.
+    if (row.imageUrl) {
+      const existingImage = await db.productImage.findFirst({ where: { productId } });
+      if (!existingImage) {
+        await db.productImage.create({ data: { productId, url: row.imageUrl, sortOrder: 0 } });
+      } else if (existingImage.url !== row.imageUrl) {
+        await db.productImage.update({ where: { id: existingImage.id }, data: { url: row.imageUrl } });
+      }
+    }
+
     for (const change of changes) {
       if (change.changeType === "PRICE_CHANGED") result.priceChanges++;
       if (
@@ -316,24 +327,13 @@ export type { SyncTrigger };
 export async function runFullSync(trigger: SyncTrigger, triggeredById?: string) {
   const { downloadInventoryFile, isStorageConfigured } = await import("./storage");
   const { parseWorkbook } = await import("./excel-parser");
+  const { fetchSheetCsv, parseSheetCsv } = await import("./google-sheets-source");
   const { normalizeRow, findDuplicates } = await import("./normalizer");
   const { createHash } = await import("crypto");
 
   const syncRun = await db.inventorySyncRun.create({
     data: { trigger, triggeredById, status: "RUNNING", sourceIds: "[]" },
   });
-
-  if (!isStorageConfigured()) {
-    await db.inventorySyncRun.update({
-      where: { id: syncRun.id },
-      data: {
-        status: "FAILED",
-        errorMessage: "Supabase Storage is not configured yet — no active source has a file to scan.",
-        finishedAt: new Date(),
-      },
-    });
-    return db.inventorySyncRun.findUniqueOrThrow({ where: { id: syncRun.id } });
-  }
 
   const sources = await db.inventorySource.findMany({ where: { isActive: true } });
   const scannedSourceIds: string[] = [];
@@ -345,11 +345,32 @@ export async function runFullSync(trigger: SyncTrigger, triggeredById?: string) 
 
   for (const source of sources) {
     await db.inventorySource.update({ where: { id: source.id }, data: { lastScannedAt: new Date() } });
-    if (!source.storagePath) continue;
 
-    let bytes: Buffer;
+    let sheets: { sheetName: string; unknownLabels: string[]; rows: import("./types").ParsedRow[] }[] = [];
+    let contentHash: string;
+    let contentSize: number;
+
     try {
-      bytes = await downloadInventoryFile(source.storagePath);
+      if (source.sourceType === "GOOGLE_SHEET") {
+        if (!source.sheetUrl) continue;
+        const { extractSpreadsheetId } = await import("./google-sheets-source");
+        const spreadsheetId = extractSpreadsheetId(source.sheetUrl);
+        if (!spreadsheetId) throw new Error("קישור הגליון אינו תקין");
+        const csv = await fetchSheetCsv(spreadsheetId, source.sheetGid ?? "0");
+        contentHash = createHash("sha256").update(csv).digest("hex");
+        contentSize = csv.length;
+        if (contentHash === source.fileHash) continue; // unchanged
+        const parsed = parseSheetCsv(csv, source.filename);
+        if (parsed) sheets = [parsed];
+      } else {
+        if (!isStorageConfigured() || !source.storagePath) continue;
+        const bytes = await downloadInventoryFile(source.storagePath);
+        contentHash = createHash("sha256").update(bytes).digest("hex");
+        contentSize = bytes.length;
+        if (contentHash === source.fileHash) continue; // unchanged
+        const workbook = parseWorkbook(bytes, source.key as SourceKey);
+        sheets = workbook.sheets;
+      }
     } catch (err) {
       await db.inventoryAlert.create({
         data: {
@@ -357,34 +378,35 @@ export async function runFullSync(trigger: SyncTrigger, triggeredById?: string) 
           severity: "CRITICAL",
           sourceId: source.id,
           syncRunId: syncRun.id,
-          message: `נכשל בהורדת הקובץ מהאחסון: ${err instanceof Error ? err.message : String(err)}`,
+          message: `נכשל בטעינת המקור: ${err instanceof Error ? err.message : String(err)}`,
         },
       });
       continue;
     }
 
-    const fileHash = createHash("sha256").update(bytes).digest("hex");
-    if (fileHash === source.fileHash) continue; // unchanged — nothing to do for this source
-
     anyChanged = true;
     scannedSourceIds.push(source.id);
 
-    const workbook = parseWorkbook(bytes, source.key as SourceKey);
     perSourceUnknowns.set(
       source.id,
-      workbook.sheets.filter((s) => s.unknownLabels.length > 0).map((s) => ({ sheetName: s.sheetName, unknownLabels: s.unknownLabels }))
+      sheets.filter((s) => s.unknownLabels.length > 0).map((s) => ({ sheetName: s.sheetName, unknownLabels: s.unknownLabels }))
     );
 
     const rows: NormalizedProductRow[] = [];
-    for (const sheet of workbook.sheets) {
+    for (const sheet of sheets) {
       totalRowsScanned += sheet.rows.length;
-      for (const row of sheet.rows) rows.push(normalizeRow(source.key as SourceKey, sheet.sheetName, row));
+      for (const row of sheet.rows) {
+        rows.push(normalizeRow(source.key, sheet.sheetName, row, source.categorySlugOverride));
+      }
     }
     findDuplicates(rows);
     perSourceRows.set(source.id, rows);
     allRows.push(...rows);
 
-    await db.inventorySource.update({ where: { id: source.id }, data: { fileHash, fileSizeBytes: bytes.length } });
+    await db.inventorySource.update({
+      where: { id: source.id },
+      data: { fileHash: contentHash, fileSizeBytes: contentSize },
+    });
   }
 
   if (!anyChanged) {

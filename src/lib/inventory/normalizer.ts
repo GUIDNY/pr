@@ -2,6 +2,10 @@ import { createHash } from "crypto";
 import { categoryForSheet, type SourceKey } from "./sheet-map";
 import type { NormalizedProductRow, ParsedRow, RowIssue } from "./types";
 
+function isMappedSourceKey(key: string): key is SourceKey {
+  return key === "electronics" || key === "small-appliances" || key === "white-goods-screens";
+}
+
 function firstNumber(values?: (string | number)[]): number | null {
   if (!values || values.length === 0) return null;
   const n = Number(values[0]);
@@ -26,9 +30,10 @@ function syntheticSku(sourceKey: string, sheetName: string, rowIndex: number, se
 }
 
 export function normalizeRow(
-  sourceKey: SourceKey,
+  sourceKey: string,
   sheetName: string,
-  row: ParsedRow
+  row: ParsedRow,
+  categoryOverride?: string | null
 ): NormalizedProductRow {
   const issues: RowIssue[] = [];
 
@@ -38,6 +43,8 @@ export function normalizeRow(
   const description = firstString(row.values.DESCRIPTION);
   const color = firstString(row.values.COLOR);
   const warranty = firstString(row.values.WARRANTY);
+  const imageUrlRaw = firstString(row.values.IMAGE_URL);
+  const imageUrl = imageUrlRaw && /^https?:\/\//i.test(imageUrlRaw) ? imageUrlRaw : null;
 
   const title = [brandName, model].filter(Boolean).join(" ") || description || `${sheetName} #${row.rowIndex}`;
 
@@ -78,7 +85,7 @@ export function normalizeRow(
     sourceKey,
     sheetName,
     rowIndex: row.rowIndex,
-    categorySlug: categoryForSheet(sourceKey, sheetName),
+    categorySlug: categoryOverride ?? (isMappedSourceKey(sourceKey) ? categoryForSheet(sourceKey, sheetName) : null),
     sku,
     skuIsSynthetic,
     model,
@@ -86,6 +93,7 @@ export function normalizeRow(
     title,
     color,
     warranty,
+    imageUrl,
     retailPrice,
     minSalePrice,
     internalCost,

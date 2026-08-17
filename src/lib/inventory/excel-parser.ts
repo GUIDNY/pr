@@ -32,7 +32,7 @@ function classifyColumns(headerRow: unknown[]): { columns: ClassifiedColumn[]; u
   return { columns, unknownLabels };
 }
 
-function parseSheet(sheetName: string, rows: unknown[][]): ParsedSheet | null {
+export function parseSheetRows(sheetName: string, rows: unknown[][]): ParsedSheet | null {
   const headerRowIndex = findHeaderRow(rows);
   if (headerRowIndex === null) return null;
 
@@ -95,7 +95,7 @@ export function parseWorkbook(buffer: Buffer, sourceKey: SourceKey): ParsedWorkb
       continue;
     }
     const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null });
-    const parsed = parseSheet(sheetName, rows);
+    const parsed = parseSheetRows(sheetName, rows);
     if (!parsed) {
       skippedSheets.push(sheetName);
       continue;

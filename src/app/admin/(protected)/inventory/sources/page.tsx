@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { SourceUploadForm } from "@/components/admin/source-upload-form";
 import { SourceActiveToggle } from "@/components/admin/source-active-toggle";
+import { GoogleSheetSourceForm } from "@/components/admin/google-sheet-source-form";
 import { INVENTORY_SOURCES } from "@/lib/inventory/sheet-map";
 import { formatDateTime, formatDate } from "@/lib/format";
 import { isStorageConfigured } from "@/lib/inventory/storage";
@@ -15,6 +16,7 @@ export default async function InventorySourcesPage() {
   ]);
 
   const byKey = new Map(sources.map((s) => [s.key, s]));
+  const googleSheetSources = sources.filter((s) => s.sourceType === "GOOGLE_SHEET");
 
   return (
     <div>
@@ -28,7 +30,8 @@ export default async function InventorySourcesPage() {
         </div>
       )}
 
-      <div className="flex flex-col gap-4">
+      <h2 className="mb-3 text-lg font-semibold">קובצי אקסל</h2>
+      <div className="mb-8 flex flex-col gap-4">
         {INVENTORY_SOURCES.map(({ key, filename: defaultFilename }) => {
           const source = byKey.get(key);
           return (
@@ -76,6 +79,43 @@ export default async function InventorySourcesPage() {
             </div>
           );
         })}
+      </div>
+
+      <h2 className="mb-3 text-lg font-semibold">גליונות Google Sheets</h2>
+      <div className="mb-6 flex flex-col gap-4">
+        {googleSheetSources.map((source) => (
+          <div key={source.id} className="border-border bg-card rounded-xl border p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h3 className="font-semibold">{source.filename}</h3>
+                <p className="text-muted-foreground text-xs">
+                  קטגוריה: {source.categorySlugOverride ?? "לא הוגדרה"}
+                </p>
+              </div>
+              <SourceActiveToggle id={source.id} isActive={source.isActive} />
+            </div>
+            <div className="text-muted-foreground grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
+              <div>
+                <div className="text-foreground font-medium">{source.isActive ? "פעיל" : "לא פעיל"}</div>
+                <div>סטטוס</div>
+              </div>
+              <div>
+                <div className="text-foreground font-medium">{formatDate(source.uploadedAt)}</div>
+                <div>חובר</div>
+              </div>
+              <div>
+                <div className="text-foreground font-medium">
+                  {source.lastSyncedAt ? formatDateTime(source.lastSyncedAt) : "טרם סונכרן"}
+                </div>
+                <div>סנכרון אחרון</div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {googleSheetSources.length === 0 && (
+          <p className="text-muted-foreground text-sm">עדיין לא חובר גליון Google Sheets</p>
+        )}
+        <GoogleSheetSourceForm />
       </div>
     </div>
   );

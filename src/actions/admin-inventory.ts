@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { runFullSync } from "@/lib/inventory/sync";
 import { uploadInventoryFile } from "@/lib/inventory/storage";
 import { INVENTORY_SOURCES } from "@/lib/inventory/sheet-map";
+import { extractSpreadsheetId, extractGid, fetchSheetCsv } from "@/lib/inventory/google-sheets-source";
 
 export async function runManualSyncAction() {
   const session = await requireAdmin();
@@ -68,6 +69,59 @@ export async function uploadInventorySourceAction(formData: FormData) {
   });
 
   await logAudit({ actorId: session.sub, action: "INVENTORY_SOURCE_UPLOADED", entityType: "InventorySource", entityId: key });
+  revalidatePath("/admin/inventory/sources");
+  return { success: true, error: null };
+}
+
+export async function addGoogleSheetSourceAction(formData: FormData) {
+  const session = await requireAdmin();
+  const url = (formData.get("sheetUrl") as string | null)?.trim();
+  const name = (formData.get("name") as string | null)?.trim();
+  const categorySlug = (formData.get("categorySlug") as string | null)?.trim() || null;
+  if (!url || !name) return { success: false, error: "חסר קישור לגליון או שם" };
+
+  const spreadsheetId = extractSpreadsheetId(url);
+  if (!spreadsheetId) return { success: false, error: "קישור הגליון אינו תקין" };
+  const gid = extractGid(url);
+
+  let csv: string;
+  try {
+    csv = await fetchSheetCsv(spreadsheetId, gid);
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "נכשל בטעינת הגליון" };
+  }
+
+  const fileHash = createHash("sha256").update(csv).digest("hex");
+  const key = `gsheet-${spreadsheetId}-${gid}`;
+
+  await db.inventorySource.upsert({
+    where: { key },
+    update: {
+      filename: name,
+      sheetUrl: url,
+      sheetGid: gid,
+      categorySlugOverride: categorySlug,
+      fileHash,
+      fileSizeBytes: csv.length,
+      isActive: true,
+      uploadedById: session.sub,
+      uploadedAt: new Date(),
+    },
+    create: {
+      key,
+      sourceType: "GOOGLE_SHEET",
+      filename: name,
+      sheetUrl: url,
+      sheetGid: gid,
+      categorySlugOverride: categorySlug,
+      fileHash,
+      fileSizeBytes: csv.length,
+      isActive: true,
+      uploadedById: session.sub,
+    },
+  });
+
+  await logAudit({ actorId: session.sub, action: "INVENTORY_SOURCE_ADDED", entityType: "InventorySource", entityId: key });
   revalidatePath("/admin/inventory/sources");
   return { success: true, error: null };
 }

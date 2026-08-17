@@ -15,6 +15,7 @@ const RULES: Rule[] = [
   { test: (t) => /דגם/.test(t), field: "MODEL" },
   { test: (t) => /^צבע/.test(t), field: "COLOR" },
   { test: (t) => /אחריות/.test(t), field: "WARRANTY" },
+  { test: (t) => /תמונה|image|img|photo/i.test(t), field: "IMAGE_URL" },
   { test: (t) => /עלות|מחיר קניה/.test(t), field: "INTERNAL_COST" },
   { test: (t) => /קוד מנכ/.test(t), field: "MANAGER_PRICE" },
   { test: (t) => /מינ|מנימום/.test(t), field: "MIN_SALE_PRICE" }, // incl. the "מנימום" typo seen in real sheets
