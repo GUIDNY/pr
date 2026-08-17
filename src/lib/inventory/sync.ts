@@ -1,7 +1,15 @@
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import type { NormalizedProductRow } from "./types";
-import { diffAgainstExisting, detectSourceConflicts, isMajorStockChange, totalStock, deriveStockStatus } from "./diff-engine";
+import {
+  diffAgainstExisting,
+  detectSourceConflicts,
+  isMajorStockChange,
+  totalStock,
+  deriveStockStatus,
+  resolvedPrice,
+  hasAnyStockData,
+} from "./diff-engine";
 import type { SourceKey } from "./sheet-map";
 import type { SyncTrigger } from "@/lib/enums";
 
@@ -86,7 +94,9 @@ export async function applyRowsForSource(
 
     const existing = await db.product.findUnique({ where: { sku: row.sku } });
     const stock = totalStock(row);
-    const status = deriveStockStatus(row, stock, hasConflict);
+    const { price: resolved, isConfirmed: priceConfirmed } = resolvedPrice(row);
+    let status = deriveStockStatus(row, stock, hasConflict);
+    if (status !== "NEEDS_REVIEW" && !priceConfirmed) status = "NEEDS_REVIEW";
     const finalStatus = status === "IN_STOCK" && stock <= threshold ? "LOW_STOCK" : status;
 
     const changes = diffAgainstExisting(
@@ -118,7 +128,7 @@ export async function applyRowsForSource(
       model: row.model,
       brandId,
       categoryId,
-      price: row.retailPrice ?? existing?.price ?? 0,
+      price: resolved ?? existing?.price ?? 0,
       minSalePrice: row.minSalePrice,
       supplierCost: row.internalCost,
       warrantyMonths: existing?.warrantyMonths ?? 12,
@@ -136,7 +146,7 @@ export async function applyRowsForSource(
       sourceRowRef: row.rowIndex,
       lastExcelSyncAt: new Date(),
       missingFromSourceSince: null,
-      isPublished: !hasConflict && finalStatus !== "NEEDS_REVIEW",
+      isPublished: !hasConflict && finalStatus !== "NEEDS_REVIEW" && priceConfirmed && resolved !== null,
     };
 
     let productId: string;
@@ -212,6 +222,36 @@ export async function applyRowsForSource(
     } else if (finalStatus === "LOW_STOCK") {
       await db.inventoryAlert.create({
         data: { type: "LOW_STOCK", severity: "INFO", productId, sourceId, syncRunId, sourceSku: row.sku, message: `${row.title}: נותרו ${stock} יחידות בלבד` },
+      });
+    }
+
+    if (!hasAnyStockData(row)) {
+      await db.inventoryAlert.create({
+        data: {
+          type: "UNMATCHED_ROW",
+          severity: "WARNING",
+          productId,
+          sourceId,
+          syncRunId,
+          sourceSku: row.sku,
+          message: `${row.title}: אין נתוני מלאי כלל במקור — לא פורסם, מצריך בדיקה`,
+        },
+      });
+    }
+    if (!priceConfirmed) {
+      await db.inventoryAlert.create({
+        data: {
+          type: "INVALID_PRICE",
+          severity: "WARNING",
+          productId,
+          sourceId,
+          syncRunId,
+          sourceSku: row.sku,
+          message:
+            resolved !== null
+              ? `${row.title}: אין מחיר אתר מאושר במקור — נעשה שימוש זמני במחיר מינימום (₪${resolved}), לא פורסם`
+              : `${row.title}: אין מחיר כלל במקור — לא פורסם`,
+        },
       });
     }
 

@@ -21,22 +21,52 @@ export type FieldChange = { changeType: InventoryChangeType; previousValue: unkn
 
 const MAJOR_STOCK_SWING = 20; // absolute unit delta considered "unexpected" for a MAJOR_STOCK_CHANGE alert
 
-export function totalStock(row: {
+type StockFields = {
   sellableStock: number | null;
   warehouseStock: number | null;
   showroomStock: number | null;
   supplierStock: number | null;
   bondedStock: number | null;
-}): number {
+};
+
+// A blank cell and a confirmed zero look identical in a spreadsheet — this
+// tells them apart. If literally none of the stock columns had a value for
+// this row, we don't actually know the stock, and asserting OUT_OF_STOCK
+// would be reporting information that was never given.
+export function hasAnyStockData(row: StockFields): boolean {
+  return (
+    row.sellableStock !== null ||
+    row.warehouseStock !== null ||
+    row.showroomStock !== null ||
+    row.supplierStock !== null ||
+    row.bondedStock !== null
+  );
+}
+
+export function totalStock(row: StockFields): number {
   if (row.sellableStock !== null) return Math.max(0, row.sellableStock);
   const sum =
     (row.warehouseStock ?? 0) + (row.showroomStock ?? 0) + (row.supplierStock ?? 0) + (row.bondedStock ?? 0);
   return Math.max(0, sum);
 }
 
+// Same idea as stock: a source row can leave the retail price column blank
+// while still giving a minimum price. Prefer the confirmed retail price;
+// fall back to the minimum only when there's nothing else, and let the
+// caller know it's a fallback (unconfirmed) so it isn't silently published.
+export function resolvedPrice(row: Pick<NormalizedProductRow, "retailPrice" | "minSalePrice">): {
+  price: number | null;
+  isConfirmed: boolean;
+} {
+  if (row.retailPrice !== null) return { price: row.retailPrice, isConfirmed: true };
+  if (row.minSalePrice !== null) return { price: row.minSalePrice, isConfirmed: false };
+  return { price: null, isConfirmed: false };
+}
+
 export function deriveStockStatus(row: NormalizedProductRow, stock: number, hasConflict: boolean): StockStatus {
   if (hasConflict) return "NEEDS_REVIEW";
   if (row.issues.some((i) => i.type === "MISSING_MODEL" || i.type === "INVALID_PRICE")) return "NEEDS_REVIEW";
+  if (!hasAnyStockData(row)) return "NEEDS_REVIEW";
   if (stock <= 0) {
     if ((row.supplierStock ?? 0) > 0 || (row.bondedStock ?? 0) > 0) return "SUPPLIER_STOCK";
     if ((row.showroomStock ?? 0) > 0) return "DISPLAY_ONLY";
