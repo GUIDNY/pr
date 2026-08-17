@@ -50,6 +50,29 @@ async function resolveCategoryId(slug: string | null): Promise<string | null> {
   return cat?.id ?? null;
 }
 
+type AlertInput = {
+  type: string;
+  severity: string;
+  productId?: string | null;
+  sourceId?: string | null;
+  syncRunId?: string | null;
+  sourceSku?: string | null;
+  message: string;
+};
+
+// A persisting issue (still no confirmed price, still out of stock, etc.)
+// would otherwise get a brand new alert row every single sync run forever
+// — resolve whatever unresolved alert of the same type already exists for
+// this product/source before creating the current one, so the alert list
+// reflects the current state, not sync history.
+async function upsertAlert(input: AlertInput) {
+  const where = input.productId
+    ? { type: input.type, productId: input.productId, isResolved: false }
+    : { type: input.type, sourceId: input.sourceId ?? undefined, productId: null, isResolved: false };
+  await db.inventoryAlert.updateMany({ where, data: { isResolved: true, resolvedAt: new Date() } });
+  await db.inventoryAlert.create({ data: input });
+}
+
 type ApplyResult = {
   productsAdded: number;
   productsUpdated: number;
@@ -79,15 +102,13 @@ export async function applyRowsForSource(
 
     const categoryId = await resolveCategoryId(row.categorySlug);
     if (!categoryId) {
-      await db.inventoryAlert.create({
-        data: {
-          type: "UNMATCHED_ROW",
-          severity: "WARNING",
-          sourceId,
-          syncRunId,
-          sourceSku: row.sku,
-          message: `לא נמצאה קטגוריה מתאימה לגיליון "${row.sheetName}"`,
-        },
+      await upsertAlert({
+        type: "UNMATCHED_ROW",
+        severity: "WARNING",
+        sourceId,
+        syncRunId,
+        sourceSku: row.sku,
+        message: `לא נמצאה קטגוריה מתאימה לגיליון "${row.sheetName}"`,
       });
       continue;
     }
@@ -170,6 +191,12 @@ export async function applyRowsForSource(
       await db.product.update({ where: { id: existing.id }, data });
       productId = existing.id;
       result.productsUpdated++;
+      if (existing.missingFromSourceSince) {
+        await db.inventoryAlert.updateMany({
+          where: { type: "MISSING_FROM_SOURCE", productId, isResolved: false },
+          data: { isResolved: true, resolvedAt: new Date() },
+        });
+      }
     } else {
       const created = await db.product.create({
         data: { ...data, slug: slugFor(row), shortDescription: row.color ? `צבע: ${row.color}` : null },
@@ -217,57 +244,47 @@ export async function applyRowsForSource(
         typeof change.newValue === "number" &&
         isMajorStockChange(change.previousValue, change.newValue)
       ) {
-        await db.inventoryAlert.create({
-          data: {
-            type: "MAJOR_STOCK_CHANGE",
-            severity: "WARNING",
-            productId,
-            sourceId,
-            syncRunId,
-            sourceSku: row.sku,
-            message: `שינוי מלאי חריג ב-${row.title}: ${change.previousValue} → ${change.newValue}`,
-          },
+        await upsertAlert({
+          type: "MAJOR_STOCK_CHANGE",
+          severity: "WARNING",
+          productId,
+          sourceId,
+          syncRunId,
+          sourceSku: row.sku,
+          message: `שינוי מלאי חריג ב-${row.title}: ${change.previousValue} → ${change.newValue}`,
         });
       }
     }
 
     if (finalStatus === "OUT_OF_STOCK") {
-      await db.inventoryAlert.create({
-        data: { type: "OUT_OF_STOCK", severity: "INFO", productId, sourceId, syncRunId, sourceSku: row.sku, message: `${row.title} אזל מהמלאי` },
-      });
+      await upsertAlert({ type: "OUT_OF_STOCK", severity: "INFO", productId, sourceId, syncRunId, sourceSku: row.sku, message: `${row.title} אזל מהמלאי` });
     } else if (finalStatus === "LOW_STOCK") {
-      await db.inventoryAlert.create({
-        data: { type: "LOW_STOCK", severity: "INFO", productId, sourceId, syncRunId, sourceSku: row.sku, message: `${row.title}: נותרו ${stock} יחידות בלבד` },
-      });
+      await upsertAlert({ type: "LOW_STOCK", severity: "INFO", productId, sourceId, syncRunId, sourceSku: row.sku, message: `${row.title}: נותרו ${stock} יחידות בלבד` });
     }
 
     if (!hasAnyStockData(row)) {
-      await db.inventoryAlert.create({
-        data: {
-          type: "UNMATCHED_ROW",
-          severity: "WARNING",
-          productId,
-          sourceId,
-          syncRunId,
-          sourceSku: row.sku,
-          message: `${row.title}: אין נתוני מלאי כלל במקור — לא פורסם, מצריך בדיקה`,
-        },
+      await upsertAlert({
+        type: "UNMATCHED_ROW",
+        severity: "WARNING",
+        productId,
+        sourceId,
+        syncRunId,
+        sourceSku: row.sku,
+        message: `${row.title}: אין נתוני מלאי כלל במקור — לא פורסם, מצריך בדיקה`,
       });
     }
     if (!priceConfirmed) {
-      await db.inventoryAlert.create({
-        data: {
-          type: "INVALID_PRICE",
-          severity: "WARNING",
-          productId,
-          sourceId,
-          syncRunId,
-          sourceSku: row.sku,
-          message:
-            resolved !== null
-              ? `${row.title}: אין מחיר אתר מאושר במקור — נעשה שימוש זמני במחיר מינימום (₪${resolved}), לא פורסם`
-              : `${row.title}: אין מחיר כלל במקור — לא פורסם`,
-        },
+      await upsertAlert({
+        type: "INVALID_PRICE",
+        severity: "WARNING",
+        productId,
+        sourceId,
+        syncRunId,
+        sourceSku: row.sku,
+        message:
+          resolved !== null
+            ? `${row.title}: אין מחיר אתר מאושר במקור — נעשה שימוש זמני במחיר מינימום (₪${resolved}), לא פורסם`
+            : `${row.title}: אין מחיר כלל במקור — לא פורסם`,
       });
     }
 
@@ -280,30 +297,26 @@ export async function applyRowsForSource(
         DUPLICATE_MODEL: "DUPLICATE_MODEL",
         UNMATCHED_ROW: "UNMATCHED_ROW",
       } as const;
-      await db.inventoryAlert.create({
-        data: {
-          type: typeMap[issue.type],
-          severity: issue.type === "INVALID_PRICE" || issue.type === "NEGATIVE_STOCK" ? "CRITICAL" : "WARNING",
-          productId,
-          sourceId,
-          syncRunId,
-          sourceSku: row.sku,
-          message: issue.message,
-        },
+      await upsertAlert({
+        type: typeMap[issue.type],
+        severity: issue.type === "INVALID_PRICE" || issue.type === "NEGATIVE_STOCK" ? "CRITICAL" : "WARNING",
+        productId,
+        sourceId,
+        syncRunId,
+        sourceSku: row.sku,
+        message: issue.message,
       });
     }
 
     if (hasConflict) {
-      await db.inventoryAlert.create({
-        data: {
-          type: "SOURCE_CONFLICT",
-          severity: "CRITICAL",
-          productId,
-          sourceId,
-          syncRunId,
-          sourceSku: row.sku,
-          message: `מק"ט ${row.sku} מופיע ביותר ממקור פעיל אחד`,
-        },
+      await upsertAlert({
+        type: "SOURCE_CONFLICT",
+        severity: "CRITICAL",
+        productId,
+        sourceId,
+        syncRunId,
+        sourceSku: row.sku,
+        message: `מק"ט ${row.sku} מופיע ביותר ממקור פעיל אחד`,
       });
     }
   }
@@ -334,16 +347,14 @@ export async function markMissingProducts(sourceId: string, seenSkus: Set<string
         newValue: null,
       },
     });
-    await db.inventoryAlert.create({
-      data: {
-        type: "MISSING_FROM_SOURCE",
-        severity: "WARNING",
-        productId: p.id,
-        sourceId,
-        syncRunId,
-        sourceSku: p.sku,
-        message: `${p.title} נעלם מקובץ המקור — סומן לבדיקה, לא נמחק`,
-      },
+    await upsertAlert({
+      type: "MISSING_FROM_SOURCE",
+      severity: "WARNING",
+      productId: p.id,
+      sourceId,
+      syncRunId,
+      sourceSku: p.sku,
+      message: `${p.title} נעלם מקובץ המקור — סומן לבדיקה, לא נמחק`,
     });
   }
   return missing.length;
@@ -356,14 +367,12 @@ export async function recordUnknownColumnAlerts(
 ) {
   for (const s of sheetsWithUnknowns) {
     if (s.unknownLabels.length === 0) continue;
-    await db.inventoryAlert.create({
-      data: {
-        type: "UNKNOWN_COLUMN",
-        severity: "INFO",
-        sourceId,
-        syncRunId,
-        message: `גיליון "${s.sheetName}": עמודות לא מזוהות — ${s.unknownLabels.join(", ")}`,
-      },
+    await upsertAlert({
+      type: "UNKNOWN_COLUMN",
+      severity: "INFO",
+      sourceId,
+      syncRunId,
+      message: `גיליון "${s.sheetName}": עמודות לא מזוהות — ${s.unknownLabels.join(", ")}`,
     });
   }
 }
@@ -432,14 +441,12 @@ export async function runFullSync(trigger: SyncTrigger, triggeredById?: string) 
         sheets = workbook.sheets;
       }
     } catch (err) {
-      await db.inventoryAlert.create({
-        data: {
-          type: "UNMATCHED_ROW",
-          severity: "CRITICAL",
-          sourceId: source.id,
-          syncRunId: syncRun.id,
-          message: `נכשל בטעינת המקור: ${err instanceof Error ? err.message : String(err)}`,
-        },
+      await upsertAlert({
+        type: "UNMATCHED_ROW",
+        severity: "CRITICAL",
+        sourceId: source.id,
+        syncRunId: syncRun.id,
+        message: `נכשל בטעינת המקור: ${err instanceof Error ? err.message : String(err)}`,
       });
       continue;
     }
