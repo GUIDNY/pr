@@ -74,7 +74,7 @@ export async function applyRowsForSource(
   };
 
   for (const row of rows) {
-    result.seenSkus.add(row.sku);
+    result.seenSkus.add(row.sku); // safety net for the early-exit path below
     const hasConflict = conflictSkus.has(row.sku);
 
     const categoryId = await resolveCategoryId(row.categorySlug);
@@ -92,7 +92,16 @@ export async function applyRowsForSource(
       continue;
     }
 
-    const existing = await db.product.findUnique({ where: { sku: row.sku } });
+    // Prefer matching by physical position in the source (sourceId + sheet +
+    // row) over the SKU when the row's SKU is synthetic — a header cell
+    // typo/edit or a one-off parse hiccup can make a real SKU column drop
+    // out on a single sync, and matching by SKU alone would then create a
+    // duplicate product instead of updating the one that's actually there.
+    const existing = row.skuIsSynthetic
+      ? (await db.product.findFirst({
+          where: { sourceId, sourceSheet: row.sheetName, sourceRowRef: row.rowIndex },
+        })) ?? (await db.product.findUnique({ where: { sku: row.sku } }))
+      : await db.product.findUnique({ where: { sku: row.sku } });
     const stock = totalStock(row);
     const { price: resolved, isConfirmed: priceConfirmed } = resolvedPrice(row);
     let status = deriveStockStatus(row, stock, hasConflict);
@@ -122,8 +131,15 @@ export async function applyRowsForSource(
 
     const brandId = await resolveBrandId(row.brandName);
 
+    // Never let a synthetic fallback SKU clobber a real one already on
+    // record for this exact source position — e.g. from the header-typo
+    // scenario above, where the row-position match finds a product with a
+    // real SKU but this pass only produced a synthetic one for it.
+    const sku = row.skuIsSynthetic && existing && !existing.sku.startsWith("NOSKU-") ? existing.sku : row.sku;
+    result.seenSkus.add(sku);
+
     const data = {
-      sku: row.sku,
+      sku,
       title: row.title,
       model: row.model,
       brandId,
