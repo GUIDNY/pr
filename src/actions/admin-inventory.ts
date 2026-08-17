@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
@@ -30,7 +29,6 @@ export async function uploadInventorySourceAction(formData: FormData) {
   if (!known) return { success: false, error: "מקור לא מוכר" };
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const fileHash = createHash("sha256").update(bytes).digest("hex");
   // Storage object keys must be ASCII — real (often Hebrew) filenames are
   // kept in the DB `filename` column for display instead.
   const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : ".xlsx";
@@ -46,12 +44,16 @@ export async function uploadInventorySourceAction(formData: FormData) {
     return { success: false, error: err instanceof Error ? err.message : "העלאה נכשלה" };
   }
 
+  // fileHash is intentionally left untouched here (not set to the just-
+  // uploaded content's hash) — runFullSync compares the fetched content's
+  // hash against the stored one to decide whether to skip a scan. Setting
+  // it here would make the very next sync see "unchanged" and skip
+  // importing this file's rows entirely.
   await db.inventorySource.upsert({
     where: { key },
     update: {
       filename: file.name,
       storagePath,
-      fileHash,
       fileSizeBytes: bytes.length,
       isActive: true,
       uploadedById: session.sub,
@@ -61,7 +63,6 @@ export async function uploadInventorySourceAction(formData: FormData) {
       key,
       filename: file.name,
       storagePath,
-      fileHash,
       fileSizeBytes: bytes.length,
       isActive: true,
       uploadedById: session.sub,
@@ -91,9 +92,10 @@ export async function addGoogleSheetSourceAction(formData: FormData) {
     return { success: false, error: err instanceof Error ? err.message : "נכשל בטעינת הגליון" };
   }
 
-  const fileHash = createHash("sha256").update(csv).digest("hex");
   const key = `gsheet-${spreadsheetId}-${gid}`;
 
+  // fileHash left unset here for the same reason as the Excel upload above
+  // — runFullSync needs to see it as "changed" on the next sync.
   await db.inventorySource.upsert({
     where: { key },
     update: {
@@ -101,7 +103,6 @@ export async function addGoogleSheetSourceAction(formData: FormData) {
       sheetUrl: url,
       sheetGid: gid,
       categorySlugOverride: categorySlug,
-      fileHash,
       fileSizeBytes: csv.length,
       isActive: true,
       uploadedById: session.sub,
@@ -114,7 +115,6 @@ export async function addGoogleSheetSourceAction(formData: FormData) {
       sheetUrl: url,
       sheetGid: gid,
       categorySlugOverride: categorySlug,
-      fileHash,
       fileSizeBytes: csv.length,
       isActive: true,
       uploadedById: session.sub,
