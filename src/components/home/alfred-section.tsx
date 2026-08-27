@@ -97,10 +97,13 @@ export function AlfredSection({
           </div>
 
           {/* The three trust badges that used to sit under Hero's CTA
-              buttons — always centered ("באמצע") regardless of how the
-              text above aligns at lg:, so they read as one clear row in
-              the middle of the square. */}
-          <div className="mt-1 flex w-full flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm">
+              buttons — centered under the search bar, which means matching
+              its `max-w-xl` container and centering inside that. Without
+              the cap they stretch the full column while the search bar
+              stops at max-w-xl, so at lg: (where the column switches to
+              items-start) the row reads as visibly off-centre against the
+              bar it belongs to. */}
+          <div className="mt-1 flex w-full max-w-xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm">
             <span className="flex items-center gap-2">
               <Truck className="text-brand size-4" /> משלוח עד הבית
             </span>
