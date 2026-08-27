@@ -37,13 +37,14 @@ export async function Header() {
         </div>
       </div>
 
-      {/* Grid only below sm: (three tracks so the logo can sit truly
-          centered regardless of how wide the hamburger/icons columns end up
-          being) — sm: switches back to the exact flex row this always was,
-          so desktop's layout/order is untouched. The hidden search-bar
-          wrapper takes no grid track since `hidden` elements don't
-          participate in grid placement. */}
-      <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2 sm:flex sm:py-3">
+      {/* Mobile is a three-track grid so the logo sits dead centre of the
+          header. The side tracks are 1fr each rather than auto: with auto they
+          size to their own content, and since the menu button (one control) is
+          narrower than the icon cluster (two), the middle track was pushed off
+          centre and took the logo 24px with it. Equal side tracks leave the
+          middle one centred whatever they hold. sm: reverts to the flex row
+          this always was, so desktop is untouched. */}
+      <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-2 sm:flex sm:py-3">
         <MobileNav departments={departments} />
 
         {/* The tile alone — it already contains the wordmark, so setting
