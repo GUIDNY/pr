@@ -37,6 +37,15 @@ function buildPersona(settings: {
   if (settings.serviceHours) lines.push(`שעות שירות: ${settings.serviceHours}`);
   if (settings.additionalNotes) lines.push(`מידע נוסף חשוב: ${settings.additionalNotes}`);
   lines.push(`אם שואלים על הזמנה אישית ספציפית (סטטוס, זיכוי וכו') — מסבירים שאין גישה לזה כרגע ומפנים ליצירת קשר עם הצוות.`);
+  // A single message often carries two questions ("איזה תנור מתאים? ומה זמן
+  // המשלוח?"). The model reliably answered the first and dropped the second,
+  // which reads as not listening.
+  lines.push(`אם ההודעה כוללת יותר משאלה אחת — עונים על כל אחת מהן, ולא רק על הראשונה.`);
+  // The retrieved products are a search result, not a shortlist: the search
+  // is deliberately forgiving (see searchProducts) so a product can come back
+  // on one loose word match. Recommending one that misses a stated budget or
+  // product type is worse than saying nothing came up.
+  lines.push(`אם הלקוח ציין תקציב או סוג מוצר — ממליצים רק על מוצרים מההקשר שעומדים בו. מוצר שלא מתאים לבקשה לא מוזכר בכלל, גם אם הוא מופיע בהקשר.`);
   return lines.join("\n");
 }
 
@@ -82,12 +91,18 @@ export async function POST(request: Request) {
   // *before* they ever reach searchProducts (not just gating on whether one
   // exists) fixes this — confirmed by hand: the raw message here 5-matched
   // wall-mount arms via "מה", the filtered one correctly matches nothing.
-  const { text: searchText } = parseShoppingQuery(message);
+  //
+  // maxPrice is kept, not discarded. parseShoppingQuery both reads the budget
+  // out of "תנור בנוי עד 3,000 ₪" and strips that phrase from the text, so the
+  // string handed to searchProducts no longer contains it — the ceiling has to
+  // travel separately or it is lost, which is exactly what was happening when
+  // a 3,000₪ question came back with a 3,790₪ oven attached.
+  const { text: searchText, maxPrice } = parseShoppingQuery(message);
   const substantiveWords = splitSearchWords(searchText)
     .map((w) => w.replace(/[?!.,]/g, ""))
     .filter((w) => w.length >= 3);
   const [products, settings, pinnedRows] = await Promise.all([
-    substantiveWords.length > 0 ? searchProducts(substantiveWords.join(" "), 5) : Promise.resolve([]),
+    substantiveWords.length > 0 ? searchProducts(substantiveWords.join(" "), 5, maxPrice) : Promise.resolve([]),
     getChatbotSettings(),
     pinnedIds.length > 0
       ? db.product.findMany({

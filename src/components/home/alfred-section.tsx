@@ -51,7 +51,7 @@ export function AlfredSection({
             (moved down from Hero) sitting right below him. */}
         <div className="mx-auto flex flex-col items-center gap-4">
           <Image
-            src="/mascot/alfred.png"
+            src="/mascot/alfred-512.webp"
             alt="אלפרד, העוזר החכם של AiEC"
             width={280}
             height={280}
@@ -128,7 +128,7 @@ export function AlfredSection({
           "hero" branch) — no duplicate search logic here. */}
       <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-2.5 px-4 py-6 text-center sm:hidden">
         <Image
-          src="/mascot/alfred.png"
+          src="/mascot/alfred-512.webp"
           alt="אלפרד, העוזר החכם של A&I Electronics"
           width={280}
           height={280}

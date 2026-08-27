@@ -37,6 +37,18 @@ export function AlfredChatWidget() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, open, isSending]);
 
+  // Escape closes it. Full-screen on a phone, the close button is the only
+  // way out of the panel otherwise, and on a keyboard Escape is where anyone
+  // reaches first for a thing that opened over the page.
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
   async function send() {
     const text = input.trim();
     if (!text || isSending) return;
@@ -75,17 +87,30 @@ export function AlfredChatWidget() {
           isHome && "max-sm:hidden"
         )}
       >
-        <Image src="/mascot/alfred-chat.png" alt="" width={56} height={56} className="size-full rounded-full object-cover" />
+        <Image src="/mascot/alfred-512.webp" alt="" width={56} height={56} className="size-full rounded-full object-cover object-top" />
       </button>
 
       <div
         className={cn(
-          "border-border bg-background fixed bottom-24 start-4 z-50 flex h-[min(32rem,70vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 lg:bottom-6",
-          open ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
+          // Full screen on a phone. At 374px the floating panel left the
+          // footer and the page behind it showing through around its edges,
+          // so a conversation competed with the site it was about — and the
+          // panel's own input sat inches above a keyboard with the page
+          // still scrolling behind it. Above sm it stays the same floating
+          // card it always was.
+          "border-border bg-background fixed z-50 flex flex-col overflow-hidden border shadow-2xl transition-all duration-200",
+          "inset-0 h-full w-full rounded-none",
+          "sm:inset-auto sm:bottom-24 sm:start-4 sm:h-[min(32rem,70vh)] sm:w-[min(23rem,calc(100vw-2rem))] sm:rounded-2xl lg:bottom-6",
+          // `invisible` as well as opacity-0: a transparent panel is still in
+          // the accessibility tree and its input is still tab-reachable, so a
+          // keyboard user tabbing through the page fell into a chat that
+          // isn't on screen. Now full-screen on mobile, that was the whole
+          // viewport's worth of hidden controls.
+          open ? "visible translate-y-0 opacity-100" : "pointer-events-none invisible translate-y-3 opacity-0"
         )}
       >
         <div className="bg-primary text-primary-foreground flex items-center gap-3 px-4 py-3">
-          <Image src="/mascot/alfred-chat.png" alt="" width={36} height={36} className="size-9 rounded-full object-cover" />
+          <Image src="/mascot/alfred-512.webp" alt="" width={36} height={36} className="size-9 rounded-full object-cover object-top" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold">אלפרד</p>
             <p className="text-primary-foreground/70 text-xs">שירות לקוחות A&amp;I Electronics</p>

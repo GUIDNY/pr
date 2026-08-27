@@ -76,6 +76,15 @@ export function FinderWizard({ config }: { config: FinderConfig }) {
                     {product.reasons.map((r, i) => (
                       <li key={i}>• {r}</li>
                     ))}
+                    {/* What this one does not do. A recommendation that lists
+                        only its good points is a sales pitch; naming the
+                        preference it misses — or the spec nobody has filled
+                        in yet — is what makes the rest of the list credible. */}
+                    {product.caveats.map((c, i) => (
+                      <li key={`caveat-${i}`} className="text-warning-foreground">
+                        • {c}
+                      </li>
+                    ))}
                   </ul>
                 </div>
               </div>

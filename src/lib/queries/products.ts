@@ -287,14 +287,51 @@ export async function getProductsByBrandSlug(
   return { products: rows.map(mapProductToCard), total, brand };
 }
 
-export async function searchProducts(query: string, take = 8) {
+// How well one product answers a multi-word query. The `where` above is an
+// OR across every word and every field, which is the right call for recall on
+// a catalog whose titles are half model numbers — but it means a product
+// matching one word out of four sits in the same result set as one matching
+// all four, and with no ordering at all the database was free to hand back
+// the weakest match first. That is how "תנור בנוי עד 3000 ₪" led with a water
+// bar: it was simply the first row that matched anything.
+//
+// A category-name hit counts double: it says the product is the right *kind*
+// of thing, which is what a shopper naming a product type is asking for, and
+// it is the one signal that separates an oven from something merely described
+// with the word "oven" in it.
+function searchRelevance(
+  product: { title: string; model: string | null; sku: string; brand: { name: string }; category: { name: string } },
+  words: string[],
+): number {
+  const identity = [product.title, product.model, product.sku, product.brand.name].join(" ").toLowerCase();
+  const categoryName = product.category.name.toLowerCase();
+  let score = 0;
+  for (const word of words) {
+    const w = word.toLowerCase();
+    if (categoryName.includes(w)) score += 2;
+    if (identity.includes(w)) score += 1;
+  }
+  return score;
+}
+
+export async function searchProducts(
+  query: string,
+  take = 8,
+  // A caller that has already read a price ceiling out of the raw message
+  // passes it here. The chat endpoint strips the "עד 3000 ₪" phrase from the
+  // text before searching, so by the time the string arrives the ceiling is
+  // gone from it — it used to be silently dropped, and Alfred answered a
+  // 3,000₪ budget with a 3,790₪ oven.
+  maxPriceOverride?: number | null,
+) {
   if (!query.trim()) return [];
-  const { text, maxPrice } = parseShoppingQuery(query);
+  const { text, maxPrice: parsedMaxPrice } = parseShoppingQuery(query);
+  const maxPrice = maxPriceOverride ?? parsedMaxPrice;
   const words = splitSearchWords(text);
   const rows = await db.product.findMany({
     where: {
       ...PUBLIC_PRODUCT_WHERE,
-      ...(maxPrice !== null ? { price: { lte: maxPrice } } : {}),
+      ...(maxPrice !== null && maxPrice !== undefined ? { price: { lte: maxPrice } } : {}),
       ...(words.length > 0
         ? {
             OR: words.flatMap((w) => [
@@ -308,7 +345,15 @@ export async function searchProducts(query: string, take = 8) {
         : {}),
     },
     include: cardInclude,
-    take,
+    // Over-fetch so there is something to rank. Ranking the first `take` rows
+    // the database happened to return would just be sorting an arbitrary
+    // sample of the matches.
+    take: Math.min(take * 6, 200),
   });
-  return rows.map(mapProductToCard);
+
+  return rows
+    .map((row) => ({ row, relevance: searchRelevance(row, words) }))
+    .sort((a, b) => b.relevance - a.relevance || b.row.ratingAvg - a.row.ratingAvg)
+    .slice(0, take)
+    .map(({ row }) => mapProductToCard(row));
 }

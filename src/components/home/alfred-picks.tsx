@@ -71,7 +71,7 @@ export function AlfredPicks({ products }: { products: ProductCardData[] }) {
     <div className="border-primary-foreground/15 bg-primary-foreground/5 flex flex-col gap-3 rounded-2xl border p-4 backdrop-blur-sm">
       <div className="flex items-center gap-2 text-sm">
         <Image
-          src="/mascot/alfred.png"
+          src="/mascot/alfred-512.webp"
           alt=""
           width={24}
           height={24}

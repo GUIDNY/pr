@@ -128,7 +128,7 @@ export function SearchBar({
             {showIntro && (
               <div className="mb-2.5 flex items-center justify-center gap-2 text-sm">
                 <Image
-                  src="/mascot/alfred.png"
+                  src="/mascot/alfred-512.webp"
                   alt="אלפרד"
                   width={28}
                   height={28}
