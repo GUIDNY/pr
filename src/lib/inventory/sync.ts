@@ -742,7 +742,7 @@ export async function reconcileUrgentMissingMedia() {
       sourceId: p.sourceId,
       syncRunId: null,
       sourceSku: p.sku,
-      message: `${p.title}: אין תמונה ואין מפרט טכני — הוסר מהתצוגה באתר עד שיתווסף לפחות אחד מהשניים`,
+      message: `${p.title}: אין תמונה ואין מפרט טכני — לא מוצג באתר עד שתתווסף תמונה`,
     });
   }
 
@@ -776,15 +776,16 @@ export async function reconcileUrgentMissingMedia() {
 }
 
 // The other half of the missing-media picture. reconcileUrgentMissingMedia
-// above only catches a product with *neither* a photo nor a spec, because
-// that's the pair that makes a product unshowable — and it hides the
-// product as a result. A product that has a spec but no photo stays on the
-// site (the card falls back to a category placeholder tile), so nothing
-// ever flagged it, and hundreds of them sat in the catalog unnoticed.
+// above only catches a product with *neither* a photo nor a spec, and it
+// flips isPublished as well. A product that has a spec but no photo keeps
+// isPublished true, so nothing ever flagged it — and hundreds of them sat
+// in the catalog unnoticed.
 //
-// This raises a non-critical alert for exactly that case: in stock, no
-// image, but enough spec content to stay published. It never touches
-// isPublished — the product is findable and buyable, it just needs a photo.
+// Since PUBLIC_PRODUCT_WHERE started requiring images.some, those products
+// are off the site too: the store does not show a product it has no
+// photograph of. They are not hidden by a flag, they simply fail the query
+// gate, which is why this only raises an alert and never touches
+// isPublished — that flag still means "someone deliberately hid this".
 // Together the two reconcilers cover every in-stock product with no image,
 // with no product appearing in both lists.
 export async function reconcileMissingImage() {
@@ -812,7 +813,7 @@ export async function reconcileMissingImage() {
       sourceId: p.sourceId,
       syncRunId: null,
       sourceSku: p.sku,
-      message: `${p.title}: אין תמונה — המוצר מוצג באתר עם אריח חלופי עד שתתווסף תמונה`,
+      message: `${p.title}: אין תמונה — לא מוצג באתר עד שתתווסף תמונה`,
     });
     flagged++;
   }

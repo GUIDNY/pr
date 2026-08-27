@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { searchProducts } from "@/lib/queries/products";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 import { getChatbotSettings } from "@/lib/queries/chatbot-settings";
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
     getChatbotSettings(),
     pinnedIds.length > 0
       ? db.product.findMany({
-          where: { id: { in: pinnedIds }, isPublished: true, stockQty: { gt: 0 } },
+          where: { id: { in: pinnedIds }, ...PUBLIC_PRODUCT_WHERE },
           select: {
             id: true,
             title: true,

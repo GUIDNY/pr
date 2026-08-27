@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 
 export type NavigableCategory = { slug: string; name: string };
 export type NavigableDepartment = NavigableCategory & { children: NavigableCategory[] };
@@ -19,7 +20,7 @@ export async function getNavigableCategoryTree(): Promise<NavigableDepartment[]>
       name: true,
       sortOrder: true,
       children: {
-        where: { products: { some: { isPublished: true, stockQty: { gt: 0 } } } },
+        where: { products: { some: PUBLIC_PRODUCT_WHERE } },
         select: { slug: true, name: true },
         orderBy: { name: "asc" },
       },
@@ -102,7 +103,7 @@ export async function getCategoryTilesWithImages(): Promise<CategoryTile[]> {
       slug: true,
       name: true,
       sortOrder: true,
-      _count: { select: { products: { where: { isPublished: true, stockQty: { gt: 0 } } } } },
+      _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } },
     },
     orderBy: { sortOrder: "asc" },
   });
@@ -114,7 +115,7 @@ export async function getCategoryTilesWithImages(): Promise<CategoryTile[]> {
         return { slug: c.slug, name: c.name, imageUrl: CATEGORY_IMAGE_OVERRIDES[c.name] };
       }
       const product = await db.product.findFirst({
-        where: { categoryId: c.id, isPublished: true, stockQty: { gt: 0 } },
+        where: { categoryId: c.id, ...PUBLIC_PRODUCT_WHERE },
         orderBy: [{ isBestSeller: "desc" }, { ratingCount: "desc" }],
         select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
       });

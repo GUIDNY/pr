@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { mapProductToCard } from "@/lib/queries/products";
 import { FINDER_CATEGORIES } from "@/lib/finder-config";
 
@@ -41,7 +42,7 @@ export async function findProductsAction(categorySlug: string, answers: Record<s
 
   const products = await db.product.findMany({
     where: {
-      isPublished: true,
+      ...PUBLIC_PRODUCT_WHERE,
       categoryId: { in: categoryIds },
       stockStatus: { in: ["IN_STOCK", "LOW_STOCK"] },
       price: { gte: minPrice, lte: maxPrice },

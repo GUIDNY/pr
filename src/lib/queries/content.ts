@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 
 export async function getHomepageSection(key: string) {
   const row = await db.homepageSection.findUnique({ where: { key } });
@@ -19,7 +20,7 @@ export async function getActiveBrands() {
 export async function getFeaturedBrands(take = 4) {
   const brands = await db.brand.findMany({
     where: { isActive: true, logoUrl: { not: null } },
-    include: { _count: { select: { products: { where: { isPublished: true, stockQty: { gt: 0 } } } } } },
+    include: { _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } } },
   });
   return brands
     .sort((a, b) => b._count.products - a._count.products)

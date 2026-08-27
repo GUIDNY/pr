@@ -10,13 +10,29 @@ const cardInclude = {
   images: { take: 1, orderBy: { sortOrder: "asc" as const } },
 } as const;
 
-// Store policy: an out-of-stock product is not shown anywhere on the site
-// at all, not even with an "out of stock" badge — it's treated the same as
-// unpublished. Spread this into every customer-facing product query rather
-// than relying on isPublished alone, since that flag can go stale (e.g. a
-// product sells out after an admin published it) while this is always the
-// live truth.
-export const PUBLIC_PRODUCT_WHERE = { isPublished: true, stockQty: { gt: 0 } } as const;
+// Store policy, in one place. Spread this into every customer-facing
+// product query rather than re-deriving it, since isPublished on its own
+// goes stale (a product sells out after an admin published it) while these
+// conditions are always the live truth.
+//
+//  - stockQty > 0: an out-of-stock product is not shown anywhere at all,
+//    not even with an "out of stock" badge.
+//  - images.some: neither is a product with no photograph. The card and
+//    gallery both fall back to a generated placeholder tile, which is what
+//    a shopper was being shown for hundreds of products — a coloured square
+//    with a category icon standing in for the thing they were being asked
+//    to buy. A product with no picture of itself is not ready to be sold.
+//
+// Both are query-time gates rather than an isPublished flip on purpose: a
+// product returns to the site the moment it has stock and a photo, with no
+// sync run in between, and isPublished keeps meaning what it says — that a
+// person or the sync deliberately hid this — instead of being overloaded
+// with "and also it happens to be missing content right now".
+export const PUBLIC_PRODUCT_WHERE = {
+  isPublished: true,
+  stockQty: { gt: 0 },
+  images: { some: {} },
+} as const;
 
 type ProductWithRelations = {
   id: string;

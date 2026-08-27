@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 
 export type SearchResult = {
@@ -23,8 +24,7 @@ export async function searchProductsAction(query: string): Promise<SearchResult[
 
   const rows = await db.product.findMany({
     where: {
-      isPublished: true,
-      stockQty: { gt: 0 },
+      ...PUBLIC_PRODUCT_WHERE,
       ...(maxPrice !== null ? { price: { lte: maxPrice } } : {}),
       ...(words.length > 0
         ? {

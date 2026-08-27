@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { getOrCreateCart } from "@/lib/cart";
 import { buildCartSummary } from "@/lib/cart-summary";
 
@@ -11,8 +12,13 @@ async function currentSummary() {
 
 export async function addToCartAction(productId: string, quantity: number = 1) {
   const cart = await getOrCreateCart();
-  const product = await db.product.findUnique({ where: { id: productId } });
-  if (!product || !product.isPublished) throw new Error("מוצר לא נמצא");
+  // Same gate the listings use (PUBLIC_PRODUCT_WHERE): a product with no
+  // photograph is not on the site, so it cannot be added to a cart either —
+  // otherwise a stale product page left open in a tab is a way around it.
+  const product = await db.product.findFirst({
+    where: { id: productId, ...PUBLIC_PRODUCT_WHERE },
+  });
+  if (!product) throw new Error("מוצר לא נמצא");
   if (product.stockStatus === "OUT_OF_STOCK") throw new Error("המוצר אזל מהמלאי");
 
   const existing = cart.items.find((i) => i.productId === productId);

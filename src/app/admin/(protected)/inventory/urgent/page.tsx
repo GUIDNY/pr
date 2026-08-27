@@ -8,11 +8,12 @@ export const metadata = { title: "טיפול | A&I Electronics Admin" };
 
 // Three sources feed this list, and the difference between them is what
 // the admin needs to see first:
-//  - URGENT_MISSING_MEDIA — no photo and no spec; the site unpublished it
-//  - MISSING_IMAGE — no photo but a spec, so it is still live on a
-//    placeholder tile and still sellable; it just looks unfinished
+//  - URGENT_MISSING_MEDIA — no photo and no spec; also unpublished
+//  - MISSING_IMAGE — no photo, has a spec; still published, but off the
+//    site all the same since PUBLIC_PRODUCT_WHERE requires an image
 //  - MANUAL_ATTENTION — flagged by hand, a plain to-do marker
-// Only the first actually unpublishes anything.
+// Neither of the first two is on the site: a photo is what brings either
+// back. The split says how much is missing, not whether it is visible.
 const ROW_KIND = {
   URGENT_MISSING_MEDIA: { label: "אין תמונה ואין מפרט", tone: "bg-destructive/10 text-destructive" },
   MISSING_IMAGE: { label: "חסרה תמונה", tone: "bg-warning/15 text-warning-foreground" },
@@ -36,15 +37,16 @@ export default async function AttentionInventoryPage() {
         <span className="text-muted-foreground text-sm">({items.length.toLocaleString("he-IL")})</span>
       </div>
       <p className="text-muted-foreground mb-3 text-sm">
-        כל מוצר שנמצא במלאי וחסרה לו תמונה, בתוספת מוצרים שסומנו ידנית לטיפול מדף המוצר. מוצר שהוסר אוטומטית מהתצוגה
-        יחזור לבד ברגע שתוסיפו תמונה או מפרט; מוצר שסומן ידנית יורד מהרשימה רק כשתסירו את הסימון מדף המוצר.
+        כל מוצר שנמצא במלאי וחסרה לו תמונה, בתוספת מוצרים שסומנו ידנית לטיפול מדף המוצר. מוצר בלי תמונה לא מוצג
+        באתר — לא ברשימות, לא בחיפוש ולא בדף המוצר — ויחזור לתצוגה מיד כשתוסיפו לו תמונה. מוצר שסומן ידנית יורד
+        מהרשימה רק כשתסירו את הסימון מדף המוצר.
       </p>
       <div className="mb-5 flex flex-wrap gap-2 text-xs">
         <span className="bg-destructive/10 text-destructive rounded-full px-3 py-1 font-medium">
-          הוסרו מהאתר — אין תמונה ואין מפרט: {hidden.toLocaleString("he-IL")}
+          לא באתר — אין תמונה ואין מפרט: {hidden.toLocaleString("he-IL")}
         </span>
         <span className="bg-warning/15 text-warning-foreground rounded-full px-3 py-1 font-medium">
-          באתר עם אריח חלופי — חסרה תמונה: {photoless.toLocaleString("he-IL")}
+          לא באתר — חסרה תמונה בלבד: {photoless.toLocaleString("he-IL")}
         </span>
         <span className="bg-muted text-muted-foreground rounded-full px-3 py-1 font-medium">
           סומנו ידנית: {manual.toLocaleString("he-IL")}

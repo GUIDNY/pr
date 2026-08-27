@@ -42,7 +42,7 @@ import type { StockStatus } from "@/lib/enums";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
-  if (!product || !product.isPublished || product.stockQty <= 0) return {};
+  if (!product || !product.isPublished || product.stockQty <= 0 || product.images.length === 0) return {};
   return {
     title: product.title,
     description: product.shortDescription ?? product.description ?? undefined,
@@ -56,11 +56,15 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const session = await getSession();
   const isAdminViewer = session?.role === "ADMIN" || session?.role === "STAFF";
-  // A regular visitor still gets a 404 for anything unpublished — an admin
-  // needs to actually open the page to fix and republish it (that's the
-  // whole point of the inline editors below), so they're let through with
-  // an explicit "not live" notice instead.
-  if (!product.isPublished && !isAdminViewer) notFound();
+  // A regular visitor still gets a 404 for anything unpublished, and for
+  // anything with no photograph — the two conditions PUBLIC_PRODUCT_WHERE
+  // gates every listing on, enforced here too so a direct link or a stale
+  // Google result can't reach a page that no listing would show. An admin
+  // needs to actually open the page to fix it (that's the whole point of
+  // the inline editors below), so they're let through with an explicit
+  // "not live" notice instead.
+  const offSiteForVisitors = !product.isPublished || product.images.length === 0;
+  if (offSiteForVisitors && !isAdminViewer) notFound();
 
   const [related, favoriteIds, brandProductsResult] = await Promise.all([
     getRelatedProducts(product.categoryId, product.id, 4),
@@ -148,9 +152,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         </BreadcrumbList>
       </Breadcrumb>
 
-      {isAdminViewer && !product.isPublished && (
+      {isAdminViewer && offSiteForVisitors && (
         <div className="border-destructive/30 bg-destructive/10 text-destructive mt-4 rounded-xl border px-4 py-2.5 text-sm font-medium">
-          המוצר הזה לא מפורסם באתר כרגע ורק אתם רואים אותו — הוסיפו תמונה או מפרט טכני כדי שיחזור לתצוגה אוטומטית.
+          {!product.isPublished
+            ? "המוצר הזה לא מפורסם באתר כרגע ורק אתם רואים אותו — הוסיפו תמונה או מפרט טכני כדי שיחזור לתצוגה אוטומטית."
+            : "למוצר הזה אין תמונה, ולכן הוא לא מוצג באתר ורק אתם רואים אותו — הוסיפו תמונה והוא יחזור לתצוגה מיד."}
         </div>
       )}
 

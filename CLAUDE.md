@@ -45,12 +45,23 @@ The flip is effectively permanent, so a wrong category set now will not self-cor
 
 ## Product visibility
 
-`PUBLIC_PRODUCT_WHERE` in `src/lib/queries/products.ts` is `isPublished && stockQty > 0`.
-Store policy: an out-of-stock product is not shown at all, not even with a badge. The
-sync also unpublishes anything missing both an image and specs.
+`PUBLIC_PRODUCT_WHERE` in `src/lib/queries/products.ts` is
+`isPublished && stockQty > 0 && images.some`. Store policy: an out-of-stock product is
+not shown at all, not even with a badge — and neither is a product with no photograph
+of itself. Both are query-time gates, so a product returns to the site the moment it
+has stock and a photo, with no sync run in between.
 
-Consequence worth knowing before touching the catalog: a large share of unpublished
-products are unpublished for missing *content*, not because anyone hid them.
+Every customer-facing query must spread that constant rather than re-deriving the
+conditions. Search, the Finder, Alfred's pinned picks, compare, the cart's add
+handler, the category counts and the product page each used to hand-roll
+`isPublished: true, stockQty: { gt: 0 }`, which is exactly how a rule like this rots:
+one place gets updated and seven keep the old behaviour.
+
+The sync also unpublishes anything missing both an image and specs, and flags
+everything in stock with no image into the "טיפול" tab (`MISSING_IMAGE`).
+
+Consequence worth knowing before touching the catalog: a large share of invisible
+products are invisible for missing *content*, not because anyone hid them.
 
 ## Structured specs hang off leaf categories
 
