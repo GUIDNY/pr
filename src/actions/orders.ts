@@ -58,9 +58,18 @@ export async function createOrderAction(input: CheckoutInput) {
     data: {
       orderNumber,
       userId: session?.sub,
-      guestName: session ? undefined : data.fullName,
-      guestEmail: session ? undefined : data.email,
-      guestPhone: session ? undefined : data.phone,
+      // Recorded for every order, signed in or not. These used to be skipped
+      // whenever a session existed, on the assumption the account already held
+      // the same details — but the checkout form is where the customer says who
+      // this particular order is for, and that is not always themselves: a
+      // different phone for the courier, a delivery to a parent, an account
+      // whose profile has no phone at all. Dropping them left the order with no
+      // record of the contact it was placed under, which is exactly what order
+      // tracking asks for, so a signed-in order could never be looked up by the
+      // details its own confirmation page showed.
+      guestName: data.fullName,
+      guestEmail: data.email,
+      guestPhone: data.phone,
       addressId,
       deliveryMethod: data.deliveryMethod,
       status: orderStatus,
