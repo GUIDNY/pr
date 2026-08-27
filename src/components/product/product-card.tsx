@@ -3,10 +3,12 @@ import Image from "next/image";
 import { Star } from "lucide-react";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { PriceBlock } from "@/components/product/price-block";
-import { StockBadge } from "@/components/product/stock-badge";
+import { PublicStockBadge } from "@/components/product/stock-badge";
 import { FavoriteButton } from "@/components/product/favorite-button";
 import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import type { StockStatus } from "@/lib/enums";
+import { discountPercent } from "@/lib/format";
+import { displayBrandName } from "@/lib/brand-display";
 import { cn } from "@/lib/utils";
 
 export type ProductCardData = {
@@ -34,6 +36,7 @@ export function ProductCard({
   isFavorite?: boolean;
   className?: string;
 }) {
+  const brandName = displayBrandName(product.brandName);
   return (
     <div
       className={cn(
@@ -60,10 +63,13 @@ export function ProductCard({
               referrerPolicy="no-referrer"
             />
           ) : (
-            <ProductImagePlaceholder title={product.title} brand={product.brandName} icon={product.categoryIcon} />
+            <ProductImagePlaceholder title={product.title} brand={brandName ?? undefined} icon={product.categoryIcon} />
           )}
         </div>
-        {product.compareAtPrice && product.compareAtPrice > product.price && (
+        {/* Same threshold as the price block's percentage badge — a corner
+            flash saying "מבצע" over a rounding-error saving is the thing
+            that makes a customer stop believing the ones that are real. */}
+        {discountPercent(product.price, product.compareAtPrice) && (
           <span className="bg-brand text-brand-foreground absolute top-2 start-2 rounded px-2 py-0.5 text-xs font-bold">
             מבצע
           </span>
@@ -72,9 +78,11 @@ export function ProductCard({
       </Link>
 
       <div className="flex flex-1 flex-col gap-1.5 p-3">
-        <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
-          {product.brandName}
-        </span>
+        {brandName && (
+          <span className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            {brandName}
+          </span>
+        )}
         <Link href={`/product/${product.slug}`} className="line-clamp-2 text-sm font-medium hover:underline">
           {product.title}
         </Link>
@@ -96,7 +104,7 @@ export function ProductCard({
           />
         </div>
 
-        <StockBadge status={product.stockStatus} />
+        <PublicStockBadge status={product.stockStatus} />
 
         <AddToCartButton
           productId={product.id}

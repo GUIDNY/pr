@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
+import { isPlaceholderBrand } from "@/lib/brand-display";
+import { buildDisplayTitle } from "@/lib/product-title";
 
 const cardInclude = {
   brand: true,
@@ -38,6 +40,7 @@ type ProductWithRelations = {
   id: string;
   slug: string;
   title: string;
+  model: string | null;
   price: number;
   compareAtPrice: number | null;
   installmentMonths: number | null;
@@ -46,7 +49,7 @@ type ProductWithRelations = {
   ratingCount: number;
   deliveryDays: number;
   brand: { name: string };
-  category: { icon: string | null; parent: { icon: string | null } | null };
+  category: { name: string; icon: string | null; parent: { icon: string | null } | null };
   images: { url: string }[];
 };
 
@@ -54,7 +57,15 @@ export function mapProductToCard(p: ProductWithRelations): ProductCardData {
   return {
     id: p.id,
     slug: p.slug,
-    title: p.title,
+    // Composed here rather than read straight off the column — see
+    // lib/product-title.ts for why the sheets' own titles are unusable as
+    // product names on their own.
+    title: buildDisplayTitle({
+      title: p.title,
+      brandName: p.brand.name,
+      categoryName: p.category.name,
+      model: p.model,
+    }),
     brandName: p.brand.name,
     categoryIcon: p.category.parent?.icon ?? p.category.icon,
     imageUrl: p.images[0]?.url ?? null,
@@ -190,7 +201,10 @@ export async function getProductsByCategorySlug(
     products: rows.map(mapProductToCard),
     total,
     category,
-    brands: brandsInCategory,
+    // "לא ידוע" is a filing placeholder, not a manufacturer — offering it as
+    // a checkbox in the יצרן filter invites a customer to narrow a category
+    // down to "the ones we could not identify".
+    brands: brandsInCategory.filter((b) => !isPlaceholderBrand(b.name)),
     priceRange: { min: priceAgg._min.price ?? 0, max: priceAgg._max.price ?? 0 },
   };
 }

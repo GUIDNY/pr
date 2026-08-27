@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
+import { buildDisplayTitle } from "@/lib/product-title";
 
 export type SearchResult = {
   id: string;
@@ -49,7 +50,12 @@ export async function searchProductsAction(query: string): Promise<SearchResult[
   return rows.map((p) => ({
     id: p.id,
     slug: p.slug,
-    title: p.title,
+    title: buildDisplayTitle({
+      title: p.title,
+      brandName: p.brand.name,
+      categoryName: p.category.name,
+      model: p.model,
+    }),
     brandName: p.brand.name,
     categoryName: p.category.name,
     price: p.price,

@@ -8,10 +8,11 @@ import { useCompareStore } from "@/stores/compare-store";
 import { getProductsForCompareAction } from "@/actions/products";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { PriceBlock } from "@/components/product/price-block";
-import { StockBadge } from "@/components/product/stock-badge";
+import { PublicStockBadge } from "@/components/product/stock-badge";
 import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/format";
+import { displayBrandName } from "@/lib/brand-display";
 
 type CompareProduct = Awaited<ReturnType<typeof getProductsForCompareAction>>[number];
 
@@ -75,7 +76,9 @@ export default function ComparePage() {
                   <Link href={`/product/${p.slug}`} className="line-clamp-2 text-sm font-semibold hover:underline">
                     {p.title}
                   </Link>
-                  <p className="text-muted-foreground mt-0.5 text-xs">{p.brand.name}</p>
+                  {displayBrandName(p.brand.name) && (
+                    <p className="text-muted-foreground mt-0.5 text-xs">{displayBrandName(p.brand.name)}</p>
+                  )}
                 </th>
               ))}
             </tr>
@@ -101,7 +104,7 @@ export default function ComparePage() {
               <td className="text-muted-foreground p-3 text-sm font-medium">זמינות</td>
               {products.map((p) => (
                 <td key={p.id} className="border-border border p-3">
-                  <StockBadge status={p.stockStatus as never} />
+                  <PublicStockBadge status={p.stockStatus as never} />
                 </td>
               ))}
             </tr>

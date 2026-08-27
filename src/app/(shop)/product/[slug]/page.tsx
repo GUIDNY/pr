@@ -24,7 +24,9 @@ import { ProductKeyFactsStrip } from "@/components/product/product-key-facts-str
 import { ProductFeatureSections } from "@/components/product/product-feature-sections";
 import { ProductDimensions } from "@/components/product/product-dimensions";
 import { getProductKeyFacts, getProductDimensions } from "@/lib/product-key-facts";
-import { StockBadge } from "@/components/product/stock-badge";
+import { PublicStockBadge } from "@/components/product/stock-badge";
+import { displayBrandName } from "@/lib/brand-display";
+import { buildDisplayTitle } from "@/lib/product-title";
 import { CompareButton } from "@/components/product/compare-button";
 import { ProductReviewFlagButton } from "@/components/product/product-review-flag-button";
 import { PurchasePanel } from "@/components/product/purchase-panel";
@@ -44,7 +46,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const product = await getProductBySlug(slug);
   if (!product || !product.isPublished || product.stockQty <= 0 || product.images.length === 0) return {};
   return {
-    title: product.title,
+    title: buildDisplayTitle({
+      title: product.title,
+      brandName: product.brand.name,
+      categoryName: product.category.name,
+      model: product.model,
+    }),
     description: product.shortDescription ?? product.description ?? undefined,
   };
 }
@@ -90,7 +97,20 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   // rule about this one product; categories that don't end in ים are used
   // as-is rather than risk mangling an irregular plural.
   const categoryLabel = product.category.name.endsWith("ים") ? product.category.name.slice(0, -2) : product.category.name;
-  const shortHeadingText = [categoryLabel, product.brand.name, product.model].filter(Boolean).join(" ");
+  // Null whenever the brand is the importer's "unknown" placeholder, so
+  // every brand-shaped element on this page drops out together rather than
+  // announcing a manufacturer that does not exist.
+  const brandName = displayBrandName(product.brand.name);
+  // What a customer is shown wherever this product is named. The admin
+  // title editor below deliberately keeps editing the raw column instead,
+  // so an admin sees and corrects the stored value, not the derivation.
+  const displayTitle = buildDisplayTitle({
+    title: product.title,
+    brandName: product.brand.name,
+    categoryName: product.category.name,
+    model: product.model,
+  });
+  const shortHeadingText = [categoryLabel, brandName, product.model].filter(Boolean).join(" ");
 
   const { highlights: descriptionHighlights, prose: descriptionProse } = parseProductDescription(
     product.description ?? product.shortDescription ?? ""
@@ -147,7 +167,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage className="line-clamp-1">{product.title}</BreadcrumbPage>
+            <BreadcrumbPage className="line-clamp-1">{displayTitle}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -174,8 +194,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         <ProductGallery
           productId={product.id}
           images={galleryImages}
-          title={product.title}
-          brand={product.brand.name}
+          title={displayTitle}
+          brand={brandName ?? undefined}
           categoryIcon={categoryIcon}
           isFavorite={favoriteIds.includes(product.id)}
           isAdmin={isAdminViewer}
@@ -185,13 +205,15 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         {/* purchase column */}
         <div className="flex flex-col gap-4">
           <div>
-            <Link href={`/brand/${product.brand.slug}`} className="text-brand text-sm font-semibold hover:underline">
-              {product.brand.name}
-            </Link>
+            {brandName && (
+              <Link href={`/brand/${product.brand.slug}`} className="text-brand text-sm font-semibold hover:underline">
+                {brandName}
+              </Link>
+            )}
             {isAdminViewer ? (
               <ProductTitleEditor productId={product.id} title={product.title} />
             ) : (
-              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{product.title}</h1>
+              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{displayTitle}</h1>
             )}
             <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-sm">
               <span>מק&quot;ט: {product.sku}</span>
@@ -222,7 +244,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           )}
 
           <div className="flex items-center gap-4">
-            <StockBadge status={product.stockStatus as StockStatus} />
+            <PublicStockBadge status={product.stockStatus as StockStatus} />
             <span className="text-muted-foreground flex items-center gap-1 text-sm">
               <Truck className="size-4" /> משלוח תוך {product.deliveryDays} ימים
             </span>
@@ -245,7 +267,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               photo itself instead (see ProductGallery); delivery/payment
               stay covered by the tab, so nothing here duplicates it. */}
 
-          <ConsultSection productTitle={product.title} />
+          <ConsultSection productTitle={displayTitle} />
         </div>
       </div>
 
@@ -328,24 +350,31 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
               <ProductDimensions dimensions={dimensions} />
 
-              <BrandHighlight brand={product.brand} />
+              {/* Both of these blocks exist to sell the manufacturer's
+                  reputation. With no manufacturer on file there is no
+                  reputation to sell, and they became "אודות לא ידוע". */}
+              {brandName && (
+                <>
+                  <BrandHighlight brand={product.brand} />
 
-              <BrandAboutSection
-                brandId={product.brand.id}
-                brandName={product.brand.name}
-                aboutContent={product.brand.aboutContent}
-                images={product.brand.images}
-                isAdmin={isAdminViewer}
-              />
+                  <BrandAboutSection
+                    brandId={product.brand.id}
+                    brandName={brandName}
+                    aboutContent={product.brand.aboutContent}
+                    images={product.brand.images}
+                    isAdmin={isAdminViewer}
+                  />
+                </>
+              )}
             </div>
 
             {/* Breaks out of the narrow column on purpose — a product
                 carousel reads better at full width, same as the "מוצרים
                 דומים" rail at the bottom of the page. */}
-            {brandProducts.length > 0 && (
+            {brandName && brandProducts.length > 0 && (
               <div className="mt-8">
                 <ProductRail
-                  title={`עוד מוצרים של ${product.brand.name}`}
+                  title={`עוד מוצרים של ${brandName}`}
                   products={brandProducts}
                   viewAllHref={`/brand/${product.brand.slug}`}
                   favoriteIds={favoriteIds}

@@ -8,8 +8,9 @@ import { Search, Sparkles, X } from "lucide-react";
 import { searchProductsAction, type SearchResult } from "@/actions/search";
 import { formatPrice } from "@/lib/format";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
-import { StockBadge } from "@/components/product/stock-badge";
+import { PublicStockBadge } from "@/components/product/stock-badge";
 import { cn } from "@/lib/utils";
+import { displayBrandName } from "@/lib/brand-display";
 
 export const HERO_PLACEHOLDERS = [
   "כתבו לאלפרד מה אתם מחפשים...",
@@ -289,12 +290,12 @@ export function SearchBar({
                       <div className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate text-sm font-medium">{r.title}</span>
                         <span className="text-muted-foreground text-xs">
-                          {r.brandName} · {r.categoryName}
+                          {[displayBrandName(r.brandName), r.categoryName].filter(Boolean).join(" · ")}
                         </span>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-0.5">
                         <span className="text-sm font-bold tabular-nums">{formatPrice(r.price)}</span>
-                        <StockBadge status={r.stockStatus as never} />
+                        <PublicStockBadge status={r.stockStatus as never} />
                       </div>
                     </Link>
                   </li>
