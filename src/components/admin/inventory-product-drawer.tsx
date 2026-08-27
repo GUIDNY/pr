@@ -131,6 +131,11 @@ export function InventoryProductDrawer() {
                   </p>
                   <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                     <StockBadge status={product.stockStatus as StockStatus} />
+                    {product.isTemporarySku && (
+                      <span className="bg-destructive/15 text-destructive rounded-full px-2 py-0.5 text-xs font-semibold">
+                        מק&quot;ט זמני
+                      </span>
+                    )}
                     <span
                       className={
                         product.isPublished
@@ -167,13 +172,13 @@ export function InventoryProductDrawer() {
                   <Field label="מלאי כולל" value={product.stockQty} />
                   <Field label="מותג" value={product.brand.name} />
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-3">
-                  <Field label="יתרה" value={product.sellableStock ?? "—"} />
-                  <Field label="מחסן" value={product.warehouseStock ?? "—"} />
-                  <Field label="תצוגה" value={product.showroomStock ?? "—"} />
-                  <Field label="ספק" value={product.supplierStock ?? "—"} />
-                  <Field label="בונדד" value={product.bondedStock ?? "—"} />
-                </div>
+                {product.inventoryLines.length > 0 && (
+                  <div className="mt-3 grid grid-cols-3 gap-3">
+                    {product.inventoryLines.map((line) => (
+                      <Field key={line.id} label={line.label} value={line.quantity} />
+                    ))}
+                  </div>
+                )}
               </section>
 
               <Separator />
@@ -216,6 +221,41 @@ export function InventoryProductDrawer() {
                   />
                 </div>
               </section>
+
+              {(product.attributeValues.length > 0 || product.extraSpecsRaw) && (
+                <>
+                  <Separator />
+                  <section>
+                    <h3 className="mb-2.5 text-sm font-semibold">מפרט טכני</h3>
+                    {product.attributeValues.length > 0 && (
+                      <div className="grid grid-cols-2 gap-3">
+                        {product.attributeValues.map((v) => (
+                          <Field
+                            key={v.id}
+                            label={v.attribute.label}
+                            value={v.attribute.unit ? `${v.value} ${v.attribute.unit}` : v.value}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {product.extraSpecsRaw && (
+                      <details className="mt-3">
+                        <summary className="text-muted-foreground cursor-pointer text-xs font-medium">
+                          מפרט לא ממופה (מקור חיצוני, טקסט חופשי)
+                        </summary>
+                        <div className="border-border mt-2 max-h-48 overflow-auto rounded-lg border p-2.5 text-xs">
+                          {Object.entries(JSON.parse(product.extraSpecsRaw) as Record<string, string>).map(([k, v]) => (
+                            <div key={k} className="flex justify-between gap-3 py-1">
+                              <span className="text-muted-foreground">{k}</span>
+                              <span className="text-end">{v}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </section>
+                </>
+              )}
 
               {product.changeEvents.length > 0 && (
                 <>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
 import {
   Sheet,
@@ -72,7 +73,11 @@ export function CartDrawer() {
                       onClick={closeDrawer}
                       className="bg-muted relative size-20 shrink-0 overflow-hidden rounded-lg"
                     >
-                      <ProductImagePlaceholder title={item.title} brand={item.brandName} />
+                      {item.image ? (
+                        <Image src={item.image} alt={item.title} fill className="object-cover" sizes="80px" />
+                      ) : (
+                        <ProductImagePlaceholder title={item.title} brand={item.brandName} />
+                      )}
                     </Link>
                     <div className="flex flex-1 flex-col gap-1">
                       <div className="flex items-start justify-between gap-2">

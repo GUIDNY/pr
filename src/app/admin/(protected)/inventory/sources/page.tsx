@@ -7,7 +7,7 @@ import { INVENTORY_SOURCES } from "@/lib/inventory/sheet-map";
 import { formatDateTime, formatDate } from "@/lib/format";
 import { isStorageConfigured } from "@/lib/inventory/storage";
 
-export const metadata = { title: "מקורות נתונים | PREC Admin" };
+export const metadata = { title: "מקורות נתונים | A&I Electronics Admin" };
 
 export default async function InventorySourcesPage() {
   const [sources, storageReady] = await Promise.all([

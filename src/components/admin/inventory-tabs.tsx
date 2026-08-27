@@ -6,9 +6,12 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { href: "/admin/inventory", label: "כל המוצרים", exact: true },
+  { href: "/admin/inventory/urgent", label: "טיפול", exact: true },
+  { href: "/admin/inventory/urgent-critical", label: "טיפול דחוף" },
   { href: "/admin/inventory/changes", label: "שינויים אחרונים" },
   { href: "/admin/inventory/history", label: "היסטוריית סנכרון" },
   { href: "/admin/inventory/alerts", label: "התראות" },
+  { href: "/admin/inventory/enrichment", label: "העשרת מוצרים" },
   { href: "/admin/inventory/sources", label: "מקורות נתונים" },
 ];
 

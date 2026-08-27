@@ -9,6 +9,8 @@ import {
   LogOut,
   ExternalLink,
   Boxes,
+  MessageCircle,
+  Sparkles,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { logoutAction } from "@/actions/auth";
@@ -20,6 +22,8 @@ const NAV = [
   { href: "/admin/inventory", label: "בקרת מלאי", icon: Boxes },
   { href: "/admin/promotions", label: "מבצעים", icon: TagIcon },
   { href: "/admin/suppliers", label: "ספקים", icon: Truck },
+  { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle },
+  { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -32,8 +36,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <div dir="rtl" className="bg-secondary/30 flex min-h-svh">
       <aside className="bg-primary text-primary-foreground hidden w-64 shrink-0 flex-col lg:flex">
         <div className="flex items-center gap-2 px-5 py-5">
-          <span className="text-xl font-black">
-            <span className="text-brand">P</span>REC
+          <span className="flex flex-col items-center text-xl leading-none font-black">
+            <span className="text-brand">A&I</span>
+            <span>Electronics</span>
           </span>
           <span className="bg-primary-foreground/10 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
             Admin
@@ -72,8 +77,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="bg-background flex items-center justify-between border-b px-4 py-3 lg:hidden">
-          <span className="text-lg font-black">
-            <span className="text-brand">P</span>REC Admin
+          <span className="flex flex-col items-center text-lg leading-none font-black">
+            <span className="text-brand">A&I</span>
+            <span>Electronics Admin</span>
           </span>
         </header>
         <main id="main-content" className="flex-1 p-4 sm:p-6">{children}</main>

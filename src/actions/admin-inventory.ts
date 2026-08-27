@@ -168,7 +168,13 @@ export async function toggleSourceActiveAction(id: string, isActive: boolean) {
     entityType: "InventorySource",
     entityId: id,
   });
+  // Toggling a source's active state can resolve or create a cross-source
+  // SKU conflict without any file ever changing — no sync run would
+  // otherwise re-evaluate that.
+  const { reconcileSourceConflictAlerts } = await import("@/lib/inventory/sync");
+  await reconcileSourceConflictAlerts(null);
   revalidatePath("/admin/inventory/sources");
+  revalidatePath("/admin/inventory");
   return { success: true, error: null };
 }
 

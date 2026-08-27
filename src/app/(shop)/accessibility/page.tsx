@@ -6,7 +6,7 @@ export default function AccessibilityPage() {
       <h1 className="mb-6 text-3xl font-bold">הצהרת נגישות</h1>
       <div className="text-muted-foreground flex flex-col gap-4 text-sm leading-relaxed">
         <p>
-          אתר PREC פועל לשיפור מתמיד של הנגישות עבור אנשים עם מוגבלות, מתוך אמונה כי לכל אדם מגיעה הזכות לגלוש
+          אתר A&I Electronics פועל לשיפור מתמיד של הנגישות עבור אנשים עם מוגבלות, מתוך אמונה כי לכל אדם מגיעה הזכות לגלוש
           באתר בנוחות, ללא תלות ביכולותיו.
         </p>
         <p>באתר יושמו, בין היתר, ההתאמות הבאות:</p>

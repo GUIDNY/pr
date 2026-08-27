@@ -42,8 +42,9 @@ export default function AdminLoginPage() {
           <span className="bg-brand/10 text-brand mx-auto mb-3 flex size-12 items-center justify-center rounded-full">
             <ShieldCheck className="size-5" />
           </span>
-          <h1 className="text-xl font-bold">
-            <span className="text-brand">P</span>REC Admin
+          <h1 className="flex flex-col items-center text-xl leading-none font-bold">
+            <span className="text-brand">A&I</span>
+            <span>Electronics Admin</span>
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">כניסה לממשק הניהול</p>
         </div>

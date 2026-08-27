@@ -6,7 +6,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@
 import { formatDateTime } from "@/lib/format";
 import { INVENTORY_CHANGE_TYPE_LABELS, type InventoryChangeType } from "@/lib/enums";
 
-export const metadata = { title: "שינויים אחרונים | PREC Admin" };
+export const metadata = { title: "שינויים אחרונים | A&I Electronics Admin" };
 
 const PAGE_SIZE = 50;
 

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, ShoppingCart, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { addToCartAction } from "@/actions/cart";
 import { useCartStore } from "@/stores/cart-store";
+import { useProductQtyStore } from "@/stores/product-qty-store";
 import type { StockStatus } from "@/lib/enums";
 
 export function PurchasePanel({
@@ -18,7 +19,15 @@ export function PurchasePanel({
   stockStatus: StockStatus;
   maxQuantity: number;
 }) {
-  const [qty, setQty] = useState(1);
+  // Shared with MobileBuyBar (a separate sibling component further down
+  // the page) so its total price and add-to-cart action stay in sync with
+  // whatever quantity is selected here, instead of always assuming 1.
+  const qty = useProductQtyStore((s) => s.qty);
+  const setQty = useProductQtyStore((s) => s.setQty);
+  useEffect(() => {
+    setQty(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId]);
   const [isPending, startTransition] = useTransition();
   const setCart = useCartStore((s) => s.setCart);
   const openDrawer = useCartStore((s) => s.openDrawer);
@@ -43,7 +52,7 @@ export function PurchasePanel({
       {!disabled && (
         <div className="border-input flex w-fit items-center rounded-lg border">
           <button
-            onClick={() => setQty((q) => Math.max(1, q - 1))}
+            onClick={() => setQty(Math.max(1, qty - 1))}
             className="p-2.5 disabled:opacity-40"
             disabled={qty <= 1}
             aria-label="הפחת כמות"
@@ -52,7 +61,7 @@ export function PurchasePanel({
           </button>
           <span className="w-10 text-center font-medium tabular-nums">{qty}</span>
           <button
-            onClick={() => setQty((q) => Math.min(maxQuantity, q + 1))}
+            onClick={() => setQty(Math.min(maxQuantity, qty + 1))}
             className="p-2.5 disabled:opacity-40"
             disabled={qty >= maxQuantity}
             aria-label="הוסף כמות"
@@ -62,13 +71,16 @@ export function PurchasePanel({
         </div>
       )}
 
-      <div className="flex flex-col gap-2 sm:flex-row">
+      {/* Always side by side, even on mobile — a stacked full-width pair
+          read as one dominant button with a thin afterthought beneath it;
+          a true 50/50 row makes both read as equally weighted actions. */}
+      <div className="flex flex-row gap-2">
         <Button
           variant="brand"
           size="lg"
           disabled={disabled || isPending}
           onClick={() => addToCart("drawer")}
-          className="h-12 flex-1 gap-2 text-base"
+          className="h-14 flex-1 gap-2 text-base"
         >
           <ShoppingCart className="size-5" />
           {disabled ? "אזל מהמלאי" : "הוספה לעגלה"}
@@ -79,7 +91,13 @@ export function PurchasePanel({
             size="lg"
             disabled={isPending}
             onClick={() => addToCart("checkout")}
-            className="h-12 flex-1 gap-2 text-base"
+            // The shared brand-outline variant's border is a faint 30%-
+            // opacity tint — fine for a lightweight secondary action
+            // elsewhere, but next to the solid red add-to-cart button here
+            // it read as thin and smaller even at the identical box size.
+            // A full-strength border + a light fill gives it real visual
+            // weight without touching the shared variant used elsewhere.
+            className="h-14 flex-1 gap-2 border-brand bg-brand/5 text-base font-semibold"
           >
             <Zap className="size-5" />
             קנייה מהירה

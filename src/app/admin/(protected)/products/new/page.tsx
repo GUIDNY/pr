@@ -4,7 +4,7 @@ import { ProductForm } from "@/components/admin/product-form";
 import { getFormOptions } from "@/lib/queries/admin-products";
 import type { ProductInput } from "@/lib/product-schema";
 
-export const metadata = { title: "מוצר חדש | PREC Admin" };
+export const metadata = { title: "מוצר חדש | A&I Electronics Admin" };
 
 const EMPTY: ProductInput = {
   title: "",

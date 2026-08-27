@@ -15,7 +15,7 @@ import {
   type InventoryChangeType,
 } from "@/lib/enums";
 
-export const metadata = { title: "פרטי מוצר | PREC Admin" };
+export const metadata = { title: "פרטי מוצר | A&I Electronics Admin" };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -46,8 +46,15 @@ export default async function InventoryProductDetailPage({ params }: { params: P
             ← חזרה למרכז בקרת מלאי
           </Link>
           <h1 className="mt-1 text-2xl font-bold">{product.title}</h1>
-          <p className="text-muted-foreground text-sm">
-            {product.brand.name} · {product.model ?? "—"} · מק&quot;ט {product.sku}
+          <p className="text-muted-foreground flex items-center gap-2 text-sm">
+            <span>
+              {product.brand.name} · {product.model ?? "—"} · מק&quot;ט {product.sku}
+            </span>
+            {product.isTemporarySku && (
+              <span className="bg-destructive/15 text-destructive rounded-full px-2 py-0.5 text-xs font-semibold">
+                מק&quot;ט זמני
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -82,9 +89,9 @@ export default async function InventoryProductDetailPage({ params }: { params: P
             <Field label='מק"ט' value={product.sku} />
             <Field label="דגם" value={product.model} />
             <Field label="מותג" value={product.brand.name} />
-            <Field label="מחיר מכירה" value={formatPrice(product.price)} />
-            <Field label="מחיר מינימום" value={product.minSalePrice ? formatPrice(product.minSalePrice) : "—"} />
-            <Field label="עלות פנימית" value={product.supplierCost ? formatPrice(product.supplierCost) : "—"} />
+            <Field label="מחיר באתר" value={formatPrice(product.price)} />
+            <Field label="מחיר מינימום (מקור)" value={product.minSalePrice ? formatPrice(product.minSalePrice) : "—"} />
+            <Field label="מחיר ספק (פנימי)" value={product.supplierCost ? formatPrice(product.supplierCost) : "—"} />
             <Field label="גיליון מקור" value={product.sourceSheet} />
             <Field label="שורת מקור" value={product.sourceRowRef} />
             <Field label="סונכרן לאחרונה" value={product.lastExcelSyncAt ? formatDateTime(product.lastExcelSyncAt) : "—"} />
@@ -92,11 +99,9 @@ export default async function InventoryProductDetailPage({ params }: { params: P
 
           <h3 className="text-muted-foreground mt-5 mb-2 text-xs font-semibold">פירוט מלאי</h3>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <Field label="יתרה למכירה" value={product.sellableStock ?? "—"} />
-            <Field label="מלאי מחסן" value={product.warehouseStock ?? "—"} />
-            <Field label="מלאי תצוגה" value={product.showroomStock ?? "—"} />
-            <Field label="מלאי ספק" value={product.supplierStock ?? "—"} />
-            <Field label="מלאי בונדד" value={product.bondedStock ?? "—"} />
+            {product.inventoryLines.map((line) => (
+              <Field key={line.id} label={line.label} value={line.quantity} />
+            ))}
             <Field label="סה״כ" value={product.stockQty} />
           </div>
 

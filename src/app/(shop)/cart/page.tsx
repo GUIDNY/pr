@@ -2,6 +2,7 @@
 
 import { useTransition, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Minus, Plus, ShoppingCart, Trash2, X, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,7 +53,11 @@ export default function CartPage() {
           {cart.items.map((item) => (
             <li key={item.id} className="flex gap-4 p-4">
               <Link href={`/product/${item.slug}`} className="bg-muted relative size-24 shrink-0 overflow-hidden rounded-lg sm:size-28">
-                <ProductImagePlaceholder title={item.title} brand={item.brandName} />
+                {item.image ? (
+                  <Image src={item.image} alt={item.title} fill className="object-cover" sizes="112px" />
+                ) : (
+                  <ProductImagePlaceholder title={item.title} brand={item.brandName} />
+                )}
               </Link>
               <div className="flex flex-1 flex-col justify-between">
                 <div className="flex items-start justify-between gap-2">

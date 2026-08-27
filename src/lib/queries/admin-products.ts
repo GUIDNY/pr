@@ -13,7 +13,11 @@ export async function getAdminProducts(filters: {
   const where: Record<string, unknown> = {};
   if (filters.search) {
     const s = filters.search.trim();
-    where.OR = [{ title: { contains: s } }, { sku: { contains: s } }, { model: { contains: s } }];
+    where.OR = [
+      { title: { contains: s, mode: "insensitive" } },
+      { sku: { contains: s, mode: "insensitive" } },
+      { model: { contains: s, mode: "insensitive" } },
+    ];
   }
   if (filters.categorySlug) where.category = { slug: filters.categorySlug };
   if (filters.stockStatus && filters.stockStatus !== "ALL") where.stockStatus = filters.stockStatus;

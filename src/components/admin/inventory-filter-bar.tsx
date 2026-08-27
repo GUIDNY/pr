@@ -11,11 +11,15 @@ import { STOCK_STATUSES, STOCK_STATUS_LABELS, INVENTORY_ALERT_TYPE_LABELS, type 
 
 const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "updated", label: "עודכן לאחרונה" },
+  { value: "title", label: "שם" },
+  { value: "sku", label: 'מק"ט' },
+  { value: "brand", label: "מותג" },
   { value: "price_desc", label: "מחיר גבוה לנמוך" },
   { value: "price_asc", label: "מחיר נמוך לגבוה" },
+  { value: "cost_desc", label: "מחיר ספק גבוה לנמוך" },
+  { value: "cost_asc", label: "מחיר ספק נמוך לגבוה" },
   { value: "stock_desc", label: "מלאי גבוה לנמוך" },
   { value: "stock", label: "מלאי נמוך לגבוה" },
-  { value: "title", label: "שם" },
   { value: "synced", label: "חדש במערכת" },
 ];
 
@@ -40,7 +44,7 @@ export function InventoryFilterBar({
     router.push(`${pathname}?${params.toString()}`);
   }
 
-  const secondaryKeys = ["status", "categorySlug", "brandId", "sourceId", "publishStatus", "sort"] as const;
+  const secondaryKeys = ["status", "categorySlug", "brandId", "sourceId", "publishStatus", "hasTemporarySku", "sort"] as const;
   const activeCount = secondaryKeys.filter((k) => searchParams.get(k)).length;
 
   const chips: { key: string; label: string }[] = [];
@@ -56,6 +60,8 @@ export function InventoryFilterBar({
   if (publishStatus) chips.push({ key: "publishStatus", label: publishStatus === "PUBLISHED" ? "מפורסם" : "לא מפורסם" });
   const alertType = searchParams.get("alertType");
   if (alertType) chips.push({ key: "alertType", label: INVENTORY_ALERT_TYPE_LABELS[alertType as InventoryAlertType] ?? alertType });
+  const hasTemporarySku = searchParams.get("hasTemporarySku");
+  if (hasTemporarySku) chips.push({ key: "hasTemporarySku", label: 'ללא מק"ט מקורי' });
 
   return (
     <div className="mb-4 flex flex-col gap-2.5">
@@ -167,6 +173,16 @@ export function InventoryFilterBar({
                 </SelectContent>
               </Select>
             </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={searchParams.get("hasTemporarySku") === "1"}
+                onChange={(e) => pushParams((p) => (e.target.checked ? p.set("hasTemporarySku", "1") : p.delete("hasTemporarySku")))}
+                className="accent-brand size-4"
+              />
+              רק מוצרים ללא מק&quot;ט מקורי
+            </label>
           </PopoverContent>
         </Popover>
 

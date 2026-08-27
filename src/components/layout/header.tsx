@@ -5,9 +5,10 @@ import { MegaMenu } from "@/components/layout/mega-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { CartTrigger } from "@/components/cart/cart-trigger";
 import { getSession } from "@/lib/auth";
+import { getNavigableCategoryTree } from "@/lib/queries/categories";
 
 export async function Header() {
-  const session = await getSession();
+  const [session, departments] = await Promise.all([getSession(), getNavigableCategoryTree()]);
 
   return (
     <header className="bg-background sticky top-0 z-30 border-b">
@@ -35,12 +36,26 @@ export async function Header() {
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-3">
-        <MobileNav />
+      {/* Grid only below sm: (three tracks so the logo can sit truly
+          centered regardless of how wide the hamburger/icons columns end up
+          being) — sm: switches back to the exact flex row this always was,
+          so desktop's layout/order is untouched. The hidden search-bar
+          wrapper takes no grid track since `hidden` elements don't
+          participate in grid placement. */}
+      <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2 sm:flex sm:py-3">
+        <MobileNav departments={departments} />
 
-        <Link href="/" className="shrink-0">
-          <span className="text-2xl font-black tracking-tight">
-            <span className="text-brand">P</span>REC
+        <Link href="/" className="shrink-0 justify-self-center sm:justify-self-auto">
+          <span className="hidden flex-col items-center text-2xl leading-none font-black tracking-tight sm:flex">
+            <span className="text-brand">A&I</span>
+            <span>Electronics</span>
+          </span>
+          {/* Mobile-only: one line instead of the stacked two-line
+              wordmark — at a ~60px header height the stacked version read
+              as cramped, a single compact line doesn't. */}
+          <span className="flex items-center gap-1 text-lg leading-none font-black tracking-tight sm:hidden">
+            <span className="text-brand">A&I</span>
+            <span>Electronics</span>
           </span>
         </Link>
 
@@ -48,7 +63,7 @@ export async function Header() {
           <SearchBar />
         </div>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 justify-self-end sm:justify-self-auto">
           <Link
             href={session ? "/account/favorites" : "/login"}
             aria-label="מועדפים"
@@ -69,11 +84,11 @@ export async function Header() {
         </div>
       </div>
 
-      <div className="px-4 pb-3 sm:hidden">
-        <SearchBar />
+      <div className="px-4 pb-2.5 sm:hidden">
+        <SearchBar inputClassName="h-11 rounded-2xl" />
       </div>
 
-      <MegaMenu />
+      <MegaMenu departments={departments} />
     </header>
   );
 }

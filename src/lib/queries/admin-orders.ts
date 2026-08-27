@@ -26,13 +26,13 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
   if (filters.search) {
     const s = filters.search.trim();
     where.OR = [
-      { orderNumber: { contains: s } },
-      { guestName: { contains: s } },
+      { orderNumber: { contains: s, mode: "insensitive" } },
+      { guestName: { contains: s, mode: "insensitive" } },
       { guestPhone: { contains: s } },
-      { guestEmail: { contains: s } },
-      { user: { name: { contains: s } } },
+      { guestEmail: { contains: s, mode: "insensitive" } },
+      { user: { name: { contains: s, mode: "insensitive" } } },
       { user: { phone: { contains: s } } },
-      { user: { email: { contains: s } } },
+      { user: { email: { contains: s, mode: "insensitive" } } },
     ];
   }
 

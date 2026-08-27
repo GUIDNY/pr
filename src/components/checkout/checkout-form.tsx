@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { CreditCard, Home, ShieldCheck, Truck, Store } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -215,7 +216,11 @@ export function CheckoutForm({
           {cart.items.map((item) => (
             <li key={item.id} className="flex items-center gap-3">
               <div className="bg-muted relative size-14 shrink-0 overflow-hidden rounded-md">
-                <ProductImagePlaceholder title={item.title} brand={item.brandName} />
+                {item.image ? (
+                  <Image src={item.image} alt={item.title} fill className="object-cover" sizes="56px" />
+                ) : (
+                  <ProductImagePlaceholder title={item.title} brand={item.brandName} />
+                )}
                 <span className="bg-primary text-primary-foreground absolute -top-1.5 -end-1.5 flex size-5 items-center justify-center rounded-full text-[10px] font-bold">
                   {item.quantity}
                 </span>

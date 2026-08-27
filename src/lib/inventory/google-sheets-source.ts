@@ -44,13 +44,14 @@ export async function fetchSheetWorkbook(spreadsheetId: string): Promise<Buffer>
 // single-purpose sheet); otherwise each tab's category is looked up by its
 // own name.
 export function parseGoogleWorkbook(buffer: Buffer, categoryOverride?: string | null): ParsedWorkbook {
-  const wb = XLSX.read(buffer, { type: "buffer" });
+  const wb = XLSX.read(buffer, { type: "buffer", cellStyles: true });
   const sheets: ParsedSheet[] = [];
   const skippedSheets: string[] = [];
 
   for (const sheetName of wb.SheetNames) {
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null });
-    const parsed = parseSheetRows(sheetName, rows);
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
+    const parsed = parseSheetRows(sheetName, rows, sheet);
     if (!parsed) {
       skippedSheets.push(sheetName);
       continue;

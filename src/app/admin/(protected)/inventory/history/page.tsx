@@ -5,7 +5,7 @@ import { formatDateTime } from "@/lib/format";
 import { SYNC_RUN_STATUS_LABELS, type SyncRunStatus } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 
-export const metadata = { title: "היסטוריית סנכרון | PREC Admin" };
+export const metadata = { title: "היסטוריית סנכרון | A&I Electronics Admin" };
 
 const STATUS_STYLES: Record<SyncRunStatus, string> = {
   RUNNING: "bg-accent text-accent-foreground",

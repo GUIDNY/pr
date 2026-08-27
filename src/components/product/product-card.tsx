@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Star } from "lucide-react";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { PriceBlock } from "@/components/product/price-block";
@@ -14,6 +15,7 @@ export type ProductCardData = {
   title: string;
   brandName: string;
   categoryIcon?: string | null;
+  imageUrl?: string | null;
   price: number;
   compareAtPrice: number | null;
   installmentMonths: number | null;
@@ -41,7 +43,17 @@ export function ProductCard({
     >
       <Link href={`/product/${product.slug}`} className="bg-muted relative block aspect-square overflow-hidden">
         <div className="size-full transition-transform duration-300 group-hover:scale-105">
-          <ProductImagePlaceholder title={product.title} brand={product.brandName} icon={product.categoryIcon} />
+          {product.imageUrl ? (
+            <Image
+              src={product.imageUrl}
+              alt={product.title}
+              fill
+              className="object-cover"
+              sizes="(min-width: 1024px) 25vw, 50vw"
+            />
+          ) : (
+            <ProductImagePlaceholder title={product.title} brand={product.brandName} icon={product.categoryIcon} />
+          )}
         </div>
         {product.compareAtPrice && product.compareAtPrice > product.price && (
           <span className="bg-brand text-brand-foreground absolute top-2 start-2 rounded px-2 py-0.5 text-xs font-bold">

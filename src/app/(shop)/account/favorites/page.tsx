@@ -12,7 +12,15 @@ export default async function FavoritesPage() {
 
   const favorites = await db.favorite.findMany({
     where: { userId: session.sub },
-    include: { product: { include: { brand: true, category: { include: { parent: true } } } } },
+    include: {
+      product: {
+        include: {
+          brand: true,
+          category: { include: { parent: true } },
+          images: { take: 1, orderBy: { sortOrder: "asc" } },
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
 

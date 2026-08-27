@@ -154,6 +154,9 @@ export const INVENTORY_ALERT_TYPES = [
   "MAJOR_STOCK_CHANGE",
   "MISSING_FROM_SOURCE",
   "SOURCE_CONFLICT",
+  "URGENT_MISSING_MEDIA",
+  "MANUAL_ATTENTION",
+  "MANUAL_URGENT",
 ] as const;
 export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
 
@@ -170,6 +173,9 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   MAJOR_STOCK_CHANGE: "שינוי מלאי חריג",
   MISSING_FROM_SOURCE: "נעלם מהמקור",
   SOURCE_CONFLICT: "התנגשות בין מקורות",
+  URGENT_MISSING_MEDIA: "אין תמונה ואין מפרט טכני",
+  MANUAL_ATTENTION: "סומן לטיפול ידנית",
+  MANUAL_URGENT: "סומן לטיפול דחוף ידנית",
 };
 
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;

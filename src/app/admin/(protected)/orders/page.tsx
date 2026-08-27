@@ -6,7 +6,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type OrderStatus } from "@/lib/enums";
 import { formatPrice, formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "הזמנות | PREC Admin" };
+export const metadata = { title: "הזמנות | A&I Electronics Admin" };
 
 const PAGE_SIZE = 20;
 

@@ -10,6 +10,13 @@ type Rule = { test: (t: string) => boolean; field: ClassifiedField };
 
 const RULES: Rule[] = [
   { test: (t) => /מק["'׳]?ט/.test(t), field: "SKU" },
+  // A bare "תאור" (exact match, no "מוצר"/extra text) is checked before the
+  // general description rule below — confirmed on real data (42 products)
+  // to sometimes carry color/variant text on sheets that already have a
+  // real "תאור מוצר" description column; letting the broad /תאור|תיאור/
+  // regex match it too was silently discarding that value (both columns
+  // classified as the same DESCRIPTION field, only the first kept).
+  { test: (t) => t.trim() === "תאור", field: "VARIANT_TEXT" },
   { test: (t) => /תאור|תיאור/.test(t) && !/הערות/.test(t), field: "DESCRIPTION" },
   { test: (t) => /^(מותג|חברה|יצרן)$/.test(t), field: "BRAND" },
   { test: (t) => /דגם/.test(t), field: "MODEL" },
@@ -28,7 +35,12 @@ const RULES: Rule[] = [
   { test: (t) => /יתרה/.test(t), field: "SELLABLE_STOCK" },
   { test: (t) => /טובים/.test(t), field: "WAREHOUSE_STOCK" },
   { test: (t) => /^מלאי/.test(t), field: "WAREHOUSE_STOCK" },
-  { test: (t) => /שמור|תאריך|חתימה|שירות|אספקה|^פרטים$/.test(t), field: "IGNORED" },
+  // "מידות"/"מידה" (dimensions, e.g. "84X190X65.5") has nowhere to go — no
+  // Product field for it exists — so it must be excluded here rather than
+  // falling through to UNKNOWN, where fallbackTitleFromUnknownColumns()
+  // below could otherwise pick a dimensions string as the product's title
+  // (confirmed in production: SKU 0529/0434, dimensions-shaped titles).
+  { test: (t) => /שמור|תאריך|חתימה|שירות|אספקה|^פרטים$|מידות|מידה/.test(t), field: "IGNORED" },
   { test: (t) => /הערות|המלצה|דף מוצר|מפרט/.test(t), field: "NOTES" },
 ];
 

@@ -1,20 +1,30 @@
+import Image from "next/image";
 import Link from "next/link";
 
-export function BrandStrip({ brands }: { brands: { name: string; slug: string }[] }) {
+type FeaturedBrand = { name: string; slug: string; logoUrl: string };
+
+// Duplicated once so the CSS marquee can loop seamlessly: the animation
+// scrolls exactly one copy's width, then jumps back unnoticed since the
+// second copy is already in the same position.
+export function BrandStrip({ brands }: { brands: FeaturedBrand[] }) {
   if (brands.length === 0) return null;
+  const track = [...brands, ...brands];
 
   return (
-    <section className="border-border bg-secondary/40 border-y py-8">
+    <section className="border-border bg-secondary/40 border-y py-10">
       <div className="mx-auto max-w-7xl px-4">
-        <h2 className="mb-5 text-center text-lg font-bold sm:text-xl">המותגים המובילים אצלנו</h2>
-        <div className="flex flex-wrap justify-center gap-3">
-          {brands.map((b) => (
+        <h2 className="mb-6 text-center text-lg font-bold sm:text-xl">המותגים המובילים אצלנו</h2>
+      </div>
+      <div className="group relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_10%,black_90%,transparent)]">
+        <div className="animate-brand-marquee group-hover:[animation-play-state:paused] flex w-max items-center gap-16">
+          {track.map((b, i) => (
             <Link
-              key={b.slug}
+              key={`${b.slug}-${i}`}
               href={`/brand/${b.slug}`}
-              className="border-border bg-card hover:border-brand/40 hover:text-brand rounded-full border px-5 py-2 text-sm font-semibold transition-colors"
+              className="flex h-16 w-32 shrink-0 items-center justify-center opacity-70 grayscale transition hover:opacity-100 hover:grayscale-0"
+              title={b.name}
             >
-              {b.name}
+              <Image src={b.logoUrl} alt={b.name} width={120} height={48} className="h-auto max-h-12 w-auto max-w-28 object-contain" />
             </Link>
           ))}
         </div>

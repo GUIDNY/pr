@@ -81,7 +81,7 @@ async function main() {
     for (const sheet of workbook.sheets) {
       totalRowsScanned += sheet.rows.length;
       for (const row of sheet.rows) {
-        rows.push(normalizeRow(key, sheet.sheetName, row));
+        rows.push(normalizeRow(key, sheet.sheetName, row, sheet.columns));
       }
     }
     findDuplicates(rows); // mutates row.issues in place for within-source dupes

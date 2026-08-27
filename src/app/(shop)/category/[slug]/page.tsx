@@ -16,8 +16,9 @@ import { SortSelect } from "@/components/catalog/sort-select";
 import { ProductCard } from "@/components/product/product-card";
 import { getProductsByCategorySlug, getCategoryFilterAttributes, type ProductSort } from "@/lib/queries/products";
 import { getFavoriteProductIdsAction } from "@/actions/favorites";
+import { getArticleByCategorySlug } from "@/lib/queries/articles";
 import { findCategoryBySlug } from "@/lib/category-tree";
-import { PackageSearch } from "lucide-react";
+import { PackageSearch, BookOpen, ArrowLeft } from "lucide-react";
 
 const PAGE_SIZE = 24;
 
@@ -55,7 +56,7 @@ export default async function CategoryPage({
     }
   }
 
-  const [{ products, total, category, brands, priceRange }, attributes, favoriteIds] = await Promise.all([
+  const [{ products, total, category, brands, priceRange }, attributes, favoriteIds, guideArticle] = await Promise.all([
     getProductsByCategorySlug(slug, {
       sort,
       page,
@@ -67,6 +68,7 @@ export default async function CategoryPage({
     }),
     getCategoryFilterAttributes(slug),
     getFavoriteProductIdsAction(),
+    getArticleByCategorySlug(slug),
   ]);
 
   if (!category) notFound();
@@ -169,6 +171,26 @@ export default async function CategoryPage({
           )}
         </div>
       </div>
+
+      {guideArticle && (
+        <Link
+          href={`/articles/${guideArticle.slug}`}
+          className="border-border hover:border-brand/40 hover:shadow-md group mt-10 flex flex-col items-start gap-5 rounded-2xl border bg-gradient-to-l from-secondary/60 to-transparent p-5 transition-all sm:flex-row sm:items-center sm:p-6"
+        >
+          <span className="bg-brand/10 text-brand flex size-12 shrink-0 items-center justify-center rounded-xl">
+            <BookOpen className="size-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-brand text-xs font-semibold">מדריך קנייה</p>
+            <p className="group-hover:text-brand mt-0.5 text-lg font-bold transition-colors">{guideArticle.title}</p>
+            <p className="text-muted-foreground mt-1 line-clamp-2 text-sm leading-relaxed">{guideArticle.excerpt}</p>
+          </div>
+          <span className="bg-brand text-brand-foreground flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold">
+            לקריאת המדריך
+            <ArrowLeft className="size-4 rtl:rotate-180" />
+          </span>
+        </Link>
+      )}
     </div>
   );
 }

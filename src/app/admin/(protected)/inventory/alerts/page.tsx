@@ -7,7 +7,7 @@ import { formatDateTime } from "@/lib/format";
 import { INVENTORY_ALERT_TYPE_LABELS, type InventoryAlertType, type InventoryAlertSeverity } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 
-export const metadata = { title: "התראות מלאי | PREC Admin" };
+export const metadata = { title: "התראות מלאי | A&I Electronics Admin" };
 
 const SEVERITY_STYLES: Record<InventoryAlertSeverity, string> = {
   INFO: "bg-accent text-accent-foreground",

@@ -2,10 +2,12 @@ import "server-only";
 import { db } from "@/lib/db";
 import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
+import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 
 const cardInclude = {
   brand: true,
   category: { include: { parent: true } },
+  images: { take: 1, orderBy: { sortOrder: "asc" as const } },
 } as const;
 
 // Store policy: an out-of-stock product is not shown anywhere on the site
@@ -14,7 +16,7 @@ const cardInclude = {
 // than relying on isPublished alone, since that flag can go stale (e.g. a
 // product sells out after an admin published it) while this is always the
 // live truth.
-const PUBLIC_PRODUCT_WHERE = { isPublished: true, stockQty: { gt: 0 } } as const;
+export const PUBLIC_PRODUCT_WHERE = { isPublished: true, stockQty: { gt: 0 } } as const;
 
 type ProductWithRelations = {
   id: string;
@@ -29,6 +31,7 @@ type ProductWithRelations = {
   deliveryDays: number;
   brand: { name: string };
   category: { icon: string | null; parent: { icon: string | null } | null };
+  images: { url: string }[];
 };
 
 export function mapProductToCard(p: ProductWithRelations): ProductCardData {
@@ -38,6 +41,7 @@ export function mapProductToCard(p: ProductWithRelations): ProductCardData {
     title: p.title,
     brandName: p.brand.name,
     categoryIcon: p.category.parent?.icon ?? p.category.icon,
+    imageUrl: p.images[0]?.url ?? null,
     price: p.price,
     compareAtPrice: p.compareAtPrice,
     installmentMonths: p.installmentMonths,
@@ -76,6 +80,21 @@ export async function getDeals(take = 8) {
     orderBy: { updatedAt: "desc" },
   });
   return rows.map(mapProductToCard);
+}
+
+// Resolves an admin-curated list of specific product IDs (e.g. the
+// homepage "אלפרד ממליץ" widget) back into real cards, in the given order,
+// silently dropping any id that's been unpublished/sold out/deleted since
+// it was picked rather than erroring — same "no fake placeholder" policy
+// as the rest of the homepage.
+export async function getProductsByIds(ids: string[]) {
+  if (ids.length === 0) return [];
+  const rows = await db.product.findMany({
+    where: { id: { in: ids }, ...PUBLIC_PRODUCT_WHERE },
+    include: cardInclude,
+  });
+  const byId = new Map(rows.map((r) => [r.id, mapProductToCard(r)]));
+  return ids.map((id) => byId.get(id)).filter((p): p is ProductCardData => !!p);
 }
 
 export type ProductSort = "relevance" | "price-asc" | "price-desc" | "newest" | "rating";
@@ -176,11 +195,19 @@ export async function getCategoryFilterAttributes(categorySlug: string) {
   return Array.from(seen.values());
 }
 
+// Every attribute defined for a product's own category, regardless of
+// whether it currently has a value — used for the admin inline spec editor
+// on the product page, which needs to offer *unfilled* fields too, not just
+// render whatever's already set.
+export async function getCategoryAttributesFor(categoryId: string) {
+  return db.categoryAttribute.findMany({ where: { categoryId }, orderBy: { sortOrder: "asc" } });
+}
+
 export async function getProductBySlug(slug: string) {
   return db.product.findUnique({
     where: { slug },
     include: {
-      brand: true,
+      brand: { include: { images: { orderBy: { sortOrder: "asc" } } } },
       category: { include: { parent: true } },
       images: { orderBy: { sortOrder: "asc" } },
       attributeValues: { include: { attribute: true }, orderBy: { attribute: { sortOrder: "asc" } } },
@@ -232,15 +259,23 @@ export async function getProductsByBrandSlug(
 
 export async function searchProducts(query: string, take = 8) {
   if (!query.trim()) return [];
+  const { text, maxPrice } = parseShoppingQuery(query);
+  const words = splitSearchWords(text);
   const rows = await db.product.findMany({
     where: {
       ...PUBLIC_PRODUCT_WHERE,
-      OR: [
-        { title: { contains: query } },
-        { sku: { contains: query } },
-        { model: { contains: query } },
-        { brand: { name: { contains: query } } },
-      ],
+      ...(maxPrice !== null ? { price: { lte: maxPrice } } : {}),
+      ...(words.length > 0
+        ? {
+            OR: words.flatMap((w) => [
+              { title: { contains: w, mode: "insensitive" as const } },
+              { sku: { contains: w, mode: "insensitive" as const } },
+              { model: { contains: w, mode: "insensitive" as const } },
+              { brand: { name: { contains: w, mode: "insensitive" as const } } },
+              { category: { name: { contains: w, mode: "insensitive" as const } } },
+            ]),
+          }
+        : {}),
     },
     include: cardInclude,
     take,

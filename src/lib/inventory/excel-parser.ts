@@ -5,9 +5,19 @@ import type { ClassifiedColumn, ParsedRow, ParsedSheet, ParsedWorkbook } from ".
 
 const HEADER_SEARCH_ROWS = 5;
 const MIN_HEADER_SCORE = 3;
+const DIVIDER_FILL_RGB = "FFFF00"; // solid bright yellow — the convention every source sheet uses for section dividers
 
 function isBlankRow(cells: unknown[]) {
   return cells.every((c) => c === null || c === undefined || String(c).trim() === "");
+}
+
+// Real price lists format numbers inconsistently — "1,234", "₪120", "50%".
+// Strip the decoration rather than let Number() silently turn it into NaN
+// and drop the value.
+export function parseNumericCell(cell: unknown): number {
+  if (typeof cell === "number") return cell;
+  const cleaned = String(cell).trim().replace(/[₪,%\s]/g, "");
+  return cleaned ? Number(cleaned) : NaN;
 }
 
 function findHeaderRow(rows: unknown[][]): number | null {
@@ -32,16 +42,52 @@ function classifyColumns(headerRow: unknown[]): { columns: ClassifiedColumn[]; u
   return { columns, unknownLabels };
 }
 
-export function parseSheetRows(sheetName: string, rows: unknown[][]): ParsedSheet | null {
+// A row is highlighted solid yellow AND carries no SKU/price/stock data —
+// that combination (color + absence of product data) is what distinguishes
+// a real "אוזניות" / "GAGGIA" section header from a product row that
+// happens to have a yellow note cell for some other reason.
+function rowDividerText(cells: unknown[], sheet: XLSX.WorkSheet | undefined, rowIndex: number): string | null {
+  if (!sheet) return null;
+  let isYellow = false;
+  let text: string | null = null;
+  for (let c = 0; c < cells.length; c++) {
+    const ref = XLSX.utils.encode_cell({ r: rowIndex, c });
+    const cell = sheet[ref];
+    if (cell?.s?.fgColor?.rgb === DIVIDER_FILL_RGB) isYellow = true;
+    if (!text && typeof cell?.v === "string" && cell.v.trim()) text = cell.v.trim();
+  }
+  return isYellow ? text : null;
+}
+
+export function parseSheetRows(sheetName: string, rows: unknown[][], sheet?: XLSX.WorkSheet): ParsedSheet | null {
   const headerRowIndex = findHeaderRow(rows);
   if (headerRowIndex === null) return null;
 
   const { columns, unknownLabels } = classifyColumns(rows[headerRowIndex] ?? []);
   const parsedRows: ParsedRow[] = [];
+  let currentSectionLabel: string | null = null;
+
+  // Some sheets write the brand once per block in a real BRAND column and
+  // leave it blank for every row underneath (AEG on row 1, then 4 more AEG
+  // rows with nothing in that column) — same yellow-highlight convention as
+  // section dividers, just written directly on a product row instead of a
+  // separate header row above it. Track the last yellow-confirmed value in
+  // that column and forward-fill it; an unhighlighted value in the same
+  // column (a stray promo code, a leftover note) is never trusted.
+  const brandColIndex = columns.find((c) => c.field === "BRAND")?.index;
+  let currentBrand: string | null = null;
 
   for (let r = headerRowIndex + 1; r < rows.length; r++) {
     const cells = rows[r] ?? [];
     if (isBlankRow(cells)) continue;
+
+    if (sheet && brandColIndex !== undefined) {
+      const ref = XLSX.utils.encode_cell({ r, c: brandColIndex });
+      const cell = sheet[ref];
+      if (cell?.s?.fgColor?.rgb === DIVIDER_FILL_RGB && typeof cell.v === "string" && cell.v.trim()) {
+        currentBrand = cell.v.trim();
+      }
+    }
 
     const values: ParsedRow["values"] = {};
     const raw: ParsedRow["raw"] = {};
@@ -67,7 +113,7 @@ export function parseSheetRows(sheetName: string, rows: unknown[][]): ParsedShee
         col.field === "BONDED_STOCK" ||
         col.field === "SELLABLE_STOCK";
 
-      const value = isNumericField ? Number(cell) : cell;
+      const value = isNumericField ? parseNumericCell(cell) : cell;
       if (isNumericField && Number.isNaN(value)) continue;
 
       if (!values[col.field]) values[col.field] = [];
@@ -76,16 +122,23 @@ export function parseSheetRows(sheetName: string, rows: unknown[][]): ParsedShee
       if (col.field === "SKU" || isNumericField) hasProductSignal = true;
     }
 
-    if (!hasProductSignal) continue; // likely a section-divider row (category label with no data)
+    if (!hasProductSignal) {
+      // Not a product row — either blank noise, or a genuine section divider
+      // ("אוזניות", "GAGGIA", ...). Only the latter updates the running
+      // context that gets attached to every product row underneath it.
+      const dividerText = rowDividerText(cells, sheet, r);
+      if (dividerText) currentSectionLabel = dividerText;
+      continue;
+    }
 
-    parsedRows.push({ rowIndex: r, values, raw });
+    parsedRows.push({ rowIndex: r, values, raw, sectionLabel: currentSectionLabel, inheritedBrand: currentBrand });
   }
 
   return { sheetName, headerRowIndex, columns, unknownLabels, rows: parsedRows };
 }
 
 export function parseWorkbook(buffer: Buffer, sourceKey: SourceKey): ParsedWorkbook {
-  const wb = XLSX.read(buffer, { type: "buffer" });
+  const wb = XLSX.read(buffer, { type: "buffer", cellStyles: true });
   const sheets: ParsedSheet[] = [];
   const skippedSheets: string[] = [];
 
@@ -94,8 +147,9 @@ export function parseWorkbook(buffer: Buffer, sourceKey: SourceKey): ParsedWorkb
       skippedSheets.push(sheetName);
       continue;
     }
-    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null });
-    const parsed = parseSheetRows(sheetName, rows);
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
+    const parsed = parseSheetRows(sheetName, rows, sheet);
     if (!parsed) {
       skippedSheets.push(sheetName);
       continue;

@@ -50,6 +50,7 @@ export async function findProductsAction(categorySlug: string, answers: Record<s
       brand: true,
       category: { include: { parent: true } },
       attributeValues: { include: { attribute: true } },
+      images: { take: 1, orderBy: { sortOrder: "asc" } },
     },
   });
 

@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { CartProvider } from "@/components/cart/cart-provider";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
+import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -17,11 +18,11 @@ const heebo = Heebo({
 
 export const metadata: Metadata = {
   title: {
-    default: "PREC | פר אלקטרוניקה - מוצרי חשמל במחירים הכי טובים",
-    template: "%s | PREC",
+    default: "A&I Electronics - הדרך החכמה לקנות אלקטרוניקה",
+    template: "%s | A&I Electronics",
   },
   description:
-    "PREC - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, במחירים הכי טובים עם משלוח עד הבית ואחריות יבואן רשמי.",
+    "A&I Electronics - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.",
 };
 
 export default function RootLayout({
@@ -51,6 +52,7 @@ export default function RootLayout({
             {children}
             <CartDrawer />
             <CompareTray />
+            <AlfredChatWidget />
             <Toaster position="top-center" richColors />
           </TooltipProvider>
         </DirectionProvider>

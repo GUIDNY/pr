@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Star, Truck, ShieldCheck, CreditCard, PackageCheck } from "lucide-react";
+import { Star, Truck, ShieldCheck, PackageCheck, Pencil } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -11,17 +11,31 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
+import { ProductGallery } from "@/components/product/product-gallery";
 import { PriceBlock } from "@/components/product/price-block";
+import { ProductPriceEditor } from "@/components/product/product-price-editor";
+import { ProductTitleEditor } from "@/components/product/product-title-editor";
+import { ProductSpecsEditor } from "@/components/product/product-specs-editor";
+import { ProductDescriptionEditor } from "@/components/product/product-description-editor";
+import { parseProductDescription, ProductHighlightsGrid } from "@/components/product/product-description-text";
+import { BrandHighlight } from "@/components/product/brand-highlight";
+import { BrandAboutSection } from "@/components/product/brand-about-section";
+import { ProductKeyFactsStrip } from "@/components/product/product-key-facts-strip";
+import { ProductFeatureSections } from "@/components/product/product-feature-sections";
+import { ProductDimensions } from "@/components/product/product-dimensions";
+import { getProductKeyFacts, getProductDimensions } from "@/lib/product-key-facts";
 import { StockBadge } from "@/components/product/stock-badge";
-import { FavoriteButton } from "@/components/product/favorite-button";
 import { CompareButton } from "@/components/product/compare-button";
+import { ProductReviewFlagButton } from "@/components/product/product-review-flag-button";
 import { PurchasePanel } from "@/components/product/purchase-panel";
 import { MobileBuyBar } from "@/components/product/mobile-buy-bar";
 import { ConsultSection } from "@/components/product/consult-section";
 import { ProductRail } from "@/components/home/product-rail";
-import { getProductBySlug, getRelatedProducts } from "@/lib/queries/products";
+import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
+import { getProductBySlug, getRelatedProducts, getCategoryAttributesFor, getProductsByBrandSlug } from "@/lib/queries/products";
+import { getProductReviewFlag } from "@/lib/queries/admin-inventory";
 import { getFavoriteProductIdsAction } from "@/actions/favorites";
+import { getSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import type { StockStatus } from "@/lib/enums";
 
@@ -38,15 +52,69 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
-  if (!product || !product.isPublished || product.stockQty <= 0) notFound();
+  if (!product || product.stockQty <= 0) notFound();
 
-  const [related, favoriteIds] = await Promise.all([
+  const session = await getSession();
+  const isAdminViewer = session?.role === "ADMIN" || session?.role === "STAFF";
+  // A regular visitor still gets a 404 for anything unpublished — an admin
+  // needs to actually open the page to fix and republish it (that's the
+  // whole point of the inline editors below), so they're let through with
+  // an explicit "not live" notice instead.
+  if (!product.isPublished && !isAdminViewer) notFound();
+
+  const [related, favoriteIds, brandProductsResult] = await Promise.all([
     getRelatedProducts(product.categoryId, product.id, 4),
     getFavoriteProductIdsAction(),
+    getProductsByBrandSlug(product.brand.slug, { pageSize: 8 }),
   ]);
+  const brandProducts = brandProductsResult.products.filter((p) => p.id !== product.id);
+  // Only fetched for admins — every other visitor never needs the full
+  // attribute list, just whichever ones already have a value.
+  const categoryAttributes = isAdminViewer ? await getCategoryAttributesFor(product.categoryId) : [];
+  const reviewFlag = isAdminViewer ? await getProductReviewFlag(product.id) : "NONE";
+
+  // Real product facts only (CategoryAttribute values, extraSpecsRaw as
+  // fallback) — feeds both the key-facts strip and the "why choose" cards,
+  // see lib/product-key-facts.ts. Empty when a product has neither, and
+  // both of those components render nothing in that case rather than
+  // inventing a fact.
+  const keyFacts = getProductKeyFacts(product, 5);
+  const dimensions = getProductDimensions(product);
+
+  // "{category} {brand} {model} בקצרה" — the trailing "ים" strip is a
+  // generic Hebrew masculine-plural heuristic (מקפיאים -> מקפיא), not a
+  // rule about this one product; categories that don't end in ים are used
+  // as-is rather than risk mangling an irregular plural.
+  const categoryLabel = product.category.name.endsWith("ים") ? product.category.name.slice(0, -2) : product.category.name;
+  const shortHeadingText = [categoryLabel, product.brand.name, product.model].filter(Boolean).join(" ");
+
+  const { highlights: descriptionHighlights, prose: descriptionProse } = parseProductDescription(
+    product.description ?? product.shortDescription ?? ""
+  );
 
   const categoryIcon = product.category.parent?.icon ?? product.category.icon;
   const maxQuantity = Math.max(1, Math.min(product.stockQty, 10));
+
+  // ProductGallery is a Client Component, so whatever's in its `images`
+  // prop gets serialized into the page's hydration payload for every
+  // visitor, not just the ones who see the admin-only source badge it's
+  // rendered from — passing the raw rows through unconditionally would leak
+  // the scraped source URLs to a plain "view source" even though they're
+  // never painted on screen for a non-admin. Stripped down to just id/url
+  // for anyone who isn't an admin viewer.
+  const galleryImages = isAdminViewer ? product.images : product.images.map((img) => ({ id: img.id, url: img.url }));
+
+  // Fallback for when a source's spec fields didn't map to a real
+  // CategoryAttribute — shown only when there's no structured spec at all,
+  // so a real, filterable spec table always wins when one exists.
+  let rawSpecs: Record<string, string> | null = null;
+  if (product.attributeValues.length === 0 && product.extraSpecsRaw) {
+    try {
+      rawSpecs = JSON.parse(product.extraSpecsRaw);
+    } catch {
+      rawSpecs = null;
+    }
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 pb-24 lg:pb-6">
@@ -80,18 +148,33 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         </BreadcrumbList>
       </Breadcrumb>
 
-      <div className="mt-5 grid grid-cols-1 gap-8 lg:grid-cols-2">
-        {/* gallery */}
-        <div className="relative">
-          <div className="bg-muted sticky top-24 aspect-square overflow-hidden rounded-2xl">
-            <ProductImagePlaceholder title={product.title} brand={product.brand.name} icon={categoryIcon} />
-            <FavoriteButton
-              productId={product.id}
-              initialFavorite={favoriteIds.includes(product.id)}
-              className="absolute top-4 end-4"
-            />
-          </div>
+      {isAdminViewer && !product.isPublished && (
+        <div className="border-destructive/30 bg-destructive/10 text-destructive mt-4 rounded-xl border px-4 py-2.5 text-sm font-medium">
+          המוצר הזה לא מפורסם באתר כרגע ורק אתם רואים אותו — הוסיפו תמונה או מפרט טכני כדי שיחזור לתצוגה אוטומטית.
         </div>
+      )}
+
+      {isAdminViewer && (
+        <Link
+          href={`/admin/products/${product.id}`}
+          className="fixed bottom-20 end-4 z-40 flex items-center gap-1.5 rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-amber-600 lg:bottom-6"
+        >
+          <Pencil className="size-4" />
+          ערוך מוצר
+        </Link>
+      )}
+
+      <div className="mt-5 grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <ProductGallery
+          productId={product.id}
+          images={galleryImages}
+          title={product.title}
+          brand={product.brand.name}
+          categoryIcon={categoryIcon}
+          isFavorite={favoriteIds.includes(product.id)}
+          isAdmin={isAdminViewer}
+          warrantyMonths={product.warrantyMonths}
+        />
 
         {/* purchase column */}
         <div className="flex flex-col gap-4">
@@ -99,7 +182,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <Link href={`/brand/${product.brand.slug}`} className="text-brand text-sm font-semibold hover:underline">
               {product.brand.name}
             </Link>
-            <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{product.title}</h1>
+            {isAdminViewer ? (
+              <ProductTitleEditor productId={product.id} title={product.title} />
+            ) : (
+              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{product.title}</h1>
+            )}
             <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-sm">
               <span>מק&quot;ט: {product.sku}</span>
               {product.model && <span>דגם: {product.model}</span>}
@@ -112,12 +199,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </div>
           </div>
 
-          <PriceBlock
-            price={product.price}
-            compareAtPrice={product.compareAtPrice}
-            installmentMonths={product.installmentMonths}
-            size="lg"
-          />
+          {isAdminViewer ? (
+            <ProductPriceEditor
+              productId={product.id}
+              price={product.price}
+              compareAtPrice={product.compareAtPrice}
+              installmentMonths={product.installmentMonths}
+            />
+          ) : (
+            <PriceBlock
+              price={product.price}
+              compareAtPrice={product.compareAtPrice}
+              installmentMonths={product.installmentMonths}
+              size="lg"
+            />
+          )}
 
           <div className="flex items-center gap-4">
             <StockBadge status={product.stockStatus as StockStatus} />
@@ -128,70 +224,187 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
           <PurchasePanel productId={product.id} stockStatus={product.stockStatus as StockStatus} maxQuantity={maxQuantity} />
 
-          <CompareButton productId={product.id} className="w-fit" />
-
-          <div className="border-border grid grid-cols-1 gap-3 rounded-xl border p-4 sm:grid-cols-3">
-            <div className="flex items-center gap-2 text-sm">
-              <ShieldCheck className="text-brand size-5 shrink-0" />
-              אחריות {product.warrantyMonths} חודשים
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <Truck className="text-brand size-5 shrink-0" />
-              משלוח עד הבית
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <CreditCard className="text-brand size-5 shrink-0" />
-              תשלום מאובטח
-            </div>
+          <div className="flex flex-wrap gap-2">
+            {/* On mobile this sat alone as a small, orphaned pill floating
+                in whitespace below the two full-width CTAs — a full-width
+                secondary button reads as part of the same button group
+                instead. Desktop keeps its original compact inline size. */}
+            <CompareButton productId={product.id} className="h-11 w-full justify-center sm:h-7 sm:w-fit" />
+            {isAdminViewer && <ProductReviewFlagButton productId={product.id} initialFlag={reviewFlag} />}
           </div>
+
+          {/* The full warranty/delivery/payment trio used to repeat here
+              AND in the "משלוח ואחריות" tab below — same three facts twice
+              on one page. Warranty now lives as a badge on the gallery
+              photo itself instead (see ProductGallery); delivery/payment
+              stay covered by the tab, so nothing here duplicates it. */}
 
           <ConsultSection productTitle={product.title} />
         </div>
       </div>
 
       {/* info tabs */}
-      <div className="mt-10">
+      <div className="mt-6">
         <Tabs defaultValue="overview">
-          <TabsList>
-            <TabsTrigger value="overview">סקירה כללית</TabsTrigger>
-            <TabsTrigger value="specs">מפרט טכני</TabsTrigger>
-            <TabsTrigger value="delivery">משלוח ואחריות</TabsTrigger>
-            <TabsTrigger value="reviews">ביקורות ({product.reviews.length})</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="max-w-3xl py-4 text-sm leading-relaxed">
-            {product.description ?? product.shortDescription}
-          </TabsContent>
-
-          <TabsContent value="specs" className="py-4">
-            {product.attributeValues.length === 0 ? (
-              <p className="text-muted-foreground text-sm">אין מפרט טכני זמין למוצר זה.</p>
-            ) : (
-              <dl className="grid max-w-2xl grid-cols-1 gap-x-8 sm:grid-cols-2">
-                {product.attributeValues.map((av) => (
-                  <div key={av.id} className="border-border flex justify-between border-b py-2.5 text-sm">
-                    <dt className="text-muted-foreground">
-                      {av.attribute.label} {av.attribute.unit && `(${av.attribute.unit})`}
-                    </dt>
-                    <dd className="font-medium">{av.value}</dd>
-                  </div>
+          <StickyTabsBar>
+            <div className="overflow-x-auto">
+              {/* gap/text shrink on mobile so all four tabs fit the
+                  viewport without needing the horizontal scroll below to
+                  actually be used — overflow-x-auto stays on the wrapper
+                  as a safety net for a narrower phone or a longer label,
+                  not as the expected everyday interaction. */}
+              <TabsList
+                variant="line"
+                className="border-border h-auto w-full min-w-max justify-start gap-3 rounded-none border-b bg-transparent p-0 sm:gap-6"
+              >
+                {[
+                  { value: "overview", label: "סקירה כללית" },
+                  { value: "specs", label: "מפרט טכני" },
+                  { value: "delivery", label: "משלוח ואחריות" },
+                  { value: "reviews", label: `ביקורות (${product.reviews.length})` },
+                ].map((tab) => (
+                  <TabsTrigger
+                    key={tab.value}
+                    value={tab.value}
+                    className="text-muted-foreground data-active:text-foreground hover:text-foreground shrink-0 rounded-none border-0 bg-transparent px-0.5 pb-3 text-xs shadow-none data-active:bg-transparent data-active:font-bold data-active:shadow-none after:bg-brand after:h-0.5 sm:px-1 sm:text-sm"
+                  >
+                    {tab.label}
+                  </TabsTrigger>
                 ))}
-              </dl>
+              </TabsList>
+            </div>
+          </StickyTabsBar>
+
+          <TabsContent value="overview" className="py-4">
+            {/* Narrow reading column, product-first the whole way down:
+                1. על המוצר (heading + short desc + real highlight bullets)
+                2. נתונים מרכזיים (key facts strip) — used to be followed by
+                   a separate "למה לבחור" card grid restating the exact same
+                   facts as value+label a second time (real, ugly repetition
+                   confirmed live on a product whose attribute values are
+                   long phrases, not short specs — "מכונות קפה Faber" shown
+                   twice back to back). Without real spec->benefit copy to
+                   translate them into, that second section could only ever
+                   repeat the first one, so it's gone rather than kept as
+                   filler.
+                3. תכונות וטכנולוגיות מרכזיות (remaining description prose,
+                   given the premium alternating-block treatment instead of
+                   a flat "מידע נוסף" wall of text — same real content, just
+                   nothing left over to duplicate in a separate section)
+                4. מידות (real dimension attributes only)
+                5. אודות המותג (brand banner + about card) — deliberately
+                   last, after every product-specific fact, not competing
+                   with the product for attention up top.
+                6. מוצרים נוספים של אותו מותג (full-width, outside the
+                   column) */}
+            <div className="flex max-w-3xl flex-col gap-5">
+              <div>
+                <h2 className="text-lg font-bold text-balance">{shortHeadingText} בקצרה</h2>
+                {product.shortDescription && (
+                  <p className="text-muted-foreground mt-1.5 line-clamp-2 text-sm leading-relaxed">{product.shortDescription}</p>
+                )}
+                <div className="mt-3">
+                  <ProductHighlightsGrid highlights={descriptionHighlights} />
+                </div>
+              </div>
+
+              <ProductKeyFactsStrip facts={keyFacts} />
+
+              {isAdminViewer ? (
+                <ProductDescriptionEditor
+                  productId={product.id}
+                  description={product.description ?? product.shortDescription ?? ""}
+                  sourceUrl={product.descriptionSourceUrl}
+                />
+              ) : (
+                <ProductFeatureSections prose={descriptionProse} />
+              )}
+
+              <ProductDimensions dimensions={dimensions} />
+
+              <BrandHighlight brand={product.brand} />
+
+              <BrandAboutSection
+                brandId={product.brand.id}
+                brandName={product.brand.name}
+                aboutContent={product.brand.aboutContent}
+                images={product.brand.images}
+                isAdmin={isAdminViewer}
+              />
+            </div>
+
+            {/* Breaks out of the narrow column on purpose — a product
+                carousel reads better at full width, same as the "מוצרים
+                דומים" rail at the bottom of the page. */}
+            {brandProducts.length > 0 && (
+              <div className="mt-8">
+                <ProductRail
+                  title={`עוד מוצרים של ${product.brand.name}`}
+                  products={brandProducts}
+                  viewAllHref={`/brand/${product.brand.slug}`}
+                  favoriteIds={favoriteIds}
+                />
+              </div>
             )}
           </TabsContent>
 
-          <TabsContent value="delivery" className="max-w-2xl space-y-3 py-4 text-sm leading-relaxed">
-            <div className="flex items-start gap-3">
-              <Truck className="text-brand mt-0.5 size-5 shrink-0" />
-              <p>משלוח עד הבית תוך {product.deliveryDays} ימי עסקים בכל הארץ. ניתן גם לאסוף עצמאית מהסניף.</p>
+          <TabsContent value="specs" className="py-4">
+            <ProductSpecsEditor
+              productId={product.id}
+              attributes={categoryAttributes}
+              initialValues={product.attributeValues.map((av) => ({
+                id: av.id,
+                attributeId: av.attributeId,
+                value: av.value,
+                // Label/unit are the spec table's own headers, not admin-only
+                // data — every visitor needs them to read the table at all
+                // (see ProductSpecsEditor's AttributeValue type).
+                attribute: { key: av.attribute.key, label: av.attribute.label, unit: av.attribute.unit },
+              }))}
+              rawSpecs={rawSpecs}
+              isAdmin={isAdminViewer}
+              // Unlike ProductDescriptionEditor, this component renders for
+              // every visitor (isAdmin just switches its internal branch),
+              // so its props reach the hydration payload for everyone —
+              // only pass the source URL down when there's an admin to see
+              // it, same reasoning as galleryImages above.
+              specSourceUrl={isAdminViewer ? product.specSourceUrl : null}
+            />
+          </TabsContent>
+
+          <TabsContent value="delivery" className="flex max-w-2xl flex-col gap-3 py-4">
+            <div className="border-border bg-card flex items-start gap-3.5 rounded-xl border p-4 shadow-sm">
+              <span className="bg-brand/10 text-brand flex size-10 shrink-0 items-center justify-center rounded-full">
+                <Truck className="size-5" />
+              </span>
+              <div>
+                <p className="font-bold">משלוח עד הבית</p>
+                <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
+                  תוך {product.deliveryDays} ימי עסקים בכל הארץ. ניתן גם לאסוף עצמאית מהסניף.
+                </p>
+              </div>
             </div>
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="text-brand mt-0.5 size-5 shrink-0" />
-              <p>אחריות יבואן רשמי למשך {product.warrantyMonths} חודשים מיום הרכישה.</p>
+            <div className="border-border bg-card flex items-start gap-3.5 rounded-xl border p-4 shadow-sm">
+              <span className="bg-brand/10 text-brand flex size-10 shrink-0 items-center justify-center rounded-full">
+                <ShieldCheck className="size-5" />
+              </span>
+              <div>
+                <p className="font-bold">אחריות יבואן רשמי</p>
+                <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
+                  {product.warrantyMonths} חודשים מיום הרכישה, ישירות מול היבואן בישראל.
+                </p>
+              </div>
             </div>
-            <div className="flex items-start gap-3">
-              <PackageCheck className="text-brand mt-0.5 size-5 shrink-0" />
-              <p>ניתן להחזיר את המוצר באריזתו המקורית בהתאם לתקנון האתר.</p>
+            <div className="border-border bg-card flex items-start gap-3.5 rounded-xl border p-4 shadow-sm">
+              <span className="bg-brand/10 text-brand flex size-10 shrink-0 items-center justify-center rounded-full">
+                <PackageCheck className="size-5" />
+              </span>
+              <div>
+                <p className="font-bold">מדיניות החזרות</p>
+                <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
+                  ניתן להחזיר את המוצר באריזתו המקורית בהתאם לתקנון האתר.
+                </p>
+              </div>
             </div>
           </TabsContent>
 
@@ -199,7 +412,38 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             {product.reviews.length === 0 ? (
               <p className="text-muted-foreground text-sm">אין עדיין ביקורות למוצר זה.</p>
             ) : (
-              <ul className="flex flex-col gap-4">
+              <>
+                <div className="border-border bg-card mb-6 flex flex-col items-center gap-4 rounded-xl border p-5 shadow-sm sm:flex-row">
+                  <div className="shrink-0 text-center">
+                    <p className="text-4xl font-black">{product.ratingAvg.toFixed(1)}</p>
+                    <div className="mt-1 flex justify-center">
+                      {Array.from({ length: 5 }, (_, i) => (
+                        <Star
+                          key={i}
+                          className={`size-4 ${i < Math.round(product.ratingAvg) ? "fill-warning text-warning" : "text-muted-foreground/30"}`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-muted-foreground mt-1 text-xs">{product.ratingCount} ביקורות</p>
+                  </div>
+                  <div className="flex w-full flex-1 flex-col gap-1.5">
+                    {[5, 4, 3, 2, 1].map((star) => {
+                      const count = product.reviews.filter((r) => r.rating === star).length;
+                      const pct = product.reviews.length > 0 ? Math.round((count / product.reviews.length) * 100) : 0;
+                      return (
+                        <div key={star} className="flex items-center gap-2 text-xs">
+                          <span className="text-muted-foreground w-3 shrink-0 text-end">{star}</span>
+                          <Star className="fill-warning text-warning size-3 shrink-0" />
+                          <div className="bg-secondary h-2 flex-1 overflow-hidden rounded-full">
+                            <div className="bg-warning h-full rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-muted-foreground w-6 shrink-0">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <ul className="flex flex-col gap-4">
                 {product.reviews.map((r) => (
                   <li key={r.id} className="border-border border-b pb-4">
                     <div className="flex items-center gap-2">
@@ -218,7 +462,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                     {r.body && <p className="text-muted-foreground mt-0.5 text-sm">{r.body}</p>}
                   </li>
                 ))}
-              </ul>
+                </ul>
+              </>
             )}
           </TabsContent>
         </Tabs>

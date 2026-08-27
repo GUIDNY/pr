@@ -65,17 +65,39 @@ model Address {
 // ---------- Catalog ----------
 
 model Brand {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  slug        String   @unique
-  logoUrl     String?
-  description String?
-  isActive    Boolean  @default(true)
-  seoTitle    String?
-  seoDesc     String?
-  createdAt   DateTime @default(now())
+  id           String   @id @default(cuid())
+  name         String   @unique
+  slug         String   @unique
+  logoUrl      String?
+  description  String?
+  // Longer researched write-up shown in the "About the Brand" panel on
+  // every product page for this brand — separate from `description` (a
+  // one-line blurb) since this is meant to be a real multi-paragraph piece,
+  // collapsed behind "קרא עוד" by default. Plain text, same \n-separated
+  // paragraph convention as Product.description (see
+  // ProductDescriptionText) — not every brand has one yet.
+  aboutContent String?
+  isActive     Boolean  @default(true)
+  seoTitle     String?
+  seoDesc      String?
+  createdAt    DateTime @default(now())
 
   products Product[]
+  images   BrandImage[]
+}
+
+// Lifestyle/brand imagery for the "About the Brand" panel — separate from
+// Brand.logoUrl (the small mark shown in the hero banner), and separate
+// from ProductImage (photos of one specific product) — this is imagery of
+// the brand itself, shared across every product under it.
+model BrandImage {
+  id        String @id @default(cuid())
+  brandId   String
+  brand     Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  url       String
+  sortOrder Int    @default(0)
+
+  @@index([brandId])
 }
 
 model Category {
@@ -118,40 +140,56 @@ model CategoryAttribute {
 }
 
 model Product {
-  id                String    @id @default(cuid())
-  sku               String    @unique
-  title             String
-  slug              String    @unique
-  model             String?
-  brandId           String
-  brand             Brand     @relation(fields: [brandId], references: [id])
-  categoryId        String
-  category          Category  @relation(fields: [categoryId], references: [id])
-  shortDescription  String?
-  description       String?
-  price             Float
-  compareAtPrice    Float?
-  installmentMonths Int?
-  warrantyMonths    Int       @default(12)
-  deliveryDays      Int       @default(7)
-  stockStatus       String    @default("IN_STOCK") // IN_STOCK | LOW_STOCK | OUT_OF_STOCK | SPECIAL_ORDER | DISCONTINUED
-  stockQty          Int       @default(0)
-  isPublished       Boolean   @default(true)
-  isFeatured        Boolean   @default(false)
-  isBestSeller      Boolean   @default(false)
-  ratingAvg         Float     @default(0)
-  ratingCount       Int       @default(0)
-  seoTitle          String?
-  seoDesc           String?
-  supplierId        String?
-  supplier          Supplier? @relation(fields: [supplierId], references: [id])
-  supplierSku       String?
-  supplierCost      Float? // internal cost — admin-only, never serialized to public pages
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                   String    @id @default(cuid())
+  sku                  String    @unique
+  title                String
+  slug                 String    @unique
+  model                String? // the manufacturer's own model number (e.g. "HBG578ES3") — NOT the internal sku. Indexed: /api/integrations/products' ?hasModel=false filter and exact-model lookups both scan this.
+  colorName            String? // e.g. "רוז גולד" — a real, structured field, not scraped/guessed; distinguishes same-capacity variants that differ only by finish (each with its own real manufacturer model number, e.g. M-LR8 vs M-LB8)
+  brandId              String
+  brand                Brand     @relation(fields: [brandId], references: [id])
+  categoryId           String
+  category             Category  @relation(fields: [categoryId], references: [id])
+  shortDescription     String?
+  description          String?
+  price                Float
+  compareAtPrice       Float?
+  installmentMonths    Int?
+  warrantyMonths       Int       @default(12)
+  deliveryDays         Int       @default(7)
+  stockStatus          String    @default("IN_STOCK") // IN_STOCK | LOW_STOCK | OUT_OF_STOCK | SPECIAL_ORDER | DISCONTINUED
+  stockQty             Int       @default(0)
+  isPublished          Boolean   @default(true)
+  isFeatured           Boolean   @default(false)
+  isBestSeller         Boolean   @default(false)
+  ratingAvg            Float     @default(0)
+  ratingCount          Int       @default(0)
+  seoTitle             String?
+  seoDesc              String?
+  supplierId           String?
+  supplier             Supplier? @relation(fields: [supplierId], references: [id])
+  supplierSku          String?
+  supplierCost         Float? // internal cost — admin-only, never serialized to public pages
+  extraSpecsRaw        String? // JSON object of spec fields an external source sent that didn't match any CategoryAttribute for this product's category — shown on the public product page only as a fallback when there's no structured spec at all (see product/[slug]/page.tsx), until someone maps the key to a real CategoryAttribute
+  // Where the enrichment API's description/spec content was scraped from —
+  // admin-only provenance, never rendered on the public product page. Set
+  // by /api/integrations/product-enrich, independent of whether the content
+  // itself was just written or was already there (a backfill-only call can
+  // set these without touching description/extraSpecsRaw at all).
+  descriptionSourceUrl String?
+  specSourceUrl        String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   // ---- Inventory sync (Excel/ERP source of truth) ----
+  isTemporarySku         Boolean          @default(false) // sku is a sequential placeholder (0001, 0002…), not from the source
   minSalePrice           Float? // internal floor price reference from source, admin-only
+  // Fixed 5-bucket stock fields — superseded by the per-named-source
+  // InventorySourceLine model below (one row per raw column: "תצוגה חדרה",
+  // "בונדד עומר", etc.), which is now the source of truth for the
+  // inventory breakdown UI. Left in place, still updated, since existing
+  // queries (PUBLIC_PRODUCT_WHERE, admin summaries) read stockQty directly
+  // and there's no reason to churn them for this change.
   sellableStock          Int? // "יתרה" — what's actually available to sell
   warehouseStock         Int? // "מלאי" + "טובים" columns, summed
   showroomStock          Int? // "תצוגה" columns (any branch), summed
@@ -167,27 +205,85 @@ model Product {
   lastExcelSyncAt        DateTime?
   missingFromSourceSince DateTime? // set when a previously-known product stops appearing in its source; never auto-deleted
 
-  images          ProductImage[]
-  attributeValues ProductAttributeValue[]
-  cartItems       CartItem[]
-  orderItems      OrderItem[]
-  favorites       Favorite[]
-  reviews         Review[]
-  changeEvents    InventoryChangeEvent[]
-  alerts          InventoryAlert[]
+  images              ProductImage[]
+  attributeValues     ProductAttributeValue[]
+  cartItems           CartItem[]
+  orderItems          OrderItem[]
+  favorites           Favorite[]
+  reviews             Review[]
+  changeEvents        InventoryChangeEvent[]
+  alerts              InventoryAlert[]
+  inventoryLines      InventorySourceLine[]
+  enrichmentCandidate EnrichmentCandidate?
 
   @@index([categoryId])
   @@index([brandId])
   @@index([sourceId])
+  @@index([isTemporarySku])
+  @@index([model])
+}
+
+// A proposed image + description pulled from the manufacturer's own site,
+// staged for a human to approve before it touches the live product — never
+// applied automatically. Kept as its own table (not fields on Product) so
+// "unreviewed draft" and "live data" can never be confused with each other.
+model EnrichmentCandidate {
+  id           String    @id @default(cuid())
+  productId    String    @unique
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  imageUrl     String?
+  description  String?
+  specs        String? // JSON object of { categoryAttribute.key: value } proposed from the manufacturer page — only keys matching a real CategoryAttribute for the product's category get applied on approval
+  sourceUrl    String? // the manufacturer page this was pulled from, so an admin can verify it before approving
+  status       String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  createdAt    DateTime  @default(now())
+  reviewedAt   DateTime?
+  reviewedById String?
+
+  @@index([status])
+}
+
+// One row per named inventory location/source column found in the raw file
+// (e.g. "מלאי חדרה", "תצוגה", "בונדד עומר", "מלאי ספק") — preserves *where*
+// stock sits, not just a summed total. A sync replaces a product's full set
+// of lines each run (delete + recreate) rather than trying to diff
+// individual lines, since the whole point is "this is what the source says
+// right now."
+model InventorySourceLine {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  label     String // original column label from the source, e.g. "תצוגה חדרה"
+  quantity  Int
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+}
+
+// Single global counter for sequential temporary SKUs (0001, 0002, …)
+// assigned to products with no real SKU in their source. A dedicated
+// counter (rather than scanning MAX(sku)) keeps allocation simple and
+// monotonic even as temp-SKU'd products later get upgraded to a real SKU.
+model TempSkuCounter {
+  id    String @id @default("singleton")
+  value Int    @default(0)
 }
 
 model ProductImage {
-  id        String  @id @default(cuid())
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String
-  alt       String?
-  sortOrder Int     @default(0)
+  id             String    @id @default(cuid())
+  productId      String
+  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url            String
+  alt            String?
+  sortOrder      Int       @default(0)
+  // Provenance for images written by /api/integrations/product-enrich —
+  // admin-only, never rendered on the public product page. Null for images
+  // added through the admin UI (drag-and-drop upload or a plain URL), which
+  // have no "source page" to record.
+  sourcePageUrl  String?
+  sourceImageUrl String?
+  sourceDomain   String?
+  capturedAt     DateTime?
 
   @@index([productId])
 }
@@ -512,7 +608,8 @@ model InventoryAlert {
   type         String
   // LOW_STOCK | OUT_OF_STOCK | UNMATCHED_ROW | DUPLICATE_SKU | DUPLICATE_MODEL |
   // INVALID_PRICE | MISSING_MODEL | UNKNOWN_COLUMN | NEGATIVE_STOCK |
-  // MAJOR_STOCK_CHANGE | MISSING_FROM_SOURCE | SOURCE_CONFLICT
+  // MAJOR_STOCK_CHANGE | MISSING_FROM_SOURCE | SOURCE_CONFLICT |
+  // URGENT_MISSING_MEDIA | MANUAL_ATTENTION | MANUAL_URGENT
   severity     String            @default("WARNING") // INFO | WARNING | CRITICAL
   productId    String?
   product      Product?          @relation(fields: [productId], references: [id])
@@ -533,4 +630,51 @@ model InventoryAlert {
   @@index([isResolved])
   @@index([productId])
   @@index([createdAt])
+}
+
+// ---------- Content / SEO ----------
+
+// Blog-style buying-guide content, separate from CmsPage (which is flat
+// one-off pages like About/Terms with no listing, no cover image, no
+// per-article SEO fields). `content` is a JSON-encoded array of typed
+// blocks ({type:"heading"|"paragraph"|"list", ...}) rather than raw HTML or
+// markdown — every article here is authored by us, not user-submitted, so
+// there's no injection risk either way, but structured blocks render
+// predictably and keep heading hierarchy correct for SEO without pulling in
+// a markdown dependency for a handful of admin-authored posts.
+model Article {
+  id                  String   @id @default(cuid())
+  slug                String   @unique
+  title               String
+  excerpt             String
+  content             String
+  coverImageUrl       String?
+  category            String?
+  // Slug of the real Category this article should send a reader to — the
+  // internal-linking CTA at the bottom of the article page, not just the
+  // freeform display label above (`category`).
+  relatedCategorySlug String?
+  seoTitle            String?
+  seoDesc             String?
+  isPublished         Boolean  @default(true)
+  publishedAt         DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([isPublished, publishedAt])
+}
+
+// Singleton row (fixed id, same pattern as TempSkuCounter) holding the
+// facts the "אלפרד" chat bot (see /api/alfred-chat) states as policy —
+// shipping time, warranty, service hours. Editable from /admin/chatbot so
+// an admin can correct these the moment they change in real life, instead
+// of them being hardcoded strings in the bot's system prompt that need a
+// code deploy to update.
+model ChatbotSettings {
+  id              String   @id @default("singleton")
+  shippingInfo    String   @default("עד הבית תוך כמה ימי עסקים, תלוי במוצר")
+  warrantyInfo    String   @default("אחריות יבואן רשמי על כל המוצרים באתר")
+  serviceHours    String?
+  additionalNotes String?
+  updatedAt       DateTime @updatedAt
 }

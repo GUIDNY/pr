@@ -2,22 +2,21 @@ import {
   getInventorySummary,
   getInventoryProducts,
   getInventoryFilterOptions,
-  getAttentionGroups,
+  getSheetSummaryCards,
   type InventoryTableFilters,
 } from "@/lib/queries/admin-inventory";
 import { InventoryFilterBar } from "@/components/admin/inventory-filter-bar";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
-import { InventoryViewTabs } from "@/components/admin/inventory-view-tabs";
 import { InventorySyncButton } from "@/components/admin/inventory-sync-button";
-import { InventoryKpiCards } from "@/components/admin/inventory-kpi-cards";
-import { InventoryAttentionCenter } from "@/components/admin/inventory-attention-center";
+import { InventorySummaryBar } from "@/components/admin/inventory-summary-bar";
+import { InventorySheetTabs } from "@/components/admin/inventory-sheet-tabs";
 import { InventoryTable } from "@/components/admin/inventory-table";
 import { InventoryProductDrawer } from "@/components/admin/inventory-product-drawer";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
 import { formatDateTime } from "@/lib/format";
 import type { StockStatus } from "@/lib/enums";
 
-export const metadata = { title: "מרכז המלאי | PREC Admin" };
+export const metadata = { title: "מרכז המלאי | A&I Electronics Admin" };
 
 const PAGE_SIZE = 30;
 
@@ -45,19 +44,21 @@ export default async function AdminInventoryPage({
     brandId: sp.brandId,
     status: (sp.status as StockStatus) ?? "ALL",
     sourceId: sp.sourceId,
+    sourceSheet: sp.sourceSheet,
     publishStatus: (sp.publishStatus as "PUBLISHED" | "UNPUBLISHED") ?? "ALL",
     alertType: sp.alertType,
+    hasTemporarySku: sp.hasTemporarySku === "1",
     view: (sp.view as InventoryTableFilters["view"]) ?? "ALL",
     sort: (sp.sort as InventoryTableFilters["sort"]) ?? "updated",
     page,
     pageSize: PAGE_SIZE,
   };
 
-  const [summary, { products, total }, filterOptions, attentionGroups] = await Promise.all([
+  const [summary, { products, total }, filterOptions, sheetCards] = await Promise.all([
     getInventorySummary(),
     getInventoryProducts(filters),
     getInventoryFilterOptions(),
-    getAttentionGroups(),
+    getSheetSummaryCards(sp.sourceId),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -73,7 +74,8 @@ export default async function AdminInventoryPage({
     return `/admin/inventory${qs ? `?${qs}` : ""}`;
   }
 
-  const activeSourcesCount = filterOptions.sources.filter((s) => s.isActive).length;
+  const activeSources = filterOptions.sources.filter((s) => s.isActive);
+  const activeSourcesCount = activeSources.length;
 
   return (
     <div>
@@ -94,17 +96,13 @@ export default async function AdminInventoryPage({
 
       <InventoryTabs />
 
-      <InventoryKpiCards
+      <InventorySummaryBar
         totalProducts={summary.totalProducts}
-        lowStock={summary.lowStock}
-        needsAttention={summary.unresolvedAlerts}
-        changedToday={summary.changedToday}
-        activeView={sp.view}
+        sources={activeSources.map((s) => ({ id: s.id, filename: s.filename }))}
       />
 
-      <InventoryAttentionCenter groups={attentionGroups} />
+      <InventorySheetTabs sheets={sheetCards} />
 
-      <InventoryViewTabs />
       <InventoryFilterBar
         brands={filterOptions.brands}
         sources={filterOptions.sources.map((s) => ({ id: s.id, filename: s.filename }))}

@@ -10,6 +10,7 @@ export async function getProductsForCompareAction(ids: string[]) {
       brand: true,
       category: { include: { parent: true } },
       attributeValues: { include: { attribute: true }, orderBy: { attribute: { sortOrder: "asc" } } },
+      images: { take: 1, orderBy: { sortOrder: "asc" } },
     },
   });
   // preserve the order the user added them in

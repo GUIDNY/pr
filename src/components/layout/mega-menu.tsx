@@ -18,7 +18,8 @@ import {
   Package,
   type LucideIcon,
 } from "lucide-react";
-import { CATEGORY_TREE } from "@/lib/category-tree";
+import type { NavigableDepartment } from "@/lib/queries/categories";
+import { DEPARTMENT_ICON_MAP } from "@/lib/department-icons";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<string, LucideIcon> = {
@@ -37,7 +38,7 @@ const ICONS: Record<string, LucideIcon> = {
   Package,
 };
 
-export function MegaMenu() {
+export function MegaMenu({ departments }: { departments: NavigableDepartment[] }) {
   const [openSlug, setOpenSlug] = useState<string | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -48,7 +49,9 @@ export function MegaMenu() {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   }
 
-  const openDept = CATEGORY_TREE.find((d) => d.slug === openSlug);
+  if (departments.length === 0) return null;
+
+  const openDept = departments.find((d) => d.slug === openSlug);
 
   return (
     <nav
@@ -56,8 +59,8 @@ export function MegaMenu() {
       onMouseLeave={scheduleClose}
     >
       <ul className="mx-auto flex max-w-7xl items-center gap-1 px-4">
-        {CATEGORY_TREE.map((dept) => {
-          const Icon = ICONS[dept.icon] ?? Package;
+        {departments.map((dept) => {
+          const Icon = ICONS[DEPARTMENT_ICON_MAP[dept.slug]] ?? Package;
           const isOpen = openSlug === dept.slug;
           return (
             <li key={dept.slug} onMouseEnter={() => (cancelClose(), setOpenSlug(dept.slug))}>
@@ -97,7 +100,7 @@ export function MegaMenu() {
             </div>
             <div className="border-border bg-muted/50 flex flex-col justify-between rounded-lg border p-4">
               {(() => {
-                const Icon = ICONS[openDept.icon] ?? Package;
+                const Icon = ICONS[DEPARTMENT_ICON_MAP[openDept.slug]] ?? Package;
                 return <Icon className="text-brand size-8" strokeWidth={1.5} />;
               })()}
               <div>

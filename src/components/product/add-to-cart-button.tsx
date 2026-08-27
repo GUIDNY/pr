@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 
 export function AddToCartButton({
   productId,
+  qty = 1,
   disabled,
   size = "default",
   className,
@@ -17,6 +18,7 @@ export function AddToCartButton({
   openDrawerOnAdd = true,
 }: {
   productId: string;
+  qty?: number;
   disabled?: boolean;
   size?: "default" | "sm" | "lg" | "icon";
   className?: string;
@@ -39,7 +41,7 @@ export function AddToCartButton({
         e.stopPropagation();
         startTransition(async () => {
           try {
-            const summary = await addToCartAction(productId, 1);
+            const summary = await addToCartAction(productId, qty);
             setCart(summary);
             if (openDrawerOnAdd) openDrawer();
             else toast.success("נוסף לעגלה");

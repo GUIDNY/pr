@@ -11,9 +11,9 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CATEGORY_TREE } from "@/lib/category-tree";
+import type { NavigableDepartment } from "@/lib/queries/categories";
 
-export function MobileNav() {
+export function MobileNav({ departments }: { departments: NavigableDepartment[] }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -33,7 +33,7 @@ export function MobileNav() {
         </SheetHeader>
         <div className="flex-1 overflow-y-auto">
           <Accordion type="single" collapsible className="px-2">
-            {CATEGORY_TREE.map((dept) => (
+            {departments.map((dept) => (
               <AccordionItem key={dept.slug} value={dept.slug}>
                 <AccordionTrigger className="px-3 text-sm font-medium">{dept.name}</AccordionTrigger>
                 <AccordionContent className="flex flex-col gap-1 px-3">

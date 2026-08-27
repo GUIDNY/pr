@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Phone, MapPin, ShieldCheck, Truck, CreditCard, Share2 } from "lucide-react";
-import { CATEGORY_TREE } from "@/lib/category-tree";
+import { getNavigableCategoryTree } from "@/lib/queries/categories";
 
-export function Footer() {
-  const departments = CATEGORY_TREE.slice(0, 6);
+export async function Footer() {
+  const departments = (await getNavigableCategoryTree()).slice(0, 6);
 
   return (
     <footer className="bg-primary text-primary-foreground mt-16">
@@ -35,8 +35,9 @@ export function Footer() {
 
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 py-10 sm:grid-cols-4">
         <div className="col-span-2 sm:col-span-1">
-          <span className="text-xl font-black">
-            <span className="text-brand">P</span>REC
+          <span className="flex flex-col items-center text-xl leading-none font-black">
+            <span className="text-brand">A&I</span>
+            <span>Electronics</span>
           </span>
           <p className="text-primary-foreground/60 mt-3 text-sm leading-relaxed">
             חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. קשת נרחבת של מוצרים במחירים תחרותיים.
@@ -86,7 +87,7 @@ export function Footer() {
               </Link>
             </li>
             <li>
-              <Link href="/page/articles" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+              <Link href="/articles" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 מאמרים
               </Link>
             </li>
@@ -122,7 +123,7 @@ export function Footer() {
 
       <div className="border-primary-foreground/10 border-t px-4 py-4">
         <div className="text-primary-foreground/50 mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-xs sm:flex-row">
-          <span>© {new Date().getFullYear()} PREC. כל הזכויות שמורות.</span>
+          <span>© {new Date().getFullYear()} A&I Electronics. כל הזכויות שמורות.</span>
           <span className="flex items-center gap-1">
             <MapPin className="size-3" /> ישראל
           </span>

@@ -97,3 +97,27 @@ export function categoryForUnscopedSheet(sheetName: string): string | null {
   }
   return EXTRA_TAB_CATEGORY_MAP[sheetName] ?? null;
 }
+
+// A tab's yellow section dividers ("אוזניות", "מנגלים ומטבחי חוץ...",
+// "טאבונים") often describe a real sub-category, more specific than the
+// whole tab's default. Keyword-matched (like classifier.ts) rather than
+// exact-string, since the same real divider shows up with different exact
+// wording sheet to sheet. Order matters: first match wins. A miss falls
+// back to the sheet-level category — never blocks the row.
+type SubCategoryRule = { test: (label: string) => boolean; slug: string };
+
+const SUB_CATEGORY_RULES: SubCategoryRule[] = [
+  { test: (l) => /אוזני/.test(l), slug: "headphones" },
+  { test: (l) => /רמקולים ניידים|בידור|קריוק/.test(l), slug: "portable-speakers" },
+  { test: (l) => /מנגל|מטבח חוץ/.test(l), slug: "grills" },
+  { test: (l) => /טאבו/.test(l), slug: "tabuns" },
+  { test: (l) => /ברז|בר מים/.test(l), slug: "water-taps" },
+];
+
+export function subCategoryFromSectionLabel(label: string | null): string | null {
+  if (!label) return null;
+  for (const rule of SUB_CATEGORY_RULES) {
+    if (rule.test(label)) return rule.slug;
+  }
+  return null;
+}

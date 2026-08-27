@@ -16,16 +16,20 @@ export async function getInventorySummary() {
     supplierStock,
     displayOnly,
     needsReview,
+    missingSku,
     changedToday,
     unresolvedAlerts,
   ] = await Promise.all([
-    db.product.count({ where: { sourceId: { not: null } } }),
+    // "Total products" means what it says on the inventory page's summary
+    // bar: real, currently-in-stock products — not every row ever imported.
+    db.product.count({ where: { sourceId: { not: null }, stockQty: { gt: 0 } } }),
     db.product.count({ where: { sourceId: { not: null }, stockStatus: "IN_STOCK" } }),
     db.product.count({ where: { sourceId: { not: null }, stockStatus: "OUT_OF_STOCK" } }),
     db.product.count({ where: { sourceId: { not: null }, stockStatus: "LOW_STOCK" } }),
     db.product.count({ where: { sourceId: { not: null }, stockStatus: "SUPPLIER_STOCK" } }),
     db.product.count({ where: { sourceId: { not: null }, stockStatus: "DISPLAY_ONLY" } }),
     db.product.count({ where: { sourceId: { not: null }, stockStatus: "NEEDS_REVIEW" } }),
+    db.product.count({ where: { sourceId: { not: null }, stockQty: { gt: 0 }, isTemporarySku: true } }),
     db.inventoryChangeEvent.count({ where: { createdAt: { gte: new Date(Date.now() - 86400000) } } }),
     db.inventoryAlert.count({ where: { isResolved: false } }),
   ]);
@@ -38,6 +42,7 @@ export async function getInventorySummary() {
     supplierStock,
     displayOnly,
     needsReview,
+    missingSku,
     changedToday,
     unresolvedAlerts,
     latestRun,
@@ -46,19 +51,28 @@ export async function getInventorySummary() {
   };
 }
 
-// Groups open alerts by their actual reason (not a single generic "needs
-// review" bucket) so the admin sees exactly what's wrong and how many —
-// clicking a group filters the table straight to those products.
-export async function getAttentionGroups() {
-  const groups = await db.inventoryAlert.groupBy({
-    by: ["type"],
+// One card per sheet/tab that has imported products — this is the "which
+// tab in the source file" level (e.g. "רמקולים בידוריות ואוזניות", "מוצרי
+// תלייה וכבלים"), one level below the file/source itself. Scoped to a
+// source when one's selected; omitted, covers every sheet across every
+// connected file.
+export async function getSheetSummaryCards(sourceId?: string) {
+  const scope = sourceId ? { sourceId, stockQty: { gt: 0 } } : { sourceId: { not: null }, stockQty: { gt: 0 } };
+  const rows = await db.product.groupBy({
+    by: ["sourceSheet"],
+    where: { ...scope, sourceSheet: { not: null } },
     _count: true,
-    where: { isResolved: false },
-    orderBy: { _count: { type: "desc" } },
+    orderBy: { sourceSheet: "asc" },
   });
-  return groups.map((g) => ({ type: g.type, count: g._count }));
+  return rows.map((r) => ({ sourceSheet: r.sourceSheet as string, count: r._count }));
 }
 
+// One card per category that has imported products — architecture supports
+// many categories even though only a couple are populated today. Each card
+// gives an employee the "seconds to understand" summary the spec asks for:
+// what category, how much is active, how much is missing a real SKU, how
+// many units total. Optionally scoped to a single source and/or a single
+// sheet within it — omitted, this covers every category combined.
 export type InventoryTableFilters = {
   search?: string;
   categorySlug?: string;
@@ -69,9 +83,23 @@ export type InventoryTableFilters = {
   publishStatus?: "PUBLISHED" | "UNPUBLISHED" | "ALL";
   alertType?: string;
   hasAnyAlert?: boolean;
+  hasTemporarySku?: boolean;
   view?: "ALL" | "NEEDS_ATTENTION" | "LOW_STOCK" | "READY_TO_PUBLISH" | "PUBLISHED" | "UNPUBLISHED";
   changedSince?: Date;
-  sort?: "updated" | "price_desc" | "price_asc" | "stock_desc" | "stock" | "title" | "synced" | "brand" | "model" | "category";
+  sort?:
+    | "updated"
+    | "price_desc"
+    | "price_asc"
+    | "cost_desc"
+    | "cost_asc"
+    | "stock_desc"
+    | "stock"
+    | "title"
+    | "sku"
+    | "synced"
+    | "brand"
+    | "model"
+    | "category";
   page?: number;
   pageSize?: number;
 };
@@ -87,6 +115,7 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
     publishStatus,
     alertType,
     hasAnyAlert,
+    hasTemporarySku,
     view,
     changedSince,
     sort = "updated",
@@ -94,7 +123,9 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
     pageSize = 25,
   } = filters;
 
-  const where: Record<string, unknown> = { sourceId: { not: null } };
+  // Zero-stock products don't belong in inventory management at all — they
+  // never show here, full stop, not even behind a filter toggle.
+  const where: Record<string, unknown> = { sourceId: { not: null }, stockQty: { gt: 0 } };
 
   if (alertType) where.alerts = { some: { type: alertType, isResolved: false } };
   else if (hasAnyAlert) where.alerts = { some: { isResolved: false } };
@@ -138,6 +169,7 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
   if (publishStatus === "PUBLISHED") where.isPublished = true;
   if (publishStatus === "UNPUBLISHED") where.isPublished = false;
   if (changedSince) where.lastExcelSyncAt = { gte: changedSince };
+  if (hasTemporarySku) where.isTemporarySku = true;
 
   const orderBy: Record<string, unknown> =
     sort === "stock"
@@ -148,17 +180,23 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
           ? { price: "asc" }
           : sort === "price_desc"
             ? { price: "desc" }
-            : sort === "brand"
-              ? { brand: { name: "asc" } }
-              : sort === "model"
-                ? { model: "asc" }
-                : sort === "title"
-                  ? { title: "asc" }
-                  : sort === "category"
-                    ? { category: { name: "asc" } }
-                    : sort === "synced"
-                      ? { createdAt: "desc" }
-                      : { updatedAt: "desc" };
+            : sort === "cost_asc"
+              ? { supplierCost: "asc" }
+              : sort === "cost_desc"
+                ? { supplierCost: "desc" }
+                : sort === "sku"
+                  ? { sku: "asc" }
+                  : sort === "brand"
+                    ? { brand: { name: "asc" } }
+                    : sort === "model"
+                      ? { model: "asc" }
+                      : sort === "title"
+                        ? { title: "asc" }
+                        : sort === "category"
+                          ? { category: { name: "asc" } }
+                          : sort === "synced"
+                            ? { createdAt: "desc" }
+                            : { updatedAt: "desc" };
 
   const [products, total] = await Promise.all([
     db.product.findMany({
@@ -171,6 +209,7 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
         category: { select: { name: true, slug: true } },
         source: { select: { filename: true, key: true } },
         images: { take: 1, orderBy: { sortOrder: "asc" } },
+        inventoryLines: { orderBy: { label: "asc" } },
         _count: { select: { alerts: { where: { isResolved: false } } } },
       },
     }),
@@ -183,13 +222,13 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
 export async function getInventoryFilterOptions() {
   const [brands, sources, categories] = await Promise.all([
     db.brand.findMany({
-      where: { products: { some: { sourceId: { not: null } } } },
+      where: { products: { some: { sourceId: { not: null }, stockQty: { gt: 0 } } } },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
     db.inventorySource.findMany({ orderBy: { filename: "asc" } }),
     db.category.findMany({
-      where: { products: { some: { sourceId: { not: null } } } },
+      where: { products: { some: { sourceId: { not: null }, stockQty: { gt: 0 } } } },
       select: { slug: true, name: true },
       orderBy: { name: "asc" },
     }),
@@ -253,6 +292,59 @@ export async function getInventoryAlerts(opts: { resolved?: boolean; type?: stri
   return { alerts, total };
 }
 
+const REVIEW_PRODUCT_SELECT = {
+  id: true,
+  title: true,
+  sku: true,
+  slug: true,
+  stockQty: true,
+  brand: { select: { name: true } },
+  category: { select: { name: true } },
+} as const;
+
+function withNonNullProduct<T extends { product: unknown }>(alerts: T[]) {
+  return alerts.filter((a): a is T & { product: NonNullable<T["product"]> } => a.product !== null);
+}
+
+// The general "טיפול" list: products the site hid on its own because they
+// have neither a photo nor a technical spec (reconcileUrgentMissingMedia in
+// lib/inventory/sync.ts), plus anything an admin manually flagged with
+// setProductReviewFlagAction(..., "ATTENTION"). Keyed off the open alerts
+// (not a direct product query) so this always matches exactly what the
+// reconciler/action considers in-need-of-attention, with no risk of drift.
+export async function getAttentionProducts() {
+  const alerts = await db.inventoryAlert.findMany({
+    where: { type: { in: ["URGENT_MISSING_MEDIA", "MANUAL_ATTENTION"] }, isResolved: false },
+    orderBy: { createdAt: "desc" },
+    include: { product: { select: REVIEW_PRODUCT_SELECT } },
+  });
+  return withNonNullProduct(alerts);
+}
+
+// The "טיפול דחוף" list: only products an admin explicitly sent there via
+// the button on the product page (setProductReviewFlagAction(..., "URGENT"))
+// — never populated automatically, unlike getAttentionProducts above.
+export async function getUrgentReviewProducts() {
+  const alerts = await db.inventoryAlert.findMany({
+    where: { type: "MANUAL_URGENT", isResolved: false },
+    orderBy: { createdAt: "desc" },
+    include: { product: { select: REVIEW_PRODUCT_SELECT } },
+  });
+  return withNonNullProduct(alerts);
+}
+
+// Which manual flag (if any) is currently open for one product — read on
+// the product page itself so the admin-only flag button can show its
+// current state instead of always starting from "none".
+export async function getProductReviewFlag(productId: string): Promise<"NONE" | "ATTENTION" | "URGENT"> {
+  const alert = await db.inventoryAlert.findFirst({
+    where: { productId, type: { in: ["MANUAL_ATTENTION", "MANUAL_URGENT"] }, isResolved: false },
+    select: { type: true },
+  });
+  if (!alert) return "NONE";
+  return alert.type === "MANUAL_URGENT" ? "URGENT" : "ATTENTION";
+}
+
 export async function getInventoryProductDetail(id: string) {
   return db.product.findUnique({
     where: { id },
@@ -261,8 +353,10 @@ export async function getInventoryProductDetail(id: string) {
       category: true,
       source: true,
       images: { orderBy: { sortOrder: "asc" } },
+      inventoryLines: { orderBy: { label: "asc" } },
       changeEvents: { orderBy: { createdAt: "desc" }, take: 20 },
       alerts: { where: { isResolved: false }, orderBy: { createdAt: "desc" } },
+      attributeValues: { include: { attribute: true }, orderBy: { attribute: { sortOrder: "asc" } } },
     },
   });
 }

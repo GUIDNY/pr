@@ -1,17 +1,13 @@
 import type { InventoryChangeType, StockStatus } from "@/lib/enums";
-import type { NormalizedProductRow } from "./types";
+import type { NormalizedProductRow, StockLine } from "./types";
 
 export type ExistingProductSnapshot = {
   id: string;
   sku: string;
+  isTemporarySku: boolean;
   sourceId: string | null;
   price: number;
   stockQty: number;
-  sellableStock: number | null;
-  warehouseStock: number | null;
-  showroomStock: number | null;
-  supplierStock: number | null;
-  bondedStock: number | null;
   title: string;
   model: string | null;
   missingFromSourceSince: Date | null;
@@ -21,46 +17,48 @@ export type FieldChange = { changeType: InventoryChangeType; previousValue: unkn
 
 const MAJOR_STOCK_SWING = 20; // absolute unit delta considered "unexpected" for a MAJOR_STOCK_CHANGE alert
 
-type StockFields = {
-  sellableStock: number | null;
-  warehouseStock: number | null;
-  showroomStock: number | null;
-  supplierStock: number | null;
-  bondedStock: number | null;
-};
+type StockLineRow = { stockLines: StockLine[] };
 
 // A blank cell and a confirmed zero look identical in a spreadsheet — this
-// tells them apart. If literally none of the stock columns had a value for
-// this row, we don't actually know the stock, and asserting OUT_OF_STOCK
-// would be reporting information that was never given.
-export function hasAnyStockData(row: StockFields): boolean {
-  return (
-    row.sellableStock !== null ||
-    row.warehouseStock !== null ||
-    row.showroomStock !== null ||
-    row.supplierStock !== null ||
-    row.bondedStock !== null
-  );
+// tells them apart. If literally no stock column had any value for this row
+// (not even a confirmed zero), we don't actually know the stock, and
+// asserting OUT_OF_STOCK would be reporting information that was never given.
+export function hasAnyStockData(row: StockLineRow): boolean {
+  return row.stockLines.length > 0;
 }
 
-export function totalStock(row: StockFields): number {
-  if (row.sellableStock !== null) return Math.max(0, row.sellableStock);
-  const sum =
-    (row.warehouseStock ?? 0) + (row.showroomStock ?? 0) + (row.supplierStock ?? 0) + (row.bondedStock ?? 0);
+// Total Stock = sum of every named source. The one exception: if the source
+// already provides its own running total (a "יתרה" column, classified
+// SELLABLE_STOCK), trust that instead of summing everything else on top of
+// it — otherwise the same units would be counted twice.
+export function totalStock(row: StockLineRow): number {
+  const totalColumn = row.stockLines.find((l) => l.field === "SELLABLE_STOCK");
+  if (totalColumn) return Math.max(0, totalColumn.quantity);
+  const sum = row.stockLines.reduce((acc, l) => acc + l.quantity, 0);
   return Math.max(0, sum);
 }
 
-// Same idea as stock: a source row can leave the retail price column blank
-// while still giving a minimum price. Prefer the confirmed retail price;
-// fall back to the minimum only when there's nothing else, and let the
-// caller know it's a fallback (unconfirmed) so it isn't silently published.
-export function resolvedPrice(row: Pick<NormalizedProductRow, "retailPrice" | "minSalePrice">): {
-  price: number | null;
-  isConfirmed: boolean;
-} {
-  if (row.retailPrice !== null) return { price: row.retailPrice, isConfirmed: true };
-  if (row.minSalePrice !== null) return { price: row.minSalePrice, isConfirmed: false };
-  return { price: null, isConfirmed: false };
+// Every non-total-column stock line, positive quantities only — this is
+// exactly what the admin "פירוט מלאי" breakdown modal shows and what gets
+// persisted as InventorySourceLine rows.
+export function displayStockLines(row: StockLineRow): StockLine[] {
+  return row.stockLines.filter((l) => l.field !== "SELLABLE_STOCK" && l.quantity > 0);
+}
+
+// The website price is the lowest of whatever resale-price columns the
+// source actually gives — "מחיר מינימום", "מחיר מוצג", "קוד מנכ״ל", however
+// many of these a sheet happens to have. Never the cost/supplier column,
+// never a computed markup — just picking the smallest of the real values
+// present. If none are present, there's no price and the product needs
+// review; that's it.
+export function resolvedPrice(
+  row: Pick<NormalizedProductRow, "retailPrice" | "minSalePrice" | "managerPrice">
+): { price: number | null } {
+  const candidates = [row.retailPrice, row.minSalePrice, row.managerPrice].filter(
+    (p): p is number => p !== null
+  );
+  if (candidates.length === 0) return { price: null };
+  return { price: Math.min(...candidates) };
 }
 
 export function deriveStockStatus(row: NormalizedProductRow, stock: number, hasConflict: boolean): StockStatus {
@@ -68,8 +66,12 @@ export function deriveStockStatus(row: NormalizedProductRow, stock: number, hasC
   if (row.issues.some((i) => i.type === "MISSING_MODEL" || i.type === "INVALID_PRICE")) return "NEEDS_REVIEW";
   if (!hasAnyStockData(row)) return "NEEDS_REVIEW";
   if (stock <= 0) {
-    if ((row.supplierStock ?? 0) > 0 || (row.bondedStock ?? 0) > 0) return "SUPPLIER_STOCK";
-    if ((row.showroomStock ?? 0) > 0) return "DISPLAY_ONLY";
+    const hasSupplierOrBonded = row.stockLines.some(
+      (l) => (l.field === "SUPPLIER_STOCK" || l.field === "BONDED_STOCK") && l.quantity > 0
+    );
+    if (hasSupplierOrBonded) return "SUPPLIER_STOCK";
+    const hasShowroom = row.stockLines.some((l) => l.field === "SHOWROOM_STOCK" && l.quantity > 0);
+    if (hasShowroom) return "DISPLAY_ONLY";
     return "OUT_OF_STOCK";
   }
   return "IN_STOCK"; // LOW_STOCK is applied by the caller against the configured threshold
@@ -89,8 +91,9 @@ export function diffAgainstExisting(
     return changes;
   }
 
-  if (row.retailPrice !== null && row.retailPrice !== existing.price) {
-    changes.push({ changeType: "PRICE_CHANGED", previousValue: existing.price, newValue: row.retailPrice });
+  const { price: resolved } = resolvedPrice(row);
+  if (resolved !== null && resolved !== existing.price) {
+    changes.push({ changeType: "PRICE_CHANGED", previousValue: existing.price, newValue: resolved });
   }
 
   const oldStock = existing.stockQty;
@@ -104,21 +107,6 @@ export function diffAgainstExisting(
     } else {
       changes.push({ changeType: "STOCK_DECREASED", previousValue: oldStock, newValue: newStock });
     }
-  }
-
-  if ((row.supplierStock ?? null) !== (existing.supplierStock ?? null)) {
-    changes.push({
-      changeType: "SUPPLIER_STOCK_CHANGED",
-      previousValue: existing.supplierStock,
-      newValue: row.supplierStock,
-    });
-  }
-  if ((row.showroomStock ?? null) !== (existing.showroomStock ?? null)) {
-    changes.push({
-      changeType: "SHOWROOM_STOCK_CHANGED",
-      previousValue: existing.showroomStock,
-      newValue: row.showroomStock,
-    });
   }
 
   const dataChanged = row.title !== existing.title || (row.model ?? null) !== existing.model;
