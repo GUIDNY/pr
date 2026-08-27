@@ -16,13 +16,38 @@ const heebo = Heebo({
   display: "swap",
 });
 
+const SITE_URL = "https://pr-ayam.vercel.app";
+const SITE_NAME = "A&I Electronics";
+const SITE_DESCRIPTION =
+  "A&I Electronics - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.";
+
 export const metadata: Metadata = {
+  // Required for the Open Graph image to resolve to an absolute URL. Without
+  // it Next emits a relative path, and every crawler that matters — WhatsApp,
+  // Facebook, X, iMessage — silently drops the image and shows a bare link.
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "A&I Electronics - הדרך החכמה לקנות אלקטרוניקה",
-    template: "%s | A&I Electronics",
+    default: `${SITE_NAME} - הדרך החכמה לקנות אלקטרוניקה`,
+    template: `%s | ${SITE_NAME}`,
   },
-  description:
-    "A&I Electronics - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.",
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  // The icon set is picked up by convention from src/app: icon.png for the
+  // browser tab, apple-icon.png for an iOS home-screen shortcut. Both are
+  // generated from public/brand/logo.png.
+  openGraph: {
+    type: "website",
+    siteName: SITE_NAME,
+    locale: "he_IL",
+    url: SITE_URL,
+    title: `${SITE_NAME} - הדרך החכמה לקנות אלקטרוניקה`,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${SITE_NAME} - הדרך החכמה לקנות אלקטרוניקה`,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
