@@ -125,7 +125,7 @@ export async function trackOrderAction(orderNumber: string, contact: string) {
   if (!orderNumber.trim() || !contact.trim()) {
     return { success: false as const, error: "יש להזין מספר הזמנה ופרטי קשר", order: null };
   }
-  const order = await verifyOrderAccess(orderNumber.trim().toUpperCase(), contact.trim());
+  const order = await verifyOrderAccess(orderNumber, contact.trim());
   if (!order) {
     return { success: false as const, error: "לא נמצאה הזמנה תואמת. בדקו את מספר ההזמנה ופרטי הקשר.", order: null };
   }

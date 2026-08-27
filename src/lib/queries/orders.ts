@@ -1,6 +1,17 @@
 import "server-only";
 import { db } from "@/lib/db";
 
+// An order number is read off a confirmation screen and typed back in by
+// hand, so it arrives spelled every way it can be: "pr 313500", "PR–313500"
+// with an en dash, or just "313500" because the customer took the digits to
+// be the whole of it. All of those name the same order, and none of them
+// matched the stored "PR-313500". Reduce to the digits and rebuild the
+// canonical spelling around them.
+export function normaliseOrderNumber(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  return digits ? `PR-${digits}` : "";
+}
+
 export async function getOrderByNumber(orderNumber: string) {
   return db.order.findUnique({
     where: { orderNumber },
@@ -28,7 +39,9 @@ function normaliseEmail(value: string): string {
 }
 
 export async function verifyOrderAccess(orderNumber: string, contact: string) {
-  const order = await getOrderByNumber(orderNumber);
+  const normalisedNumber = normaliseOrderNumber(orderNumber);
+  if (!normalisedNumber) return null;
+  const order = await getOrderByNumber(normalisedNumber);
   if (!order) return null;
 
   const email = normaliseEmail(contact);
