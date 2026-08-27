@@ -236,6 +236,31 @@ export async function GET(request: Request) {
   // site at all). ?hasModel=true is the inverse, mostly useful for
   // spot-checking.
   const hasModelParam = url.searchParams.get("hasModel");
+  // `?missing=images,model` — narrower than onlyIncomplete, which ORs every
+  // gap together and so keeps handing back products whose only problem is
+  // one you can't currently do anything about. Whoever is enriching works
+  // one gap at a time (an image pass, then a spec pass), and needs the queue
+  // for that gap alone. Multiple values AND together: ?missing=images,spec
+  // is "missing both", i.e. the products that are furthest from publishable.
+  const missing = (url.searchParams.get("missing") ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  const MISSING_FILTERS: Record<string, object> = {
+    images: { images: { none: {} } },
+    spec: { AND: [{ attributeValues: { none: {} } }, { extraSpecsRaw: null }] },
+    description: { description: null },
+    model: { model: null },
+  };
+  const unknownMissing = missing.filter((m) => !(m in MISSING_FILTERS));
+  if (unknownMissing.length > 0) {
+    return NextResponse.json(
+      {
+        error: `unknown "missing" value(s): ${unknownMissing.join(", ")} — supported: ${Object.keys(MISSING_FILTERS).join(", ")}`,
+      },
+      { status: 400 },
+    );
+  }
 
   const rows = await db.product.findMany({
     where: {
@@ -249,6 +274,7 @@ export async function GET(request: Request) {
             ],
           }
         : {}),
+      ...(missing.length > 0 ? { AND: missing.map((m) => MISSING_FILTERS[m]) } : {}),
       ...(hasModelParam === "false" ? { model: null } : hasModelParam === "true" ? { model: { not: null } } : {}),
     },
     orderBy: { sku: "asc" },

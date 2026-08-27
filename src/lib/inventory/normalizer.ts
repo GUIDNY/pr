@@ -18,6 +18,48 @@ function firstString(values?: (string | number)[]): string | null {
   return v || null;
 }
 
+// A sheet can spread one product's text across more than one column — the
+// classifier maps them all to DESCRIPTION and the parser collects them in
+// order, so taking values[0] silently dropped everything after the first.
+// That is what cut titles off right before "דגם ...": the model number lives
+// in the second half. Join instead, skipping blanks and any fragment already
+// contained in what came before (the same text repeated across two columns is
+// common enough to be worth not doubling).
+function joinStrings(values?: (string | number)[]): string | null {
+  if (!values || values.length === 0) return null;
+  const parts: string[] = [];
+  for (const v of values) {
+    const s = String(v).trim();
+    if (!s) continue;
+    if (parts.some((p) => p.includes(s))) continue;
+    parts.push(s);
+  }
+  return parts.join(" ").trim() || null;
+}
+
+// The sheets that carry a model number almost always write it inline as
+// "... דגם SHE3705/00" rather than in a column of its own, so a product with
+// no MODEL column still has its model — just buried in prose. Without it
+// pulled out there is nothing to look the product up by on the
+// manufacturer's site, which is the single thing that blocks enrichment.
+//
+// Deliberately conservative: it stops at the first run of model-ish
+// characters, so trailing Hebrew words ("דגם X בצבע שחור") don't get swept
+// in. A wrong model number is worse than none — it sends whoever is
+// enriching to a different product entirely.
+const MODEL_AFTER_KEYWORD = /דגם\s*[:\-]?\s*([A-Za-z0-9][A-Za-z0-9\/.\-+]{1,22})/;
+
+function modelFromDescription(description: string | null): string | null {
+  if (!description) return null;
+  const match = description.match(MODEL_AFTER_KEYWORD);
+  if (!match) return null;
+  const candidate = match[1].replace(/[.\-\/+]+$/, "").trim();
+  // A bare number is almost always a size or a quantity that happened to
+  // follow the word, not a model designation.
+  if (!/[A-Za-z]/.test(candidate) && candidate.length < 4) return null;
+  return candidate || null;
+}
+
 // Real values seen in the wild in a bare "תאור" column (see VARIANT_TEXT):
 // "שחור", "זכוכית", "ורוד", "י.שלום", "שחור מט", "תכלת", ... — genuine
 // colors mixed with importer-name leftovers in the very same column.
@@ -106,8 +148,10 @@ export function normalizeRow(
   const issues: RowIssue[] = [];
 
   const realSku = firstString(row.values.SKU);
-  const model = firstString(row.values.MODEL);
-  const description = firstString(row.values.DESCRIPTION) ?? fallbackTitleFromUnknownColumns(row, columns);
+  const description = joinStrings(row.values.DESCRIPTION) ?? fallbackTitleFromUnknownColumns(row, columns);
+  // A dedicated דגם column is the most trustworthy source and wins; the
+  // sheets that lack one still name the model inline in the description.
+  const model = firstString(row.values.MODEL) ?? modelFromDescription(description);
   const color = firstString(row.values.COLOR) ?? firstColorLike(row.values.VARIANT_TEXT);
   const warranty = firstString(row.values.WARRANTY);
   const imageUrlRaw = firstString(row.values.IMAGE_URL);
