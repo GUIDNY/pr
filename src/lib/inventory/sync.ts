@@ -298,9 +298,23 @@ async function applyOneRow(
       stock > 0,
   };
 
+  // A product marked ENRICHED has had a human (or the enrichment API acting
+  // for one) decide its name and its precise leaf category, and the sheet has
+  // nothing better to offer for either: its title is only the raw
+  // "{brand} {model}" string, and it maps every row of a tab to one broad
+  // category — sheet-map.ts says so outright, and points at the catalog
+  // editor as the place to correct an individual product. Re-applying them on
+  // every run undid that correction the next morning. Price, stock and every
+  // other source-owned field keep tracking the sheet exactly as before.
+  const { title, categoryId: sheetCategoryId, ...sourceOwned } = data;
+  const updateData =
+    existing?.enrichmentStatus === "ENRICHED"
+      ? sourceOwned
+      : { ...sourceOwned, title, categoryId: sheetCategoryId };
+
   let productId: string;
   if (existing) {
-    await db.product.update({ where: { id: existing.id }, data });
+    await db.product.update({ where: { id: existing.id }, data: updateData });
     productId = existing.id;
     result.productsUpdated++;
     if (existing.missingFromSourceSince) {

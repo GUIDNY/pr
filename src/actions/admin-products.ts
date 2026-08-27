@@ -37,7 +37,14 @@ export async function updateProductAction(id: string, input: ProductInput) {
   const clashSlug = await db.product.findFirst({ where: { slug: parsed.data.slug, NOT: { id } } });
   if (clashSlug) return { success: false, error: "slug זה כבר קיים במערכת" };
 
-  await db.product.update({ where: { id }, data: parsed.data });
+  // Editing a product through this form is a human deciding what it should
+  // say — including its title and category, the two fields the nightly sync
+  // would otherwise rewrite from the raw sheet row on its next run. Marking
+  // it ENRICHED is what tells the sync to leave those alone from here on.
+  await db.product.update({
+    where: { id },
+    data: { ...parsed.data, enrichmentStatus: "ENRICHED" },
+  });
   await logAudit({ actorId: session.sub, action: "PRODUCT_UPDATED", entityType: "Product", entityId: id });
 
   revalidatePath("/admin/products");

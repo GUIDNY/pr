@@ -559,6 +559,24 @@ async function processItem(
   if (Object.keys(rawSpecWrites).length > 0) {
     updateData.extraSpecsRaw = JSON.stringify({ ...existingRawSpecs, ...rawSpecWrites });
   }
+
+  // Attaching a source URL to content that was already there is bookkeeping,
+  // not enrichment, so those two fields alone must not flip the status.
+  const PROVENANCE_ONLY = new Set(["descriptionSourceUrl", "specSourceUrl"]);
+  const wroteContent =
+    applied.some((field) => !PROVENANCE_ONLY.has(field)) ||
+    specWrites.length > 0 ||
+    specOverwrites.length > 0;
+
+  // Marks the product as curated. Nothing set enrichmentStatus before this,
+  // so it sat at NOT_ENRICHED for the whole catalog and no consumer could
+  // tell a hand-finished product from a raw sheet import — which is what the
+  // nightly sync needs in order to know whose title and category to leave
+  // alone (see applyOneRow in src/lib/inventory/sync.ts).
+  if (wroteContent && product.enrichmentStatus !== "ENRICHED") {
+    updateData.enrichmentStatus = "ENRICHED";
+  }
+
   if (Object.keys(updateData).length > 0) {
     await db.product.update({ where: { id: product.id }, data: updateData });
   }
