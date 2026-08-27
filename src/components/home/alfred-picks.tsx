@@ -163,6 +163,10 @@ export function AlfredPicks({ products }: { products: ProductCardData[] }) {
             }
           }}
           placeholder="שאלו את אלפרד על המבצעים..."
+          // A placeholder is not a label: it disappears the moment someone
+          // types, and screen readers are not required to announce it, so
+          // without this the field is just "edit text" with no purpose.
+          aria-label="שאלו את אלפרד על המבצעים"
           disabled={isSending}
           className="border-primary-foreground/20 placeholder:text-primary-foreground/50 text-primary-foreground flex-1 rounded-full border bg-transparent px-3.5 py-2 text-xs outline-none disabled:opacity-50"
         />

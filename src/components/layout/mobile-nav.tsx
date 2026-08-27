@@ -22,7 +22,7 @@ export function MobileNav({ departments }: { departments: NavigableDepartment[] 
         <button
           type="button"
           aria-label="פתח תפריט"
-          className="hover:bg-muted flex size-10 items-center justify-center rounded-full lg:hidden"
+          className="hover:bg-muted flex size-11 items-center justify-center rounded-full lg:hidden"
         >
           <Menu className="size-5" />
         </button>

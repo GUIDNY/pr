@@ -158,6 +158,9 @@ export function AlfredChatWidget() {
               }
             }}
             placeholder="תכתבו לאלפרד את המוצר שתרצו..."
+            // Same reason as the picks widget: the placeholder is the only
+            // thing naming this field, and a placeholder is not a name.
+            aria-label="תכתבו לאלפרד את המוצר שתרצו"
             disabled={isSending}
             className="border-input flex-1 rounded-full border px-4 py-2 text-sm outline-none disabled:opacity-50"
           />

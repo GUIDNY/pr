@@ -12,7 +12,7 @@ export function CartTrigger() {
       type="button"
       onClick={toggleDrawer}
       aria-label="עגלת קניות"
-      className="hover:bg-muted relative flex size-10 items-center justify-center rounded-full transition-colors"
+      className="hover:bg-muted relative flex size-11 items-center justify-center rounded-full transition-colors sm:size-10"
     >
       <ShoppingCart className="size-5" />
       {itemCount > 0 && (

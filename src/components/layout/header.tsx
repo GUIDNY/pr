@@ -53,7 +53,15 @@ export async function Header() {
           {/* Mobile-only: one line instead of the stacked two-line
               wordmark — at a ~60px header height the stacked version read
               as cramped, a single compact line doesn't. */}
-          <span className="flex items-center gap-1 text-lg leading-none font-black tracking-tight sm:hidden">
+          {/* dir="ltr" because the page is RTL and this is a two-part Latin
+              wordmark laid out in a flex row: without it the row is ordered
+              right-to-left and the brand reads "Electronics A&I". The
+              desktop mark above is flex-col, so its order comes from the
+              block direction and it was never affected. */}
+          <span
+            dir="ltr"
+            className="flex items-center gap-1 text-lg leading-none font-black tracking-tight sm:hidden"
+          >
             <span className="text-brand">A&I</span>
             <span>Electronics</span>
           </span>
@@ -73,7 +81,7 @@ export async function Header() {
           </Link>
           <Link
             href={session ? "/account" : "/login"}
-            className="hover:bg-muted flex h-10 items-center gap-2 rounded-full px-2 transition-colors sm:px-3"
+            className="hover:bg-muted flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-2 transition-colors sm:h-10 sm:min-w-0 sm:justify-start sm:px-3"
           >
             <User className="size-5" />
             <span className="hidden text-sm font-medium sm:inline">
