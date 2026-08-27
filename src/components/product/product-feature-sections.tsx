@@ -24,7 +24,12 @@ export function ProductFeatureSections({ prose }: { prose: string[] }) {
               i % 2 === 0 ? "border-border bg-card border shadow-sm" : "bg-secondary/50"
             )}
           >
-            <p className={i === 0 ? "text-foreground text-base leading-relaxed font-medium" : "text-foreground/85 text-sm leading-relaxed"}>
+            <p
+              className={cn(
+                "[overflow-wrap:anywhere]",
+                i === 0 ? "text-foreground text-base leading-relaxed font-medium" : "text-foreground/85 text-sm leading-relaxed",
+              )}
+            >
               {p}
             </p>
           </div>

@@ -54,7 +54,7 @@ export function ProductDescriptionEditor({
             href={sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-muted-foreground hover:text-brand mt-2 flex w-fit items-center gap-1 text-xs"
+            className="text-muted-foreground hover:text-brand mt-2 flex w-fit max-w-full items-center gap-1 text-xs [overflow-wrap:anywhere]"
           >
             <LinkIcon className="size-3" />
             מקור: {sourceUrl}

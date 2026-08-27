@@ -89,7 +89,7 @@ export function ProductHighlightsGrid({ highlights }: { highlights: string[] }) 
           <span className="bg-brand/15 text-brand mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full">
             <Check className="size-3.5" />
           </span>
-          <span className="text-sm leading-snug font-medium">{h}</span>
+          <span className="text-sm leading-snug font-medium [overflow-wrap:anywhere]">{h}</span>
         </div>
       ))}
     </div>
@@ -101,7 +101,17 @@ export function ProductProseText({ prose }: { prose: string[] }) {
   return (
     <div className="flex flex-col gap-3.5">
       {prose.map((p, i) => (
-        <p key={i} className={i === 0 ? "text-foreground text-lg leading-relaxed font-medium text-balance" : "text-foreground/85 leading-relaxed"}>
+        // Descriptions carry model numbers and the occasional bare URL —
+        // strings with no space in them for the browser to break at, which
+        // otherwise set the width of the whole page on a phone.
+        <p
+          key={i}
+          className={
+            i === 0
+              ? "text-foreground text-lg leading-relaxed font-medium text-balance [overflow-wrap:anywhere]"
+              : "text-foreground/85 leading-relaxed [overflow-wrap:anywhere]"
+          }
+        >
           {p}
         </p>
       ))}

@@ -171,6 +171,18 @@
   html {
     @apply font-sans;
   }
+  /* A single unbreakable string — a scraped source URL, a model number like
+     "EWF8024D3WC", a long Latin product name — is wider than a 374px phone
+     on its own, and one of them anywhere on the page used to drag the whole
+     document sideways: the product page measured 646px of scroll width
+     against a 374px viewport, which pulled headings out of frame and opened
+     the cart drawer half off-screen. `clip` rather than `hidden` because
+     `hidden` on the root turns it into a scroll container and silently
+     breaks every `position: sticky` element on the site. */
+  html,
+  body {
+    overflow-x: clip;
+  }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;
   }
