@@ -35,8 +35,12 @@ export function PriceBlock({
           </span>
         )}
         {pct && (
-          <span className="bg-brand/10 text-brand rounded px-1.5 py-0.5 text-xs font-bold tabular-nums">
-            {pct}%-
+          // The minus sign is a mathematical prefix, not a Hebrew word, so in
+          // an RTL paragraph the bidi algorithm flipped it to the far side
+          // and rendered "3%-". Spelling the saving out in Hebrew sidesteps
+          // the bidi question entirely and reads better than a signed number.
+          <span className="bg-brand/10 text-brand rounded px-1.5 py-0.5 text-xs font-bold">
+            <span className="tabular-nums">{pct}%</span> הנחה
           </span>
         )}
       </div>

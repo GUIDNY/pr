@@ -40,7 +40,15 @@ export function formatInstallment(price: number, months: number) {
   return `או ${months} תשלומים של ${formatPrice(perMonth)}`;
 }
 
+// A "מבצע" flash over a 3% price difference (3,200 → 3,090) reads as a
+// manipulation rather than an offer, and it spends the credibility of every
+// genuine discount on the site alongside it. Below this, the old price is
+// still struck through and the saving is still visible in the numbers —
+// it just doesn't get shouted about.
+export const MIN_ADVERTISED_DISCOUNT_PERCENT = 5;
+
 export function discountPercent(price: number, compareAt?: number | null) {
   if (!compareAt || compareAt <= price) return null;
-  return Math.round(((compareAt - price) / compareAt) * 100);
+  const pct = Math.round(((compareAt - price) / compareAt) * 100);
+  return pct >= MIN_ADVERTISED_DISCOUNT_PERCENT ? pct : null;
 }
