@@ -46,18 +46,13 @@ export async function Header() {
       <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2 sm:flex sm:py-3">
         <MobileNav departments={departments} />
 
-        {/* The logo tile plus the wordmark beside it. The tile already
-            contains the name, but at header height its own "ELECTRONICS"
-            line is only a few pixels tall and reads as texture rather than
-            text — so the wordmark carries the name and the tile carries the
-            recognition. dir="ltr" on the row: the page is RTL, and without
-            it the two Latin parts order right-to-left and the brand reads
-            "Electronics A&I". */}
+        {/* The tile alone — it already contains the wordmark, so setting
+            type beside it repeated the name. Sized up a little from the
+            lockup version now that it carries the identity on its own. */}
         <Link
           href="/"
-          dir="ltr"
           aria-label="A&I Electronics — לדף הבית"
-          className="flex shrink-0 items-center gap-2 justify-self-center sm:justify-self-auto"
+          className="flex shrink-0 items-center justify-self-center sm:justify-self-auto"
         >
           <Image
             src="/brand/logo.png"
@@ -65,12 +60,8 @@ export async function Header() {
             width={512}
             height={512}
             priority
-            className="size-9 shrink-0 rounded-[22%] sm:size-10"
+            className="size-10 shrink-0 rounded-[22%] sm:size-11"
           />
-          <span aria-hidden className="flex flex-col leading-none font-black tracking-tight">
-            <span className="text-brand text-lg sm:text-xl">A&I</span>
-            <span className="text-[0.7rem] tracking-[0.14em] sm:text-[0.8rem]">ELECTRONICS</span>
-          </span>
         </Link>
 
         <div className="hidden flex-1 sm:block">

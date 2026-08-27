@@ -36,22 +36,15 @@ export async function Footer() {
 
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 py-10 sm:grid-cols-4">
         <div className="col-span-2 sm:col-span-1">
-          {/* Same lockup as the header, so the mark reads as one brand from
-              the top of the page to the bottom. dir="ltr" keeps the two
-              Latin parts in order inside this RTL page. */}
-          <span dir="ltr" className="flex items-center gap-2.5">
-            <Image
-              src="/brand/logo.png"
-              alt=""
-              width={512}
-              height={512}
-              className="size-11 shrink-0 rounded-[22%]"
-            />
-            <span aria-hidden className="flex flex-col leading-none font-black">
-              <span className="text-brand text-xl">A&I</span>
-              <span className="text-[0.8rem] tracking-[0.14em]">ELECTRONICS</span>
-            </span>
-          </span>
+          {/* The tile alone, matching the header — it carries the name
+              itself, so type beside it only repeated it. */}
+          <Image
+            src="/brand/logo.png"
+            alt=""
+            width={512}
+            height={512}
+            className="size-12 rounded-[22%]"
+          />
           <p className="text-primary-foreground/60 mt-3 text-sm leading-relaxed">
             חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. קשת נרחבת של מוצרים במחירים תחרותיים.
           </p>
