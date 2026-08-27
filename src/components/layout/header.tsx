@@ -55,18 +55,29 @@ export async function Header() {
           aria-label="A&I Electronics — לדף הבית"
           className="flex shrink-0 items-center justify-self-center sm:justify-self-auto"
         >
+          {/* The full-resolution mark is 1,492px square and 1.16MB — it was
+              the heaviest asset on the site by a factor of four over all the
+              JavaScript combined, downloaded on every page load, to be drawn
+              at 44px. images.unoptimized is on (see next.config.ts), so the
+              browser fetches whatever is named here verbatim with no resizing
+              in between; naming a 192px WebP is the whole fix. The 1,492px
+              original stays for the tab icon and share image, which are
+              generated from it at build time.
+              alt is empty on purpose: the link around it already carries an
+              aria-label, and a screen reader announcing both would say the
+              name twice. */}
           <Image
-            src="/brand/logo.png"
+            src="/brand/logo-192.webp"
             alt=""
-            width={512}
-            height={512}
+            width={192}
+            height={192}
             priority
             className="size-10 shrink-0 rounded-[22%] sm:size-11"
           />
         </Link>
 
         <div className="hidden flex-1 sm:block">
-          <SearchBar />
+          <SearchBar syncWithUrlQuery />
         </div>
 
         <div className="flex items-center gap-1 justify-self-end sm:justify-self-auto">
@@ -91,7 +102,7 @@ export async function Header() {
       </div>
 
       <div className="px-4 pb-2.5 sm:hidden">
-        <SearchBar inputClassName="h-11 rounded-2xl" />
+        <SearchBar inputClassName="h-11 rounded-2xl" syncWithUrlQuery />
       </div>
 
       <MegaMenu departments={departments} />

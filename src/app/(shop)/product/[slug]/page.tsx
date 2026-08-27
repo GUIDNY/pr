@@ -27,6 +27,7 @@ import { getProductKeyFacts, getProductDimensions } from "@/lib/product-key-fact
 import { PublicStockBadge } from "@/components/product/stock-badge";
 import { displayBrandName } from "@/lib/brand-display";
 import { buildDisplayTitle } from "@/lib/product-title";
+import { SITE_URL } from "@/lib/site";
 import { CompareButton } from "@/components/product/compare-button";
 import { ProductReviewFlagButton } from "@/components/product/product-review-flag-button";
 import { PurchasePanel } from "@/components/product/purchase-panel";
@@ -53,6 +54,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       model: product.model,
     }),
     description: product.shortDescription ?? product.description ?? undefined,
+    // A product reachable under more than one URL splits its own ranking
+    // between them; this names the one that counts.
+    alternates: { canonical: `/product/${product.slug}` },
   };
 }
 
@@ -140,8 +144,47 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     }
   }
 
+  // A retail page without this is a page Google can only read as prose: no
+  // price, no availability, no rating in the result, which is the difference
+  // between a rich result and a blue link. Every value comes off the record —
+  // nothing here is asserted that the page doesn't already show.
+  const productJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: displayTitle,
+    description: product.shortDescription ?? product.description ?? undefined,
+    sku: product.sku,
+    mpn: product.model ?? undefined,
+    image: product.images.map((img) => img.url),
+    ...(brandName ? { brand: { "@type": "Brand", name: brandName } } : {}),
+    offers: {
+      "@type": "Offer",
+      url: `${SITE_URL}/product/${product.slug}`,
+      priceCurrency: "ILS",
+      price: product.price,
+      // The page only renders for a product that is published and in stock
+      // (see the notFound above and PUBLIC_PRODUCT_WHERE), so this is a fact
+      // about the record rather than an optimistic default.
+      availability: "https://schema.org/InStock",
+      itemCondition: "https://schema.org/NewCondition",
+    },
+    ...(product.ratingCount > 0
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: product.ratingAvg,
+            reviewCount: product.ratingCount,
+          },
+        }
+      : {}),
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 pb-24 lg:pb-6">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }}
+      />
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>

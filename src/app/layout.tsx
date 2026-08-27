@@ -8,6 +8,7 @@ import { CartProvider } from "@/components/cart/cart-provider";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
+import { SITE_URL, SITE_NAME, SITE_DESCRIPTION } from "@/lib/site";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -16,10 +17,32 @@ const heebo = Heebo({
   display: "swap",
 });
 
-const SITE_URL = "https://pr-ayam.vercel.app";
-const SITE_NAME = "A&I Electronics";
-const SITE_DESCRIPTION =
-  "A&I Electronics - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.";
+
+
+// Google will not show a store's name, logo, contact details or sitelinks
+// search box unless the page states them in a form it parses, and none of
+// that was on the page in any form. Emitted once from the root layout so
+// every page carries it.
+const ORGANIZATION_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Store",
+  name: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  url: SITE_URL,
+  logo: `${SITE_URL}/brand/logo.png`,
+  image: `${SITE_URL}/brand/logo.png`,
+  telephone: "+972-4-6639510",
+  areaServed: "IL",
+  currenciesAccepted: "ILS",
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
+};
 
 export const metadata: Metadata = {
   // Required for the Open Graph image to resolve to an absolute URL. Without
@@ -63,6 +86,12 @@ export default function RootLayout({
       className={`${heebo.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
+        <script
+          type="application/ld+json"
+          // JSON.stringify of an object literal we author — no external input
+          // reaches this string.
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSON_LD) }}
+        />
         <a
           href="#main-content"
           className="bg-brand text-brand-foreground focus:top-2 focus:start-2 pointer-events-none absolute -top-full start-2 z-50 rounded-md px-4 py-2 text-sm font-medium focus:pointer-events-auto focus:top-2"

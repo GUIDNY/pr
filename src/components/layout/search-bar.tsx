@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Search, Sparkles, X } from "lucide-react";
@@ -39,6 +39,7 @@ export function SearchBar({
   size = "default",
   showIntro = true,
   showTopResultPreview = false,
+  syncWithUrlQuery = false,
 }: {
   className?: string;
   // Only ever passed from the mobile-only header search row, to bump its
@@ -54,16 +55,31 @@ export function SearchBar({
   // SearchBar (header, category pages, desktop Alfred section) keeps its
   // existing plain dropdown untouched.
   showTopResultPreview?: boolean;
+  // Seed the box from the ?q on the current URL. On for the header, which is
+  // the one search box still on screen once results have loaded — it sat
+  // empty there, so a customer who wanted to narrow "מקרר" to "מקרר בקו" had
+  // to retype the whole query from scratch rather than edit it.
+  syncWithUrlQuery?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const pathname = usePathname();
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isHero = size === "hero";
   const rotatingPlaceholder = useRotatingPlaceholder(isHero && !query);
+
+  // Read on mount from window rather than through useSearchParams: that hook
+  // opts the whole subtree out of static rendering, and this component sits
+  // in the layout header on every page on the site.
+  useEffect(() => {
+    if (!syncWithUrlQuery) return;
+    const q = new URLSearchParams(window.location.search).get("q");
+    if (q) setQuery(q);
+  }, [syncWithUrlQuery, pathname]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {

@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const BASE_URL = "https://pr-ayam.vercel.app";
+import { SITE_URL as BASE_URL } from "@/lib/site";
 
 // Explicit allow for the AI crawlers that actually respect robots.txt
 // (GPTBot, Google-Extended, PerplexityBot, ClaudeBot) rather than relying

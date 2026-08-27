@@ -39,10 +39,10 @@ export async function Footer() {
           {/* The tile alone, matching the header — it carries the name
               itself, so type beside it only repeated it. */}
           <Image
-            src="/brand/logo.png"
-            alt=""
-            width={512}
-            height={512}
+            src="/brand/logo-192.webp"
+            alt="A&I Electronics"
+            width={192}
+            height={192}
             className="size-12 rounded-[22%]"
           />
           <p className="text-primary-foreground/60 mt-3 text-sm leading-relaxed">
