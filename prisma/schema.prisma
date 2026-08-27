@@ -609,7 +609,7 @@ model InventoryAlert {
   // LOW_STOCK | OUT_OF_STOCK | UNMATCHED_ROW | DUPLICATE_SKU | DUPLICATE_MODEL |
   // INVALID_PRICE | MISSING_MODEL | UNKNOWN_COLUMN | NEGATIVE_STOCK |
   // MAJOR_STOCK_CHANGE | MISSING_FROM_SOURCE | SOURCE_CONFLICT |
-  // URGENT_MISSING_MEDIA | MANUAL_ATTENTION | MANUAL_URGENT
+  // URGENT_MISSING_MEDIA | MISSING_IMAGE | MANUAL_ATTENTION | MANUAL_URGENT
   severity     String            @default("WARNING") // INFO | WARNING | CRITICAL
   productId    String?
   product      Product?          @relation(fields: [productId], references: [id])

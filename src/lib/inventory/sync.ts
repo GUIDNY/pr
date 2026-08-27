@@ -775,6 +775,63 @@ export async function reconcileUrgentMissingMedia() {
   return { hidden: toHide.length, restored };
 }
 
+// The other half of the missing-media picture. reconcileUrgentMissingMedia
+// above only catches a product with *neither* a photo nor a spec, because
+// that's the pair that makes a product unshowable — and it hides the
+// product as a result. A product that has a spec but no photo stays on the
+// site (the card falls back to a category placeholder tile), so nothing
+// ever flagged it, and hundreds of them sat in the catalog unnoticed.
+//
+// This raises a non-critical alert for exactly that case: in stock, no
+// image, but enough spec content to stay published. It never touches
+// isPublished — the product is findable and buyable, it just needs a photo.
+// Together the two reconcilers cover every in-stock product with no image,
+// with no product appearing in both lists.
+export async function reconcileMissingImage() {
+  const needsPhoto = await db.product.findMany({
+    where: {
+      stockQty: { gt: 0 },
+      images: { none: {} },
+      OR: [{ attributeValues: { some: {} } }, { extraSpecsRaw: { not: null } }],
+    },
+    select: { id: true, title: true, sku: true, sourceId: true },
+  });
+  const open = await db.inventoryAlert.findMany({
+    where: { type: "MISSING_IMAGE", isResolved: false },
+    select: { id: true, productId: true },
+  });
+  const alreadyFlagged = new Set(open.map((a) => a.productId));
+
+  let flagged = 0;
+  for (const p of needsPhoto) {
+    if (alreadyFlagged.has(p.id)) continue;
+    await upsertAlert({
+      type: "MISSING_IMAGE",
+      severity: "WARNING",
+      productId: p.id,
+      sourceId: p.sourceId,
+      syncRunId: null,
+      sourceSku: p.sku,
+      message: `${p.title}: אין תמונה — המוצר מוצג באתר עם אריח חלופי עד שתתווסף תמונה`,
+    });
+    flagged++;
+  }
+
+  // Resolve anything that got a photo, went out of stock, or lost the spec
+  // that was keeping it published (in which case the urgent reconciler owns
+  // it now and it must not be listed twice).
+  const stillNeedsPhoto = new Set(needsPhoto.map((p) => p.id));
+  const stale = open.filter((a) => a.productId && !stillNeedsPhoto.has(a.productId));
+  if (stale.length > 0) {
+    await db.inventoryAlert.updateMany({
+      where: { id: { in: stale.map((a) => a.id) } },
+      data: { isResolved: true, resolvedAt: new Date() },
+    });
+  }
+
+  return { flagged, resolved: stale.length };
+}
+
 export function conflictSkuSet(rows: NormalizedProductRow[]): Set<string> {
   return new Set(detectSourceConflicts(rows).map((c) => c.sku));
 }
@@ -919,6 +976,7 @@ export async function runFullSync(
   // actually changed this run — see reconcileSourceConflictAlerts for why.
   await reconcileSourceConflictAlerts(syncRun.id);
   await reconcileUrgentMissingMedia();
+  await reconcileMissingImage();
 
   if (!anyChanged) {
     await db.inventorySyncRun.update({

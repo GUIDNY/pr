@@ -306,19 +306,32 @@ function withNonNullProduct<T extends { product: unknown }>(alerts: T[]) {
   return alerts.filter((a): a is T & { product: NonNullable<T["product"]> } => a.product !== null);
 }
 
-// The general "טיפול" list: products the site hid on its own because they
-// have neither a photo nor a technical spec (reconcileUrgentMissingMedia in
-// lib/inventory/sync.ts), plus anything an admin manually flagged with
-// setProductReviewFlagAction(..., "ATTENTION"). Keyed off the open alerts
+// The general "טיפול" list. Three sources feed it, all via open alerts
 // (not a direct product query) so this always matches exactly what the
-// reconciler/action considers in-need-of-attention, with no risk of drift.
+// reconcilers/action consider in-need-of-attention, with no risk of drift:
+//  - URGENT_MISSING_MEDIA — no photo *and* no spec, so the site hid it
+//    (reconcileUrgentMissingMedia in lib/inventory/sync.ts)
+//  - MISSING_IMAGE — no photo but enough spec to stay published, so it is
+//    live on a placeholder tile (reconcileMissingImage, same file)
+//  - MANUAL_ATTENTION — an admin flagged it by hand from the product page
+// Sorted so the hidden products come before the merely photo-less ones;
+// a product only ever holds one of the two automatic alerts, never both.
 export async function getAttentionProducts() {
   const alerts = await db.inventoryAlert.findMany({
-    where: { type: { in: ["URGENT_MISSING_MEDIA", "MANUAL_ATTENTION"] }, isResolved: false },
+    where: {
+      type: { in: ["URGENT_MISSING_MEDIA", "MISSING_IMAGE", "MANUAL_ATTENTION"] },
+      isResolved: false,
+    },
     orderBy: { createdAt: "desc" },
     include: { product: { select: REVIEW_PRODUCT_SELECT } },
   });
-  return withNonNullProduct(alerts);
+  // Explicit rank rather than ordering by the severity string: the column is
+  // a plain String, and "CRITICAL" < "INFO" < "WARNING" alphabetically puts
+  // INFO above WARNING, which is not the order anyone means by severity.
+  const rank: Record<string, number> = { CRITICAL: 0, WARNING: 1, INFO: 2 };
+  return withNonNullProduct(alerts).sort(
+    (a, b) => (rank[a.severity] ?? 3) - (rank[b.severity] ?? 3),
+  );
 }
 
 // The "טיפול דחוף" list: only products an admin explicitly sent there via

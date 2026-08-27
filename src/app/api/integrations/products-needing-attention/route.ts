@@ -9,12 +9,15 @@ import { checkAuth } from "@/lib/integrations/product-enrich-shared";
 // InventoryAlert rows, not a re-derived guess. URGENT_MISSING_MEDIA is set
 // automatically (and auto-resolved) by reconcileUrgentMissingMedia() on
 // every inventory sync when a product has no image, no structured spec,
-// and no raw spec text; MANUAL_ATTENTION / MANUAL_URGENT are set by an
+// and no raw spec text; MISSING_IMAGE is set the same way by
+// reconcileMissingImage() for an in-stock product that has a spec but no
+// photo (still published, still sellable, just missing its picture);
+// MANUAL_ATTENTION / MANUAL_URGENT are set by an
 // admin flagging a product by hand from its detail page. Reusing this
 // table means this endpoint can never drift from what the admin UI shows.
 export const dynamic = "force-dynamic";
 
-const DEFAULT_TYPES = ["URGENT_MISSING_MEDIA", "MANUAL_ATTENTION", "MANUAL_URGENT"] as const;
+const DEFAULT_TYPES = ["URGENT_MISSING_MEDIA", "MISSING_IMAGE", "MANUAL_ATTENTION", "MANUAL_URGENT"] as const;
 const MAX_LIMIT = 200;
 
 export async function GET(request: Request) {

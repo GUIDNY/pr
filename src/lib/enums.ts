@@ -155,6 +155,7 @@ export const INVENTORY_ALERT_TYPES = [
   "MISSING_FROM_SOURCE",
   "SOURCE_CONFLICT",
   "URGENT_MISSING_MEDIA",
+  "MISSING_IMAGE",
   "MANUAL_ATTENTION",
   "MANUAL_URGENT",
 ] as const;
@@ -174,6 +175,7 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   MISSING_FROM_SOURCE: "נעלם מהמקור",
   SOURCE_CONFLICT: "התנגשות בין מקורות",
   URGENT_MISSING_MEDIA: "אין תמונה ואין מפרט טכני",
+  MISSING_IMAGE: "חסרה תמונה",
   MANUAL_ATTENTION: "סומן לטיפול ידנית",
   MANUAL_URGENT: "סומן לטיפול דחוף ידנית",
 };

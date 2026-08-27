@@ -6,13 +6,24 @@ import { formatDateTime } from "@/lib/format";
 
 export const metadata = { title: "טיפול | A&I Electronics Admin" };
 
-// Two sources feed this list: reconcileUrgentMissingMedia (automatic — a
-// product with no photo and no spec, hidden from the site on its own) and
-// setProductReviewFlagAction(..., "ATTENTION") (manual — an admin sent it
-// here from the product page for any other reason). Only the automatic one
-// actually unpublishes the product; a manual flag is just a to-do marker.
+// Three sources feed this list, and the difference between them is what
+// the admin needs to see first:
+//  - URGENT_MISSING_MEDIA — no photo and no spec; the site unpublished it
+//  - MISSING_IMAGE — no photo but a spec, so it is still live on a
+//    placeholder tile and still sellable; it just looks unfinished
+//  - MANUAL_ATTENTION — flagged by hand, a plain to-do marker
+// Only the first actually unpublishes anything.
+const ROW_KIND = {
+  URGENT_MISSING_MEDIA: { label: "אין תמונה ואין מפרט", tone: "bg-destructive/10 text-destructive" },
+  MISSING_IMAGE: { label: "חסרה תמונה", tone: "bg-warning/15 text-warning-foreground" },
+  MANUAL_ATTENTION: { label: "סומן ידנית", tone: "bg-muted text-muted-foreground" },
+} as const;
+
 export default async function AttentionInventoryPage() {
   const items = await getAttentionProducts();
+  const hidden = items.filter((i) => i.type === "URGENT_MISSING_MEDIA").length;
+  const photoless = items.filter((i) => i.type === "MISSING_IMAGE").length;
+  const manual = items.filter((i) => i.type === "MANUAL_ATTENTION").length;
 
   return (
     <div>
@@ -24,11 +35,21 @@ export default async function AttentionInventoryPage() {
         <h2 className="text-lg font-bold">טיפול</h2>
         <span className="text-muted-foreground text-sm">({items.length.toLocaleString("he-IL")})</span>
       </div>
-      <p className="text-muted-foreground mb-5 text-sm">
-        מוצרים שהוסרו אוטומטית מהתצוגה באתר כי אין להם תמונה וגם אין מפרט טכני, וגם מוצרים שסומנו ידנית לטיפול מדף
-        המוצר. מוצר שהוסר אוטומטית יחזור לתצוגה לבד ברגע שתוסיפו תמונה או מפרט; מוצר שסומן ידנית יורד מהרשימה רק
-        כשתסירו את הסימון מדף המוצר.
+      <p className="text-muted-foreground mb-3 text-sm">
+        כל מוצר שנמצא במלאי וחסרה לו תמונה, בתוספת מוצרים שסומנו ידנית לטיפול מדף המוצר. מוצר שהוסר אוטומטית מהתצוגה
+        יחזור לבד ברגע שתוסיפו תמונה או מפרט; מוצר שסומן ידנית יורד מהרשימה רק כשתסירו את הסימון מדף המוצר.
       </p>
+      <div className="mb-5 flex flex-wrap gap-2 text-xs">
+        <span className="bg-destructive/10 text-destructive rounded-full px-3 py-1 font-medium">
+          הוסרו מהאתר — אין תמונה ואין מפרט: {hidden.toLocaleString("he-IL")}
+        </span>
+        <span className="bg-warning/15 text-warning-foreground rounded-full px-3 py-1 font-medium">
+          באתר עם אריח חלופי — חסרה תמונה: {photoless.toLocaleString("he-IL")}
+        </span>
+        <span className="bg-muted text-muted-foreground rounded-full px-3 py-1 font-medium">
+          סומנו ידנית: {manual.toLocaleString("he-IL")}
+        </span>
+      </div>
 
       {items.length === 0 ? (
         <div className="border-border bg-card text-muted-foreground flex flex-col items-center gap-2 rounded-xl border p-10 text-center text-sm">
@@ -48,8 +69,15 @@ export default async function AttentionInventoryPage() {
                   {item.product.brand.name} · {item.product.category.name} · מק&quot;ט {item.product.sku} · במלאי{" "}
                   {item.product.stockQty}
                 </p>
-                <p className="text-muted-foreground mt-0.5 text-xs">
-                  {item.type === "MANUAL_ATTENTION" ? "סומן ידנית" : "הוסר"} {formatDateTime(item.createdAt)}
+                <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                  <span
+                    className={`rounded-full px-2 py-0.5 font-medium ${
+                      ROW_KIND[item.type as keyof typeof ROW_KIND]?.tone ?? "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {ROW_KIND[item.type as keyof typeof ROW_KIND]?.label ?? item.type}
+                  </span>
+                  {formatDateTime(item.createdAt)}
                 </p>
               </div>
               <Link
