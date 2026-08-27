@@ -17,6 +17,7 @@ import { useCartStore } from "@/stores/cart-store";
 import { createOrderAction } from "@/actions/orders";
 import { formatPrice } from "@/lib/format";
 import type { CheckoutInput } from "@/lib/order-schema";
+import { displayBrandName } from "@/lib/brand-display";
 
 export function CheckoutForm({
   defaultName,
@@ -219,7 +220,7 @@ export function CheckoutForm({
                 {item.image ? (
                   <Image src={item.image} alt={item.title} fill className="object-cover" sizes="56px" />
                 ) : (
-                  <ProductImagePlaceholder title={item.title} brand={item.brandName} />
+                  <ProductImagePlaceholder title={item.title} brand={displayBrandName(item.brandName) ?? undefined} />
                 )}
                 <span className="bg-primary text-primary-foreground absolute -top-1.5 -end-1.5 flex size-5 items-center justify-center rounded-full text-[10px] font-bold">
                   {item.quantity}

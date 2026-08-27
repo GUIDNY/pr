@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
+import { isPlaceholderBrand } from "@/lib/brand-display";
 
 export async function getHomepageSection(key: string) {
   const row = await db.homepageSection.findUnique({ where: { key } });
@@ -9,7 +10,11 @@ export async function getHomepageSection(key: string) {
 }
 
 export async function getActiveBrands() {
-  return db.brand.findMany({ where: { isActive: true }, orderBy: { name: "asc" } });
+  const brands = await db.brand.findMany({ where: { isActive: true }, orderBy: { name: "asc" } });
+  // The "unknown" placeholder is a real Brand row (products have to point
+  // somewhere), but listing it on /brands puts "לא ידוע" on the shelf next
+  // to Samsung and Bosch as though it were one of them.
+  return brands.filter((b) => !isPlaceholderBrand(b.name));
 }
 
 // Only a handful of brands have a real logo on file (curated from the

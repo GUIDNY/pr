@@ -40,7 +40,10 @@ export function ProductGallery({
   productId: string;
   images: GalleryImage[];
   title: string;
-  brand: string;
+  // Optional: absent when the product has no identified manufacturer, in
+  // which case the placeholder tile carries the category icon alone rather
+  // than a "לא ידוע" caption.
+  brand?: string;
   categoryIcon: string | null;
   isFavorite: boolean;
   isAdmin: boolean;

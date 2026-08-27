@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { useCartStore } from "@/stores/cart-store";
 import { formatPrice } from "@/lib/format";
+import { displayBrandName } from "@/lib/brand-display";
 import {
   updateCartItemAction,
   removeCartItemAction,
@@ -65,7 +66,9 @@ export default function CartPage() {
                     <Link href={`/product/${item.slug}`} className="font-medium hover:underline">
                       {item.title}
                     </Link>
-                    <p className="text-muted-foreground mt-0.5 text-sm">{item.brandName}</p>
+                    {displayBrandName(item.brandName) && (
+                      <p className="text-muted-foreground mt-0.5 text-sm">{displayBrandName(item.brandName)}</p>
+                    )}
                   </div>
                   <button
                     onClick={() => runAction(removeCartItemAction(item.id))}

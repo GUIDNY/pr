@@ -10,6 +10,7 @@ import { formatPrice } from "@/lib/format";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { useRotatingPlaceholder } from "@/components/layout/search-bar";
 import type { ProductCardData } from "@/components/product/product-card";
+import { displayBrandName } from "@/lib/brand-display";
 
 const EXAMPLE_QUERIES = [
   "מקרר 4 דלתות עד 4,000 ₪",
@@ -108,12 +109,14 @@ export function HeroSearchPreview({
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <ProductImagePlaceholder title={topResult.title} brand={topResult.brandName} icon={topResult.categoryIcon} />
+                <ProductImagePlaceholder title={topResult.title} brand={displayBrandName(topResult.brandName) ?? undefined} icon={topResult.categoryIcon} />
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-black/40" aria-hidden />
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 p-5">
                 <div className="min-w-0">
-                  <p className="text-primary-foreground/70 text-xs">{topResult.brandName}</p>
+                  {displayBrandName(topResult.brandName) && (
+                    <p className="text-primary-foreground/70 text-xs">{displayBrandName(topResult.brandName)}</p>
+                  )}
                   <p className="line-clamp-2 text-lg font-bold text-white">{topResult.title}</p>
                   <p className="text-brand mt-1 text-xl font-black tabular-nums">{formatPrice(topResult.price)}</p>
                 </div>

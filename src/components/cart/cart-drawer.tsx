@@ -23,6 +23,7 @@ import {
   removeCouponAction,
 } from "@/actions/cart";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
+import { displayBrandName } from "@/lib/brand-display";
 
 export function CartDrawer() {
   const { cart, isDrawerOpen, closeDrawer, setCart, setPending, isPending } = useCartStore();
@@ -76,7 +77,7 @@ export function CartDrawer() {
                       {item.image ? (
                         <Image src={item.image} alt={item.title} fill className="object-cover" sizes="80px" />
                       ) : (
-                        <ProductImagePlaceholder title={item.title} brand={item.brandName} />
+                        <ProductImagePlaceholder title={item.title} brand={displayBrandName(item.brandName) ?? undefined} />
                       )}
                     </Link>
                     <div className="flex flex-1 flex-col gap-1">
@@ -96,7 +97,9 @@ export function CartDrawer() {
                           <Trash2 className="size-4" />
                         </button>
                       </div>
-                      <p className="text-muted-foreground text-xs">{item.brandName}</p>
+                      {displayBrandName(item.brandName) && (
+                        <p className="text-muted-foreground text-xs">{displayBrandName(item.brandName)}</p>
+                      )}
                       <div className="mt-1 flex items-center justify-between">
                         <div className="border-input flex items-center rounded-md border">
                           <button
