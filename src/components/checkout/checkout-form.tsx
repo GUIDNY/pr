@@ -18,6 +18,18 @@ import { createOrderAction } from "@/actions/orders";
 import { formatPrice } from "@/lib/format";
 import type { CheckoutInput } from "@/lib/order-schema";
 import { displayBrandName } from "@/lib/brand-display";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  ISRAELI_CITY_SUGGESTIONS,
+  formatCardExpiry,
+  formatCardNumber,
+  validateCardCvv,
+  validateCardExpiry,
+  validateCardNumber,
+  validateEmail,
+  validateFullName,
+  validatePhone,
+} from "@/lib/checkout-validation";
 
 export function CheckoutForm({
   defaultName,
@@ -49,13 +61,49 @@ export function CheckoutForm({
     cardExpiry: "",
     cardCvv: "",
   });
+  // Consent to the terms is recorded as an explicit act by the customer, and
+  // the order cannot be placed without it — a checkout that takes payment
+  // with no acknowledgement of the terms has no evidence one was ever given.
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+    // Clear a field's error the moment it's edited. Leaving a stale message
+    // under a field the customer has just corrected reads as the correction
+    // not having worked.
+    setErrors((prev) => (prev[key] ? { ...prev, [key]: "" } : prev));
+  }
+
+  // Run as each field is left, so a typo is caught next to where it was made
+  // rather than as one toast after the whole form is filled in.
+  function validateField(key: string) {
+    const check: Record<string, () => string | null> = {
+      fullName: () => validateFullName(form.fullName),
+      email: () => validateEmail(form.email),
+      phone: () => validatePhone(form.phone),
+      cardNumber: () => (form.paymentMethod === "DEMO_CARD" ? validateCardNumber(form.cardNumber) : null),
+      cardExpiry: () => (form.paymentMethod === "DEMO_CARD" ? validateCardExpiry(form.cardExpiry) : null),
+      cardCvv: () => (form.paymentMethod === "DEMO_CARD" ? validateCardCvv(form.cardCvv) : null),
+    };
+    const error = check[key]?.() ?? null;
+    setErrors((prev) => ({ ...prev, [key]: error ?? "" }));
+    return !error;
   }
 
   function submit() {
-    setErrors({});
+    const fields = ["fullName", "email", "phone"];
+    if (form.paymentMethod === "DEMO_CARD") fields.push("cardNumber", "cardExpiry", "cardCvv");
+    // Every field, not the first failure — one pass over the form beats
+    // discovering the next problem after fixing this one.
+    const allValid = fields.map(validateField).every(Boolean);
+    if (!allValid) {
+      toast.error("יש לתקן את השדות המסומנים");
+      return;
+    }
+    if (!acceptedTerms) {
+      toast.error("יש לאשר את תקנון האתר כדי להשלים את ההזמנה");
+      return;
+    }
     startTransition(async () => {
       const result = await createOrderAction(form as CheckoutInput);
       if (!result.success) {
@@ -89,15 +137,43 @@ export function CheckoutForm({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <Label htmlFor="fullName" className="mb-1.5">שם מלא</Label>
-              <Input id="fullName" value={form.fullName} onChange={(e) => update("fullName", e.target.value)} required />
+              <Input
+                id="fullName"
+                value={form.fullName}
+                onChange={(e) => update("fullName", e.target.value)}
+                onBlur={() => validateField("fullName")}
+                aria-invalid={!!errors.fullName}
+                required
+              />
+              {errors.fullName && <p className="text-destructive mt-1 text-xs">{errors.fullName}</p>}
             </div>
             <div>
               <Label htmlFor="email" className="mb-1.5">אימייל</Label>
-              <Input id="email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                value={form.email}
+                onChange={(e) => update("email", e.target.value)}
+                onBlur={() => validateField("email")}
+                aria-invalid={!!errors.email}
+                required
+              />
+              {errors.email && <p className="text-destructive mt-1 text-xs">{errors.email}</p>}
             </div>
             <div>
               <Label htmlFor="phone" className="mb-1.5">טלפון</Label>
-              <Input id="phone" type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} required />
+              <Input
+                id="phone"
+                type="tel"
+                dir="ltr"
+                placeholder="050-1234567"
+                value={form.phone}
+                onChange={(e) => update("phone", e.target.value)}
+                onBlur={() => validateField("phone")}
+                aria-invalid={!!errors.phone}
+                required
+              />
+              {errors.phone && <p className="text-destructive mt-1 text-xs">{errors.phone}</p>}
             </div>
           </div>
         </section>
@@ -129,7 +205,21 @@ export function CheckoutForm({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="col-span-2 sm:col-span-2">
                 <Label className="mb-1.5">עיר</Label>
-                <Input value={form.city} onChange={(e) => update("city", e.target.value)} />
+                {/* Suggestions, not a closed list — the input stays free text
+                    so anywhere in the country can be typed, but the common
+                    spelling is one keystroke away. A misspelled city is a
+                    delivery routed to the wrong depot. */}
+                <Input
+                  list="israeli-cities"
+                  value={form.city}
+                  onChange={(e) => update("city", e.target.value)}
+                  autoComplete="address-level2"
+                />
+                <datalist id="israeli-cities">
+                  {ISRAELI_CITY_SUGGESTIONS.map((city) => (
+                    <option key={city} value={city} />
+                  ))}
+                </datalist>
                 {errors.city && <p className="text-destructive mt-1 text-xs">{errors.city}</p>}
               </div>
               <div className="col-span-2 sm:col-span-2">
@@ -191,19 +281,43 @@ export function CheckoutForm({
                 <Input
                   placeholder="4580 0000 0000 0000"
                   value={form.cardNumber}
-                  onChange={(e) => update("cardNumber", e.target.value)}
+                  onChange={(e) => update("cardNumber", formatCardNumber(e.target.value))}
+                  onBlur={() => validateField("cardNumber")}
+                  aria-invalid={!!errors.cardNumber}
+                  dir="ltr"
                   inputMode="numeric"
+                  autoComplete="cc-number"
                 />
                 {errors.cardNumber && <p className="text-destructive mt-1 text-xs">{errors.cardNumber}</p>}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="mb-1.5">תוקף</Label>
-                  <Input placeholder="MM/YY" value={form.cardExpiry} onChange={(e) => update("cardExpiry", e.target.value)} />
+                  <Input
+                    placeholder="MM/YY"
+                    value={form.cardExpiry}
+                    onChange={(e) => update("cardExpiry", formatCardExpiry(e.target.value))}
+                    onBlur={() => validateField("cardExpiry")}
+                    aria-invalid={!!errors.cardExpiry}
+                    dir="ltr"
+                    inputMode="numeric"
+                    autoComplete="cc-exp"
+                  />
+                  {errors.cardExpiry && <p className="text-destructive mt-1 text-xs">{errors.cardExpiry}</p>}
                 </div>
                 <div>
                   <Label className="mb-1.5">CVV</Label>
-                  <Input placeholder="123" value={form.cardCvv} onChange={(e) => update("cardCvv", e.target.value)} inputMode="numeric" />
+                  <Input
+                    placeholder="123"
+                    value={form.cardCvv}
+                    onChange={(e) => update("cardCvv", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    onBlur={() => validateField("cardCvv")}
+                    aria-invalid={!!errors.cardCvv}
+                    dir="ltr"
+                    inputMode="numeric"
+                    autoComplete="cc-csc"
+                  />
+                  {errors.cardCvv && <p className="text-destructive mt-1 text-xs">{errors.cardCvv}</p>}
                 </div>
               </div>
             </div>
@@ -255,6 +369,29 @@ export function CheckoutForm({
           <span>סה&quot;כ לתשלום</span>
           <span className="tabular-nums">{formatPrice(cart.total)}</span>
         </div>
+        <label className="mb-3 flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed">
+          <Checkbox
+            checked={acceptedTerms}
+            onCheckedChange={(v) => setAcceptedTerms(v === true)}
+            className="mt-0.5"
+            aria-label="אישור תקנון ומדיניות פרטיות"
+          />
+          <span className="text-muted-foreground">
+            קראתי ואני מסכים/ה ל
+            <Link href="/page/terms" className="text-brand hover:underline" target="_blank">
+              תקנון האתר
+            </Link>
+            , ל
+            <Link href="/page/privacy" className="text-brand hover:underline" target="_blank">
+              מדיניות הפרטיות
+            </Link>{" "}
+            ול
+            <Link href="/page/returns" className="text-brand hover:underline" target="_blank">
+              מדיניות ביטולים והחזרות
+            </Link>
+            .
+          </span>
+        </label>
         <Button variant="brand" size="lg" className="w-full" disabled={isPending} onClick={submit}>
           {isPending ? "מבצע הזמנה..." : `בצע הזמנה - ${formatPrice(cart.total)}`}
         </Button>

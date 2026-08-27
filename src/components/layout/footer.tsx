@@ -113,6 +113,20 @@ export async function Footer() {
                 תקנון האתר
               </Link>
             </li>
+            {/* Both required of a site that collects personal details and
+                sells at a distance, and neither existed until now. Linked
+                from the footer of every page because that is the first place
+                a customer — or a regulator — looks for them. */}
+            <li>
+              <Link href="/page/privacy" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                מדיניות פרטיות
+              </Link>
+            </li>
+            <li>
+              <Link href="/page/returns" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                ביטולים והחזרות
+              </Link>
+            </li>
             <li>
               <Link href="/accessibility" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 הצהרת נגישות
