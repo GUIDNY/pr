@@ -274,6 +274,14 @@ async function applyOneRow(
     stockQty: stock,
     stockBreakdown: JSON.stringify(row.rawSnapshot),
     internalNotes: row.color ? `צבע: ${row.color}` : null,
+    // The sheet's צבע column is the authority on finish whenever it has one,
+    // and it was already being parsed into row.color — it just never reached
+    // the structured field, which is why colorName sat empty across the whole
+    // catalog. Spread conditionally rather than writing `row.color` straight:
+    // a plain assignment would null the field on every sync for the rows whose
+    // sheet has no colour, wiping anything the enrichment API filled in for
+    // exactly those products.
+    ...(row.color ? { colorName: row.color } : {}),
     sourceId,
     sourceSheet: row.sheetName,
     sourceRowRef: row.rowIndex,
