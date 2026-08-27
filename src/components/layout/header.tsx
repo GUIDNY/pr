@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Heart, MapPin, Phone, Tag, Truck, User } from "lucide-react";
 import { SearchBar } from "@/components/layout/search-bar";
@@ -45,25 +46,30 @@ export async function Header() {
       <div className="mx-auto grid max-w-7xl grid-cols-[auto_1fr_auto] items-center gap-3 px-4 py-2 sm:flex sm:py-3">
         <MobileNav departments={departments} />
 
-        <Link href="/" className="shrink-0 justify-self-center sm:justify-self-auto">
-          <span className="hidden flex-col items-center text-2xl leading-none font-black tracking-tight sm:flex">
-            <span className="text-brand">A&I</span>
-            <span>Electronics</span>
-          </span>
-          {/* Mobile-only: one line instead of the stacked two-line
-              wordmark — at a ~60px header height the stacked version read
-              as cramped, a single compact line doesn't. */}
-          {/* dir="ltr" because the page is RTL and this is a two-part Latin
-              wordmark laid out in a flex row: without it the row is ordered
-              right-to-left and the brand reads "Electronics A&I". The
-              desktop mark above is flex-col, so its order comes from the
-              block direction and it was never affected. */}
-          <span
-            dir="ltr"
-            className="flex items-center gap-1 text-lg leading-none font-black tracking-tight sm:hidden"
-          >
-            <span className="text-brand">A&I</span>
-            <span>Electronics</span>
+        {/* The logo tile plus the wordmark beside it. The tile already
+            contains the name, but at header height its own "ELECTRONICS"
+            line is only a few pixels tall and reads as texture rather than
+            text — so the wordmark carries the name and the tile carries the
+            recognition. dir="ltr" on the row: the page is RTL, and without
+            it the two Latin parts order right-to-left and the brand reads
+            "Electronics A&I". */}
+        <Link
+          href="/"
+          dir="ltr"
+          aria-label="A&I Electronics — לדף הבית"
+          className="flex shrink-0 items-center gap-2 justify-self-center sm:justify-self-auto"
+        >
+          <Image
+            src="/brand/logo.png"
+            alt=""
+            width={512}
+            height={512}
+            priority
+            className="size-9 shrink-0 rounded-[22%] sm:size-10"
+          />
+          <span aria-hidden className="flex flex-col leading-none font-black tracking-tight">
+            <span className="text-brand text-lg sm:text-xl">A&I</span>
+            <span className="text-[0.7rem] tracking-[0.14em] sm:text-[0.8rem]">ELECTRONICS</span>
           </span>
         </Link>
 

@@ -59,13 +59,19 @@
 :root {
   --font-heading: var(--font-sans);
 
-  /* A&I brand: orange from the new logo direction (bright signal-orange
-     circle-arrow mark), navy from the plug-icon accent — replaces the
-     earlier crimson-accent placeholder. --brand drives every CTA/link/
+  /* A&I brand orange, sampled from the logo file itself
+     (public/brand/logo.png) rather than eyeballed. The tile is a gradient
+     running #FC6414 -> #F35002; its core sits at #F7590B, which is this
+     value. The previous token was #FF6900 — 0.032 lighter and 4.4deg
+     yellower, close enough to look intentional on its own and wrong the
+     moment the logo sits next to a CTA. --brand drives every CTA/link/
      accent surface; --primary (below) carries the navy into the site's
-     dark UI chrome (footer, default button/control states). */
-  --brand: oklch(0.705 0.213 47.6);
-  --brand-hover: oklch(0.646 0.222 41.12);
+     dark UI chrome (footer, default button/control states).
+
+     --brand-hover is the gradient's dark end, so hovering a button lands on
+     a colour the mark itself already contains. */
+  --brand: oklch(0.668 0.206 40);
+  --brand-hover: oklch(0.62 0.208 38.5);
   --brand-foreground: oklch(0.985 0 0);
   --price-highlight: oklch(0.96 0.15 105);
   --success: oklch(0.644 0.136 161.2);
