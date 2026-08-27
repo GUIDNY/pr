@@ -69,9 +69,22 @@
      dark UI chrome (footer, default button/control states).
 
      --brand-hover is the gradient's dark end, so hovering a button lands on
-     a colour the mark itself already contains. */
-  --brand: oklch(0.668 0.206 40);
-  --brand-hover: oklch(0.62 0.208 38.5);
+     a colour the mark itself already contains.
+
+     Darkened from the logo's own #F7590B to #C64505 for contrast, and only
+     in the light theme. The logo colour measures 3.28:1 against white —
+     below the 4.5:1 WCAG AA needs for normal-size text — and this one token
+     is used both ways: as small orange text on white (prices, labels, links)
+     and as the fill behind white button labels, so at 3.28 it failed in both
+     directions on every CTA on the site. Israeli law requires AA (ת"י 5568),
+     which outranks an exact match to the mark. #C64505 measures 4.93:1
+     against white and 4.72:1 for the white label on top of it, and is the
+     same orange a shade deeper — the logo image itself is untouched.
+
+     The dark theme's values below already measure 7.19:1 and 7.44:1 and are
+     left alone. */
+  --brand: oklch(0.565 0.175 40);
+  --brand-hover: oklch(0.52 0.17 38.5);
   --brand-foreground: oklch(0.985 0 0);
   --price-highlight: oklch(0.96 0.15 105);
   --success: oklch(0.644 0.136 161.2);

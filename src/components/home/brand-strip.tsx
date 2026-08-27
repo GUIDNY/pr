@@ -23,6 +23,12 @@ export function BrandStrip({ brands }: { brands: FeaturedBrand[] }) {
               href={`/brand/${b.slug}`}
               className="flex h-16 w-32 shrink-0 items-center justify-center opacity-70 grayscale transition hover:opacity-100 hover:grayscale-0"
               title={b.name}
+              // The second copy exists only so the scroll can loop. A screen
+              // reader has no scroll to loop and would simply read the whole
+              // brand list twice, so it is hidden from the accessibility tree
+              // and taken out of the tab order.
+              aria-hidden={i >= brands.length}
+              tabIndex={i >= brands.length ? -1 : undefined}
             >
               <Image src={b.logoUrl} alt={b.name} width={120} height={48} className="h-auto max-h-12 w-auto max-w-28 object-contain" />
             </Link>
