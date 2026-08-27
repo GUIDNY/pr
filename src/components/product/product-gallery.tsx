@@ -160,6 +160,8 @@ export function ProductGallery({
         {active ? (
           <Image
             src={active.url}
+            // See product-card.tsx for why these are no-referrer.
+            referrerPolicy="no-referrer"
             alt={title}
             fill
             priority
@@ -281,7 +283,7 @@ export function ProductGallery({
               )}
             >
               <button type="button" onClick={() => setActiveIndex(i)} className="block size-full" aria-label="הצג תמונה זו">
-                <Image src={img.url} alt="" fill className="object-cover" sizes="64px" />
+                <Image src={img.url} alt="" fill className="object-cover" sizes="64px" referrerPolicy="no-referrer" />
               </button>
               {isAdmin &&
                 (i === 0 ? (

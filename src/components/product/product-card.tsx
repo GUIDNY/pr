@@ -50,6 +50,14 @@ export function ProductCard({
               fill
               className="object-cover"
               sizes="(min-width: 1024px) 25vw, 50vw"
+              // no-referrer: with images.unoptimized the browser fetches
+              // these URLs directly, and most of them live on other Israeli
+              // retailers' servers. Without this, every product view puts
+              // pr-ayam.vercel.app in their access logs — which is how a
+              // competitor notices the hotlinking and breaks or swaps the
+              // image. It does not fix the underlying dependency; it removes
+              // the signal that invites someone to act on it.
+              referrerPolicy="no-referrer"
             />
           ) : (
             <ProductImagePlaceholder title={product.title} brand={product.brandName} icon={product.categoryIcon} />

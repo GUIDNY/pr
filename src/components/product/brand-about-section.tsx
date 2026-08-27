@@ -152,7 +152,7 @@ export function BrandAboutSection({
         <div className="mt-4 flex flex-wrap gap-2">
           {imageList.map((img) => (
             <div key={img.id} className="group/bimg relative size-16 shrink-0 overflow-hidden rounded-lg">
-              <Image src={img.url} alt="" fill className="object-cover" sizes="64px" />
+              <Image src={img.url} alt="" fill className="object-cover" sizes="64px" referrerPolicy="no-referrer" />
               {isAdmin && (
                 <button
                   type="button"
