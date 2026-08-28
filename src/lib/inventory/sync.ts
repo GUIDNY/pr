@@ -13,6 +13,7 @@ import {
 } from "./diff-engine";
 import type { SourceKey } from "./sheet-map";
 import { brandLikeDividers } from "./brand-extractor";
+import { isBlockedImageHost } from "./blocked-image-hosts";
 import type { SyncTrigger } from "@/lib/enums";
 
 // Sequential, persistent, gap-free: 0001, 0002, ... — never reused, never
@@ -349,20 +350,26 @@ async function applyOneRow(
     });
   }
 
-  // Image URL comes only from an explicit column in the source — never
-  // guessed/searched — so it's safe to trust and apply directly.
-  if (row.imageUrl) {
+  // The sheet's image column used to be treated as the authority here —
+  // "explicit, never guessed, so safe to apply directly" — and it wrote
+  // over whatever photo the product already had. That reasoning held while
+  // the sheet was the only source of images. It stopped holding twice
+  // over: the enrichment endpoint now supplies real manufacturer photos,
+  // which the sheet would overwrite on the next run, and a large share of
+  // the sheet's own URLs turned out to be hotlinks to competing retailers
+  // — 1,428 of them, since deleted from the catalog but still sitting in
+  // the source files, ready to be written back.
+  //
+  // So the sheet fills a gap and never replaces a photo: whatever the
+  // agent or an admin put there outranks it, and a blocked host is not
+  // written at all.
+  if (row.imageUrl && !isBlockedImageHost(row.imageUrl)) {
     const existingImage = await db.productImage.findFirst({
       where: { productId },
     });
     if (!existingImage) {
       await db.productImage.create({
         data: { productId, url: row.imageUrl, sortOrder: 0 },
-      });
-    } else if (existingImage.url !== row.imageUrl) {
-      await db.productImage.update({
-        where: { id: existingImage.id },
-        data: { url: row.imageUrl },
       });
     }
   }

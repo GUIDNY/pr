@@ -104,6 +104,12 @@ The same rule covers images: `ProductImage.url` is only ever filled from the sou
 sheet's image column or a real manufacturer asset — never a guessed URL or a
 search-result picture.
 
+And the sheet's image column is not trusted blindly. Much of it hotlinks competing
+Israeli retailers — 1,428 such images were deleted from the catalog, and every URL is
+still in the source files. The sync fills an image only when a product has none, never
+replaces one (a photo the enrichment agent found outranks the sheet), and skips the
+hosts in `blocked-image-hosts.ts` outright. `npm run check:images` guards both rules.
+
 ## Environment traps, all confirmed the hard way
 
 - **Preview builds fail.** Env vars are set for Production only, so `DATABASE_URL` is
