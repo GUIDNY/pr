@@ -246,11 +246,16 @@ export function AccessibilityWidget() {
         aria-label="תפריט נגישות (Alt+1)"
         title="תפריט נגישות (Alt+1)"
         className={cn(
-          "border-border bg-background text-foreground fixed bottom-24 end-4 z-50 flex size-14 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105 lg:bottom-6",
+          // On a phone the launcher tucks under Alfred in the same corner
+          // (start = right in RTL) at 44px — the smallest a touch target may
+          // be without failing WCAG 2.5.8. Alfred sits at bottom-24, so
+          // bottom-5 leaves clear air between the two. From lg: up it keeps
+          // the corner opposite Alfred, where there is room for both.
+          "border-border bg-background text-foreground fixed bottom-5 start-4 z-50 flex size-11 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105 lg:bottom-6 lg:size-14 lg:start-auto lg:end-4",
           open && "scale-0 opacity-0"
         )}
       >
-        <Accessibility className="text-brand size-7" aria-hidden="true" />
+        <Accessibility className="text-brand size-6 lg:size-7" aria-hidden="true" />
       </button>
 
       <div
@@ -260,7 +265,7 @@ export function AccessibilityWidget() {
         aria-modal="false"
         aria-label="תפריט נגישות"
         hidden={!open}
-        className="border-border bg-background fixed bottom-24 end-4 z-50 flex max-h-[min(34rem,75vh)] w-[min(21rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl lg:bottom-6"
+        className="border-border bg-background fixed bottom-5 start-4 z-50 flex max-h-[min(34rem,72vh)] w-[min(21rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl lg:bottom-6 lg:start-auto lg:end-4"
       >
         <div className="bg-primary text-primary-foreground flex items-center justify-between gap-2 px-4 py-3">
           <span className="flex items-center gap-2 font-semibold">
