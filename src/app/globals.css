@@ -229,3 +229,130 @@
      visual scroll speed (px/s) comparable rather than feeling rushed. */
   animation: category-marquee 45s linear infinite;
 }
+
+/* ---------------------------------------------------------------------------
+   תפריט נגישות — the visual side of AccessibilityWidget.
+
+   The widget only ever sets a class or the --a11y-font-scale property on
+   <html>; every visual consequence is declared here, next to the tokens it
+   overrides, so a palette change can't silently break high-contrast mode.
+   The colour filters are applied to the root element rather than <body> on
+   purpose: a filter on <body> would make it the containing block for every
+   position:fixed child, and the sticky header, the cart drawer and the
+   accessibility launcher itself would start scrolling with the page.
+--------------------------------------------------------------------------- */
+
+html {
+  font-size: calc(100% * var(--a11y-font-scale, 1));
+}
+
+html.a11y-invert {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Photographs, logos and video are inverted back, so a product still looks
+   like the product — only the interface flips. */
+html.a11y-invert img,
+html.a11y-invert video,
+html.a11y-invert svg image {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+html.a11y-grayscale {
+  filter: grayscale(1);
+}
+
+/* Black on yellow: the pairing ת"י 5568 users expect, and the only one that
+   clears WCAG AAA against every surface in the site's palette. */
+html.a11y-contrast {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card: #000000;
+  --card-foreground: #ffffff;
+  --popover: #000000;
+  --popover-foreground: #ffffff;
+  --primary: #ffff00;
+  --primary-foreground: #000000;
+  --secondary: #000000;
+  --secondary-foreground: #ffffff;
+  --muted: #000000;
+  --muted-foreground: #ffffff;
+  --accent: #000000;
+  --accent-foreground: #ffff00;
+  --brand: #ffff00;
+  --brand-hover: #ffe600;
+  --brand-foreground: #000000;
+  --price-highlight: #ffff00;
+  --success: #00ff90;
+  --success-foreground: #000000;
+  --warning: #ffd400;
+  --warning-foreground: #000000;
+  --destructive: #ff6b6b;
+  --border: #ffffff;
+  --input: #ffffff;
+  --ring: #ffff00;
+  --sidebar: #000000;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #ffff00;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #000000;
+  --sidebar-accent-foreground: #ffff00;
+  --sidebar-border: #ffffff;
+}
+
+/* Decorative gradients and photographic section backgrounds carry text on the
+   home page; in high contrast they would put white type on a mid-tone. */
+html.a11y-contrast *:not(img):not(video):not(svg):not(picture) {
+  background-image: none !important;
+  text-shadow: none !important;
+}
+
+html.a11y-readable-font,
+html.a11y-readable-font * {
+  font-family: Arial, "Segoe UI", "Noto Sans Hebrew", Tahoma, sans-serif !important;
+}
+
+html.a11y-spacing * {
+  line-height: 1.9 !important;
+  letter-spacing: 0.08em !important;
+  word-spacing: 0.16em !important;
+}
+
+html.a11y-links a {
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
+  font-weight: 700 !important;
+  outline: 1px dashed currentColor;
+  outline-offset: 2px;
+}
+
+html.a11y-titles :is(h1, h2, h3, h4, h5, h6) {
+  background-color: color-mix(in oklch, var(--brand) 18%, transparent) !important;
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+/* 48px arrow, drawn inline so the cursor needs no network round-trip and
+   cannot go missing behind a failed request. */
+html.a11y-big-cursor,
+html.a11y-big-cursor * {
+  cursor:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 32 32'><path d='M6 2 L6 26 L12 20 L16 30 L20 28 L16 19 L25 19 Z' fill='black' stroke='white' stroke-width='2'/></svg>")
+      2 2,
+    auto !important;
+}
+
+html.a11y-no-motion *,
+html.a11y-no-motion *::before,
+html.a11y-no-motion *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+html.a11y-focus :is(a, button, input, select, textarea, summary, [tabindex]):focus,
+html.a11y-focus :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 4px solid #ff8c00 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 8px rgb(0 0 0 / 0.45) !important;
+}

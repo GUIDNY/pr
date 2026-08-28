@@ -97,6 +97,7 @@ export function FilterSidebar({
         <div className="flex items-center gap-2">
           <Input
             type="number"
+            aria-label="מחיר מינימלי"
             placeholder={String(priceRange.min)}
             value={minPrice}
             onChange={(e) => setMinPrice(e.target.value)}
@@ -106,6 +107,7 @@ export function FilterSidebar({
           <span className="text-muted-foreground text-xs">—</span>
           <Input
             type="number"
+            aria-label="מחיר מקסימלי"
             placeholder={String(priceRange.max)}
             value={maxPrice}
             onChange={(e) => setMaxPrice(e.target.value)}

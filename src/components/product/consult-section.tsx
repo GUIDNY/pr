@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { MessageCircle, Phone, PhoneCall } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,20 @@ export function ConsultSection({ productTitle }: { productTitle: string }) {
             });
           }}
         >
-          <Input placeholder="שם מלא" value={name} onChange={(e) => setName(e.target.value)} required />
+          {/* A placeholder is not a label: it disappears the moment the field
+              has content and screen readers may never announce it (WCAG 3.3.2).
+              The visible design stays as it was; only the accessible name is
+              added. */}
+          <Input
+            placeholder="שם מלא"
+            aria-label="שם מלא"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
           <Input
             placeholder="טלפון"
+            aria-label="טלפון"
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
@@ -63,6 +75,12 @@ export function ConsultSection({ productTitle }: { productTitle: string }) {
             <Phone className="size-4" />
             {isPending ? "שולח..." : "שלחו לי בקשה לחזרה"}
           </Button>
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            הפרטים ישמשו ליצירת קשר בנוגע לפנייה זו בלבד. מסירתם אינה חובה חוקית.{" "}
+            <Link href="/privacy" className="hover:text-foreground underline">
+              מדיניות הפרטיות
+            </Link>
+          </p>
         </form>
       )}
       {sent && <p className="text-success mt-3 text-sm font-medium">תודה! ניצור קשר בהקדם</p>}

@@ -114,6 +114,11 @@ export async function Footer() {
               </Link>
             </li>
             <li>
+              <Link href="/privacy" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                מדיניות פרטיות
+              </Link>
+            </li>
+            <li>
               <Link href="/accessibility" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 הצהרת נגישות
               </Link>
