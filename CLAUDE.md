@@ -31,6 +31,24 @@ outage.
 Two agents must never write the same field. Coordination happens through this table,
 not through messages.
 
+## Brand attribution is derived, and it has been wrong before
+
+`Product.brandId` is not typed into the sheet per row. It comes out of
+`excel-parser.ts` + `brand-extractor.ts`: a BRAND column whose block headers are
+sometimes highlighted and sometimes not, a forward-fill across the rows that leave it
+blank, the manufacturer's name inside the free-text description, and the yellow section
+divider above the row — in that order.
+
+That chain has misfiled products five separate times, and every previous fix corrected
+the *rows* rather than the derivation, so the next 05:00 sync re-derived the same wrong
+answer. Before correcting brand data, run `npm run check:brands` and satisfy yourself
+the import produces the right answer now; otherwise you are scheduling the same ticket
+again.
+
+The tell is cheap to look for: a product whose assigned brand contradicts the
+manufacturer named in its own title (`Bosch` on a row titled `באוכנכט KFN96APEAL`).
+That is never a typo in the sheet, it is the derivation.
+
 ## `enrichmentStatus` is load-bearing
 
 `NOT_ENRICHED` → `ENRICHED` (or `NEEDS_REVIEW`). Two paths set it: the enrich endpoint

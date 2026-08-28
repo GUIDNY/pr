@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import { classifyHeader, headerScore } from "./classifier";
 import { isProductSheet, type SourceKey } from "./sheet-map";
+import { isPlausibleBrandCell } from "./brand-extractor";
 import type { ClassifiedColumn, ParsedRow, ParsedSheet, ParsedWorkbook } from "./types";
 
 const HEADER_SEARCH_ROWS = 5;
@@ -71,9 +72,18 @@ export function parseSheetRows(sheetName: string, rows: unknown[][], sheet?: XLS
   // leave it blank for every row underneath (AEG on row 1, then 4 more AEG
   // rows with nothing in that column) — same yellow-highlight convention as
   // section dividers, just written directly on a product row instead of a
-  // separate header row above it. Track the last yellow-confirmed value in
-  // that column and forward-fill it; an unhighlighted value in the same
-  // column (a stray promo code, a leftover note) is never trusted.
+  // separate header row above it. Track the last confirmed value in that
+  // column and forward-fill it onto the rows that leave it blank.
+  //
+  // The fill has to expire, and originally it never did: currentBrand was
+  // set by a yellow cell and then survived to the end of the sheet, so the
+  // moment a sheet stopped colouring its block headers — which real sheets
+  // do partway down — every remaining row was stamped with a brand from an
+  // arbitrary distance above it. That is how Bauknecht and TCL fridges
+  // ended up filed under AEG, Bosch models under Beko, and Gorenje under
+  // Imperial. It ends at a section divider (the divider is the block
+  // boundary) and at any row that names a different, plausible brand of its
+  // own — an uncoloured block header is still a block header.
   const brandColIndex = columns.find((c) => c.field === "BRAND")?.index;
   let currentBrand: string | null = null;
 
@@ -125,10 +135,24 @@ export function parseSheetRows(sheetName: string, rows: unknown[][], sheet?: XLS
     if (!hasProductSignal) {
       // Not a product row — either blank noise, or a genuine section divider
       // ("אוזניות", "GAGGIA", ...). Only the latter updates the running
-      // context that gets attached to every product row underneath it.
+      // context that gets attached to every product row underneath it, and
+      // it closes whatever brand block was open: rows below a new divider
+      // belong to that divider, not to the last brand seen above it.
       const dividerText = rowDividerText(cells, sheet, r);
-      if (dividerText) currentSectionLabel = dividerText;
+      if (dividerText) {
+        currentSectionLabel = dividerText;
+        currentBrand = null;
+      }
       continue;
+    }
+
+    // A row carrying its own believable brand starts a new block, whether or
+    // not anyone coloured it. Junk in that column (a promo code, a stray
+    // number) fails isPlausibleBrandCell and neither wins nor propagates,
+    // which is the distrust the highlight convention was standing in for.
+    const ownBrand = values.BRAND?.find((v) => typeof v === "string" && v.trim());
+    if (typeof ownBrand === "string" && isPlausibleBrandCell(ownBrand)) {
+      currentBrand = ownBrand.trim();
     }
 
     parsedRows.push({ rowIndex: r, values, raw, sectionLabel: currentSectionLabel, inheritedBrand: currentBrand });

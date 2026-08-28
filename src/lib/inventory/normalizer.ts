@@ -1,5 +1,5 @@
 import { categoryForSheet, subCategoryFromSectionLabel, type SourceKey } from "./sheet-map";
-import { extractBrand, extractBrandFromDivider } from "./brand-extractor";
+import { extractBrand, extractBrandFromDivider, isPlausibleBrandCell } from "./brand-extractor";
 import type { ClassifiedColumn, NormalizedProductRow, ParsedRow, RowIssue, StockLine } from "./types";
 
 function isMappedSourceKey(key: string): key is SourceKey {
@@ -158,18 +158,19 @@ export function normalizeRow(
   const imageUrl = imageUrlRaw && /^https?:\/\//i.test(imageUrlRaw) ? imageUrlRaw : null;
 
   // Brand resolution, most-trusted first:
-  //  1. inheritedBrand — the last yellow-highlighted BRAND-column value seen
-  //     (forward-filled). Wins even over this row's own raw BRAND cell,
-  //     because when a sheet uses this convention, an unhighlighted value in
-  //     that same column is exactly the kind of stray leftover ("15//1", a
-  //     promo code) that convention exists to distinguish from a real brand.
-  //  2. The raw BRAND column value, for sheets that don't use the
-  //     highlighting convention at all and just have a clean value per row.
+  //  1. This row's own BRAND cell, when the value is believable at all
+  //     (isPlausibleBrandCell rejects promo codes and stray numbers). The
+  //     row naming its own manufacturer beats anything inherited: the
+  //     inherited value comes from an unknown distance up the sheet, and
+  //     letting it win here is what filed Bauknecht fridges under AEG.
+  //  2. inheritedBrand — the brand block this row sits in, forward-filled
+  //     by the parser for rows that leave the column blank.
   //  3. Picking the manufacturer out of the description text itself.
   //  4. The section divider this row sits under — see brand-extractor.ts.
+  const ownBrand = firstString(row.values.BRAND);
   const brandName =
+    (ownBrand && isPlausibleBrandCell(ownBrand) ? ownBrand.trim() : null) ??
     row.inheritedBrand ??
-    firstString(row.values.BRAND) ??
     (description ? extractBrand(description, knownBrands) : null) ??
     extractBrandFromDivider(row.sectionLabel);
 

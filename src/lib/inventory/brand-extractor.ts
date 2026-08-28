@@ -40,6 +40,23 @@ function isBrandLike(label: string): boolean {
   );
 }
 
+// Whether a value sitting in a sheet's BRAND column is worth believing.
+// That column is not clean: alongside real manufacturer names it collects
+// promo codes ("15//1"), leftover notes and stray numbers, which is the
+// reason the yellow-highlight convention exists in the first place. Rather
+// than distrust the whole column, judge the individual cell — a value that
+// contains a letter, isn't a bare code and isn't a quantity/colour word is
+// the row telling us its own manufacturer, and that is more specific
+// evidence than a value inherited from an unknown distance further up.
+export function isPlausibleBrandCell(value: string): boolean {
+  const v = value.trim();
+  if (v.length < 2 || v.length > 24) return false;
+  if (!/[A-Za-z\u0590-\u05FF]/.test(v)) return false;
+  if (/^[\d/\\.\-\s]+$/.test(v)) return false;
+  if (NON_BRAND_WORDS.test(v)) return false;
+  return true;
+}
+
 export function brandLikeDividers(dividerLabels: string[]): string[] {
   return [...new Set(dividerLabels)].filter(isBrandLike);
 }
