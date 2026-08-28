@@ -299,23 +299,38 @@ async function applyOneRow(
       stock > 0,
   };
 
-  // A product marked ENRICHED has had a human (or the enrichment API acting
-  // for one) decide its name and its precise leaf category, and the sheet has
-  // nothing better to offer for either: its title is only the raw
-  // "{brand} {model}" string, and it maps every row of a tab to one broad
-  // category — sheet-map.ts says so outright, and points at the catalog
-  // editor as the place to correct an individual product. Re-applying them on
-  // every run undid that correction the next morning. Price, stock and every
-  // other source-owned field keep tracking the sheet exactly as before.
-  const { title, categoryId: sheetCategoryId, ...sourceOwned } = data;
-  const updateData =
-    existing?.enrichmentStatus === "ENRICHED"
-      ? sourceOwned
-      : { ...sourceOwned, title, categoryId: sheetCategoryId };
+  // A row the sheet has already produced a product for updates stock and
+  // nothing else. Everything else about an existing product — its name,
+  // brand, category, price, colour, warranty — belongs to whoever curated
+  // it, and the sheet is not a better source for any of it: its title is
+  // the raw "{brand} {model}" string, it maps a whole tab to one broad
+  // category, and its brand column is the one that filed Bauknecht under
+  // AEG. Re-applying all of that on every run is what undid a morning's
+  // corrections by the next morning, over and over.
+  //
+  // isPublished is deliberately not in here either. It used to be
+  // recomputed from the sheet on every run, which silently republished
+  // anything an admin had hidden by hand; stock is already enforced at
+  // query time by PUBLIC_PRODUCT_WHERE, so nothing is lost by leaving the
+  // flag to the people who set it.
+  //
+  // Source position (sourceId/sheet/rowRef) stays current because
+  // findExistingProduct matches on it — a product whose row moved would
+  // otherwise stop being recognised and come back as a duplicate.
+  const stockOnlyUpdate = {
+    stockStatus: data.stockStatus,
+    stockQty: data.stockQty,
+    stockBreakdown: data.stockBreakdown,
+    sourceId: data.sourceId,
+    sourceSheet: data.sourceSheet,
+    sourceRowRef: data.sourceRowRef,
+    lastExcelSyncAt: data.lastExcelSyncAt,
+    missingFromSourceSince: data.missingFromSourceSince,
+  };
 
   let productId: string;
   if (existing) {
-    await db.product.update({ where: { id: existing.id }, data: updateData });
+    await db.product.update({ where: { id: existing.id }, data: stockOnlyUpdate });
     productId = existing.id;
     result.productsUpdated++;
     if (existing.missingFromSourceSince) {
@@ -334,6 +349,20 @@ async function applyOneRow(
     });
     productId = created.id;
     result.productsAdded++;
+    // A brand-new row arrives with a raw title, a broad category and no
+    // content at all. It goes straight to the "טיפול" queue with its own
+    // alert type rather than waiting to be inferred from what it is
+    // missing, so it reads as "this just arrived" and not as "this has
+    // been broken for a while".
+    await upsertAlert({
+      type: "NEW_FROM_SOURCE",
+      severity: "WARNING",
+      productId,
+      sourceId,
+      syncRunId,
+      sourceSku: sku,
+      message: `${row.title}: מוצר חדש מהגיליון — ממתין לכותרת, קטגוריה, תמונה ומפרט`,
+    });
   }
 
   // Full replace, not a diff — each sync states what the source currently
@@ -691,9 +720,14 @@ export async function reconcileSourceConflictAlerts(syncRunId: string | null) {
         : product.stockQty <= threshold
           ? "LOW_STOCK"
           : "IN_STOCK";
+    // stockStatus only. This sweep used to republish as well, which made it
+    // one more way for a sync to undo a product an admin had hidden by
+    // hand — and it is unnecessary: PUBLIC_PRODUCT_WHERE gates on stockQty
+    // at query time, so a product with stock is visible without the flag
+    // being flipped for it.
     await db.product.update({
       where: { id: product.id },
-      data: { stockStatus: status, isPublished: product.stockQty > 0 },
+      data: { stockStatus: status },
     });
   }
 

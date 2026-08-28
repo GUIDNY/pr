@@ -186,10 +186,12 @@ model Product {
   minSalePrice           Float? // internal floor price reference from source, admin-only
   // Fixed 5-bucket stock fields — superseded by the per-named-source
   // InventorySourceLine model below (one row per raw column: "תצוגה חדרה",
-  // "בונדד עומר", etc.), which is now the source of truth for the
-  // inventory breakdown UI. Left in place, still updated, since existing
-  // queries (PUBLIC_PRODUCT_WHERE, admin summaries) read stockQty directly
-  // and there's no reason to churn them for this change.
+  // "בונדד עומר", etc.), which is the source of truth for the inventory
+  // breakdown UI. Dead columns: nothing in the codebase writes any of the
+  // five any more (grep confirms), and nothing reads them either — the
+  // breakdown UI reads InventorySourceLine and everything else reads
+  // stockQty. Left in place rather than dropped so no historical value is
+  // destroyed, but do not start writing them: add to InventorySourceLine.
   sellableStock          Int? // "יתרה" — what's actually available to sell
   warehouseStock         Int? // "מלאי" + "טובים" columns, summed
   showroomStock          Int? // "תצוגה" columns (any branch), summed
@@ -609,7 +611,8 @@ model InventoryAlert {
   // LOW_STOCK | OUT_OF_STOCK | UNMATCHED_ROW | DUPLICATE_SKU | DUPLICATE_MODEL |
   // INVALID_PRICE | MISSING_MODEL | UNKNOWN_COLUMN | NEGATIVE_STOCK |
   // MAJOR_STOCK_CHANGE | MISSING_FROM_SOURCE | SOURCE_CONFLICT |
-  // URGENT_MISSING_MEDIA | MISSING_IMAGE | MANUAL_ATTENTION | MANUAL_URGENT
+  // URGENT_MISSING_MEDIA | MISSING_IMAGE | NEW_FROM_SOURCE |
+  // MANUAL_ATTENTION | MANUAL_URGENT
   severity     String            @default("WARNING") // INFO | WARNING | CRITICAL
   productId    String?
   product      Product?          @relation(fields: [productId], references: [id])

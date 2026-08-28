@@ -313,13 +313,15 @@ function withNonNullProduct<T extends { product: unknown }>(alerts: T[]) {
 //    (reconcileUrgentMissingMedia in lib/inventory/sync.ts)
 //  - MISSING_IMAGE — no photo but enough spec to stay published, so it is
 //    live on a placeholder tile (reconcileMissingImage, same file)
+//  - NEW_FROM_SOURCE — a row the sheet just produced a product for, with a
+//    raw title, a broad category and no content yet
 //  - MANUAL_ATTENTION — an admin flagged it by hand from the product page
 // Sorted so the hidden products come before the merely photo-less ones;
 // a product only ever holds one of the two automatic alerts, never both.
 export async function getAttentionProducts() {
   const alerts = await db.inventoryAlert.findMany({
     where: {
-      type: { in: ["URGENT_MISSING_MEDIA", "MISSING_IMAGE", "MANUAL_ATTENTION"] },
+      type: { in: ["NEW_FROM_SOURCE", "URGENT_MISSING_MEDIA", "MISSING_IMAGE", "MANUAL_ATTENTION"] },
       isResolved: false,
     },
     orderBy: { createdAt: "desc" },

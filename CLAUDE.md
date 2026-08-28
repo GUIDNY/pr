@@ -23,15 +23,20 @@ outage.
 
 | Owner | Writes | Never touches |
 |---|---|---|
-| Sync (`/api/inventory/sync`, **manual only** — the cron is gone) | `price`, `stockQty`, `sku`, `brandId`, `colorName`, stock columns, `isPublished`; `title` + `categoryId` **only while `enrichmentStatus != "ENRICHED"`** | `description`, specs, images, SEO |
+| Sync — **new** product from a sheet row | the whole record: `sku`, `title`, `price`, `brandId`, `categoryId`, stock, colour — then flags it `NEW_FROM_SOURCE` so it lands in the "טיפול" queue for the agent | — |
+| Sync — **existing** product | `stockQty`, `stockStatus`, `stockBreakdown` and the source-position bookkeeping. **Nothing else.** Not price, not title, not brand, not category, not `isPublished` | everything a person or the agent set |
 | Enrichment (`POST /api/integrations/product-enrich`) | everything about a product's *content*: `title`, `categoryId`, brand, `model`, `colorName`, `description`, specs, images, supplier, warranty — sent means written, no opt-in needed | `price`, `stockQty`, `sku`, `slug` |
 | Admin product form | everything on the form — and marks the product `ENRICHED` | — |
 | Marketing | `Promotion` rows only | `Product` |
 
-The sync no longer runs on a schedule, so the endpoint and the sync can no longer
-race: nothing rewrites content overnight, and price/stock only refresh when someone
-presses sync in the admin. Coordination still happens through this table, not through
-messages.
+The sheet's job is stock. A product it already created is never re-derived from it
+again: price is set once at creation and afterwards only a person or the agent changes
+it, and the same goes for every content field. That is what finally stopped the cycle
+where a morning's corrections were gone by the next morning — the sync has nothing left
+to overwrite them with.
+
+It also no longer runs on a schedule, so it and the endpoint cannot race. Someone
+presses sync in the admin when the supplier sends a new sheet.
 
 `slug` is never written by anything after creation — it is public in the product URL,
 so renaming a product must not break links already shared.
