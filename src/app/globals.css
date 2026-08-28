@@ -356,3 +356,17 @@ html.a11y-focus :is(a, button, input, select, textarea, summary, [tabindex]):foc
   outline-offset: 3px !important;
   box-shadow: 0 0 0 8px rgb(0 0 0 / 0.45) !important;
 }
+
+/* The cookie notice spans the bottom of the screen, where the chat and
+   accessibility launchers sit. While it is up they lift by its measured height
+   (published as --cookie-notice-h by the component itself, so no hard-coded
+   guess goes stale when the text wraps to another line on a narrow phone).
+   margin-bottom rather than a transform: these elements already animate their
+   own transform on hover and when their panel opens. */
+.floating-launcher {
+  transition: margin-bottom 0.2s ease;
+}
+
+html[data-cookie-notice="open"] .floating-launcher {
+  margin-bottom: var(--cookie-notice-h, 0px);
+}

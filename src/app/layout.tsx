@@ -9,6 +9,7 @@ import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
 import { AccessibilityWidget } from "@/components/layout/accessibility-widget";
+import { CookieNotice } from "@/components/layout/cookie-notice";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -93,6 +94,7 @@ export default function RootLayout({
             <CompareTray />
             <AlfredChatWidget />
             <AccessibilityWidget />
+            <CookieNotice />
             <Toaster position="top-center" richColors />
           </TooltipProvider>
         </DirectionProvider>
