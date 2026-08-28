@@ -17,7 +17,7 @@ import { checkAuth } from "@/lib/integrations/product-enrich-shared";
 // table means this endpoint can never drift from what the admin UI shows.
 export const dynamic = "force-dynamic";
 
-const DEFAULT_TYPES = ["URGENT_MISSING_MEDIA", "MISSING_IMAGE", "MANUAL_ATTENTION", "MANUAL_URGENT"] as const;
+const DEFAULT_TYPES = ["NEW_FROM_SOURCE", "URGENT_MISSING_MEDIA", "MISSING_IMAGE", "MANUAL_ATTENTION", "MANUAL_URGENT"] as const;
 const MAX_LIMIT = 200;
 
 export async function GET(request: Request) {

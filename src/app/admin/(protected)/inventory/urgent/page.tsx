@@ -11,10 +11,12 @@ export const metadata = { title: "טיפול | A&I Electronics Admin" };
 //  - URGENT_MISSING_MEDIA — no photo and no spec; also unpublished
 //  - MISSING_IMAGE — no photo, has a spec; still published, but off the
 //    site all the same since PUBLIC_PRODUCT_WHERE requires an image
+//  - NEW_FROM_SOURCE — the sheet just created it; nothing but stock is known
 //  - MANUAL_ATTENTION — flagged by hand, a plain to-do marker
 // Neither of the first two is on the site: a photo is what brings either
 // back. The split says how much is missing, not whether it is visible.
 const ROW_KIND = {
+  NEW_FROM_SOURCE: { label: "מוצר חדש מהגיליון", tone: "bg-brand/10 text-brand" },
   URGENT_MISSING_MEDIA: { label: "אין תמונה ואין מפרט", tone: "bg-destructive/10 text-destructive" },
   MISSING_IMAGE: { label: "חסרה תמונה", tone: "bg-warning/15 text-warning-foreground" },
   MANUAL_ATTENTION: { label: "סומן ידנית", tone: "bg-muted text-muted-foreground" },
@@ -25,6 +27,7 @@ export default async function AttentionInventoryPage() {
   const hidden = items.filter((i) => i.type === "URGENT_MISSING_MEDIA").length;
   const photoless = items.filter((i) => i.type === "MISSING_IMAGE").length;
   const manual = items.filter((i) => i.type === "MANUAL_ATTENTION").length;
+  const arrivals = items.filter((i) => i.type === "NEW_FROM_SOURCE").length;
 
   return (
     <div>
@@ -42,6 +45,9 @@ export default async function AttentionInventoryPage() {
         מהרשימה רק כשתסירו את הסימון מדף המוצר.
       </p>
       <div className="mb-5 flex flex-wrap gap-2 text-xs">
+        <span className="bg-brand/10 text-brand rounded-full px-3 py-1 font-medium">
+          חדשים מהגיליון: {arrivals.toLocaleString("he-IL")}
+        </span>
         <span className="bg-destructive/10 text-destructive rounded-full px-3 py-1 font-medium">
           לא באתר — אין תמונה ואין מפרט: {hidden.toLocaleString("he-IL")}
         </span>
