@@ -39,7 +39,7 @@ async function allocateTempSku(): Promise<string> {
 //     fallback (same brand+model+title, still temp-SKU'd, same source) —
 //     guards against minor row-order drift in the sheet.
 //  3. For rows with a real SKU: a plain SKU lookup.
-async function findExistingProduct(
+export async function findExistingProduct(
   sourceId: string,
   row: NormalizedProductRow,
   brandId: string,
@@ -93,7 +93,10 @@ function slugFor(row: NormalizedProductRow, sku: string) {
   return `${base}-${suffix}`;
 }
 
-async function resolveBrandId(name: string | null): Promise<string> {
+// Exported for scripts/backfill-brand-attribution.ts, which has to resolve
+// a brand name exactly the way a sync would — a second implementation that
+// drifted would file products under a near-duplicate brand row.
+export async function resolveBrandId(name: string | null): Promise<string> {
   const brandName = (name ?? "לא ידוע").trim() || "לא ידוע";
   const existing = await db.brand.findFirst({ where: { name: brandName } });
   if (existing) return existing.id;
