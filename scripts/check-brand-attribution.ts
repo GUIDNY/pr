@@ -69,6 +69,32 @@ const cases: Case[] = [
     style: { "1,1": { yellow: true }, "2,2": { yellow: true } },
     expect: ["AEG", "TCL"],
   },
+  {
+    // Regression guard for the fix above: letting the row's own BRAND cell
+    // win is only safe while junk in that cell is still rejected. These
+    // values are real — they were sitting in the brand column in production,
+    // and each is a category label or a pack count, not a manufacturer.
+    name: "a category label in the brand column is not a brand",
+    rows: [
+      HEADER,
+      ["0279", "AEG", "AEG כיריים אינדוקציה", "NI064B00FB", 3990, 4],
+      ["840967", "בלנדר מוט", "גרץ בלנדר מוט 300W דגם GR967", "GR967", 199, 6],
+      ["830653", "מעבדי מזון", "NINJA מעבד מזון 850W דגם BN653", "BN653", 899, 2],
+    ],
+    style: { "1,1": { yellow: true } },
+    expect: ["AEG", "AEG", "AEG"],
+  },
+  {
+    name: "a leading pack count in the brand column is not a brand",
+    rows: [
+      HEADER,
+      ["0275", "HGB", "5 גז רשתות ברזל יצוק", "HGB75820SM", 2990, 3],
+      ["0277", "5 גז רשתות", "5 גז רשתות ברזל יצוק + ווק", "HKB75341NB", 3190, 2],
+      ["700313", "3i", "3i שואב שוטף רובוטי", "S10 Ultra", 4990, 1],
+    ],
+    style: { "1,1": { yellow: true } },
+    expect: ["HGB", "HGB", "3i"],
+  },
 ];
 
 function build(c: Case) {
