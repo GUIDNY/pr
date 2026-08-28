@@ -73,18 +73,28 @@ export function OrdersFilterBar({ staff }: { staff: { id: string; name: string }
         </SelectContent>
       </Select>
 
-      <Input
-        type="date"
-        value={searchParams.get("dateFrom") ?? ""}
-        onChange={(e) => pushParams((p) => (e.target.value ? p.set("dateFrom", e.target.value) : p.delete("dateFrom")))}
-        className="w-[150px]"
-      />
-      <Input
-        type="date"
-        value={searchParams.get("dateTo") ?? ""}
-        onChange={(e) => pushParams((p) => (e.target.value ? p.set("dateTo", e.target.value) : p.delete("dateTo")))}
-        className="w-[150px]"
-      />
+      {/* Two bare date boxes reading "mm/dd/yyyy" on a Hebrew screen say
+          nothing about which end of the range they are. */}
+      <label className="text-muted-foreground flex items-center gap-1.5 text-sm">
+        מתאריך
+        <Input
+          type="date"
+          aria-label="מתאריך"
+          value={searchParams.get("dateFrom") ?? ""}
+          onChange={(e) => pushParams((p) => (e.target.value ? p.set("dateFrom", e.target.value) : p.delete("dateFrom")))}
+          className="w-[150px]"
+        />
+      </label>
+      <label className="text-muted-foreground flex items-center gap-1.5 text-sm">
+        עד
+        <Input
+          type="date"
+          aria-label="עד תאריך"
+          value={searchParams.get("dateTo") ?? ""}
+          onChange={(e) => pushParams((p) => (e.target.value ? p.set("dateTo", e.target.value) : p.delete("dateTo")))}
+          className="w-[150px]"
+        />
+      </label>
 
       {searchParams.toString() && (
         <Button variant="ghost" size="sm" onClick={() => router.push(pathname)}>

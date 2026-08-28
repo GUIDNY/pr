@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Cookie, X } from "lucide-react";
 
 /* The site sets two cookies and both are strictly necessary — the signed-in
@@ -58,6 +59,9 @@ function acknowledge() {
 export function CookieNotice() {
   const acknowledged = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const ref = useRef<HTMLDivElement>(null);
+  // The notice is for visitors. Staff signed into the back office are not
+  // being informed of anything by a bar across the bottom of their work.
+  const isAdmin = usePathname().startsWith("/admin");
 
   /* The banner sits across the bottom of the screen, which on a phone is
      exactly where the chat and accessibility launchers live — and burying the
@@ -66,7 +70,7 @@ export function CookieNotice() {
      the launchers lift by it (globals.css), so nothing is ever covered. */
   useEffect(() => {
     const root = document.documentElement;
-    if (acknowledged || !ref.current) {
+    if (acknowledged || isAdmin || !ref.current) {
       root.removeAttribute("data-cookie-notice");
       root.style.removeProperty("--cookie-notice-h");
       return;
@@ -84,11 +88,11 @@ export function CookieNotice() {
       root.removeAttribute("data-cookie-notice");
       root.style.removeProperty("--cookie-notice-h");
     };
-  }, [acknowledged]);
+  }, [acknowledged, isAdmin]);
 
   const dismiss = useCallback(() => acknowledge(), []);
 
-  if (acknowledged) return null;
+  if (acknowledged || isAdmin) return null;
 
   return (
     <div
