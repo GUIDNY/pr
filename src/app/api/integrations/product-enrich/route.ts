@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
-import { reconcileUrgentMissingMedia } from "@/lib/inventory/sync";
+import { reconcileUrgentMissingMedia, reconcileMissingImage } from "@/lib/inventory/sync";
 import {
   checkAuth,
   MAX_PRODUCT_IMAGES,
@@ -28,20 +28,20 @@ export const dynamic = "force-dynamic";
 
 type EnrichItem = {
   sku: string;
+  // Accepted and explicitly refused, so a caller that sends them gets a
+  // reason back instead of silence. These come from the supplier's sheet.
+  price?: number;
+  stockQty?: number;
   name?: string;
-  // The manufacturer's own model number/code — NOT part of `name`, and not
-  // sync-owned the way name/price/stock/category are (the inventory sync
-  // only ever writes this from a MODEL-classified Excel column when one
-  // exists; a huge share of products have no such column at all, so this
-  // sits empty forever unless filled here). Written only when currently
-  // empty, same as description — pass `overwrite: ["model"]` to replace an
-  // existing (possibly wrong) one.
+  // The manufacturer's own model number/code — NOT part of `name`. The
+  // import only ever fills it from a MODEL-classified Excel column, and a
+  // large share of sheets have no such column, so for most products this
+  // arrives empty and stays that way unless it is set here.
   model?: string;
   // A real, structured field — not scraped guesswork — for products whose
   // manufacturer sells the exact same model at multiple finishes, each
   // with its own real model number (e.g. Hidurit's M-LR8 "רוז גולד" vs
-  // M-LB8 "שחור" at the same capacity). Same fill-then-overwrite semantics
-  // as every other field here.
+  // M-LB8 "שחור" at the same capacity).
   colorName?: string;
   description?: string;
   // Where the description text was scraped from — stored on the product,
@@ -83,21 +83,11 @@ type EnrichItem = {
   // backfilled with provenance after the fact, without re-touching content
   // that's already correct.
   sourceBackfillOnly?: boolean;
-  // Per-item override for the top-level `overwrite` array — an explicit,
-  // field-by-field opt-in to replace a value that's already set (this
-  // endpoint's default, everywhere else, is "never touch a filled field").
-  // A specific field name, never a blanket boolean, so overwriting one
-  // field can never accidentally wipe another (e.g. asking to fix a wrong
-  // `brand` can't also silently clobber a good `description`). Supported:
-  // "brand", "supplier", "warranty", "model", "colorName", "description"
-  // (equivalent to overwriteDescription:true), "technicalSpec.<key>" for
-  // one specific spec field, and "images" (replaces the whole image set —
-  // equivalent to replaceImages:true — when `images` is also given and
-  // neither appendImages nor replaceImages is set explicitly). Must be a
-  // real array — a non-array value (e.g. `true`) is a validation error,
-  // not something silently ignored or crashed on. `category`/`name` are
-  // never overwritable here regardless — those stay owned by inventory
-  // sync, full stop.
+  // Kept so existing callers keep working; it no longer gates anything.
+  // Every field sent is written now, which is exactly what listing a field
+  // here used to opt into. Still validated as an array so a caller sending
+  // `overwrite: true` learns their assumption is wrong rather than having
+  // it silently ignored.
   overwrite?: string[];
 };
 
@@ -110,6 +100,26 @@ type OverwriteOutcome = { field: string; previousValue: string };
 // *existing* ProductImage row with a matching url — never onto a new one,
 // since backfill mode's whole point is to attach history to content that's
 // already correct, not to add anything.
+// Every image branch used to filter with `url.startsWith("https://")` and
+// throw the rest away without a word — an http:// photo was dropped in
+// silence, so a caller got a successful response, no image, and nothing in
+// `skipped` explaining it. Israeli manufacturer and importer sites still
+// serve plenty of images over plain http, which made this the quietest way
+// for a product to arrive without its picture.
+//
+// http:// is accepted now (the page loads it exactly as it loads any other
+// remote image — next.config sets images.unoptimized, so nothing rewrites
+// the URL), and anything that is not an http(s) URL at all is reported
+// instead of vanishing.
+function usableImageUrls(images: NormalizedImage[], skipped: FieldOutcome[]): NormalizedImage[] {
+  const usable: NormalizedImage[] = [];
+  for (const img of images) {
+    if (/^https?:\/\//i.test(img.url)) usable.push(img);
+    else skipped.push({ field: "images", reason: `not an http(s) URL, not saved: ${img.url}` });
+  }
+  return usable;
+}
+
 async function processSourceBackfill(item: EnrichItem, dryRun: boolean) {
   const sku = (item.sku ?? "").trim();
   if (!sku) return { sku: item.sku ?? "", matched: false, error: "missing sku" };
@@ -212,12 +222,12 @@ async function processItem(
     return { sku, matched: false, error: '"overwrite" must be an array of field names, e.g. ["brand"] — got a non-array value' };
   }
   if (item.sourceBackfillOnly ?? defaults.sourceBackfillOnly) return processSourceBackfill(item, dryRun);
+  // appendImages is the one image flag that still changes anything: adding
+  // to the existing set rather than replacing it. replaceImages,
+  // overwriteDescription and overwrite are still accepted so existing
+  // callers keep working, but they no longer gate anything — every field
+  // sent is written now, which is what they were used to opt into.
   const appendImages = item.appendImages ?? defaults.appendImages;
-  const replaceImages = item.replaceImages ?? defaults.replaceImages;
-  const overwriteDescription = item.overwriteDescription ?? defaults.overwriteDescription;
-  const overwriteSet = new Set(
-    item.overwrite ? item.overwrite.filter((f): f is string => typeof f === "string") : defaults.overwrite
-  );
 
   const product = await db.product.findUnique({
     where: { sku },
@@ -236,50 +246,70 @@ async function processItem(
   const overwritten: OverwriteOutcome[] = [];
   const updateData: Record<string, unknown> = {};
 
-  // Sync-owned fields: never touched here, regardless of dry-run, so the
-  // caller can see explicitly that these were considered and rejected
-  // rather than silently ignored.
-  if (item.name !== undefined) skipped.push({ field: "name", reason: "owned by inventory sync (title) — not overwritten here" });
-  if (item.category !== undefined) skipped.push({ field: "category", reason: "owned by inventory sync — not overwritten here" });
+  // Every content field below follows one rule: sent means written. The
+  // fill-only, opt-in-to-overwrite model this endpoint used to enforce
+  // existed to stop it fighting the nightly sync, which re-derived title,
+  // category and brand from the supplier sheet every morning and would
+  // have undone anything written here. That cron is gone, so the only
+  // thing the restriction still did was make the caller guess which of its
+  // values would silently land and which would not.
+  //
+  // What replaces the guard is the record: `overwritten` reports the
+  // previous value of anything replaced, and every call is written to the
+  // audit log. Send `dryRun: true` to see exactly what a call would change
+  // before it changes it.
+  //
+  // Price, stockQty and sku stay out — they are the product's commercial
+  // identity and come from the supplier's own sheet, not from content
+  // enrichment.
+  if (item.price !== undefined) skipped.push({ field: "price", reason: "not settable here — price comes from the supplier sheet" });
+  if (item.stockQty !== undefined) skipped.push({ field: "stockQty", reason: "not settable here — stock comes from the supplier sheet" });
 
-  if (item.model !== undefined) {
-    if (!product.model) {
-      updateData.model = item.model;
-      applied.push("model");
-    } else if (overwriteSet.has("model")) {
-      overwritten.push({ field: "model", previousValue: product.model });
-      updateData.model = item.model;
-      applied.push("model (overwritten)");
+  const setField = (field: string, next: string, previous: string | null) => {
+    if (previous) overwritten.push({ field, previousValue: previous });
+    updateData[field] = next;
+    applied.push(previous ? `${field} (replaced)` : field);
+  };
+
+  if (item.name !== undefined) {
+    const title = String(item.name).trim();
+    if (!title) {
+      skipped.push({ field: "name", reason: "empty title — a product must keep a name" });
     } else {
-      skipped.push({ field: "model", reason: `already set (${product.model}) — pass overwrite: ["model"] to replace it` });
+      // The slug is deliberately left alone: it is public in the product
+      // URL, so renaming a product must not break links already shared.
+      setField("title", title, product.title);
     }
   }
 
-  if (item.colorName !== undefined) {
-    if (!product.colorName) {
-      updateData.colorName = item.colorName;
-      applied.push("colorName");
-    } else if (overwriteSet.has("colorName")) {
-      overwritten.push({ field: "colorName", previousValue: product.colorName });
-      updateData.colorName = item.colorName;
-      applied.push("colorName (overwritten)");
+  if (item.category !== undefined) {
+    const slug = String(item.category).trim();
+    const category = slug ? await db.category.findUnique({ where: { slug }, select: { id: true, slug: true } }) : null;
+    if (!category) {
+      skipped.push({
+        field: "category",
+        reason: `no category with slug "${slug}" — GET this endpoint for the full list of valid slugs`,
+      });
+    } else if (category.id === product.categoryId) {
+      skipped.push({ field: "category", reason: `already in "${slug}"` });
     } else {
-      skipped.push({ field: "colorName", reason: `already set (${product.colorName}) — pass overwrite: ["colorName"] to replace it` });
+      // Spec values belong to the category's own attributes, so moving a
+      // product to a different category leaves any existing ones pointing
+      // at fields the new category does not define. Reported rather than
+      // silently dropped — the caller usually wants to resend specs.
+      if (product.attributeValues.length > 0) {
+        skipped.push({
+          field: "technicalSpec",
+          reason: `${product.attributeValues.length} existing spec value(s) belong to the previous category — resend technicalSpec for the new one`,
+        });
+      }
+      setField("categoryId", category.id, product.categoryId);
     }
   }
 
-  if (item.description !== undefined) {
-    if (!product.description) {
-      updateData.description = item.description;
-      applied.push("description");
-    } else if (overwriteDescription || overwriteSet.has("description")) {
-      overwritten.push({ field: "description", previousValue: product.description });
-      updateData.description = item.description;
-      applied.push("description (overwritten)");
-    } else {
-      skipped.push({ field: "description", reason: "already set (pass overwriteDescription: true, or overwrite: [\"description\"], to replace it)" });
-    }
-  }
+  if (item.model !== undefined) setField("model", item.model, product.model);
+  if (item.colorName !== undefined) setField("colorName", item.colorName, product.colorName);
+  if (item.description !== undefined) setField("description", item.description, product.description);
 
   // Provenance fields — written independent of the content field itself,
   // so a source URL can be attached whether or not `description`/
@@ -294,28 +324,30 @@ async function processItem(
   }
 
   if (item.brand !== undefined) {
-    if (product.brand.name === "לא ידוע") {
-      if (!dryRun) updateData.brandId = await findOrCreateBrandId(item.brand);
-      applied.push("brand");
-    } else if (overwriteSet.has("brand")) {
-      overwritten.push({ field: "brand", previousValue: product.brand.name });
-      if (!dryRun) updateData.brandId = await findOrCreateBrandId(item.brand);
-      applied.push("brand (overwritten)");
+    const name = String(item.brand).trim();
+    if (!name) {
+      skipped.push({ field: "brand", reason: "empty brand name" });
+    } else if (name === product.brand.name) {
+      skipped.push({ field: "brand", reason: `already set to "${name}"` });
     } else {
-      skipped.push({ field: "brand", reason: `already set (${product.brand.name}) — pass overwrite: ["brand"] to replace it` });
+      // "לא ידוע" is the placeholder the import assigns when it cannot
+      // derive a manufacturer, so replacing it is a fill, not a rewrite.
+      const previous = product.brand.name === "לא ידוע" ? null : product.brand.name;
+      if (previous) overwritten.push({ field: "brand", previousValue: previous });
+      if (!dryRun) updateData.brandId = await findOrCreateBrandId(name);
+      applied.push(previous ? "brand (replaced)" : "brand");
     }
   }
 
   if (item.supplier !== undefined) {
-    if (!product.supplierId) {
-      if (!dryRun) updateData.supplierId = await findOrCreateSupplierId(item.supplier);
-      applied.push("supplier");
-    } else if (overwriteSet.has("supplier")) {
-      overwritten.push({ field: "supplier", previousValue: product.supplier?.name ?? product.supplierId });
-      if (!dryRun) updateData.supplierId = await findOrCreateSupplierId(item.supplier);
-      applied.push("supplier (overwritten)");
+    const name = String(item.supplier).trim();
+    if (!name) {
+      skipped.push({ field: "supplier", reason: "empty supplier name" });
     } else {
-      skipped.push({ field: "supplier", reason: 'already set — pass overwrite: ["supplier"] to replace it' });
+      const previous = product.supplier?.name ?? null;
+      if (previous) overwritten.push({ field: "supplier", previousValue: previous });
+      if (!dryRun) updateData.supplierId = await findOrCreateSupplierId(name);
+      applied.push(previous ? "supplier (replaced)" : "supplier");
     }
   }
 
@@ -323,15 +355,15 @@ async function processItem(
     const months = parseWarrantyMonths(item.warranty);
     if (months === null) {
       skipped.push({ field: "warranty", reason: "could not parse a month count from the given value" });
-    } else if (product.warrantyMonths === 12) {
-      updateData.warrantyMonths = months;
-      applied.push("warranty");
-    } else if (overwriteSet.has("warranty")) {
-      overwritten.push({ field: "warranty", previousValue: `${product.warrantyMonths} months` });
-      updateData.warrantyMonths = months;
-      applied.push("warranty (overwritten)");
+    } else if (months === product.warrantyMonths) {
+      skipped.push({ field: "warranty", reason: `already set to ${months} months` });
     } else {
-      skipped.push({ field: "warranty", reason: `already set (${product.warrantyMonths} months) — pass overwrite: ["warranty"] to replace it` });
+      // 12 is the schema default rather than a stated warranty, so moving
+      // off it is a fill; anything else is a real replacement.
+      const previous = product.warrantyMonths === 12 ? null : `${product.warrantyMonths} months`;
+      if (previous) overwritten.push({ field: "warranty", previousValue: previous });
+      updateData.warrantyMonths = months;
+      applied.push(previous ? "warranty (replaced)" : "warranty");
     }
   }
 
@@ -352,37 +384,18 @@ async function processItem(
     const byLabel = new Map(attributes.map((a) => [a.label.trim(), a]));
     for (const [rawKey, rawValue] of Object.entries(item.technicalSpec)) {
       const attr = byKey.get(rawKey.trim().toLowerCase()) ?? byLabel.get(rawKey.trim());
-      const wantsOverwrite = overwriteSet.has(`technicalSpec.${rawKey}`);
       if (!attr) {
-        if (rawKey in existingRawSpecs) {
-          if (wantsOverwrite) {
-            overwritten.push({ field: `technicalSpec.${rawKey}`, previousValue: existingRawSpecs[rawKey] });
-            rawSpecWrites[rawKey] = String(rawValue);
-            applied.push(`technicalSpec.raw.${rawKey} (overwritten)`);
-          } else {
-            skipped.push({
-              field: `technicalSpec.${rawKey}`,
-              reason: `already saved as unmapped free text — pass overwrite: ["technicalSpec.${rawKey}"] to replace it`,
-            });
-          }
-        } else {
-          rawSpecWrites[rawKey] = String(rawValue);
-          applied.push(`technicalSpec.raw.${rawKey}`);
-        }
+        const previous = rawKey in existingRawSpecs ? existingRawSpecs[rawKey] : null;
+        if (previous !== null) overwritten.push({ field: `technicalSpec.${rawKey}`, previousValue: previous });
+        rawSpecWrites[rawKey] = String(rawValue);
+        applied.push(previous !== null ? `technicalSpec.raw.${rawKey} (replaced)` : `technicalSpec.raw.${rawKey}`);
         continue;
       }
       const existingValue = existingByAttrId.get(attr.id);
       if (existingValue) {
-        if (wantsOverwrite) {
-          overwritten.push({ field: `technicalSpec.${rawKey}`, previousValue: existingValue.value });
-          specOverwrites.push({ valueId: existingValue.id, value: String(rawValue) });
-          applied.push(`technicalSpec.${rawKey} (overwritten)`);
-        } else {
-          skipped.push({
-            field: `technicalSpec.${rawKey}`,
-            reason: `already set — pass overwrite: ["technicalSpec.${rawKey}"] to replace it`,
-          });
-        }
+        overwritten.push({ field: `technicalSpec.${rawKey}`, previousValue: existingValue.value });
+        specOverwrites.push({ valueId: existingValue.id, value: String(rawValue) });
+        applied.push(`technicalSpec.${rawKey} (replaced)`);
         continue;
       }
       specWrites.push({ attributeId: attr.id, value: String(rawValue) });
@@ -424,18 +437,15 @@ async function processItem(
   // `overwrite: ["images"]` with NO `images` payload does nothing to
   // replace, so it's surfaced as an explicit skip instead of silently
   // swallowed.
-  const effectiveReplaceImages = replaceImages || (overwriteSet.has("images") && !appendImages && normalizedImages.length > 0);
-  if (overwriteSet.has("images") && !appendImages && !replaceImages && normalizedImages.length === 0 && imagesToDelete.length === 0) {
-    skipped.push({
-      field: "images",
-      reason: '"images" in overwrite needs an `images` array to replace with (or use removeImages: [url] to just delete one)',
-    });
-  }
-
+  // Sending `images` means "this is the product's photo set". With no
+  // explicit appendImages, that replaces whatever is there — the old
+  // default refused the write entirely and told the caller to pick a flag,
+  // which is the same silent-nothing-happened outcome as an http:// URL.
+  const effectiveReplaceImages = !appendImages && normalizedImages.length > 0;
   if (normalizedImages.length > 0) {
     if (effectiveReplaceImages) {
       const currentImages = remainingImages.map((img) => img.url);
-      const requested = normalizedImages.filter((img) => img.url.startsWith("https://"));
+      const requested = usableImageUrls(normalizedImages, skipped);
       const capped = requested.slice(0, MAX_PRODUCT_IMAGES);
       for (const overflow of requested.slice(MAX_PRODUCT_IMAGES)) {
         skipped.push({ field: "images", reason: `would exceed the ${MAX_PRODUCT_IMAGES}-image max, not added: ${overflow.url}` });
@@ -481,7 +491,7 @@ async function processItem(
         skipped.push({ field: "images", reason: `already at the ${MAX_PRODUCT_IMAGES}-image max, nothing appended` });
         imageCounts = { currentImageCount, imagesToAppend: 0, resultingImageCount: currentImageCount };
       } else {
-        const requested = normalizedImages.filter((img) => img.url.startsWith("https://"));
+        const requested = usableImageUrls(normalizedImages, skipped);
         const newImages: NormalizedImage[] = [];
         for (const img of requested) {
           if (existingUrls.has(img.url)) skipped.push({ field: "images", reason: `already present on this product, not duplicated: ${img.url}` });
@@ -515,7 +525,7 @@ async function processItem(
         }
       }
     } else if (remainingImages.length === 0) {
-      const candidates = normalizedImages.filter((img) => img.url.startsWith("https://"));
+      const candidates = usableImageUrls(normalizedImages, skipped);
       const checks = await Promise.all(candidates.map(async (img) => [img, await checkImageUrl(img.url)] as const));
       const unverifiedUrls: string[] = [];
       for (const [img, status] of checks) {
@@ -533,11 +543,6 @@ async function processItem(
             : "images"
         );
       }
-    } else {
-      skipped.push({
-        field: "images",
-        reason: "product already has images (pass appendImages: true to add more, or replaceImages: true to replace them)",
-      });
     }
   }
 
@@ -560,11 +565,22 @@ async function processItem(
     updateData.extraSpecsRaw = JSON.stringify({ ...existingRawSpecs, ...rawSpecWrites });
   }
 
-  // Attaching a source URL to content that was already there is bookkeeping,
-  // not enrichment, so those two fields alone must not flip the status.
-  const PROVENANCE_ONLY = new Set(["descriptionSourceUrl", "specSourceUrl"]);
+  // ENRICHED means "a person or agent has curated this product's content",
+  // and the inventory sync reads it to decide whose title and category to
+  // leave alone. Two kinds of write must therefore not set it.
+  //
+  // Provenance is bookkeeping: attaching a source URL to text that was
+  // already there says nothing about the text.
+  //
+  // A photo is not curation either, and treating it as such was actively
+  // harmful: sheet-map files every imported row under a broad category,
+  // structured specs hang off leaf categories, and ENRICHED freezes the
+  // category the sync would otherwise have corrected. So an agent that did
+  // nothing but add a picture permanently locked the product out of ever
+  // holding a filterable spec.
+  const NON_CURATING = /^(descriptionSourceUrl|specSourceUrl|images)/;
   const wroteContent =
-    applied.some((field) => !PROVENANCE_ONLY.has(field)) ||
+    applied.some((field) => !NON_CURATING.test(field)) ||
     specWrites.length > 0 ||
     specOverwrites.length > 0;
 
@@ -726,11 +742,17 @@ export async function POST(request: Request) {
     }
   }
 
-  // Whatever this batch just filled in (or emptied out) might change
-  // whether a product still qualifies as "missing both image and spec" —
-  // one pass at the end of the batch, not per item, since it scans the
-  // whole catalog each time.
-  if (!dryRun) await reconcileUrgentMissingMedia();
+  // Whatever this batch just filled in (or emptied out) changes which
+  // products belong in the "טיפול" queue. Both reconcilers run, not just
+  // the first: reconcileUrgentMissingMedia clears products that had
+  // neither a photo nor a spec, and reconcileMissingImage clears the ones
+  // that were only missing a photo — without it, a product the agent just
+  // photographed kept sitting in the queue asking for a photo. One pass at
+  // the end of the batch, not per item, since each scans the catalog.
+  if (!dryRun) {
+    await reconcileUrgentMissingMedia();
+    await reconcileMissingImage();
+  }
 
   return NextResponse.json({ dryRun, count: results.length, results });
 }

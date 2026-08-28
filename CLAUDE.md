@@ -23,13 +23,18 @@ outage.
 
 | Owner | Writes | Never touches |
 |---|---|---|
-| Nightly sync (`05:00 UTC` cron → `/api/inventory/sync`) | `price`, `stockQty`, `sku`, `colorName`, stock columns; `title` + `categoryId` **only while `enrichmentStatus != "ENRICHED"`** | anything below |
-| Enrichment (`POST /api/integrations/product-enrich`) | `description`, specs, `model`, `colorName`, brand, supplier, warranty, images | price, stock, sku |
+| Sync (`/api/inventory/sync`, **manual only** — the cron is gone) | `price`, `stockQty`, `sku`, `brandId`, `colorName`, stock columns, `isPublished`; `title` + `categoryId` **only while `enrichmentStatus != "ENRICHED"`** | `description`, specs, images, SEO |
+| Enrichment (`POST /api/integrations/product-enrich`) | everything about a product's *content*: `title`, `categoryId`, brand, `model`, `colorName`, `description`, specs, images, supplier, warranty — sent means written, no opt-in needed | `price`, `stockQty`, `sku`, `slug` |
 | Admin product form | everything on the form — and marks the product `ENRICHED` | — |
 | Marketing | `Promotion` rows only | `Product` |
 
-Two agents must never write the same field. Coordination happens through this table,
-not through messages.
+The sync no longer runs on a schedule, so the endpoint and the sync can no longer
+race: nothing rewrites content overnight, and price/stock only refresh when someone
+presses sync in the admin. Coordination still happens through this table, not through
+messages.
+
+`slug` is never written by anything after creation — it is public in the product URL,
+so renaming a product must not break links already shared.
 
 ## Brand attribution is derived, and it has been wrong before
 
