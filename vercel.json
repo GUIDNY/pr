@@ -1,9 +1,3 @@
 {
-  "regions": ["syd1"],
-  "crons": [
-    {
-      "path": "/api/inventory/sync",
-      "schedule": "0 5 * * *"
-    }
-  ]
+  "regions": ["syd1"]
 }
