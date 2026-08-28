@@ -234,3 +234,22 @@ export const SUPPORT_CHANNEL_LABELS: Record<SupportChannel, string> = {
   PHONE: "טלפון",
   FORM: "טופס",
 };
+
+// The callback workflow on an abandoned checkout (/admin/abandoned). A cart
+// carries this only once someone typed contact details into the checkout form
+// and then left without completing the order.
+export const CART_FOLLOW_UP_STATUSES = ["NEW", "HANDLED", "NOT_RELEVANT"] as const;
+export type CartFollowUpStatus = (typeof CART_FOLLOW_UP_STATUSES)[number];
+export const cartFollowUpStatusSchema = z.enum(CART_FOLLOW_UP_STATUSES);
+
+export const CART_FOLLOW_UP_STATUS_LABELS: Record<CartFollowUpStatus, string> = {
+  NEW: "חדש",
+  HANDLED: "טופל",
+  NOT_RELEVANT: "לא רלוונטי",
+};
+
+export const CART_FOLLOW_UP_STATUS_COLORS: Record<CartFollowUpStatus, string> = {
+  NEW: "bg-brand/10 text-brand",
+  HANDLED: "bg-success/10 text-success",
+  NOT_RELEVANT: "bg-muted text-muted-foreground",
+};

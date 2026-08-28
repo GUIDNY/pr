@@ -114,9 +114,26 @@ export async function createOrderAction(input: CheckoutInput) {
     });
   }
 
-  // clear the cart now that the order owns a snapshot of its contents
+  // clear the cart now that the order owns a snapshot of its contents,
+  // including the checkout contact details kept in case this order was never
+  // finished — the order holds them from here on, and leaving them behind
+  // would put a completed customer back on the abandoned-checkout call list
+  // the next time they put something in a cart.
   await db.cartItem.deleteMany({ where: { cartId: cart.id } });
-  await db.cart.update({ where: { id: cart.id }, data: { couponCode: null } });
+  await db.cart.update({
+    where: { id: cart.id },
+    data: {
+      couponCode: null,
+      contactName: null,
+      contactPhone: null,
+      contactEmail: null,
+      contactAt: null,
+      followUpStatus: "NEW",
+      followUpNote: null,
+      followUpAt: null,
+      followUpById: null,
+    },
+  });
 
   return { success: true as const, orderNumber: order.orderNumber, error: null };
 }
