@@ -174,6 +174,15 @@ export function AlfredChatWidget() {
             <Send className="size-4 rtl:-scale-x-100" />
           </button>
         </div>
+        {/* אלפרד עונה באמצעות שירות בינה מלאכותית חיצוני, ולכן מה שנכתב כאן
+            יוצא מהאתר. מי שכותב לצ'אט זכאי לדעת את זה לפני שהוא מקליד מספר
+            טלפון או פרטי הזמנה, ולא אחרי. */}
+        <p className="text-muted-foreground border-border border-t px-3 py-1.5 text-center text-[0.65rem] leading-tight">
+          אלפרד הוא עוזר אוטומטי. אין למסור בצ&apos;אט פרטי תשלום.{" "}
+          <Link href="/privacy" className="hover:text-foreground underline">
+            מדיניות פרטיות
+          </Link>
+        </p>
       </div>
     </>
   );

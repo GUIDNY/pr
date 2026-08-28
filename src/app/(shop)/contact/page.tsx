@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Phone, Mail, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -93,6 +94,13 @@ export default function ContactPage() {
             <Button type="submit" variant="brand" disabled={isPending}>
               {isPending ? "שולח..." : "שליחת פנייה"}
             </Button>
+            <p className="text-muted-foreground text-xs leading-relaxed">
+              הפרטים שתמסרו ישמשו למענה על פנייתכם בלבד. מסירתם אינה חובה חוקית והיא נעשית מרצונכם, בהתאם ל
+              <Link href="/privacy" className="hover:text-foreground underline">
+                מדיניות הפרטיות
+              </Link>
+              .
+            </p>
           </form>
         )}
       </div>
