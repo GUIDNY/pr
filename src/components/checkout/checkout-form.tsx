@@ -257,6 +257,20 @@ export function CheckoutForm({
         <Button variant="brand" size="lg" className="w-full" disabled={isPending} onClick={submit}>
           {isPending ? "מבצע הזמנה..." : `בצע הזמנה - ${formatPrice(cart.total)}`}
         </Button>
+        {/* חובת היידוע שבסעיף 11 לחוק הגנת הפרטיות — מסירת הפרטים כאן אינה חובה
+            חוקית, והלקוח זכאי לדעת לשם מה הם נאספים לפני שהוא מוסר אותם, לא
+            אחרי. */}
+        <p className="text-muted-foreground mt-3 text-center text-xs leading-relaxed">
+          הפרטים שתמסרו ישמשו לביצוע ההזמנה, לאספקתה ולמתן שירות ואחריות בלבד. מסירתם אינה חובה חוקית, אך בלעדיהם
+          לא ניתן להשלים את ההזמנה.{" "}
+          <Link href="/privacy" className="hover:text-foreground underline">
+            מדיניות הפרטיות
+          </Link>{" "}
+          ·{" "}
+          <Link href="/page/terms" className="hover:text-foreground underline">
+            תקנון האתר
+          </Link>
+        </p>
       </div>
     </div>
   );

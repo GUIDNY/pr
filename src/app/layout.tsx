@@ -8,6 +8,7 @@ import { CartProvider } from "@/components/cart/cart-provider";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
+import { AccessibilityWidget } from "@/components/layout/accessibility-widget";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -50,6 +51,10 @@ export const metadata: Metadata = {
   },
 };
 
+// Kept in step with applySettings() in accessibility-widget.tsx by hand — it has
+// to be a plain string so it can run before any bundle is fetched.
+const A11Y_BOOT_SCRIPT = `(function(){try{var s=JSON.parse(localStorage.getItem("prec-a11y")||"{}");var r=document.documentElement;if(s.fontScale)r.style.setProperty("--a11y-font-scale",String(s.fontScale));var c={contrast:"a11y-contrast",dark:"dark",invert:"a11y-invert",grayscale:"a11y-grayscale"}[s.colorMode];if(c)r.classList.add(c);var t={readableFont:"a11y-readable-font",spacing:"a11y-spacing",highlightLinks:"a11y-links",highlightTitles:"a11y-titles",bigCursor:"a11y-big-cursor",stopAnimations:"a11y-no-motion",focusHighlight:"a11y-focus"};for(var k in t){if(s[k])r.classList.add(t[k])}}catch(e){}})()`;
+
 export default function RootLayout({
   children,
 }: {
@@ -61,7 +66,16 @@ export default function RootLayout({
       dir="rtl"
       data-scroll-behavior="smooth"
       className={`${heebo.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Applies the visitor's stored accessibility choices while the browser
+            is still parsing the HTML. Doing it in an effect instead would paint
+            the default palette first, so someone who needs high contrast or a
+            larger font would get a flash of the version they can't read on
+            every single page load. */}
+        <script dangerouslySetInnerHTML={{ __html: A11Y_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <a
           href="#main-content"
@@ -78,6 +92,7 @@ export default function RootLayout({
             <CartDrawer />
             <CompareTray />
             <AlfredChatWidget />
+            <AccessibilityWidget />
             <Toaster position="top-center" richColors />
           </TooltipProvider>
         </DirectionProvider>

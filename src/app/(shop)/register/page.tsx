@@ -67,6 +67,17 @@ export default function RegisterPage() {
         <Button type="submit" variant="brand" size="lg" disabled={isPending} className="mt-2">
           {isPending ? "יוצר חשבון..." : "הרשמה"}
         </Button>
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          מסירת הפרטים אינה חובה חוקית והיא נעשית מרצונכם. הם ישמשו לניהול החשבון ולמתן השירות בלבד, בהתאם ל
+          <Link href="/privacy" className="hover:text-foreground underline">
+            מדיניות הפרטיות
+          </Link>{" "}
+          ול
+          <Link href="/page/terms" className="hover:text-foreground underline">
+            תקנון האתר
+          </Link>
+          .
+        </p>
       </form>
 
       <p className="text-muted-foreground mt-6 text-center text-sm">
