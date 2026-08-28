@@ -431,17 +431,21 @@ async function processItem(
   let doReplaceImages = false;
   const normalizedImages = normalizeImages(item.images);
 
-  // `overwrite: ["images"]` with a new `images` set, and neither
-  // appendImages nor replaceImages set explicitly, behaves like
-  // `replaceImages: true` — wipes the existing set and writes the new one.
-  // `overwrite: ["images"]` with NO `images` payload does nothing to
-  // replace, so it's surfaced as an explicit skip instead of silently
-  // swallowed.
-  // Sending `images` means "this is the product's photo set". With no
-  // explicit appendImages, that replaces whatever is there — the old
-  // default refused the write entirely and told the caller to pick a flag,
-  // which is the same silent-nothing-happened outcome as an http:// URL.
-  const effectiveReplaceImages = !appendImages && normalizedImages.length > 0;
+  // Three ways to change a product's photos, and the payload says which:
+  //
+  //   images: [...]                      the whole set — replaces everything
+  //   images: [...] + appendImages       adds to what is there
+  //   images: [...] + removeImages: [x]  swaps x for the new photo, keeps the rest
+  //
+  // The third is the one a caller reaches for most ("this photo is wrong,
+  // here is the right one") and it used to do the most surprising thing:
+  // removeImages was applied, and then the plain `images` default wiped
+  // every remaining photo anyway, so naming one bad URL destroyed the two
+  // good ones next to it. Naming images to remove now means the rest are
+  // being kept — the new photos land alongside them.
+  const swapping = removeImageUrls.size > 0;
+  const addingToExisting = appendImages || swapping;
+  const effectiveReplaceImages = !addingToExisting && normalizedImages.length > 0;
   if (normalizedImages.length > 0) {
     if (effectiveReplaceImages) {
       const currentImages = remainingImages.map((img) => img.url);
@@ -482,7 +486,7 @@ async function processItem(
       } else if (currentImages.length > 0) {
         skipped.push({ field: "images", reason: "no valid replacement images (all candidates failed validation) — existing images kept" });
       }
-    } else if (appendImages) {
+    } else if (addingToExisting) {
       const currentImageCount = remainingImages.length;
       const existingUrls = new Set(remainingImages.map((img) => img.url));
       const slotsAvailable = Math.max(0, MAX_PRODUCT_IMAGES - currentImageCount);
@@ -517,31 +521,14 @@ async function processItem(
         imageCounts = { currentImageCount, imagesToAppend: imageWrites.length, resultingImageCount: currentImageCount + imageWrites.length };
 
         if (imageWrites.length > 0) {
+          const verb = swapping ? "images.swap" : "images.append";
+          const kept = swapping ? `, ${imagesToDelete.length} removed, ${currentImageCount} kept` : "";
           applied.push(
             unverifiedUrls.length > 0
-              ? `images.append (${imageWrites.length} added, ${unverifiedUrls.length} could not be verified from our server — saved anyway, worth a manual check: ${unverifiedUrls.join(", ")})`
-              : "images.append"
+              ? `${verb} (${imageWrites.length} added${kept}, ${unverifiedUrls.length} could not be verified from our server — saved anyway, worth a manual check: ${unverifiedUrls.join(", ")})`
+              : `${verb} (${imageWrites.length} added${kept})`
           );
         }
-      }
-    } else if (remainingImages.length === 0) {
-      const candidates = usableImageUrls(normalizedImages, skipped);
-      const checks = await Promise.all(candidates.map(async (img) => [img, await checkImageUrl(img.url)] as const));
-      const unverifiedUrls: string[] = [];
-      for (const [img, status] of checks) {
-        if (status === "confirmed-bad") {
-          skipped.push({ field: "images", reason: `URL confirmed dead (404/410), not saved: ${img.url}` });
-        } else {
-          imageWrites.push(img);
-          if (status === "unverified") unverifiedUrls.push(img.url);
-        }
-      }
-      if (imageWrites.length > 0) {
-        applied.push(
-          unverifiedUrls.length > 0
-            ? `images (${unverifiedUrls.length} could not be verified from our server, likely bot/hotlink protection — saved anyway, worth a manual check: ${unverifiedUrls.join(", ")})`
-            : "images"
-        );
       }
     }
   }
@@ -615,7 +602,7 @@ async function processItem(
     // back at 0 would collide with (and reshuffle) the existing photos'
     // sortOrder instead of landing after them. Replacing always starts
     // fresh at 0, same as a brand-new set.
-    const sortOrderOffset = appendImages && !doReplaceImages ? remainingImages.length : 0;
+    const sortOrderOffset = doReplaceImages ? 0 : remainingImages.length;
     await db.productImage.createMany({
       data: imageWrites.map((img, i) => ({
         productId: product.id,
