@@ -14,6 +14,7 @@ import {
 import type { SourceKey } from "./sheet-map";
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
+import { looksLikeEnergyLabelUrl, looksLikeMarketingTitle } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
 
 // Sequential, persistent, gap-free: 0001, 0002, ... — never reused, never
@@ -364,7 +365,14 @@ async function applyOneRow(
       sourceId,
       syncRunId,
       sourceSku: sku,
-      message: `${row.title}: מוצר חדש מהגיליון — ממתין לכותרת, קטגוריה, תמונה ומפרט`,
+      // A title that is a feature list rather than a product name gets said
+      // out loud, because the generic "waiting for a title" reads the same
+      // for a raw "{brand} {model}" — which is merely plain — and for
+      // "חיישנים+קונדנסור+אפשרות ניקוז", which names nothing at all and is
+      // sitting in the page's <h1>.
+      message: looksLikeMarketingTitle(row.title)
+        ? `${row.title}: השם הזה הוא רשימת תכונות ולא שם מוצר — צריך שם ודגם אמיתיים`
+        : `${row.title}: מוצר חדש מהגיליון — ממתין לכותרת, קטגוריה, תמונה ומפרט`,
     });
   }
 
@@ -395,7 +403,12 @@ async function applyOneRow(
   // So the sheet fills a gap and never replaces a photo: whatever the
   // agent or an admin put there outranks it, and a blocked host is not
   // written at all.
-  if (row.imageUrl && !isBlockedImageHost(row.imageUrl)) {
+  // looksLikeEnergyLabelUrl: the scraper saved the EU energy label as the
+  // product photo on at least five laundry products. A coloured A-G chart
+  // where a washing machine should be is worse than no photo at all — a
+  // product with no photo is held off the site until it gets one, a product
+  // with a label looks published and correct.
+  if (row.imageUrl && !isBlockedImageHost(row.imageUrl) && !looksLikeEnergyLabelUrl(row.imageUrl)) {
     const existingImage = await db.productImage.findFirst({
       where: { productId },
     });

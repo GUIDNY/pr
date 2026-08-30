@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { looksLikeEnergyLabelUrl } from "@/lib/inventory/import-guards";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
@@ -114,10 +115,49 @@ type OverwriteOutcome = { field: string; previousValue: string };
 function usableImageUrls(images: NormalizedImage[], skipped: FieldOutcome[]): NormalizedImage[] {
   const usable: NormalizedImage[] = [];
   for (const img of images) {
-    if (/^https?:\/\//i.test(img.url)) usable.push(img);
-    else skipped.push({ field: "images", reason: `not an http(s) URL, not saved: ${img.url}` });
+    if (!/^https?:\/\//i.test(img.url)) {
+      skipped.push({ field: "images", reason: `not an http(s) URL, not saved: ${img.url}` });
+      continue;
+    }
+    // An EU energy label is not a photograph of the product. The scraper
+    // saved one as the product image on at least five laundry products, and
+    // a coloured A-G chart on a category page reads as a real, published
+    // product — worse than the empty tile a product with no photo gets,
+    // because nothing about it looks wrong.
+    if (looksLikeEnergyLabelUrl(img.url)) {
+      skipped.push({ field: "images", reason: `looks like an EU energy label rather than a product photo, not saved: ${img.url}` });
+      continue;
+    }
+    usable.push(img);
   }
   return usable;
+}
+
+// A removal leaves the survivors numbered where they were, and the count
+// the append offset is computed from is a count, not a high-water mark. Two
+// consequences, both seen in the catalog: a product whose images start at
+// sortOrder 1 because the original 0 was swapped out (SKU 120813), and —
+// worse — a genuine collision, since removing sortOrder 1 from [0,1,2]
+// leaves two images that both want to be 2, after which which photo is the
+// product's main one is whatever the database feels like returning.
+//
+// Renumbering the whole set afterwards costs one query and removes the
+// class of bug rather than the instance. Order is preserved: the surviving
+// images keep their relative sequence, so "the first one is the main one"
+// stays true and 0 always exists.
+async function renumberImages(productId: string) {
+  const images = await db.productImage.findMany({
+    where: { productId },
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
+    select: { id: true, sortOrder: true },
+  });
+  await Promise.all(
+    images.map((img, i) =>
+      img.sortOrder === i
+        ? Promise.resolve()
+        : db.productImage.update({ where: { id: img.id }, data: { sortOrder: i } }),
+    ),
+  );
 }
 
 async function processSourceBackfill(item: EnrichItem, dryRun: boolean) {
@@ -614,6 +654,9 @@ async function processItem(
         capturedAt: img.capturedAt,
       })),
     });
+  }
+  if (imagesToDelete.length > 0 || imageWrites.length > 0) {
+    await renumberImages(product.id);
   }
 
   if (applied.length > 0) {

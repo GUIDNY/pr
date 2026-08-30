@@ -13,7 +13,9 @@
     "check:brands": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-brand-attribution.ts",
     "check:images": "tsx scripts/check-blocked-image-hosts.ts",
     "fix:brands": "NODE_OPTIONS=--conditions=react-server tsx scripts/backfill-brand-attribution.ts",
-    "check:content": "tsx scripts/check-product-content.ts"
+    "check:content": "tsx scripts/check-product-content.ts",
+    "check:guards": "tsx scripts/check-import-guards.ts",
+    "scan:labels": "tsx scripts/check-energy-labels.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
