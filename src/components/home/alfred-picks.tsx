@@ -91,7 +91,7 @@ export function AlfredPicks({ products }: { products: ProductCardData[] }) {
           >
             <div className="bg-muted relative size-12 shrink-0 overflow-hidden rounded-lg sm:size-14">
               {p.imageUrl ? (
-                <Image src={p.imageUrl} alt={p.title} fill sizes="56px" className="object-cover" />
+                <Image src={p.imageUrl} alt={p.title} fill sizes="56px" className="bg-white object-contain" />
               ) : (
                 <ProductImagePlaceholder title={p.title} icon={p.categoryIcon} />
               )}
@@ -129,7 +129,7 @@ export function AlfredPicks({ products }: { products: ProductCardData[] }) {
                     className="border-primary-foreground/15 hover:border-brand/50 bg-primary-foreground/5 flex items-center gap-2 rounded-lg border p-1.5 transition-colors"
                   >
                     <div className="bg-muted relative size-8 shrink-0 overflow-hidden rounded-md">
-                      {p.imageUrl && <Image src={p.imageUrl} alt="" fill className="object-cover" sizes="32px" />}
+                      {p.imageUrl && <Image src={p.imageUrl} alt="" fill className="bg-white object-contain" sizes="32px" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[11px] font-medium">{p.title}</p>

@@ -251,7 +251,7 @@ export function CheckoutForm({
             <li key={item.id} className="flex items-center gap-3">
               <div className="bg-muted relative size-14 shrink-0 overflow-hidden rounded-md">
                 {item.image ? (
-                  <Image src={item.image} alt={item.title} fill className="object-cover" sizes="56px" />
+                  <Image src={item.image} alt={item.title} fill className="bg-white object-contain" sizes="56px" />
                 ) : (
                   <ProductImagePlaceholder title={item.title} brand={item.brandName} />
                 )}

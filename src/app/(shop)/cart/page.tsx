@@ -54,7 +54,7 @@ export default function CartPage() {
             <li key={item.id} className="flex gap-4 p-4">
               <Link href={`/product/${item.slug}`} className="bg-muted relative size-24 shrink-0 overflow-hidden rounded-lg sm:size-28">
                 {item.image ? (
-                  <Image src={item.image} alt={item.title} fill className="object-cover" sizes="112px" />
+                  <Image src={item.image} alt={item.title} fill className="bg-white object-contain" sizes="112px" />
                 ) : (
                   <ProductImagePlaceholder title={item.title} brand={item.brandName} />
                 )}

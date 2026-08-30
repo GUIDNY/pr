@@ -67,7 +67,7 @@ export default function ComparePage() {
                   </button>
                   <Link href={`/product/${p.slug}`} className="bg-muted relative mb-2 block aspect-square size-24 overflow-hidden rounded-lg">
                     {p.images[0] ? (
-                      <Image src={p.images[0].url} alt={p.title} fill className="object-cover" sizes="96px" />
+                      <Image src={p.images[0].url} alt={p.title} fill className="bg-white object-contain" sizes="96px" />
                     ) : (
                       <ProductImagePlaceholder title={p.title} icon={p.category.parent?.icon ?? p.category.icon} />
                     )}

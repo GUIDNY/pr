@@ -281,7 +281,7 @@ export function SearchBar({
                     >
                       <div className="bg-muted relative size-12 shrink-0 overflow-hidden rounded-md">
                         {r.imageUrl ? (
-                          <Image src={r.imageUrl} alt={r.title} fill className="object-cover" sizes="48px" />
+                          <Image src={r.imageUrl} alt={r.title} fill className="bg-white object-contain" sizes="48px" />
                         ) : (
                           <ProductImagePlaceholder title={r.title} icon={r.categoryIcon} />
                         )}

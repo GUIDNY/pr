@@ -165,7 +165,19 @@ export function ProductGallery({
             alt={title}
             fill
             priority
-            className="object-cover"
+            // contain, not cover, on a white stage. Appliance photography
+            // is tall and narrow — a fridge, a freezer, a tower speaker, a
+            // dryer — and cropping that to a square box keeps the middle
+            // 1:1 slice of it, which on a product shot on white is a strip
+            // of empty background with no product in it. Letterboxing costs
+            // some space around a wide photo; cropping costs the product.
+            //
+            // White rather than the box's bg-muted because these are
+            // catalogue shots on white to begin with, so the letterbox
+            // disappears into the photo instead of framing it in grey. The
+            // background sits on the image element, which fill stretches to
+            // the whole box, so the placeholder branch below keeps its own.
+            className="bg-white object-contain"
             sizes="(min-width: 1024px) 50vw, 100vw"
           />
         ) : (
@@ -283,7 +295,7 @@ export function ProductGallery({
               )}
             >
               <button type="button" onClick={() => setActiveIndex(i)} className="block size-full" aria-label="הצג תמונה זו">
-                <Image src={img.url} alt="" fill className="object-cover" sizes="64px" referrerPolicy="no-referrer" />
+                <Image src={img.url} alt="" fill className="bg-white object-contain" sizes="64px" referrerPolicy="no-referrer" />
               </button>
               {isAdmin &&
                 (i === 0 ? (

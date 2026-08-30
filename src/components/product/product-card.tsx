@@ -48,7 +48,7 @@ export function ProductCard({
               src={product.imageUrl}
               alt={product.title}
               fill
-              className="object-cover"
+              className="bg-white object-contain"
               sizes="(min-width: 1024px) 25vw, 50vw"
               // no-referrer: with images.unoptimized the browser fetches
               // these URLs directly, and most of them live on other Israeli

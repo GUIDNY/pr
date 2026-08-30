@@ -74,7 +74,7 @@ export function CartDrawer() {
                       className="bg-muted relative size-20 shrink-0 overflow-hidden rounded-lg"
                     >
                       {item.image ? (
-                        <Image src={item.image} alt={item.title} fill className="object-cover" sizes="80px" />
+                        <Image src={item.image} alt={item.title} fill className="bg-white object-contain" sizes="80px" />
                       ) : (
                         <ProductImagePlaceholder title={item.title} brand={item.brandName} />
                       )}

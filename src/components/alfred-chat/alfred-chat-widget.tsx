@@ -129,7 +129,7 @@ export function AlfredChatWidget() {
                       className="border-border hover:border-brand/40 bg-background flex items-center gap-2.5 rounded-xl border p-2 transition-colors"
                     >
                       <div className="bg-muted relative size-11 shrink-0 overflow-hidden rounded-lg">
-                        {p.imageUrl && <Image src={p.imageUrl} alt="" fill className="object-cover" sizes="44px" />}
+                        {p.imageUrl && <Image src={p.imageUrl} alt="" fill className="bg-white object-contain" sizes="44px" />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-medium">{p.title}</p>
