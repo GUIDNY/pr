@@ -20,7 +20,7 @@ import { ProductDescriptionEditor } from "@/components/product/product-descripti
 import { BrandHighlight } from "@/components/product/brand-highlight";
 import { BrandAboutSection } from "@/components/product/brand-about-section";
 import {
-  ProductHighlights,
+  ProductFactCard,
   ProductSummary,
   ProductFeatureList,
   ProductBulletList,
@@ -305,31 +305,40 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                    with the product for attention up top.
                 6. מוצרים נוספים של אותו מותג (full-width, outside the
                    column) */}
-            {/* 1100px, not the old max-w-3xl (768px) inside a 1280px
-                container — that left a third of a desktop window empty
-                while paragraphs wrapped at a phone's width. The prose
-                blocks keep their own 65ch measure so widening the column
-                lengthens the spec grid, not the lines of text. */}
-            <div className="flex max-w-[1100px] flex-col gap-7">
-              <ProductHighlights facts={highlightFacts} />
+            {/* Two columns from lg: the description reads at its own
+                measure on one side, the facts sit on the other. One column
+                at 1100px meant a 62ch paragraph against 600px of nothing,
+                with a section rule ruled the whole way across it — the
+                width was there, nothing was using it. */}
+            <div className="grid max-w-[980px] grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-12">
+              <div className="flex min-w-0 flex-col gap-9">
+                <ProductSummary summary={content.summary} />
 
-              <ProductSummary summary={content.summary} />
+                {isAdminViewer ? (
+                  <ProductDescriptionEditor
+                    productId={product.id}
+                    description={product.description ?? product.shortDescription ?? ""}
+                    sourceUrl={product.descriptionSourceUrl}
+                  />
+                ) : (
+                  <>
+                    <ProductFeatureList features={content.features} />
+                    <ProductBulletList bullets={content.bullets} title="מה עוד יש במוצר" />
+                    <ProductProse paragraphs={content.prose} />
+                    <ProductSections sections={content.sections} />
+                  </>
+                )}
+              </div>
 
-              {isAdminViewer ? (
-                <ProductDescriptionEditor
-                  productId={product.id}
-                  description={product.description ?? product.shortDescription ?? ""}
-                  sourceUrl={product.descriptionSourceUrl}
-                />
-              ) : (
-                <>
-                  <ProductFeatureList features={content.features} />
-                  <ProductBulletList bullets={content.bullets} title="מה עוד יש במוצר" />
-                  <ProductProse paragraphs={content.prose} />
-                  <ProductSections sections={content.sections} />
-                </>
-              )}
+              <ProductFactCard
+                facts={highlightFacts}
+                brand={product.brand.name}
+                model={product.model}
+                warrantyMonths={product.warrantyMonths}
+              />
+            </div>
 
+            <div className="mt-10 flex max-w-[980px] flex-col gap-9">
               <BrandHighlight brand={product.brand} />
 
               <BrandAboutSection

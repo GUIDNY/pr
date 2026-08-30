@@ -510,30 +510,18 @@ export function splitDimensions(rows: SpecRow[]): { specs: SpecRow[]; dimensions
   return { specs, dimensions };
 }
 
-// The four to six facts shown above the fold, as chips carrying the value
-// alone. Not simply the first six spec rows: a yes/no row says nothing
-// without its label ("לא"), and a value that needs a line and a half to
-// itself is not something a shopper takes in at a glance.
+// The rows the "במבט מהיר" card shows beside the description: the head of
+// the same list the spec table holds in full, so the two can never
+// disagree. The only thing filtered out is a value too long to sit on one
+// line opposite its label — "2 רמקולי SR2, שני ספקי כוח, מדריך התחלה
+// מהירה וכרטיס רישום" is a real spec and belongs in the table, not in a
+// glance card.
 //
-// A "כן" is shown as its own label instead — "בלוטוס" with a tick is the
-// fact; a "לא" is not a selling point and is left to the spec table, where
-// it sits next to the field name and reads correctly.
-const HIGHLIGHT_VALUE_MAX = 34;
-const MIN_HIGHLIGHTS = 2;
+// Booleans need no special handling here, unlike the value-only chips this
+// replaced: "בלוטוס — לא" reads correctly precisely because the label is
+// next to it.
+const FACT_VALUE_MAX = 48;
 
 export function pickHighlights(rows: SpecRow[], max = 6): SpecRow[] {
-  const picked: SpecRow[] = [];
-  for (const row of rows) {
-    if (picked.length >= max) break;
-    if (row.kind === "boolean") {
-      if (row.value === "כן" && row.label.length <= HIGHLIGHT_VALUE_MAX) {
-        picked.push({ ...row, value: row.label });
-      }
-      continue;
-    }
-    if (!row.value || row.value.length > HIGHLIGHT_VALUE_MAX) continue;
-    picked.push(row);
-  }
-  // One lonely chip under a heading is more heading than fact.
-  return picked.length >= MIN_HIGHLIGHTS ? picked : [];
+  return rows.filter((r) => r.value && r.value.length <= FACT_VALUE_MAX).slice(0, max);
 }
