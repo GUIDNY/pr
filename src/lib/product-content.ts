@@ -19,7 +19,10 @@
 //                  "label: value" — Faber, Chromex, Vivitek. 33 of 45,
 //                  so this is the shape to get right, not the pretty one.
 
-export type SpecRow = { label: string; value: string };
+// `kind` is only ever set for a yes/no attribute. It exists because such a
+// row is readable in the spec table, where it sits next to its label, and
+// meaningless in the highlight strip, which shows values on their own.
+export type SpecRow = { label: string; value: string; kind?: "boolean" };
 export type FeatureItem = { title: string; body: string };
 
 export type ProductContent = {
@@ -33,6 +36,15 @@ export type ProductContent = {
   prose: string[];
   /** label/value pairs confidently parsed out of sentences. */
   specs: SpecRow[];
+  /** The source text's own titled sections ("מפרט טכני:", "מאפיינים:"). */
+  sections: ContentSection[];
+};
+
+export type ContentSection = {
+  title: string;
+  features: FeatureItem[];
+  bullets: string[];
+  prose: string[];
 };
 
 const SUMMARY_MAX = 240;
@@ -125,10 +137,31 @@ function parseSpecSentence(sentence: string): SpecRow | null {
 // must the dot in a decimal or an abbreviation like "ס\"מ".
 function splitSentences(text: string): string[] {
   return text
-    .split(/(?<=[.!?])\s+(?=[A-Za-z֐-׿(])/)
+    .split(SENTENCE_BOUNDARY)
     .map(clean)
     .filter(Boolean);
 }
+
+// Two boundaries, not one. The first is the ordinary "terminator, space,
+// next word". The second is the one these supplier descriptions keep
+// losing — "…שדרוג מערכת ההפעלה לגרסה חדשה למשך 5 שנים.מסך בית…", a full
+// stop welded to the word after it. Ignoring that boundary is a large part
+// of why a 4,000-character LG description arrived as one block.
+//
+// The second rule is deliberately narrow: two letters before the stop, a
+// Hebrew letter straight after it. That keeps "ס.מ" together, leaves
+// "15,000:1" and "1.3 ליטר" alone, and never cuts inside a domain name.
+// The digit in the first lookahead matters more than it looks: Hebrew
+// marketing copy starts sentences with a number constantly ("4 מצבי גובה
+// מתכווננים…", "12 תוכניות אוטומטיות…"), and without it a 419-character
+// paragraph with seven full stops in it came out as one unsplittable
+// block. A decimal point never has a space after it, so requiring the
+// whitespace keeps "1.3 ליטר" intact. The asterisk and the direction
+// marks are in there for the same reason: an LG description ends a
+// sentence and opens the next one with "*תמונת המוצר נועדה להמחשה בלבד",
+// and without them the disclaimer welds itself to the paragraph before it.
+const SENTENCE_BOUNDARY =
+  /(?<=[.!?])\s+(?=[A-Za-z֐-׿(0-9*\u200e\u200f\u2066"“”«])|(?<=[A-Za-z֐-׿]{2}[.!?])(?=[֐-׿])/;
 
 function dedupe<T>(items: T[], keyOf: (item: T) => string): T[] {
   const seen = new Set<string>();
@@ -140,15 +173,79 @@ function dedupe<T>(items: T[], keyOf: (item: T) => string): T[] {
   });
 }
 
-export function parseProductContent(
-  description: string | null | undefined,
-  shortDescription?: string | null,
-): ProductContent {
-  const empty: ProductContent = { summary: clean(shortDescription ?? ""), features: [], bullets: [], prose: [], specs: [] };
-  const text = (description ?? "").trim();
-  if (!text) return empty;
+// The supplier text carries its own section headings, and in the dense
+// blob shape they sit inline: "…צלחת זכוכית מסתובבת עם רשת לגריל מאפיינים:
+// מיקרוגל אינוורטר בילד אין…" — 1,674 characters with not one newline in
+// them. Reading that as a single paragraph is exactly what it looked like
+// on the Electrolux ECK5401K page: thirty lines of unbroken text with the
+// spec list buried at the end of it.
+//
+// This list is the set of headings that actually occur in the catalog
+// (counted over the published products), not a guess. Words that are spec
+// labels rather than headings — "צבע:", "דגם:" — are deliberately absent:
+// splitting there would cut a value away from its own field name.
+const SECTION_HEADINGS = [
+  "מפרט טכני",
+  "נתונים טכניים",
+  "מפרט",
+  "מאפיינים",
+  "תכונות עיקריות",
+  "תכונות",
+  "יתרונות נוספים",
+  "יתרונות",
+  "מידות חיצוניות",
+  "מידות",
+  "פרטים נוספים",
+  "אביזרים",
+  "בטיחות",
+  "אחריות",
+  "הערות",
+  "כולל",
+]
+  .slice()
+  // Longest first, so "מפרט טכני:" is matched as itself rather than as
+  // "מפרט" followed by a stray "טכני".
+  .sort((a, b) => b.length - a.length);
 
-  const lines = text.split("\n").map(clean).filter(Boolean);
+const HEADING_PATTERN = new RegExp(`(^|[\\s.,;:!?])(${SECTION_HEADINGS.join("|")})\\s*:\\s*`, "g");
+
+// Puts every heading on a line of its own, so a one-line blob and a
+// properly formatted multi-line description travel the same code path from
+// here on.
+function markSectionHeadings(text: string): string {
+  return text.replace(HEADING_PATTERN, (_m, pre: string, heading: string) => `${pre}\n${heading}:\n`);
+}
+
+// A paragraph the length of a page is a wall of text whether or not it was
+// one paragraph in the source. Cut it at sentence boundaries only — a
+// paragraph with no sentence punctuation to cut on is left whole rather
+// than broken mid-thought.
+const PARAGRAPH_MAX = 320;
+
+function splitLongParagraph(paragraph: string): string[] {
+  if (paragraph.length <= PARAGRAPH_MAX) return [paragraph];
+  const sentences = splitSentences(paragraph);
+  if (sentences.length < 2) return [paragraph];
+  const out: string[] = [];
+  let buffer = "";
+  for (const sentence of sentences) {
+    if (buffer && buffer.length + sentence.length + 1 > PARAGRAPH_MAX) {
+      out.push(buffer);
+      buffer = sentence;
+    } else {
+      buffer = buffer ? `${buffer} ${sentence}` : sentence;
+    }
+  }
+  if (buffer) out.push(buffer);
+  return out;
+}
+
+type ParsedBody = { features: FeatureItem[]; bullets: string[]; prose: string[]; specs: SpecRow[] };
+
+// Everything under one heading (or above the first one). Runs the same
+// heading/body pairing, named-feature and sentence-mining passes the whole
+// description used to get, so a section is not a second-class citizen.
+function parseBody(lines: string[]): ParsedBody {
   const features: FeatureItem[] = [];
   const specs: SpecRow[] = [];
   const leftover: string[] = [];
@@ -163,15 +260,10 @@ export function parseProductContent(
   const longLines = lines.filter((l) => l.length > BULLET_MAX).length;
   const allowPairing = lines.length > 1 && longLines / lines.length >= 0.25;
 
-  // --- heading/body pairs, only available when the text has real lines ---
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
     const next = lines[i + 1];
-    if (isSectionHeader(line)) {
-      i += 1;
-      continue;
-    }
     if (allowPairing && next && looksLikeTitle(line) && isBodyFor(line, next)) {
       features.push({ title: line, body: next });
       i += 2;
@@ -187,7 +279,6 @@ export function parseProductContent(
     i += 1;
   }
 
-  // --- inside whatever is left, mine sentences for specs and features ---
   const prose: string[] = [];
   for (const paragraph of leftover) {
     const sentences = splitSentences(paragraph);
@@ -215,6 +306,64 @@ export function parseProductContent(
     if (rejoined) prose.push(rejoined);
   }
 
+  return { features, bullets: [], prose, specs };
+}
+
+// Short leftovers are bullets, long ones are paragraphs. Rendering 28
+// one-line bullets as 28 paragraphs is the wall of text this whole module
+// exists to stop.
+function finalizeProse(prose: string[]): { bullets: string[]; paragraphs: string[] } {
+  const bullets = dedupe(
+    prose.filter((p) => p.length <= BULLET_MAX),
+    (b) => b,
+  ).slice(0, MAX_BULLETS);
+  const paragraphs = prose.filter((p) => p.length > BULLET_MAX).flatMap(splitLongParagraph);
+  return { bullets, paragraphs };
+}
+
+export function parseProductContent(
+  description: string | null | undefined,
+  shortDescription?: string | null,
+): ProductContent {
+  const empty: ProductContent = {
+    summary: clean(shortDescription ?? ""),
+    features: [],
+    bullets: [],
+    prose: [],
+    specs: [],
+    sections: [],
+  };
+  const text = (description ?? "").trim();
+  if (!text) return empty;
+
+  const lines = markSectionHeadings(text).split("\n").map(clean).filter(Boolean);
+
+  // The text above the first heading is the product's own introduction; each
+  // heading opens a segment that keeps its title instead of the heading
+  // being thrown away, which is what used to happen to it.
+  const segments: { title: string | null; lines: string[] }[] = [{ title: null, lines: [] }];
+  for (const line of lines) {
+    if (isSectionHeader(line)) {
+      segments.push({ title: line.replace(/:\s*$/, "").trim(), lines: [] });
+      continue;
+    }
+    segments[segments.length - 1].lines.push(line);
+  }
+
+  const root = parseBody(segments[0].lines);
+  const specs = [...root.specs];
+  const sections: ContentSection[] = [];
+  for (const segment of segments.slice(1)) {
+    const body = parseBody(segment.lines);
+    specs.push(...body.specs);
+    const { bullets, paragraphs } = finalizeProse(body.prose);
+    if (body.features.length === 0 && bullets.length === 0 && paragraphs.length === 0) continue;
+    sections.push({ title: segment.title!, features: body.features, bullets, prose: paragraphs });
+  }
+
+  const features = root.features;
+  const prose = root.prose;
+
   // The summary is the opening of the real text, cut at a sentence
   // boundary so it never breaks mid-word.
   let summary = clean(shortDescription ?? "");
@@ -228,16 +377,9 @@ export function parseProductContent(
       length += sentence.length + 1;
       if (length >= SUMMARY_MAX) break;
     }
-    summary = taken.join(" ");
-
-    if (summary.length > SUMMARY_MAX) {
-      // One sentence can be longer than the whole budget. Cut the preview
-      // at a word boundary and leave the sentence itself untouched below,
-      // so the shopper still gets the full text — a summary is a preview,
-      // never a replacement.
-      summary = summary.slice(0, SUMMARY_MAX).replace(/\s\S*$/, "") + "…";
-      if (prose[0]) prose[0] = sentences.join(" ");
-    } else {
+    const joined = taken.join(" ");
+    if (joined && joined.length <= SUMMARY_MAX) {
+      summary = joined;
       // What is left of that paragraph goes back, rather than the paragraph
       // being dropped for having donated its opening. Dropping it lost the
       // entire body of a real Faber description — the summary was a 240-char
@@ -247,20 +389,21 @@ export function parseProductContent(
       if (remainder) prose[0] = remainder;
       else prose.shift();
     }
+    // Otherwise the opening sentence on its own is longer than the entire
+    // summary budget, and there is nothing to preview with: a cut-off copy
+    // of it would print the same 240 characters directly above the
+    // paragraph that contains them, which is exactly how the Electrolux
+    // ECK5401K page opened. The paragraph speaks for itself instead.
   }
-  // A single-sentence description would otherwise be shown twice: once as
-  // the summary and again as the only paragraph under it.
-  if (!summary) summary = clean(features[0]?.body ?? text).slice(0, SUMMARY_MAX);
-  if (summary.length > SUMMARY_MAX) summary = summary.slice(0, SUMMARY_MAX).replace(/\s\S*$/, "") + "…";
+  // A product whose text is all headings and features has no opening
+  // paragraph to summarise; borrow from what it does have rather than
+  // leaving the top of the page empty.
+  if (!summary && prose.length === 0) {
+    summary = clean(features[0]?.body ?? sections[0]?.prose[0] ?? text).slice(0, SUMMARY_MAX);
+    if (summary.length > SUMMARY_MAX) summary = summary.slice(0, SUMMARY_MAX).replace(/\s\S*$/, "") + "…";
+  }
 
-  // Short leftovers are bullets, long ones are paragraphs. Rendering 28
-  // one-line bullets as 28 paragraphs is the wall of text this whole
-  // module exists to stop.
-  const bullets = dedupe(
-    prose.filter((p) => p.length <= BULLET_MAX),
-    (b) => b,
-  ).slice(0, MAX_BULLETS);
-  const paragraphs = prose.filter((p) => p.length > BULLET_MAX);
+  const { bullets, paragraphs } = finalizeProse(prose);
 
   return {
     summary,
@@ -268,6 +411,7 @@ export function parseProductContent(
     bullets,
     prose: paragraphs,
     specs: dedupe(specs, (s) => s.label).slice(0, MAX_PARSED_SPECS),
+    sections,
   };
 }
 
@@ -276,6 +420,22 @@ export function parseProductContent(
 // always beats the same field scraped into extraSpecsRaw, which in turn
 // beats one parsed out of a sentence.
 const RAW_SPEC_SKIP = new Set(["מותג", "קטגוריה", "דגם", "מקור רשמי", "brand", "category", "model"]);
+
+// The enrichment agent records a yes/no attribute as the boolean it read off
+// the manufacturer's spec sheet, and the column is a string, so what lands in
+// the database is the literal word "false" — 134 of them across 45 products,
+// "true" on another 134. Left alone it prints an English keyword on a Hebrew
+// page; in the highlight strip, which shows a value without its label, four
+// of them printed as nothing but "false".
+const BOOLEAN_TRUE = /^(true|yes|כן)$/i;
+const BOOLEAN_FALSE = /^(false|no|לא)$/i;
+
+function normalizeSpecValue(raw: string): { value: string; kind?: "boolean" } {
+  const value = clean(raw);
+  if (BOOLEAN_TRUE.test(value)) return { value: "כן", kind: "boolean" };
+  if (BOOLEAN_FALSE.test(value)) return { value: "לא", kind: "boolean" };
+  return { value };
+}
 
 export function buildSpecRows(
   attributeValues: { value: string; attribute: { label: string; unit: string | null; sortOrder: number } }[],
@@ -289,9 +449,11 @@ export function buildSpecRows(
       label: av.attribute.label,
       // A scraped value often already carries its unit ("1.3 ליטר"); only a
       // bare number is actually missing one.
-      value: av.attribute.unit && /^\d+(\.\d+)?$/.test(av.value.trim())
-        ? `${av.value} ${av.attribute.unit}`
-        : av.value,
+      ...normalizeSpecValue(
+        av.attribute.unit && /^\d+(\.\d+)?$/.test(av.value.trim())
+          ? `${av.value} ${av.attribute.unit}`
+          : av.value,
+      ),
     }));
 
   let raw: Record<string, unknown> = {};
@@ -305,7 +467,7 @@ export function buildSpecRows(
   }
   const fromRaw: SpecRow[] = Object.entries(raw)
     .filter(([k, v]) => !RAW_SPEC_SKIP.has(k) && v !== null && v !== undefined && String(v).trim() !== "")
-    .map(([label, value]) => ({ label: clean(label), value: clean(String(value)) }));
+    .map(([label, value]) => ({ label: clean(label), ...normalizeSpecValue(String(value)) }));
 
   return dedupe([...fromAttributes, ...fromRaw, ...parsedFromText], (r) => r.label);
 }
@@ -318,4 +480,32 @@ export function splitDimensions(rows: SpecRow[]): { specs: SpecRow[]; dimensions
   const dimensions = rows.filter((r) => DIMENSION_PATTERN.test(r.label));
   const specs = rows.filter((r) => !DIMENSION_PATTERN.test(r.label));
   return { specs, dimensions };
+}
+
+// The four to six facts shown above the fold, as chips carrying the value
+// alone. Not simply the first six spec rows: a yes/no row says nothing
+// without its label ("לא"), and a value that needs a line and a half to
+// itself is not something a shopper takes in at a glance.
+//
+// A "כן" is shown as its own label instead — "בלוטוס" with a tick is the
+// fact; a "לא" is not a selling point and is left to the spec table, where
+// it sits next to the field name and reads correctly.
+const HIGHLIGHT_VALUE_MAX = 34;
+const MIN_HIGHLIGHTS = 2;
+
+export function pickHighlights(rows: SpecRow[], max = 6): SpecRow[] {
+  const picked: SpecRow[] = [];
+  for (const row of rows) {
+    if (picked.length >= max) break;
+    if (row.kind === "boolean") {
+      if (row.value === "כן" && row.label.length <= HIGHLIGHT_VALUE_MAX) {
+        picked.push({ ...row, value: row.label });
+      }
+      continue;
+    }
+    if (!row.value || row.value.length > HIGHLIGHT_VALUE_MAX) continue;
+    picked.push(row);
+  }
+  // One lonely chip under a heading is more heading than fact.
+  return picked.length >= MIN_HIGHLIGHTS ? picked : [];
 }

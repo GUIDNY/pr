@@ -25,9 +25,10 @@ import {
   ProductFeatureList,
   ProductBulletList,
   ProductProse,
+  ProductSections,
 } from "@/components/product/product-overview";
 import { ProductSpecTable, ProductDimensionsBlock } from "@/components/product/product-spec-table";
-import { parseProductContent, buildSpecRows, splitDimensions } from "@/lib/product-content";
+import { parseProductContent, buildSpecRows, splitDimensions, pickHighlights } from "@/lib/product-content";
 import { StockBadge } from "@/components/product/stock-badge";
 import { CompareButton } from "@/components/product/compare-button";
 import { ProductReviewFlagButton } from "@/components/product/product-review-flag-button";
@@ -92,9 +93,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   // a table of one because it happened to have a single CategoryAttribute.
   const allSpecRows = buildSpecRows(product.attributeValues, product.extraSpecsRaw, content.specs);
   const { specs: specRows, dimensions: dimensionRows } = splitDimensions(allSpecRows);
-  // The highlight strip is the head of the same list the spec table shows
-  // in full, so the two can never disagree.
-  const highlightFacts = specRows.slice(0, 6);
+  // The highlight strip is drawn from the same list the spec table shows in
+  // full, so the two can never disagree — but not simply its first six rows:
+  // a yes/no row ("סאב-ווופר אלחוטי") carries no meaning as a bare value.
+  const highlightFacts = pickHighlights(specRows);
 
   const categoryIcon = product.category.parent?.icon ?? product.category.icon;
   const maxQuantity = Math.max(1, Math.min(product.stockQty, 10));
@@ -324,6 +326,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   <ProductFeatureList features={content.features} />
                   <ProductBulletList bullets={content.bullets} title="מה עוד יש במוצר" />
                   <ProductProse paragraphs={content.prose} />
+                  <ProductSections sections={content.sections} />
                 </>
               )}
 

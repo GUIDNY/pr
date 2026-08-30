@@ -1,5 +1,5 @@
 import { Box, Snowflake, Zap, Volume2, Palette, Ruler, Plug, Info, Check } from "lucide-react";
-import type { SpecRow, FeatureItem } from "@/lib/product-content";
+import type { SpecRow, FeatureItem, ContentSection } from "@/lib/product-content";
 import { cn } from "@/lib/utils";
 
 const ICONS = {
@@ -43,7 +43,9 @@ export function ProductHighlights({ facts }: { facts: SpecRow[] }) {
       <h2 className="mb-2.5 text-sm font-bold">עיקרי המוצר</h2>
       <ul className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         {facts.map((fact, i) => {
-          const Icon = ICONS[iconFor(fact.label)];
+          // A yes/no fact arrives with its own label as the text (see
+          // pickHighlights), so the tick is the icon that fits it.
+          const Icon = fact.kind === "boolean" ? Check : ICONS[iconFor(fact.label)];
           // A value long enough to wrap inside half a phone's width gets
           // the whole row instead — real values are not all "46 ליטר",
           // some are a short phrase, and a two-line chip in a grid cell
@@ -82,9 +84,10 @@ export function ProductSummary({ summary }: { summary: string }) {
 
 // Titled features, without the card-per-paragraph treatment that made the
 // page read as a stack of boxes. The only ornament is a hairline rule on
-// the inline-start edge, which in RTL sits on the right where the eye
-// starts — enough to separate one feature from the next, cheap enough to
-// repeat six times without the section becoming heavy.
+// the inline-start edge — in RTL the right-hand side, where the eye starts
+// and where the text actually begins. It was border-e first, which put the
+// rule at the far left of an 1100px column with its own text a full column
+// away from it: a stray orange line down the empty side of the page.
 export function ProductFeatureList({ features }: { features: FeatureItem[] }) {
   if (features.length === 0) return null;
 
@@ -93,7 +96,7 @@ export function ProductFeatureList({ features }: { features: FeatureItem[] }) {
       <h2 className="mb-3 text-sm font-bold">תכונות וטכנולוגיות</h2>
       <div className="flex flex-col gap-4">
         {features.map((feature, i) => (
-          <div key={`${feature.title}-${i}`} className="border-brand/30 border-e-2 pe-3.5">
+          <div key={`${feature.title}-${i}`} className="border-brand/30 border-s-2 ps-3.5">
             <h3 className="text-sm font-bold">{feature.title}</h3>
             <p className="text-muted-foreground mt-0.5 max-w-[65ch] text-sm leading-relaxed">{feature.body}</p>
           </div>
@@ -134,5 +137,47 @@ export function ProductProse({ paragraphs }: { paragraphs: string[] }) {
         </p>
       ))}
     </div>
+  );
+}
+
+// The source text's own sections, kept as sections. A supplier description
+// writes "מפרט טכני:" and then lists the technical data; before this, that
+// heading was dropped and its contents were glued onto the paragraph above
+// it — which is how a 1,674-character Electrolux description arrived on the
+// page as one unbroken block.
+export function ProductSections({ sections }: { sections: ContentSection[] }) {
+  if (sections.length === 0) return null;
+
+  return (
+    <>
+      {sections.map((section, i) => (
+        <section key={`${section.title}-${i}`}>
+          <h2 className="mb-2.5 text-sm font-bold">{section.title}</h2>
+          <div className="flex flex-col gap-3">
+            {section.features.map((feature, j) => (
+              <div key={`${feature.title}-${j}`} className="border-brand/30 border-s-2 ps-3.5">
+                <h3 className="text-sm font-bold">{feature.title}</h3>
+                <p className="text-muted-foreground mt-0.5 max-w-[65ch] text-sm leading-relaxed">{feature.body}</p>
+              </div>
+            ))}
+            {section.bullets.length > 0 && (
+              <ul className="grid grid-cols-1 gap-x-8 gap-y-1.5 sm:grid-cols-2">
+                {section.bullets.map((bullet, j) => (
+                  <li key={`${bullet}-${j}`} className="flex items-start gap-2 text-sm">
+                    <Check className="text-brand mt-[3px] size-3.5 shrink-0" />
+                    <span className="text-foreground/85 leading-snug">{bullet}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {section.prose.map((paragraph, j) => (
+              <p key={j} dir="auto" className="text-foreground/85 max-w-[65ch] text-sm leading-relaxed">
+                {paragraph}
+              </p>
+            ))}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }
