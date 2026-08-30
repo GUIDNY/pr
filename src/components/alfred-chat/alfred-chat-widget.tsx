@@ -26,6 +26,9 @@ export function AlfredChatWidget() {
   // is untouched everywhere, including the home page.
   const pathname = usePathname();
   const isHome = pathname === "/";
+  // Alfred sells to customers. In the back office he is a face floating over
+  // the order someone is working on, and his answers are useless there.
+  const isAdmin = pathname.startsWith("/admin");
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState("");
@@ -63,6 +66,8 @@ export function AlfredChatWidget() {
     }
   }
 
+  if (isAdmin) return null;
+
   return (
     <>
       <button
@@ -70,7 +75,7 @@ export function AlfredChatWidget() {
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "סגור צ'אט עם אלפרד" : "פתח צ'אט עם אלפרד"}
         className={cn(
-          "border-border bg-background fixed bottom-24 start-4 z-50 flex size-14 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105 lg:bottom-6",
+          "floating-launcher border-border bg-background fixed bottom-24 start-4 z-50 flex size-14 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105 lg:bottom-6",
           open && "scale-0 opacity-0",
           isHome && "max-sm:hidden"
         )}
@@ -80,7 +85,7 @@ export function AlfredChatWidget() {
 
       <div
         className={cn(
-          "border-border bg-background fixed bottom-24 start-4 z-50 flex h-[min(32rem,70vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 lg:bottom-6",
+          "floating-launcher border-border bg-background fixed bottom-24 start-4 z-50 flex h-[min(32rem,70vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 lg:bottom-6",
           open ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
         )}
       >

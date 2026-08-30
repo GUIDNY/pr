@@ -41,6 +41,7 @@ model User {
   uploadedSources   InventorySource[]    @relation("SourceUploadedBy")
   triggeredSyncRuns InventorySyncRun[]   @relation("SyncTriggeredBy")
   resolvedAlerts    InventoryAlert[]     @relation("AlertResolvedBy")
+  cartFollowUps     Cart[]               @relation("CartFollowUp")
 }
 
 model Address {
@@ -346,7 +347,26 @@ model Cart {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  // What the customer typed into the checkout form before leaving it. The
+  // cart's items are already here and createOrderAction empties them the
+  // moment an order is placed, so a cart that still has items and a contactAt
+  // is, by construction, one that was abandoned mid-checkout.
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+  contactAt    DateTime?
+
+  // The callback workflow behind /admin/abandoned, so two people don't ring
+  // the same customer.
+  followUpStatus String    @default("NEW") // NEW | HANDLED | NOT_RELEVANT
+  followUpNote   String?
+  followUpAt     DateTime?
+  followUpById   String?
+  followUpBy     User?     @relation("CartFollowUp", fields: [followUpById], references: [id])
+
   items CartItem[]
+
+  @@index([contactAt])
 }
 
 model CartItem {

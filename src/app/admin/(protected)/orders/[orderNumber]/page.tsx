@@ -7,7 +7,17 @@ import { OrderAssign } from "@/components/admin/order-assign";
 import { OrderNotes } from "@/components/admin/order-notes";
 import { OrderTimeline } from "@/components/order/order-timeline";
 import { formatPrice, formatDateTime } from "@/lib/format";
-import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, DELIVERY_METHOD_LABELS, type OrderStatus, type DeliveryMethod } from "@/lib/enums";
+import { OrderDeliveryDate } from "@/components/admin/order-delivery-date";
+import {
+  ORDER_STATUS_LABELS,
+  ORDER_STATUS_COLORS,
+  DELIVERY_METHOD_LABELS,
+  PAYMENT_STATUS_LABELS,
+  PAYMENT_STATUS_COLORS,
+  type OrderStatus,
+  type DeliveryMethod,
+  type PaymentStatus,
+} from "@/lib/enums";
 
 export default async function AdminOrderDetailPage({ params }: { params: Promise<{ orderNumber: string }> }) {
   const { orderNumber } = await params;
@@ -125,15 +135,30 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               <UserIcon className="size-4" /> פרטי לקוח
             </h2>
             <p className="text-sm font-medium">{customerName}</p>
+            {/* Clickable, because the reason this panel is open is usually
+                that someone is about to ring the customer. */}
             {customerPhone && (
-              <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-sm">
-                <Phone className="size-3.5" /> {customerPhone}
-              </p>
+              <div className="mt-1 flex items-center gap-2 text-sm">
+                <a href={`tel:${customerPhone}`} className="text-brand flex items-center gap-1.5 hover:underline">
+                  <Phone className="size-3.5" /> {customerPhone}
+                </a>
+                <a
+                  href={`https://wa.me/972${customerPhone.replace(/\D/g, "").replace(/^0/, "")}`}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-success hover:underline"
+                >
+                  וואטסאפ
+                </a>
+              </div>
             )}
             {customerEmail && (
-              <p className="text-muted-foreground mt-1 flex items-center gap-1.5 text-sm">
+              <a
+                href={`mailto:${customerEmail}`}
+                className="text-muted-foreground hover:text-brand mt-1 flex items-center gap-1.5 text-sm"
+              >
                 <Mail className="size-3.5" /> {customerEmail}
-              </p>
+              </a>
             )}
             {!order.user && <p className="text-muted-foreground mt-2 text-xs">הזמנת אורח</p>}
           </div>
@@ -150,6 +175,19 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                 {order.address.apartment ? `, דירה ${order.address.apartment}` : ""}
               </p>
             )}
+            {order.customerNote && (
+              <p className="border-warning/30 bg-warning/10 mt-2 rounded-lg border p-2 text-xs">
+                <span className="font-medium">הערת הלקוח: </span>
+                {order.customerNote}
+              </p>
+            )}
+            <div className="mt-3 border-t pt-3">
+              <p className="mb-2 text-sm font-medium">תאריך אספקה משוער</p>
+              <OrderDeliveryDate
+                orderId={order.id}
+                currentDate={order.expectedDeliveryAt ? order.expectedDeliveryAt.toISOString().slice(0, 10) : null}
+              />
+            </div>
           </div>
 
           <div className="border-border bg-card rounded-xl border p-5">
@@ -157,7 +195,17 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               <CreditCard className="size-4" /> תשלום
             </h2>
             <p className="text-sm">שיטה: {order.paymentMethod === "CASH_ON_DELIVERY" ? "מזומן באספקה" : "כרטיס אשראי"}</p>
-            <p className="text-sm">סטטוס: {order.paymentStatus}</p>
+            {/* Was printed raw, so the back office read "CAPTURED" on a
+                Hebrew screen. */}
+            <p className="mt-1 flex items-center gap-1.5 text-sm">
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                  PAYMENT_STATUS_COLORS[order.paymentStatus as PaymentStatus]
+                }`}
+              >
+                {PAYMENT_STATUS_LABELS[order.paymentStatus as PaymentStatus] ?? order.paymentStatus}
+              </span>
+            </p>
             {order.payments.map((p) => (
               <p key={p.id} className="text-muted-foreground mt-1 text-xs">
                 {p.reference} · {formatPrice(p.amount)} · {formatDateTime(p.createdAt)}

@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import type { OrderStatus } from "@/lib/enums";
+import { ORDER_STALE_AFTER_HOURS, type OrderStatus } from "@/lib/enums";
 
 export type AdminOrderFilters = {
   search?: string;
@@ -50,7 +50,41 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
     db.order.count({ where }),
   ]);
 
-  return { orders, total };
+  // How long each order has sat where it is, worked out here rather than in
+  // the page: reading the clock is not something a render is allowed to do,
+  // and the shop's patience for each status is a rule about the business, not
+  // about the table that displays it. Measured from the last change, not from
+  // when the order was placed — an order moved forward this morning is being
+  // handled, however old it is.
+  const now = Date.now();
+  const withAge = orders.map((order) => {
+    const hoursInStatus = (now - order.updatedAt.getTime()) / 3_600_000;
+    const staleAfter = ORDER_STALE_AFTER_HOURS[order.status as OrderStatus] ?? null;
+    return {
+      ...order,
+      hoursInStatus,
+      isStale: staleAfter !== null && hoursInStatus > staleAfter,
+    };
+  });
+
+  return { orders: withAge, total };
+}
+
+/**
+ * How many orders sit in each status right now, so the filter bar can say
+ * where the work is instead of making someone open every status in turn to
+ * find out. Counted across the whole table, deliberately ignoring the current
+ * filters: these are the numbers you navigate BY.
+ */
+export async function getAdminOrderStatusCounts() {
+  const rows = await db.order.groupBy({ by: ["status"], _count: { _all: true } });
+  const counts: Record<string, number> = {};
+  let total = 0;
+  for (const row of rows) {
+    counts[row.status] = row._count._all;
+    total += row._count._all;
+  }
+  return { counts, total };
 }
 
 export async function getAdminOrderDetail(orderNumber: string) {

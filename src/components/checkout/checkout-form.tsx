@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { useCartStore } from "@/stores/cart-store";
 import { createOrderAction } from "@/actions/orders";
+import { saveCheckoutContactAction } from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
 import type { CheckoutInput } from "@/lib/order-schema";
 
@@ -53,6 +54,19 @@ export function CheckoutForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  /* Leaving a contact field hands the details to the shop, so a checkout
+     someone walks away from halfway is a callback rather than a silent lost
+     sale. On blur and not on every keystroke — a half-typed phone number is
+     not a lead — and deliberately not awaited: this is a side errand next to
+     the order, and it must never be able to delay or break one. */
+  function rememberContact() {
+    void saveCheckoutContactAction({
+      fullName: form.fullName,
+      phone: form.phone,
+      email: form.email,
+    }).catch(() => {});
+  }
+
   function submit() {
     setErrors({});
     startTransition(async () => {
@@ -88,15 +102,35 @@ export function CheckoutForm({
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <Label htmlFor="fullName" className="mb-1.5">שם מלא</Label>
-              <Input id="fullName" value={form.fullName} onChange={(e) => update("fullName", e.target.value)} required />
+              <Input
+                id="fullName"
+                value={form.fullName}
+                onChange={(e) => update("fullName", e.target.value)}
+                onBlur={rememberContact}
+                required
+              />
             </div>
             <div>
               <Label htmlFor="email" className="mb-1.5">אימייל</Label>
-              <Input id="email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                value={form.email}
+                onChange={(e) => update("email", e.target.value)}
+                onBlur={rememberContact}
+                required
+              />
             </div>
             <div>
               <Label htmlFor="phone" className="mb-1.5">טלפון</Label>
-              <Input id="phone" type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)} required />
+              <Input
+                id="phone"
+                type="tel"
+                value={form.phone}
+                onChange={(e) => update("phone", e.target.value)}
+                onBlur={rememberContact}
+                required
+              />
             </div>
           </div>
         </section>
@@ -262,7 +296,8 @@ export function CheckoutForm({
             אחרי. */}
         <p className="text-muted-foreground mt-3 text-center text-xs leading-relaxed">
           הפרטים שתמסרו ישמשו לביצוע ההזמנה, לאספקתה ולמתן שירות ואחריות בלבד. מסירתם אינה חובה חוקית, אך בלעדיהם
-          לא ניתן להשלים את ההזמנה.{" "}
+          לא ניתן להשלים את ההזמנה. אם תעזבו את העמוד לפני סיום ההזמנה, נשמור את שמכם והטלפון כדי שנוכל ליצור
+          קשר ולהשלים אותה איתכם.{" "}
           <Link href="/privacy" className="hover:text-foreground underline">
             מדיניות הפרטיות
           </Link>{" "}

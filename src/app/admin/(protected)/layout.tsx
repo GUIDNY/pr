@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Package,
   ShoppingBag,
+  ShoppingCart,
   Tag as TagIcon,
   Truck,
   LogOut,
@@ -18,6 +19,7 @@ import { logoutAction } from "@/actions/auth";
 const NAV = [
   { href: "/admin", label: "לוח בקרה", icon: LayoutDashboard, exact: true },
   { href: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
+  { href: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart },
   { href: "/admin/products", label: "מוצרים", icon: Package },
   { href: "/admin/inventory", label: "בקרת מלאי", icon: Boxes },
   { href: "/admin/promotions", label: "מבצעים", icon: TagIcon },

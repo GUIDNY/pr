@@ -2,13 +2,13 @@
 
 import { useState, useTransition, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { PackageSearch, Search } from "lucide-react";
+import { CalendarDays, PackageSearch, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { OrderTimeline } from "@/components/order/order-timeline";
 import { trackOrderAction } from "@/actions/orders";
-import { formatPrice, formatDateTime } from "@/lib/format";
+import { formatPrice, formatDate, formatDateTime } from "@/lib/format";
 import type { OrderStatus } from "@/lib/enums";
 
 type TrackedOrder = NonNullable<Awaited<ReturnType<typeof trackOrderAction>>["order"]>;
@@ -67,6 +67,17 @@ function TrackOrderForm() {
               <span className="text-muted-foreground text-sm">{formatDateTime(order.createdAt)}</span>
             </div>
             <OrderTimeline status={order.status as OrderStatus} />
+            {/* The date the shop set on the order. It was already being sent
+                to this page and never shown, so "מתי זה מגיע" — the one
+                question this page exists to answer — was a phone call. */}
+            {order.expectedDeliveryAt && (
+              <p className="border-brand/30 bg-brand/5 mt-4 flex items-center gap-2 rounded-lg border p-3 text-sm">
+                <CalendarDays className="text-brand size-4 shrink-0" />
+                <span>
+                  מועד אספקה משוער: <strong>{formatDate(order.expectedDeliveryAt)}</strong>
+                </span>
+              </p>
+            )}
           </div>
 
           <div className="border-border rounded-xl border p-5">

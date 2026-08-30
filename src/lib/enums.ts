@@ -75,6 +75,72 @@ export const PAYMENT_STATUSES = [
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export const paymentStatusSchema = z.enum(PAYMENT_STATUSES);
 
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  PENDING: "ממתין לתשלום",
+  AUTHORIZED: "מאושר (טרם נגבה)",
+  CAPTURED: "שולם",
+  FAILED: "נכשל",
+  REFUNDED: "זוכה",
+};
+
+export const PAYMENT_STATUS_COLORS: Record<PaymentStatus, string> = {
+  PENDING: "bg-warning/15 text-warning-foreground",
+  AUTHORIZED: "bg-accent text-accent-foreground",
+  CAPTURED: "bg-success/15 text-success",
+  FAILED: "bg-destructive/15 text-destructive",
+  REFUNDED: "bg-destructive/15 text-destructive",
+};
+
+// An order that has reached one of these is finished; nothing is waiting on
+// anyone, so it is never counted as stuck no matter how old it is.
+export const CLOSED_ORDER_STATUSES: OrderStatus[] = ["DELIVERED", "CANCELLED", "REFUNDED"];
+
+// Cancelling or refunding is not an ordinary step forward, and a
+// mis-click on a row should not be able to do it in silence.
+export const DESTRUCTIVE_ORDER_STATUSES: OrderStatus[] = ["CANCELLED", "REFUND_PENDING", "REFUNDED"];
+
+/**
+ * The single next step for an order on the ordinary path, which is what an
+ * order needs 90% of the time — so it can be one button rather than a hunt
+ * through a twelve-item dropdown. Null means the order is finished, or sits
+ * somewhere the shop has to make a real decision about.
+ */
+export const NEXT_ORDER_STATUS: Record<OrderStatus, OrderStatus | null> = {
+  NEW: "PAID",
+  PAYMENT_PENDING: "PAID",
+  PAID: "PROCESSING",
+  PROCESSING: "AWAITING_SUPPLIER",
+  AWAITING_SUPPLIER: "SUPPLIER_CONFIRMED",
+  SUPPLIER_CONFIRMED: "READY_FOR_DELIVERY",
+  READY_FOR_DELIVERY: "SHIPPED",
+  SHIPPED: "DELIVERED",
+  DELIVERED: null,
+  CANCELLED: null,
+  REFUND_PENDING: "REFUNDED",
+  REFUNDED: null,
+};
+
+/**
+ * How long an order may sit in a status before the list flags it. These are
+ * the shop's own service expectations, not arbitrary: a paid order nobody has
+ * started on is urgent within hours, while an order already with the supplier
+ * is expected to wait days.
+ */
+export const ORDER_STALE_AFTER_HOURS: Record<OrderStatus, number | null> = {
+  NEW: 24,
+  PAYMENT_PENDING: 48,
+  PAID: 24,
+  PROCESSING: 48,
+  AWAITING_SUPPLIER: 120,
+  SUPPLIER_CONFIRMED: 72,
+  READY_FOR_DELIVERY: 48,
+  SHIPPED: 168,
+  DELIVERED: null,
+  CANCELLED: null,
+  REFUND_PENDING: 72,
+  REFUNDED: null,
+};
+
 export const STOCK_STATUSES = [
   "IN_STOCK",
   "LOW_STOCK",
@@ -233,4 +299,23 @@ export const SUPPORT_CHANNEL_LABELS: Record<SupportChannel, string> = {
   WHATSAPP: "וואטסאפ",
   PHONE: "טלפון",
   FORM: "טופס",
+};
+
+// The callback workflow on an abandoned checkout (/admin/abandoned). A cart
+// carries this only once someone typed contact details into the checkout form
+// and then left without completing the order.
+export const CART_FOLLOW_UP_STATUSES = ["NEW", "HANDLED", "NOT_RELEVANT"] as const;
+export type CartFollowUpStatus = (typeof CART_FOLLOW_UP_STATUSES)[number];
+export const cartFollowUpStatusSchema = z.enum(CART_FOLLOW_UP_STATUSES);
+
+export const CART_FOLLOW_UP_STATUS_LABELS: Record<CartFollowUpStatus, string> = {
+  NEW: "חדש",
+  HANDLED: "טופל",
+  NOT_RELEVANT: "לא רלוונטי",
+};
+
+export const CART_FOLLOW_UP_STATUS_COLORS: Record<CartFollowUpStatus, string> = {
+  NEW: "bg-brand/10 text-brand",
+  HANDLED: "bg-success/10 text-success",
+  NOT_RELEVANT: "bg-muted text-muted-foreground",
 };
