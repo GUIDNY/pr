@@ -19,8 +19,20 @@ import { getFavoriteProductIdsAction } from "@/actions/favorites";
 import { getArticleByCategorySlug } from "@/lib/queries/articles";
 import { findCategoryBySlug } from "@/lib/category-tree";
 import { PackageSearch, BookOpen, ArrowLeft } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 24;
+// "Everything on one page" is really just a much larger page. Keeping it as
+// a page size rather than a separate no-limit path means the pagination
+// below keeps working unchanged: on almost every category it collapses to a
+// single page and disappears by itself, and on a department large enough to
+// pass 500 products the rest is still reachable instead of silently missing.
+//
+// 500 rather than no cap at all because every card is a row of product data
+// in the server payload — the photos are lazy, so what an unbounded list
+// would actually cost is HTML, and a shopper who wants to scroll a whole
+// category does not need the whole catalog in one response.
+const ALL_PAGE_SIZE = 500;
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -45,6 +57,10 @@ export default async function CategoryPage({
 
   const sort = (typeof sp.sort === "string" ? sp.sort : "relevance") as ProductSort;
   const page = Number(sp.page) || 1;
+  // Paged is the default: it is what the category pages have always done,
+  // and it is the cheaper first paint.
+  const showAll = sp.view === "all";
+  const pageSize = showAll ? ALL_PAGE_SIZE : PAGE_SIZE;
   const brandSlugs = sp.brand ? (Array.isArray(sp.brand) ? sp.brand : [sp.brand]) : [];
   const minPrice = sp.min ? Number(sp.min) : undefined;
   const maxPrice = sp.max ? Number(sp.max) : undefined;
@@ -60,7 +76,7 @@ export default async function CategoryPage({
     getProductsByCategorySlug(slug, {
       sort,
       page,
-      pageSize: PAGE_SIZE,
+      pageSize,
       brandSlugs,
       minPrice,
       maxPrice,
@@ -73,7 +89,7 @@ export default async function CategoryPage({
 
   if (!category) notFound();
 
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const filterAttrs = attributes.map((a) => ({
     key: a.key,
     label: a.label,
@@ -81,16 +97,32 @@ export default async function CategoryPage({
     options: a.options ? (JSON.parse(a.options) as string[]) : null,
   }));
 
-  function pageHref(p: number) {
+  // Both helpers keep every other search param — the filters, the sort —
+  // so switching view or page never silently clears a filter the shopper
+  // set. Each drops only the one param it owns.
+  function hrefWith(overrides: Record<string, string | null>) {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(sp)) {
-      if (key === "page") continue;
+      if (key in overrides) continue;
       if (Array.isArray(value)) value.forEach((v) => params.append(key, v));
       else if (value) params.set(key, value);
     }
-    if (p > 1) params.set("page", String(p));
+    for (const [key, value] of Object.entries(overrides)) {
+      if (value !== null) params.set(key, value);
+    }
     const qs = params.toString();
     return `/category/${slug}${qs ? `?${qs}` : ""}`;
+  }
+
+  function pageHref(p: number) {
+    return hrefWith({ page: p > 1 ? String(p) : null });
+  }
+
+  // Changing the view always returns to the first page: page 4 of 24-item
+  // pages is not page 4 of 500-item pages, and landing on an empty page
+  // after a toggle reads as "the category lost its products".
+  function viewHref(v: "paged" | "all") {
+    return hrefWith({ view: v === "all" ? "all" : null, page: null });
   }
 
   return (
@@ -130,10 +162,46 @@ export default async function CategoryPage({
         </aside>
 
         <div>
-          <div className="mb-4 flex items-center justify-between gap-3">
+          {/* flex-wrap: on a 390px phone the count plus three controls —
+              filters, view toggle, sort — do not fit on one line, and
+              without wrapping the sort select is the one that gets crushed.
+              The controls move under the count as a group instead. */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <p className="text-muted-foreground text-sm">{total} מוצרים</p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <MobileFilters brands={brands} attributes={filterAttrs} priceRange={priceRange} resultCount={total} />
+              {/* Two links, not a client-side toggle: the choice belongs in
+                  the URL so it survives a reload, a back button and a
+                  shared link, and the page is a Server Component that reads
+                  it straight out of searchParams with no JS at all. Hidden
+                  when everything already fits on one page, where the two
+                  options render the same thing. */}
+              {total > PAGE_SIZE && (
+                <div className="border-border bg-card flex shrink-0 items-center rounded-lg border p-0.5 text-xs font-medium">
+                  <Link
+                    href={viewHref("paged")}
+                    aria-current={showAll ? undefined : "true"}
+                    className={cn(
+                      "rounded-md px-2.5 py-1.5 transition-colors",
+                      showAll ? "text-muted-foreground hover:text-foreground" : "bg-secondary text-foreground",
+                    )}
+                  >
+                    <span className="sm:hidden">עמודים</span>
+                    <span className="hidden sm:inline">לפי עמודים</span>
+                  </Link>
+                  <Link
+                    href={viewHref("all")}
+                    aria-current={showAll ? "true" : undefined}
+                    className={cn(
+                      "rounded-md px-2.5 py-1.5 transition-colors",
+                      showAll ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span className="sm:hidden">הכל</span>
+                    <span className="hidden sm:inline">הכל בעמוד אחד</span>
+                  </Link>
+                </div>
+              )}
               <SortSelect />
             </div>
           </div>
