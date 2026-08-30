@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, X, Link as LinkIcon } from "lucide-react";
 import { InlineEditField } from "@/components/product/inline-edit-field";
 import { upsertProductSpecAction, upsertRawSpecAction } from "@/actions/admin-products";
-import { DIMENSION_PATTERN } from "@/lib/product-key-facts";
+import { DIMENSION_PATTERN } from "@/lib/product-content";
 
 type Attribute = { id: string; key: string; label: string; unit: string | null };
 // Each value carries its own attribute's label/unit directly — this is

@@ -17,13 +17,17 @@ import { ProductPriceEditor } from "@/components/product/product-price-editor";
 import { ProductTitleEditor } from "@/components/product/product-title-editor";
 import { ProductSpecsEditor } from "@/components/product/product-specs-editor";
 import { ProductDescriptionEditor } from "@/components/product/product-description-editor";
-import { parseProductDescription, ProductHighlightsGrid } from "@/components/product/product-description-text";
 import { BrandHighlight } from "@/components/product/brand-highlight";
 import { BrandAboutSection } from "@/components/product/brand-about-section";
-import { ProductKeyFactsStrip } from "@/components/product/product-key-facts-strip";
-import { ProductFeatureSections } from "@/components/product/product-feature-sections";
-import { ProductDimensions } from "@/components/product/product-dimensions";
-import { getProductKeyFacts, getProductDimensions } from "@/lib/product-key-facts";
+import {
+  ProductHighlights,
+  ProductSummary,
+  ProductFeatureList,
+  ProductBulletList,
+  ProductProse,
+} from "@/components/product/product-overview";
+import { ProductSpecTable, ProductDimensionsBlock } from "@/components/product/product-spec-table";
+import { parseProductContent, buildSpecRows, splitDimensions } from "@/lib/product-content";
 import { StockBadge } from "@/components/product/stock-badge";
 import { CompareButton } from "@/components/product/compare-button";
 import { ProductReviewFlagButton } from "@/components/product/product-review-flag-button";
@@ -77,24 +81,20 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const categoryAttributes = isAdminViewer ? await getCategoryAttributesFor(product.categoryId) : [];
   const reviewFlag = isAdminViewer ? await getProductReviewFlag(product.id) : "NONE";
 
-  // Real product facts only (CategoryAttribute values, extraSpecsRaw as
-  // fallback) — feeds both the key-facts strip and the "why choose" cards,
-  // see lib/product-key-facts.ts. Empty when a product has neither, and
-  // both of those components render nothing in that case rather than
-  // inventing a fact.
-  const keyFacts = getProductKeyFacts(product, 5);
-  const dimensions = getProductDimensions(product);
-
-  // "{category} {brand} {model} בקצרה" — the trailing "ים" strip is a
-  // generic Hebrew masculine-plural heuristic (מקפיאים -> מקפיא), not a
-  // rule about this one product; categories that don't end in ים are used
-  // as-is rather than risk mangling an irregular plural.
-  const categoryLabel = product.category.name.endsWith("ים") ? product.category.name.slice(0, -2) : product.category.name;
-  const shortHeadingText = [categoryLabel, product.brand.name, product.model].filter(Boolean).join(" ");
-
-  const { highlights: descriptionHighlights, prose: descriptionProse } = parseProductDescription(
-    product.description ?? product.shortDescription ?? ""
-  );
+  // One parse of the product's own text, feeding every section below.
+  // parseProductContent only ever returns substrings of what is already
+  // stored — see lib/product-content.ts for the shapes it recognises and
+  // what it refuses to guess at.
+  const content = parseProductContent(product.description, product.shortDescription);
+  // Structured attributes first, then scraped extraSpecsRaw, then whatever
+  // could be parsed out of sentences — merged rather than either/or, which
+  // is what left a product with 16 real spec pairs in extraSpecsRaw showing
+  // a table of one because it happened to have a single CategoryAttribute.
+  const allSpecRows = buildSpecRows(product.attributeValues, product.extraSpecsRaw, content.specs);
+  const { specs: specRows, dimensions: dimensionRows } = splitDimensions(allSpecRows);
+  // The highlight strip is the head of the same list the spec table shows
+  // in full, so the two can never disagree.
+  const highlightFacts = specRows.slice(0, 6);
 
   const categoryIcon = product.category.parent?.icon ?? product.category.icon;
   const maxQuantity = Math.max(1, Math.min(product.stockQty, 10));
@@ -303,18 +303,15 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                    with the product for attention up top.
                 6. מוצרים נוספים של אותו מותג (full-width, outside the
                    column) */}
-            <div className="flex max-w-3xl flex-col gap-5">
-              <div>
-                <h2 className="text-lg font-bold text-balance">{shortHeadingText} בקצרה</h2>
-                {product.shortDescription && (
-                  <p className="text-muted-foreground mt-1.5 line-clamp-2 text-sm leading-relaxed">{product.shortDescription}</p>
-                )}
-                <div className="mt-3">
-                  <ProductHighlightsGrid highlights={descriptionHighlights} />
-                </div>
-              </div>
+            {/* 1100px, not the old max-w-3xl (768px) inside a 1280px
+                container — that left a third of a desktop window empty
+                while paragraphs wrapped at a phone's width. The prose
+                blocks keep their own 65ch measure so widening the column
+                lengthens the spec grid, not the lines of text. */}
+            <div className="flex max-w-[1100px] flex-col gap-7">
+              <ProductHighlights facts={highlightFacts} />
 
-              <ProductKeyFactsStrip facts={keyFacts} />
+              <ProductSummary summary={content.summary} />
 
               {isAdminViewer ? (
                 <ProductDescriptionEditor
@@ -323,10 +320,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   sourceUrl={product.descriptionSourceUrl}
                 />
               ) : (
-                <ProductFeatureSections prose={descriptionProse} />
+                <>
+                  <ProductFeatureList features={content.features} />
+                  <ProductBulletList bullets={content.bullets} title="מה עוד יש במוצר" />
+                  <ProductProse paragraphs={content.prose} />
+                </>
               )}
-
-              <ProductDimensions dimensions={dimensions} />
 
               <BrandHighlight brand={product.brand} />
 
@@ -355,10 +354,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </TabsContent>
 
           <TabsContent value="specs" className="py-4">
-            <ProductSpecsEditor
-              productId={product.id}
-              attributes={categoryAttributes}
-              initialValues={product.attributeValues.map((av) => ({
+            {/* Visitors get the merged table (attributes + extraSpecsRaw +
+                whatever parsed out of the description) plus the dimensions
+                block; admins keep the editor, which is the only thing that
+                can write those values back. Overview never repeats this —
+                it shows the first six of the same rows as highlights and
+                stops. */}
+            {isAdminViewer ? (
+              <ProductSpecsEditor
+                productId={product.id}
+                attributes={categoryAttributes}
+                initialValues={product.attributeValues.map((av) => ({
                 id: av.id,
                 attributeId: av.attributeId,
                 value: av.value,
@@ -367,15 +373,28 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 // (see ProductSpecsEditor's AttributeValue type).
                 attribute: { key: av.attribute.key, label: av.attribute.label, unit: av.attribute.unit },
               }))}
-              rawSpecs={rawSpecs}
-              isAdmin={isAdminViewer}
+                rawSpecs={rawSpecs}
+                isAdmin={isAdminViewer}
               // Unlike ProductDescriptionEditor, this component renders for
               // every visitor (isAdmin just switches its internal branch),
               // so its props reach the hydration payload for everyone —
               // only pass the source URL down when there's an admin to see
               // it, same reasoning as galleryImages above.
-              specSourceUrl={isAdminViewer ? product.specSourceUrl : null}
-            />
+                specSourceUrl={product.specSourceUrl}
+              />
+            ) : specRows.length === 0 && dimensionRows.length === 0 ? (
+              <p className="text-muted-foreground text-sm">אין עדיין מפרט טכני למוצר זה.</p>
+            ) : (
+              <div className="flex max-w-[1100px] flex-col gap-8">
+                {specRows.length > 0 && (
+                  <section>
+                    <h3 className="mb-3 text-sm font-bold">מפרט טכני</h3>
+                    <ProductSpecTable rows={specRows} />
+                  </section>
+                )}
+                <ProductDimensionsBlock dimensions={dimensionRows} />
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="delivery" className="flex max-w-2xl flex-col gap-3 py-4">
