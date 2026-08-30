@@ -132,6 +132,30 @@ function parseSpecSentence(sentence: string): SpecRow | null {
   return { label, value };
 }
 
+// shortDescription is supposed to be the one-line pitch, and on this
+// catalog it almost never is: 537 of the 543 live products that have one
+// hold "צבע: שחור" — the colour, copied out of the supplier sheet. Printed
+// under the heading "כמה מילים על המוצר" that is not a summary, it is a
+// spec wearing a summary's clothes. So a field-name-and-value pair is
+// recognised as what it is, sent to the spec table, and the summary comes
+// from the product's real text instead.
+//
+// Looser than parseSpecSentence on purpose: that one insists on a digit in
+// the value, which is right when mining prose for specs and wrong here —
+// "שחור" is a perfectly good colour.
+function parseLabelValue(text: string): SpecRow | null {
+  const s = clean(text);
+  if ((s.match(/:/g) ?? []).length !== 1) return null;
+  const [rawLabel, rawValue] = s.split(":");
+  const label = clean(rawLabel);
+  const value = clean(rawValue).replace(/[.,;]+$/, "");
+  if (!label || !value) return null;
+  if (label.length > SPEC_LABEL_MAX || label.split(/\s+/).length > 3) return null;
+  if (value.length > 40) return null;
+  if (!HAS_LETTER.test(label)) return null;
+  return { label, value };
+}
+
 // Sentence splitting that survives Hebrew technical text: a full stop
 // inside "15,000:1" or "IP68." must not start a new sentence, and neither
 // must the dot in a decimal or an abbreviation like "ס\"מ".
@@ -325,16 +349,20 @@ export function parseProductContent(
   description: string | null | undefined,
   shortDescription?: string | null,
 ): ProductContent {
-  const empty: ProductContent = {
-    summary: clean(shortDescription ?? ""),
-    features: [],
-    bullets: [],
-    prose: [],
-    specs: [],
-    sections: [],
-  };
+  const shortSpec = parseLabelValue(shortDescription ?? "");
+  const givenSummary = shortSpec ? "" : clean(shortDescription ?? "");
+
   const text = (description ?? "").trim();
-  if (!text) return empty;
+  if (!text) {
+    return {
+      summary: givenSummary,
+      features: [],
+      bullets: [],
+      prose: [],
+      specs: shortSpec ? [shortSpec] : [],
+      sections: [],
+    };
+  }
 
   const lines = markSectionHeadings(text).split("\n").map(clean).filter(Boolean);
 
@@ -351,7 +379,7 @@ export function parseProductContent(
   }
 
   const root = parseBody(segments[0].lines);
-  const specs = [...root.specs];
+  const specs = shortSpec ? [shortSpec, ...root.specs] : [...root.specs];
   const sections: ContentSection[] = [];
   for (const segment of segments.slice(1)) {
     const body = parseBody(segment.lines);
@@ -366,7 +394,7 @@ export function parseProductContent(
 
   // The summary is the opening of the real text, cut at a sentence
   // boundary so it never breaks mid-word.
-  let summary = clean(shortDescription ?? "");
+  let summary = givenSummary;
   if (!summary && prose.length > 0) {
     const sentences = splitSentences(prose[0]);
     const taken: string[] = [];
