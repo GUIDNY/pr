@@ -66,6 +66,14 @@ function clean(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
+// The descriptions carry markdown, and a spec row is a table cell: bold has
+// nothing to add next to a label that is already styled, and the marks
+// themselves must not reach the page. Prose keeps its emphasis — see
+// InlineMarkdown — this is only for the label/value pairs.
+function stripBold(s: string): string {
+  return s.replace(/\*\*/g, "").trim();
+}
+
 // A title is a label for what follows, not a sentence in its own right.
 // The colon test matters: "אזור בישול שמאלי קדמי: אינדוקציה 210 מ\"מ" is a
 // spec line, and pairing it with the next spec line as if it introduced
@@ -92,9 +100,24 @@ function isBodyFor(title: string, body: string): boolean {
 // Source text carries its own section headers ("מאפיינים:", "תכונות:").
 // They are structure, not content, and reading one as a paragraph puts a
 // bare word on the page where a sentence belongs.
+// A whole line wrapped in ** and ending in a colon is the agent writing a
+// heading in markdown: "**במה היא שונה מ-QNED באותו מחיר:**". It is longer
+// and wordier than the bare "מאפיינים:" form below, so the length and word
+// limits do not apply to it — the bold marks are the author being explicit
+// about what the line is, which is better evidence than any heuristic.
+const BOLD_HEADING = /^\*\*\s*(.{2,70}?)\s*:\s*\*\*$/;
+
 function isSectionHeader(line: string): boolean {
   const t = clean(line);
+  if (BOLD_HEADING.test(t)) return true;
   return t.length <= 24 && /:$/.test(t) && t.split(/\s+/).length <= 3;
+}
+
+function sectionTitleOf(line: string): string {
+  const t = clean(line);
+  const bold = t.match(BOLD_HEADING);
+  if (bold) return bold[1].trim();
+  return t.replace(/:\s*$/, "").trim();
 }
 
 // "Lunar Dial - בורר תוכניות חכם…", "SOUND PRO — דיפיוזר המפחית…".
@@ -372,7 +395,7 @@ export function parseProductContent(
   const segments: { title: string | null; lines: string[] }[] = [{ title: null, lines: [] }];
   for (const line of lines) {
     if (isSectionHeader(line)) {
-      segments.push({ title: line.replace(/:\s*$/, "").trim(), lines: [] });
+      segments.push({ title: sectionTitleOf(line), lines: [] });
       continue;
     }
     segments[segments.length - 1].lines.push(line);
@@ -497,7 +520,11 @@ export function buildSpecRows(
     .filter(([k, v]) => !RAW_SPEC_SKIP.has(k) && v !== null && v !== undefined && String(v).trim() !== "")
     .map(([label, value]) => ({ label: clean(label), ...normalizeSpecValue(String(value)) }));
 
-  return dedupe([...fromAttributes, ...fromRaw, ...parsedFromText], (r) => r.label);
+  return dedupe([...fromAttributes, ...fromRaw, ...parsedFromText], (r) => r.label).map((r) => ({
+    ...r,
+    label: stripBold(r.label),
+    value: stripBold(r.value),
+  }));
 }
 
 // Height/width/depth/weight get their own section, so they are lifted out

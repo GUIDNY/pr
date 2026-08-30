@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { InlineMarkdown } from "@/components/product/inline-markdown";
 
 const HIGHLIGHT_MAX_LENGTH = 50;
 const MAX_HIGHLIGHTS = 8;
@@ -89,7 +90,7 @@ export function ProductHighlightsGrid({ highlights }: { highlights: string[] }) 
           <span className="bg-brand/15 text-brand mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full">
             <Check className="size-3.5" />
           </span>
-          <span className="text-sm leading-snug font-medium">{h}</span>
+          <span className="text-sm leading-snug font-medium"><InlineMarkdown text={h} /></span>
         </div>
       ))}
     </div>
@@ -102,7 +103,7 @@ export function ProductProseText({ prose }: { prose: string[] }) {
     <div className="flex flex-col gap-3.5">
       {prose.map((p, i) => (
         <p key={i} className={i === 0 ? "text-foreground text-lg leading-relaxed font-medium text-balance" : "text-foreground/85 leading-relaxed"}>
-          {p}
+          <InlineMarkdown text={p} />
         </p>
       ))}
     </div>

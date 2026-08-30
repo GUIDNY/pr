@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { InlineMarkdown } from "@/components/product/inline-markdown";
 import type { SpecRow, FeatureItem, ContentSection } from "@/lib/product-content";
 
 const MAX_FACT_ROWS = 8;
@@ -71,7 +72,7 @@ export function ProductSummary({ summary }: { summary: string }) {
   return (
     <section>
       <h2 className="mb-2 text-lg font-bold">כמה מילים על המוצר</h2>
-      <p className="text-foreground/85 max-w-[68ch] text-base leading-[1.75] sm:text-[17px]">{summary}</p>
+      <p className="text-foreground/85 max-w-[68ch] text-base leading-[1.75] sm:text-[17px]"><InlineMarkdown text={summary} /></p>
     </section>
   );
 }
@@ -91,8 +92,8 @@ export function ProductFeatureList({ features }: { features: FeatureItem[] }) {
       <div className="flex flex-col gap-4">
         {features.map((feature, i) => (
           <div key={`${feature.title}-${i}`} className="border-brand/30 border-s-2 ps-3.5">
-            <h3 className="text-base font-bold">{feature.title}</h3>
-            <p className="text-foreground/80 mt-1 max-w-[68ch] text-[15px] leading-[1.75] sm:text-base">{feature.body}</p>
+            <h3 className="text-base font-bold"><InlineMarkdown text={feature.title} /></h3>
+            <p className="text-foreground/80 mt-1 max-w-[68ch] text-[15px] leading-[1.75] sm:text-base"><InlineMarkdown text={feature.body} /></p>
           </div>
         ))}
       </div>
@@ -113,7 +114,7 @@ export function ProductBulletList({ bullets, title }: { bullets: string[]; title
         {bullets.map((bullet, i) => (
           <li key={`${bullet}-${i}`} className="flex items-start gap-2 text-[15px] sm:text-base">
             <Check className="text-brand mt-1 size-4 shrink-0" />
-            <span className="text-foreground/85 leading-[1.6]">{bullet}</span>
+            <span className="text-foreground/85 leading-[1.6]"><InlineMarkdown text={bullet} /></span>
           </li>
         ))}
       </ul>
@@ -127,7 +128,7 @@ export function ProductProse({ paragraphs }: { paragraphs: string[] }) {
     <div className="flex flex-col gap-3">
       {paragraphs.map((p, i) => (
         <p key={i} dir="auto" className="text-foreground/85 max-w-[68ch] text-[15px] leading-[1.75] sm:text-base">
-          {p}
+          <InlineMarkdown text={p} />
         </p>
       ))}
     </div>
@@ -149,27 +150,27 @@ export function ProductSections({ sections }: { sections: ContentSection[] }) {
         // it a long description is one grey column from the summary to the
         // brand banner, and nothing tells the eye where to rest.
         <section key={`${section.title}-${i}`} className="border-border/70 border-t pt-7">
-          <h2 className="mb-3 text-lg font-bold">{section.title}</h2>
+          <h2 className="mb-3 text-lg font-bold"><InlineMarkdown text={section.title} /></h2>
           <div className="flex flex-col gap-4">
             {section.features.map((feature, j) => (
               <div key={`${feature.title}-${j}`} className="border-brand/30 border-s-2 ps-3.5">
-                <h3 className="text-base font-bold">{feature.title}</h3>
-                <p className="text-foreground/80 mt-1 max-w-[68ch] text-[15px] leading-[1.75] sm:text-base">{feature.body}</p>
+                <h3 className="text-base font-bold"><InlineMarkdown text={feature.title} /></h3>
+                <p className="text-foreground/80 mt-1 max-w-[68ch] text-[15px] leading-[1.75] sm:text-base"><InlineMarkdown text={feature.body} /></p>
               </div>
             ))}
             {section.bullets.length > 0 && (
               <ul className="grid grid-cols-1 gap-x-10 gap-y-2.5 sm:grid-cols-2">
                 {section.bullets.map((bullet, j) => (
-                  <li key={`${bullet}-${j}`} className="flex items-start gap-2 text-sm">
+                  <li key={`${bullet}-${j}`} className="flex items-start gap-2 text-[15px] sm:text-base">
                     <Check className="text-brand mt-1 size-4 shrink-0" />
-                    <span className="text-foreground/85 leading-[1.6]">{bullet}</span>
+                    <span className="text-foreground/85 leading-[1.6]"><InlineMarkdown text={bullet} /></span>
                   </li>
                 ))}
               </ul>
             )}
             {section.prose.map((paragraph, j) => (
               <p key={j} dir="auto" className="text-foreground/85 max-w-[68ch] text-[15px] leading-[1.75] sm:text-base">
-                {paragraph}
+                <InlineMarkdown text={paragraph} />
               </p>
             ))}
           </div>
