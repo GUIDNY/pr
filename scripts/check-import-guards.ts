@@ -4,6 +4,7 @@
 // thing it was added to prevent.
 //
 //   npm run check:guards
+import { normalizeDescription } from "../src/lib/product-content";
 import {
   looksLikeEnergyLabelUrl,
   looksLikeMarketingTitle,
@@ -85,11 +86,71 @@ for (const [w, h, expected, why] of SHAPES) {
   if (hasEnergyLabelShape(w, h) !== expected) fail(`${w}x${h} — ${why}`);
 }
 
+
+// ---------------------------------------------------------------------------
+// HTML descriptions
+// ---------------------------------------------------------------------------
+// Straight out of the live Onkyo GX-30ARC description, which is written in
+// HTML end to end. The page used to print the tags.
+const HTML_CASES: [string, string, string][] = [
+  [
+    "<h3>מה כלול באריזה</h3>",
+    "**מה כלול באריזה:**",
+    "a heading becomes the parser's own section-heading form",
+  ],
+  [
+    "<li><strong>שלט IR</strong></li>",
+    "**שלט IR**",
+    "a list item becomes its own line, its bold preserved",
+  ],
+  [
+    "<p>הדגם הרשמי הוא <strong>Onkyo GX-30ARC</strong> מסדרת <strong>Creator Series</strong>.</p>",
+    "הדגם הרשמי הוא **Onkyo GX-30ARC** מסדרת **Creator Series**.",
+    "inline bold survives, the paragraph tags do not",
+  ],
+  [
+    "<p><em>הבהרה:</em> נכתב <strong>50W Total System Power</strong>.</p>",
+    "הבהרה: נכתב **50W Total System Power**.",
+    "em carries no formatting here, so it is unwrapped rather than marked",
+  ],
+  [
+    "<h3>וופר 4 אינץ&#39; וטוויטר 0.75 אינץ&#39;</h3>",
+    "**וופר 4 אינץ' וטוויטר 0.75 אינץ':**",
+    "numeric entities are decoded",
+  ],
+  [
+    "<h3>USB-C &amp; Bluetooth</h3>",
+    "**USB-C & Bluetooth:**",
+    "named entities are decoded",
+  ],
+  [
+    "<h2>Onkyo GX-30ARC — זוג רמקולים</h2>\n\n<p>טקסט.</p>",
+    "**Onkyo GX-30ARC — זוג רמקולים:**\nטקסט.",
+    "blank lines between blocks collapse",
+  ],
+  [
+    "<script>alert(1)</script><p>שלום</p>",
+    "שלום",
+    "a script tag is removed with its contents, never rendered",
+  ],
+  [
+    "טקסט רגיל בלי שום תגית",
+    "טקסט רגיל בלי שום תגית",
+    "plain text is left exactly as it is",
+  ],
+];
+
+for (const [input, expected, why] of HTML_CASES) {
+  const got = normalizeDescription(input);
+  if (got !== expected) fail(`${why}\n        in:  ${JSON.stringify(input)}\n        got: ${JSON.stringify(got)}\n        want:${JSON.stringify(expected)}`);
+}
+
 const total =
-  LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length + SHAPES.length;
+  HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length + SHAPES.length;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${LABEL_URLS.length} label urls, ${PRODUCT_URLS.length} photo urls, ` +
-    `${MARKETING_TITLES.length} copy titles, ${REAL_TITLES.length} real titles, ${SHAPES.length} shapes)`,
+    `${MARKETING_TITLES.length} copy titles, ${REAL_TITLES.length} real titles, ${SHAPES.length} shapes, ` +
+    `${HTML_CASES.length} html descriptions)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;

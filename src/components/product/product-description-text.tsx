@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { InlineMarkdown } from "@/components/product/inline-markdown";
+import { normalizeDescription } from "@/lib/product-content";
 
 const HIGHLIGHT_MAX_LENGTH = 50;
 const MAX_HIGHLIGHTS = 8;
@@ -119,7 +120,11 @@ export function ProductProseText({ prose }: { prose: string[] }) {
 // — used wherever the layout doesn't need them positioned separately, e.g.
 // BrandAboutSection's "about the brand" text.
 export function ProductDescriptionText({ text }: { text: string }) {
-  const { highlights, prose } = parseProductDescription(text);
+  // Some of this text arrives as HTML (see normalizeDescription): the brand
+  // "about" copy and the admin's own preview of a description go through
+  // here, and both would otherwise show the tags. The editor above it still
+  // edits the raw stored text — only what is displayed is converted.
+  const { highlights, prose } = parseProductDescription(normalizeDescription(text));
   if (highlights.length === 0 && prose.length === 0) return null;
 
   return (

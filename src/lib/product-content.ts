@@ -220,6 +220,81 @@ function dedupe<T>(items: T[], keyOf: (item: T) => string): T[] {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Descriptions that arrive as HTML
+// ---------------------------------------------------------------------------
+
+// The enrichment agent writes some descriptions in markdown and some in
+// HTML — 49 and 54 of the live products respectively, both growing — and
+// the page rendered the HTML ones as literal text: an Onkyo product page
+// showed "<h3>מה כלול באריזה</h3>" and "<li><strong>שלט IR</strong></li>"
+// on screen, tags and all.
+//
+// This converts the HTML into the same plain text the parser already
+// understands rather than putting it on the page as markup. That is the
+// whole point: the text comes from an outside source, so nothing here ever
+// becomes HTML the browser executes — no dangerouslySetInnerHTML anywhere.
+// A heading becomes the parser's own heading form, a list item becomes a
+// line, <strong> becomes the ** that InlineMarkdown renders, and every
+// other tag is dropped.
+const HTML_TAG = /<\/?(?:p|div|br|ul|ol|li|h[1-6]|strong|b|em|i|span|table|tbody|tr|td|th|section|article|a|img)\b[^>]*>/i;
+
+export function looksLikeHtml(text: string): boolean {
+  return HTML_TAG.test(text);
+}
+
+const NAMED_ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ",
+  ndash: "–", mdash: "—", hellip: "…", middot: "·", deg: "°", times: "×",
+  laquo: "«", raquo: "»", lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”",
+};
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&#x([0-9a-f]+);/gi, (_m, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_m, dec: string) => String.fromCodePoint(Number(dec)))
+    .replace(/&([a-z]+);/gi, (m, name: string) => NAMED_ENTITIES[name.toLowerCase()] ?? m);
+}
+
+function stripTags(html: string): string {
+  return decodeEntities(html.replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+}
+
+export function htmlToText(html: string): string {
+  let s = html;
+  // Never read as content, and the one thing worth removing wholesale
+  // rather than just untagging.
+  s = s.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, "");
+  // A heading becomes the bold-with-colon line isSectionHeader already
+  // recognises. The colon is a marker and not text: sectionTitleOf strips
+  // it again before the title reaches the page, so an <h3> arrives as its
+  // own section with exactly the words the author wrote. Its inner tags go
+  // first, so a <strong> inside a heading cannot nest ** inside **.
+  s = s.replace(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]\s*>/gi, (_m, inner: string) => {
+    const title = stripTags(inner).replace(/[:\s]+$/, "");
+    return title ? `\n**${title}:**\n` : "\n";
+  });
+  s = s.replace(/<\/?(?:strong|b)\b[^>]*>/gi, "**");
+  s = s.replace(/<\/?(?:em|i)\b[^>]*>/gi, "");
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<li\b[^>]*>/gi, "\n");
+  s = s.replace(/<\/(?:p|div|li|ul|ol|tr|section|article)\s*>/gi, "\n");
+  s = s.replace(/<[^>]*>/g, "");
+  s = decodeEntities(s);
+  return s
+    .split("\n")
+    .map((line) => line.replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join("\n");
+}
+
+// The one entry point both description shapes go through.
+export function normalizeDescription(text: string | null | undefined): string {
+  const raw = (text ?? "").trim();
+  if (!raw) return "";
+  return looksLikeHtml(raw) ? htmlToText(raw) : raw;
+}
+
 // The supplier text carries its own section headings, and in the dense
 // blob shape they sit inline: "…צלחת זכוכית מסתובבת עם רשת לגריל מאפיינים:
 // מיקרוגל אינוורטר בילד אין…" — 1,674 characters with not one newline in
@@ -372,10 +447,11 @@ export function parseProductContent(
   description: string | null | undefined,
   shortDescription?: string | null,
 ): ProductContent {
-  const shortSpec = parseLabelValue(shortDescription ?? "");
-  const givenSummary = shortSpec ? "" : clean(shortDescription ?? "");
+  const short = normalizeDescription(shortDescription);
+  const shortSpec = parseLabelValue(short);
+  const givenSummary = shortSpec ? "" : clean(short);
 
-  const text = (description ?? "").trim();
+  const text = normalizeDescription(description);
   if (!text) {
     return {
       summary: givenSummary,
@@ -446,13 +522,14 @@ export function parseProductContent(
     // paragraph that contains them, which is exactly how the Electrolux
     // ECK5401K page opened. The paragraph speaks for itself instead.
   }
-  // A product whose text is all headings and features has no opening
-  // paragraph to summarise; borrow from what it does have rather than
-  // leaving the top of the page empty.
-  if (!summary && prose.length === 0) {
-    summary = clean(features[0]?.body ?? sections[0]?.prose[0] ?? text).slice(0, SUMMARY_MAX);
-    if (summary.length > SUMMARY_MAX) summary = summary.slice(0, SUMMARY_MAX).replace(/\s\S*$/, "") + "…";
-  }
+  // No opening paragraph means no summary, and that is the right answer
+  // rather than borrowing one from further down. Borrowing was the earlier
+  // behaviour and it printed the text twice: a description that opens with
+  // a heading — every HTML one does — had its first section's paragraph
+  // lifted to the top and then rendered again inside its own section, the
+  // same three sentences one above the other. A product whose text is all
+  // headings leads with its first heading instead, which is what the author
+  // wrote it to do.
 
   const { bullets, paragraphs } = finalizeProse(prose);
 
