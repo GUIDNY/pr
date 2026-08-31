@@ -28,6 +28,8 @@
 //     count is the axis people shop on, and of the 50 products already in
 //     מקפיא תחתון not one mentions 4 doors, so that category already means
 //     the classic 2-door in practice. Freezer position survives as a spec.
+//     Five doors goes to the same leaf, which is why it is named "מקרר 4-5
+//     דלתות" — see category-tree.ts.
 //   • "מקרר אינטגרלי עם מקפיא תחתון" goes to אינטגרלי: built-in is a
 //     kitchen-cabinet constraint and it decides the purchase.
 //   • "מקרר יין אינטגרלי" goes to יינות, which also keeps the Le Imperial
@@ -53,7 +55,7 @@ export const CATEGORY_RULES: Record<string, CategoryRule[]> = {
     { slug: "mini-fridge", match: /משרדי|מיני ?בר|מקרר קובייה/ },
     { slug: "fridge-integrated", match: /אינטגרלי/ },
     { slug: "fridge-side-by-side", match: /side by side|דלת לצד דלת|\bSBS\b/i },
-    { slug: "fridge-4-door", match: /4 דלתות|ארבע דלתות/ },
+    { slug: "fridge-4-door", match: /[45] דלתות|ארבע דלתות|חמש דלתות/ },
     { slug: "fridge-3-door", match: /3 דלתות|שלוש דלתות/ },
     { slug: "fridge-top-freezer", match: /מקפיא עליון/ },
     { slug: "fridge-bottom-freezer", match: /מקפיא תחתון/ },

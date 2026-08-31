@@ -19,7 +19,8 @@
     "check:categories": "tsx scripts/check-category-rules.ts",
     "fix:categories": "NODE_OPTIONS=--conditions=react-server tsx scripts/classify-categories.ts",
     "check:rowkeys": "tsx scripts/check-source-row-key.ts",
-    "fix:rowkeys": "NODE_OPTIONS=--conditions=react-server tsx scripts/backfill-source-row-keys.ts"
+    "fix:rowkeys": "NODE_OPTIONS=--conditions=react-server tsx scripts/backfill-source-row-keys.ts",
+    "fix:category-names": "tsx scripts/sync-category-names.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

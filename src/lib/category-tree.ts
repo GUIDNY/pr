@@ -47,7 +47,11 @@ export const CATEGORY_TREE: CategoryNode[] = [
       { name: "מקרר מקפיא תחתון", slug: "fridge-bottom-freezer" },
       { name: 'מקרר SBS דלת לצד דלת', slug: "fridge-side-by-side" },
       { name: "מקרר 3 דלתות", slug: "fridge-3-door" },
-      { name: "מקרר 4 דלתות", slug: "fridge-4-door" },
+      // Five-door fridges live here too rather than in a leaf of their own —
+      // they are the same French-door body with one more split, five of them
+      // in the catalog, and a category holding five products is a dead end on
+      // a menu. The slug stays fridge-4-door because it is public in the URL.
+      { name: "מקרר 4-5 דלתות", slug: "fridge-4-door" },
       { name: "מקררים ומקפיאים אינטגרליים", slug: "fridge-integrated" },
       { name: "מקרר יינות", slug: "wine-fridge" },
       { name: "מקרר משרדי", slug: "mini-fridge" },

@@ -34,6 +34,9 @@ const CASES: [string, string, string, string | null, string][] = [
   ["refrigeration", "GENERAL GE71BINFR", "מקרר אינטגרלי (בנוי) GENERAL GE71BINFR משולב מקפיא תחתון", "fridge-integrated", "built-in beats freezer position"],
   ["refrigeration", "אימפריאל JCF58 IX", "מקרר יין אינטגרלי מבית LE IMPERIAL עם מדפי עץ ל-20 בקבוקים", "wine-fridge", "wine beats built-in"],
   ["refrigeration", "מקרר יין אינטגרלי Le Imperial JCF201 נפח", "", "wine-fridge", "same call from the title, so the line stays together"],
+  ["refrigeration", "מקרר 5 דלתות סמסונג RF90 נירוסטה", "", "fridge-4-door", "5 doors shares the 4-door leaf — see category-tree.ts"],
+  ["refrigeration", "האייר HRF800", "מקרר חמש דלתות האייר HRF800 שחור", "fridge-4-door", "same, spelled out in the description"],
+  ["refrigeration", "מקרר 2 דלתות מקפיא עליון LG GR-B", "", "fridge-top-freezer", "a door count the leaf does not cover falls through to the freezer position"],
 
   // --- refrigeration: must stay put --------------------------------------
   ["refrigeration", "TCL P687TMN", "", null, "a bare model code names nothing"],
