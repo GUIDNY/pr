@@ -34,10 +34,24 @@ export async function GET(request: Request) {
   const types = typeParam === "ANY" ? null : typeParam ? typeParam.split(",").map((t) => t.trim()) : DEFAULT_TYPES;
   const limitParam = Number(url.searchParams.get("limit"));
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, MAX_LIMIT) : 50;
+  // This used to have no paging at all: `limit` and nothing else, so the
+  // only way past the first 200 rows was to fix them, and a second call
+  // handed back the page you already had.
+  //
+  // The order stays newest-first, with the alert id as the tie-break so
+  // that two alerts raised in the same millisecond — which a sync does by
+  // the hundred — have a defined order and cannot straddle a page
+  // boundary. The cursor is that id, positioned by Prisma rather than by a
+  // comparison of my own: ids in this table are not all the same shape
+  // (cuid from the app, uuid in older rows), so `id < cursor` would order
+  // them arbitrarily, while cursor+skip only ever asks "resume after this
+  // row in the order already given".
+  const cursor = url.searchParams.get("cursor") ?? url.searchParams.get("after");
 
   const alerts = await db.inventoryAlert.findMany({
     where: { ...(types ? { type: { in: [...types] } } : {}), isResolved: false },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     take: limit,
     include: {
       product: {
@@ -64,6 +78,7 @@ export async function GET(request: Request) {
     .map((a) => {
       const p = a.product!;
       return {
+        alertId: a.id,
         sku: p.sku,
         title: p.title,
         slug: p.slug,
@@ -81,5 +96,10 @@ export async function GET(request: Request) {
       };
     });
 
-  return NextResponse.json({ count: products.length, products });
+  // Taken from the raw alert rows, not from `products` — an alert whose
+  // product was deleted is filtered out above, and paging from a cursor
+  // that skipped it would loop on that page forever.
+  const nextCursor = alerts.length === limit ? alerts[alerts.length - 1].id : null;
+
+  return NextResponse.json({ count: products.length, nextCursor, products });
 }

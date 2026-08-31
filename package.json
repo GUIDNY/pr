@@ -20,7 +20,8 @@
     "fix:categories": "NODE_OPTIONS=--conditions=react-server tsx scripts/classify-categories.ts",
     "check:rowkeys": "tsx scripts/check-source-row-key.ts",
     "fix:rowkeys": "NODE_OPTIONS=--conditions=react-server tsx scripts/backfill-source-row-keys.ts",
-    "fix:category-names": "tsx scripts/sync-category-names.ts"
+    "fix:category-names": "tsx scripts/sync-category-names.ts",
+    "check:api": "tsx scripts/check-integration-api.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

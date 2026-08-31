@@ -7,6 +7,7 @@ import { reconcileUrgentMissingMedia, reconcileMissingImage } from "@/lib/invent
 import {
   checkAuth,
   MAX_PRODUCT_IMAGES,
+  unknownKeyError,
   normalizeImages,
   checkImageUrl,
   findOrCreateBrandId,
@@ -16,6 +17,7 @@ import {
   type EnrichImageInput,
   type NormalizedImage,
 } from "@/lib/integrations/product-enrich-shared";
+import { unknownKeysIn, ENRICH_ITEM_KEYS, ENRICH_TOP_LEVEL_KEYS } from "@/lib/integrations/api-fields";
 
 // Bearer-token-protected endpoint for an external agent (e.g. a scraping/
 // enrichment tool) to fill in *missing* data on products that already exist
@@ -33,7 +35,17 @@ type EnrichItem = {
   // reason back instead of silence. These come from the supplier's sheet.
   price?: number;
   stockQty?: number;
+  // Refused for a different reason: whether a product is on the site is a
+  // decision, not content. Listed here so it comes back in `skipped` with
+  // that reason rather than as a generic unknown field — an agent that
+  // tries it is asking a fair question and deserves the answer.
+  isPublished?: boolean;
+  // The product's display name. `title` is what every GET on this API
+  // calls it, so it is accepted under both names; sending `title` used to
+  // be an unknown key, silently dropped, which is how it came to be
+  // believed that a title could not be corrected through this endpoint.
   name?: string;
+  title?: string;
   // The manufacturer's own model number/code — NOT part of `name`. The
   // import only ever fills it from a MODEL-classified Excel column, and a
   // large share of sheets have no such column, so for most products this
@@ -311,8 +323,17 @@ async function processItem(
     applied.push(previous ? `${field} (replaced)` : field);
   };
 
-  if (item.name !== undefined) {
-    const title = String(item.name).trim();
+  if (item.isPublished !== undefined) {
+    skipped.push({
+      field: "isPublished",
+      reason:
+        "not settable here — a product goes live when it has stock, a price and a photo, and an admin who hides one by hand must stay hidden",
+    });
+  }
+
+  const nameInput = item.name ?? item.title;
+  if (nameInput !== undefined) {
+    const title = String(nameInput).trim();
     if (!title) {
       skipped.push({ field: "name", reason: "empty title — a product must keep a name" });
     } else {
@@ -736,6 +757,10 @@ export async function POST(request: Request) {
   }
 
   const record = body as Record<string, unknown>;
+
+  const unknownTop = unknownKeysIn(record, ENRICH_TOP_LEVEL_KEYS);
+  if (unknownTop.length > 0) return unknownKeyError("the request body", unknownTop, ENRICH_TOP_LEVEL_KEYS);
+
   if (record.overwrite !== undefined && !Array.isArray(record.overwrite)) {
     return NextResponse.json(
       { error: '"overwrite" must be an array of field names, e.g. ["brand"] — got a non-array value' },
@@ -761,6 +786,14 @@ export async function POST(request: Request) {
   }
   if (items.length > 200) {
     return NextResponse.json({ error: "max 200 items per request" }, { status: 400 });
+  }
+
+  // Checked before anything is written, and for the whole batch: a caller
+  // that misspelled a field in item 40 should not find out after 39 items
+  // have already landed.
+  for (const [i, item] of items.entries()) {
+    const unknown = unknownKeysIn(item as unknown as Record<string, unknown>, ENRICH_ITEM_KEYS);
+    if (unknown.length > 0) return unknownKeyError(`items[${i}] (sku ${item?.sku ?? "?"})`, unknown, ENRICH_ITEM_KEYS);
   }
 
   const results = [];

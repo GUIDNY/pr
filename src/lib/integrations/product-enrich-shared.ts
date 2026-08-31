@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { type KeyCheck } from "./api-fields";
 
 // Shared between /api/integrations/product-enrich (fill in missing data on
 // an existing product) and /api/integrations/products (create a brand-new
@@ -20,7 +21,30 @@ export function checkAuth(request: Request): NextResponse | null {
   return null;
 }
 
-export const MAX_PRODUCT_IMAGES = 3;
+// Was 3, which was a guess at what a gallery should hold rather than a
+// limit anything needed: the gallery renders whatever rows exist and the
+// thumbnail strip wraps. A manufacturer page routinely carries a front, a
+// side, an open-door, a detail and a lifestyle shot, and an agent that
+// found eight had five thrown away and had to come back for them.
+export const MAX_PRODUCT_IMAGES = 8;
+
+export function unknownKeyError(where: string, keys: string[], check: KeyCheck): NextResponse {
+  const hints = keys
+    .map((k) => {
+      const alias = check.aliases?.[k];
+      if (!alias) return `"${k}"`;
+      if (alias.startsWith("(")) return `"${k}" — ${alias.slice(1, -1)}`;
+      return `"${k}" — did you mean "${alias}"?`;
+    })
+    .join(", ");
+  return NextResponse.json(
+    {
+      error: `unrecognised field(s) in ${where}: ${hints}`,
+      accepted: [...check.known].sort(),
+    },
+    { status: 400 },
+  );
+}
 
 export type FieldOutcome = { field: string; reason: string };
 

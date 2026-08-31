@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/audit";
 import {
   checkAuth,
   MAX_PRODUCT_IMAGES,
+  unknownKeyError,
   normalizeImages,
   checkImageUrl,
   findOrCreateBrandId,
@@ -15,6 +16,7 @@ import {
   type EnrichImageInput,
   type NormalizedImage,
 } from "@/lib/integrations/product-enrich-shared";
+import { unknownKeysIn, CREATE_ITEM_KEYS, CREATE_TOP_LEVEL_KEYS } from "@/lib/integrations/api-fields";
 
 // Bearer-token-protected endpoint (same PRODUCT_ENRICH_SECRET as
 // /api/integrations/product-enrich) for an external agent to create a
@@ -225,9 +227,14 @@ export async function GET(request: Request) {
   const limitParam = Number(url.searchParams.get("limit"));
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(Math.floor(limitParam), LIST_MAX_LIMIT) : 50;
   // Cursor = the last `sku` seen on the previous page (products are
-  // ordered by sku ascending, so this is stable across pages even as other
-  // products are created/edited concurrently).
-  const after = url.searchParams.get("after");
+  // ordered by sku ascending, and the filter is `sku > after`, so pages
+  // are stable and cannot overlap even as products are created or edited
+  // between calls).
+  //
+  // `cursor` is accepted as well as `after` because the response field is
+  // called nextCursor: a caller that feeds nextCursor back under the name
+  // it was given should not get an unfiltered first page.
+  const after = url.searchParams.get("after") ?? url.searchParams.get("cursor");
   const onlyIncomplete = url.searchParams.get("onlyIncomplete") === "true";
   // ?hasModel=false narrows to products with no manufacturer model number
   // at all — the real blocker for enrichment (a missing image/spec can
@@ -333,6 +340,10 @@ export async function POST(request: Request) {
   }
 
   const record = body as Record<string, unknown>;
+
+  const unknownTop = unknownKeysIn(record, CREATE_TOP_LEVEL_KEYS);
+  if (unknownTop.length > 0) return unknownKeyError("the request body", unknownTop, CREATE_TOP_LEVEL_KEYS);
+
   const dryRun = record.dryRun === true;
   const items: CreateItem[] = Array.isArray(record.items)
     ? (record.items as CreateItem[])
@@ -345,6 +356,13 @@ export async function POST(request: Request) {
   }
   if (items.length > 200) {
     return NextResponse.json({ error: "max 200 items per request" }, { status: 400 });
+  }
+
+  // Whole batch first: a misspelling in item 40 should not be discovered
+  // after 39 products already exist.
+  for (const [i, item] of items.entries()) {
+    const unknown = unknownKeysIn(item as unknown as Record<string, unknown>, CREATE_ITEM_KEYS);
+    if (unknown.length > 0) return unknownKeyError(`items[${i}] (sku ${item?.sku ?? "?"})`, unknown, CREATE_ITEM_KEYS);
   }
 
   const results = [];
