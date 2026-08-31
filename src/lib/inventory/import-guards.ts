@@ -98,3 +98,28 @@ export function looksLikeMarketingTitle(title: string): boolean {
   const joins = (t.match(FEATURE_JOINERS) ?? []).length;
   return joins >= 2;
 }
+
+// ---------------------------------------------------------------------------
+// A stock status typed into the model column
+// ---------------------------------------------------------------------------
+
+// Four air-conditioner products in the catalog are called "SOMO אזל זמנית".
+// That is not a product name and never was: the sheet's דגם column held the
+// supplier's note about availability instead of a model number, and with no
+// description on the row the title fell back to brand + model.
+//
+// So a MODEL cell whose whole content is an availability phrase is not a
+// model. It is dropped, the row falls through to whatever the description
+// can give, and MISSING_MODEL puts it in the "טיפול" queue — which is
+// exactly where a line the supplier could not name belongs.
+//
+// Whole-cell only. A real model code that happens to contain one of these
+// words ("EZEL", a model named חסר) keeps it: the phrase has to be the
+// entire value, with nothing else in the cell, for it to be a status rather
+// than a name.
+const STOCK_PHRASE =
+  /^(אזל|אזל מהמלאי|אזל זמנית|זמנית אזל|חסר|חסר במלאי|לא במלאי|אין במלאי|לא זמין|בהזמנה|בהזמנה מראש|הופסק|הופסק ייצור|out of stock|sold out|discontinued|n\/?a)$/i;
+
+export function looksLikeStockPhrase(value: string): boolean {
+  return STOCK_PHRASE.test(value.replace(/\s+/g, " ").trim().replace(/[.!:;]+$/, ""));
+}

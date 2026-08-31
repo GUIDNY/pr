@@ -1,6 +1,7 @@
 import { categoryForSheet, subCategoryFromSectionLabel, type SourceKey } from "./sheet-map";
 import { extractBrand, extractBrandFromDivider, isPlausibleBrandCell } from "./brand-extractor";
 import type { ClassifiedColumn, NormalizedProductRow, ParsedRow, RowIssue, StockLine } from "./types";
+import { looksLikeStockPhrase } from "./import-guards";
 
 function isMappedSourceKey(key: string): key is SourceKey {
   return key === "electronics" || key === "small-appliances" || key === "white-goods-screens";
@@ -151,7 +152,13 @@ export function normalizeRow(
   const description = joinStrings(row.values.DESCRIPTION) ?? fallbackTitleFromUnknownColumns(row, columns);
   // A dedicated דגם column is the most trustworthy source and wins; the
   // sheets that lack one still name the model inline in the description.
-  const model = firstString(row.values.MODEL) ?? modelFromDescription(description);
+  // Unless the cell holds an availability note rather than a model — see
+  // looksLikeStockPhrase — in which case the column has told us nothing and
+  // the row falls through to the description, or to MISSING_MODEL below.
+  const modelCell = firstString(row.values.MODEL);
+  const model =
+    (modelCell && !looksLikeStockPhrase(modelCell) ? modelCell : null) ??
+    modelFromDescription(description);
   const color = firstString(row.values.COLOR) ?? firstColorLike(row.values.VARIANT_TEXT);
   const warranty = firstString(row.values.WARRANTY);
   const imageUrlRaw = firstString(row.values.IMAGE_URL);

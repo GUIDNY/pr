@@ -9,6 +9,7 @@ import {
   looksLikeEnergyLabelUrl,
   looksLikeMarketingTitle,
   hasEnergyLabelShape,
+  looksLikeStockPhrase,
 } from "../src/lib/inventory/import-guards";
 
 const LABEL_URLS = [
@@ -145,12 +146,52 @@ for (const [input, expected, why] of HTML_CASES) {
   if (got !== expected) fail(`${why}\n        in:  ${JSON.stringify(input)}\n        got: ${JSON.stringify(got)}\n        want:${JSON.stringify(expected)}`);
 }
 
+// A דגם cell that is an availability note, not a model number. The first
+// is the one in the catalog: four air conditioners named "SOMO אזל זמנית".
+const STOCK_PHRASES = [
+  "אזל זמנית",
+  "אזל",
+  "אזל מהמלאי",
+  "חסר במלאי",
+  "לא במלאי",
+  "אין במלאי",
+  "בהזמנה",
+  "הופסק ייצור",
+  "out of stock",
+  "Sold Out",
+  "N/A",
+  " אזל זמנית ",
+  "אזל זמנית.",
+];
+for (const v of STOCK_PHRASES) {
+  if (!looksLikeStockPhrase(v)) fail(`stock phrase not recognised: ${JSON.stringify(v)}`);
+}
+
+// Real model codes, including ones that contain a status word. Whole-cell
+// only — a model is dropped on evidence, never on a substring.
+const REAL_MODELS = [
+  "RT62K7044BS",
+  "GE83BIX",
+  "140 נייד",
+  "אזל 200",
+  "SOMO אזל זמנית",
+  "EZEL-9",
+  "NA-127",
+  "חסר-4000",
+  "",
+];
+for (const v of REAL_MODELS) {
+  if (looksLikeStockPhrase(v)) fail(`real model rejected as a stock phrase: ${JSON.stringify(v)}`);
+}
+
 const total =
-  HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length + SHAPES.length;
+  HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
+  SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${LABEL_URLS.length} label urls, ${PRODUCT_URLS.length} photo urls, ` +
     `${MARKETING_TITLES.length} copy titles, ${REAL_TITLES.length} real titles, ${SHAPES.length} shapes, ` +
+    `${STOCK_PHRASES.length} stock phrases, ${REAL_MODELS.length} real models, ` +
     `${HTML_CASES.length} html descriptions)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;
