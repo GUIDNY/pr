@@ -25,7 +25,7 @@ const PRODUCT_TYPE_WORDS =
 // consists ONLY of one of these words (whole match, not merely containing
 // one) is rejected the same way a product-type divider is.
 const NON_BRAND_WORDS =
-  /^(זוג|יחיד|בודד|זוגי|חדש|חדשה|ישן|שנה|שנים|נייד|ניידת|קדם|נירוסטה|דיגיטלי|דיגיטלית|אוטומטי|אוטומטית|ידני|ידנית|קומפקטי|קומפקטית|מקצועי|מקצועית|ביתי|ביתית|חשמלי|חשמלית|שחור|לבן|אפור|כסוף|זהב|זהוב|כחול|ורוד|אדום|ירוק|צהוב|חום|בז'|מוצר מועדף|כל סוגי ה?)$/;
+  /^(זוג|יחיד|בודד|זוגי|חדש|חדשה|ישן|שנה|שנים|נייד|ניידת|קדם|נירוסטה|דיגיטלי|דיגיטלית|אוטומטי|אוטומטית|ידני|ידנית|קומפקטי|קומפקטית|מקצועי|מקצועית|ביתי|ביתית|חשמלי|חשמלית|שחור|לבן|אפור|כסוף|זהב|זהוב|כחול|ורוד|אדום|ירוק|צהוב|חום|בז'|מוצר מועדף|כל סוגי ה?|סט|סטים|סדרה|סדרת|דגם|דגמים|כללי|שונות|אחר)$/;
 
 function isBrandLike(label: string): boolean {
   // A divider is more likely a sub-category label than a brand name when it
@@ -38,6 +38,59 @@ function isBrandLike(label: string): boolean {
     label.length > 0 &&
     label.length < 24
   );
+}
+
+// A model code is not a manufacturer, and a size is not part of one. Both
+// are in the catalog today filed as brands: DS82, R8SW, PRO16RW, R100SW,
+// R120SWI and CHS8000 are model numbers with their own brand row, and one
+// real brand — לקסוס — is split four ways by the measurement printed after
+// it ("לקסוס 3 מ'", "לקסוס 1 מ'", "לקסוס 2 מדפים").
+//
+// Rejecting those cells outright would throw away the real name sitting
+// next to the noise, so the cell is cleaned first and judged afterwards:
+// "כרומקס CHS8000" becomes "כרומקס", "לקסוס 3 מ'" becomes "לקסוס", and
+// "DS82" becomes nothing at all, which is the correct answer for it.
+
+// A single token carrying both Latin letters and digits, four characters
+// or more — DS82, R8SW, PRO16RW, CHS8000. Four and not two because 3M and
+// 3i are real manufacturers and must survive; checked against all 244
+// brand names in the live catalog, which this rejects none of.
+const MODEL_CODE_TOKEN = /^(?=[A-Za-z0-9-]{4,}$)(?=.*[A-Za-z])(?=.*\d)[A-Za-z0-9-]+$/;
+
+// A number followed by a unit or a countable part — the text a price sheet
+// appends to a brand to distinguish two lines of the same product.
+const TRAILING_MEASUREMENT =
+  /\s*\d+(?:[.,]\d+)?\s*(?:מ'|מטר|ס"?מ|סמ|ק"?ג|אינץ'?|ליטר|וואט|w|W|מדפים|מדף|ערוצים|ערוץ|דלתות|רשתות|מערכות|סלסלאות)\s*$/;
+
+// A bare number left at the end once a unit has been stripped, or one that
+// never had a unit: "סט 5.1", "קבוצה 3".
+const TRAILING_BARE_NUMBER = /\s+\d+(?:[.,]\d+)*\s*$/;
+
+export function cleanBrandCell(value: string): string | null {
+  let v = value.replace(/\s+/g, " ").trim();
+
+  // Repeated because a cell can carry more than one — "לקסוס 2 מדפים 3 מ'"
+  // — and because stripping one can expose the next.
+  for (let i = 0; i < 4; i++) {
+    const before = v;
+    v = v.replace(TRAILING_MEASUREMENT, "").trim();
+    v = v.replace(TRAILING_BARE_NUMBER, "").trim();
+    // A trailing product-type word: "קאסו משקל", "אומגה משקל" are the brand
+    // with the thing it sells stuck on the end. Only when a word survives in
+    // front of it — "מיקסר יד" and "בלנדר מוט" are product types all the way
+    // through and have no brand hiding inside them.
+    const words = v.split(" ");
+    if (words.length > 1 && PRODUCT_TYPE_WORDS.test(words[words.length - 1])) v = words.slice(0, -1).join(" ").trim();
+    // A trailing model code, but again only when something is left in front:
+    // a cell that is nothing but a model code has no brand in it to keep.
+    const parts = v.split(" ");
+    while (parts.length > 1 && MODEL_CODE_TOKEN.test(parts[parts.length - 1])) parts.pop();
+    v = parts.join(" ").trim();
+    if (v === before) break;
+  }
+
+  if (!v || MODEL_CODE_TOKEN.test(v)) return null;
+  return isPlausibleBrandCell(v) ? v : null;
 }
 
 // Whether a value sitting in a sheet's BRAND column is worth believing.
@@ -127,5 +180,40 @@ export function extractBrandFromDivider(sectionLabel: string | null): string | n
   // it) — e.g. a standalone "GAGGIA" or "B&W" divider.
   if (isBrandLike(sectionLabel)) return sectionLabel;
 
+  return null;
+}
+
+// Reading a manufacturer out of a product's own title, against the list of
+// brands the catalog already holds.
+//
+// This is the recovery path, not an import path: 93 products carry the
+// placeholder brand "לא ידוע" because they came from accessory tabs — cables,
+// mounts, extractor hoods — that have no BRAND column and no yellow dividers,
+// so extractBrand had nothing to work from and correctly returned null rather
+// than guessing. But 29 of them write the manufacturer plainly in their own
+// title: "לקסוס 1.5 מ' 3RCA ל 3RCA", "כבל אופטי 1.5 מ' HAMA דגם 42927".
+//
+// Matching only against brands that already exist means nothing is invented —
+// the name has to be one this catalog already uses. Longest first, so
+// "פיור אקוסטיק" wins over "פיור", and a Hebrew-aware boundary on both sides,
+// because \b is defined on ASCII word characters and never matches between two
+// Hebrew letters: without it "בקו" would match inside "בקורת".
+const LETTER = "A-Za-z\u0590-\u05FF";
+
+export function brandFromTitle(title: string, catalogBrands: string[]): string | null {
+  const text = title.trim();
+  if (!text) return null;
+  // Two characters is enough for a Latin name — LG and GE are real, and the
+  // boundary below keeps them out of the middle of a longer token. Hebrew
+  // needs three: two-letter Hebrew strings are prepositions and prefixes far
+  // more often than they are manufacturers.
+  const candidates = [...catalogBrands]
+    .map((b) => b.trim())
+    .filter((b) => (/^[A-Za-z0-9&.\- ]+$/.test(b) ? b.length >= 2 : b.length >= 3))
+    .sort((a, b) => b.length - a.length);
+  for (const brand of candidates) {
+    const escaped = brand.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`(?<![${LETTER}])${escaped}(?![${LETTER}])`).test(text)) return brand.trim();
+  }
   return null;
 }

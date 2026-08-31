@@ -1,5 +1,5 @@
 import { categoryForSheet, subCategoryFromSectionLabel, type SourceKey } from "./sheet-map";
-import { extractBrand, extractBrandFromDivider, isPlausibleBrandCell } from "./brand-extractor";
+import { extractBrand, extractBrandFromDivider, cleanBrandCell } from "./brand-extractor";
 import type { ClassifiedColumn, NormalizedProductRow, ParsedRow, RowIssue, StockLine } from "./types";
 import { looksLikeStockPhrase } from "./import-guards";
 
@@ -174,9 +174,14 @@ export function normalizeRow(
   //     by the parser for rows that leave the column blank.
   //  3. Picking the manufacturer out of the description text itself.
   //  4. The section divider this row sits under — see brand-extractor.ts.
+  // cleanBrandCell, not isPlausibleBrandCell: the cell is cleaned before it
+  // is judged, so "כרומקס CHS8000" yields כרומקס and "לקסוס 3 מ'" yields
+  // לקסוס instead of each minting a brand row of its own — which is how one
+  // manufacturer ended up split four ways and eight model numbers ended up
+  // filed as manufacturers.
   const ownBrand = firstString(row.values.BRAND);
   const brandName =
-    (ownBrand && isPlausibleBrandCell(ownBrand) ? ownBrand.trim() : null) ??
+    (ownBrand ? cleanBrandCell(ownBrand) : null) ??
     row.inheritedBrand ??
     (description ? extractBrand(description, knownBrands) : null) ??
     extractBrandFromDivider(row.sectionLabel);
