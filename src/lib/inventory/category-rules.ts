@@ -50,7 +50,7 @@ export type Classification = {
 export const CATEGORY_RULES: Record<string, CategoryRule[]> = {
   refrigeration: [
     { slug: "wine-fridge", match: /מקרר יין|יינות/ },
-    { slug: "mini-fridge", match: /משרדי|מיני ?בר/ },
+    { slug: "mini-fridge", match: /משרדי|מיני ?בר|מקרר קובייה/ },
     { slug: "fridge-integrated", match: /אינטגרלי/ },
     { slug: "fridge-side-by-side", match: /side by side|דלת לצד דלת|\bSBS\b/i },
     { slug: "fridge-4-door", match: /4 דלתות|ארבע דלתות/ },
@@ -102,7 +102,7 @@ export const CATEGORY_RULES: Record<string, CategoryRule[]> = {
     { slug: "hair-straighteners", match: /מחליק שיער|מייש(ר|ב) שיער/ },
     { slug: "hair-curlers", match: /מסלסל/ },
     { slug: "epilators", match: /מסיר שיער|אפילטור/ },
-    { slug: "hair-clippers", match: /מכונ(ת|ות) תספורת|טרימר|מכונת גילוח לגוף/ },
+    { slug: "hair-clippers", match: /מכונ(ת|ות) תספורת|טרימר|קוצץ שיער|מכונת גילוח לגוף/ },
     { slug: "shavers", match: /מכונ(ת|ות) גילוח|מכונת גילוח/ },
   ],
 
@@ -116,7 +116,7 @@ export const CATEGORY_RULES: Record<string, CategoryRule[]> = {
     { slug: "coffee-machines", match: /מכונ(ת|ות) (אספרסו|קפה)|אספרסו/ },
     { slug: "microwaves", match: /מיקרוגל/ },
     { slug: "kettles", match: /קומקום|מיחם/ },
-    { slug: "hot-plates", match: /פלטת? שבת|כירה חשמלית|פלטה חשמלית/ },
+    { slug: "hot-plates", match: /פלט(ה|ת) ל?שבת|כירה חשמלית|פלטה חשמלית|כירה אינדוקציה/ },
     { slug: "air-fryers", match: /אייר ?פריי?ר|air ?fryer|סיר טיגון|סיר בישול/i },
     { slug: "bread-makers", match: /אופה לחם|נפת קמח/ },
     { slug: "juicers", match: /מסחט(ה|ת)/ },
