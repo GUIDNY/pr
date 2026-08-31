@@ -115,6 +115,26 @@ export async function getProductsByIds(ids: string[]) {
 
 export type ProductSort = "relevance" | "price-asc" | "price-desc" | "newest" | "rating";
 
+// A department page shows everything under it — its sub-categories AND the
+// products hanging directly off the department itself. The department's own
+// id used to be dropped the moment it had any children, which quietly hid
+// 224 live products: 164 refrigerators, 38 small kitchen appliances and 22
+// personal care. /category/personal-care rendered "לא נמצאו מוצרים" on a
+// department with 22 products in it, and every one of those 164 fridges was
+// unreachable by browsing the site at all — the eight fridge sub-categories
+// they belong in are empty, so there was no other page carrying them
+// either.
+//
+// Products sit on a department because sheet-map.ts maps a whole supplier
+// tab to one broad category on purpose (the tabs mix sub-types with no
+// per-row category column), so this is the normal state of a freshly
+// imported product, not an anomaly to design around. They still need
+// classifying — a product on a department has no CategoryAttribute schema
+// to fill — but until then it must at least be findable.
+function categoryScope(category: { id: string; children: { id: string }[] }): string[] {
+  return [category.id, ...category.children.map((c) => c.id)];
+}
+
 export async function getProductsByCategorySlug(
   categorySlug: string,
   opts: {
@@ -130,7 +150,7 @@ export async function getProductsByCategorySlug(
   const category = await db.category.findUnique({ where: { slug: categorySlug }, include: { children: true } });
   if (!category) return { products: [], total: 0, category: null, brands: [], priceRange: null };
 
-  const categoryIds = category.children.length > 0 ? category.children.map((c) => c.id) : [category.id];
+  const categoryIds = categoryScope(category);
 
   const where: Record<string, unknown> = {
     ...PUBLIC_PRODUCT_WHERE,
@@ -198,7 +218,7 @@ export async function getProductsByCategorySlug(
 export async function getCategoryFilterAttributes(categorySlug: string) {
   const category = await db.category.findUnique({ where: { slug: categorySlug }, include: { children: true } });
   if (!category) return [];
-  const categoryIds = category.children.length > 0 ? category.children.map((c) => c.id) : [category.id];
+  const categoryIds = categoryScope(category);
 
   const attrs = await db.categoryAttribute.findMany({
     where: { categoryId: { in: categoryIds }, isFilter: true },
