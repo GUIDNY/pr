@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { runFullSync } from "@/lib/inventory/sync";
 import { uploadInventoryFile } from "@/lib/inventory/storage";
+import { stampSourceRowKeys } from "@/lib/inventory/backfill-row-keys";
 import { INVENTORY_SOURCES } from "@/lib/inventory/sheet-map";
 import { extractSpreadsheetId, extractGid, fetchSheetWorkbook } from "@/lib/inventory/google-sheets-source";
 
@@ -56,6 +57,30 @@ export async function uploadInventorySourceAction(formData: FormData) {
 
   const known = INVENTORY_SOURCES.find((s) => s.key === key);
   if (!known) return { success: false, error: "מקור לא מוכר" };
+
+  // The last moment the products' recorded row positions and the file that
+  // produced them still agree. A product created from a row with no SKU is
+  // recognised on the next sync by sourceRowKey, and one that has never
+  // been synced since the column existed does not have a key yet — so it
+  // gets one now, from the outgoing file, before the incoming sheet shifts
+  // every row under an insertion and the position match stops working.
+  // Without this the fallback would be the product's current brand, model
+  // and title, which is precisely what the admin and the enrichment agent
+  // rewrite, and the sync would create a second copy of a curated product.
+  //
+  // Best-effort on purpose: an unreadable outgoing file is not a reason to
+  // refuse a new one. It only leaves us where we were before this ran.
+  const previous = await db.inventorySource.findUnique({
+    where: { key },
+    select: { id: true, key: true, sourceType: true, storagePath: true, sheetUrl: true, categorySlugOverride: true },
+  });
+  if (previous) {
+    try {
+      await stampSourceRowKeys(previous, { apply: true });
+    } catch {
+      // swallowed — see above
+    }
+  }
 
   const bytes = Buffer.from(await file.arrayBuffer());
   // Storage object keys must be ASCII — real (often Hebrew) filenames are

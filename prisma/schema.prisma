@@ -205,6 +205,11 @@ model Product {
   source                 InventorySource? @relation(fields: [sourceId], references: [id])
   sourceSheet            String?
   sourceRowRef           Int?
+  // What the sheet row itself said — brand, model and description hashed
+  // together — so a row with no SKU can still be recognised after we have
+  // edited its title, brand or category in the admin. See
+  // lib/inventory/source-row-key.ts.
+  sourceRowKey           String?
   lastExcelSyncAt        DateTime?
   missingFromSourceSince DateTime? // set when a previously-known product stops appearing in its source; never auto-deleted
 
@@ -222,6 +227,7 @@ model Product {
   @@index([categoryId])
   @@index([brandId])
   @@index([sourceId])
+  @@index([sourceId, sourceRowKey])
   @@index([isTemporarySku])
   @@index([model])
 }

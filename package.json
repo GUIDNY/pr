@@ -17,7 +17,9 @@
     "check:guards": "tsx scripts/check-import-guards.ts",
     "scan:labels": "tsx scripts/check-energy-labels.ts",
     "check:categories": "tsx scripts/check-category-rules.ts",
-    "fix:categories": "NODE_OPTIONS=--conditions=react-server tsx scripts/classify-categories.ts"
+    "fix:categories": "NODE_OPTIONS=--conditions=react-server tsx scripts/classify-categories.ts",
+    "check:rowkeys": "tsx scripts/check-source-row-key.ts",
+    "fix:rowkeys": "NODE_OPTIONS=--conditions=react-server tsx scripts/backfill-source-row-keys.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -14,6 +14,7 @@ import {
 import type { SourceKey } from "./sheet-map";
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
+import { sourceRowKeyFor } from "./source-row-key";
 import { looksLikeEnergyLabelUrl, looksLikeMarketingTitle } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
 
@@ -61,10 +62,28 @@ export async function findExistingProduct(
     return db.product.findUnique({ where: { sku: row.sku } });
   }
 
+  // A row with no SKU, whose position has moved. What identifies it is what
+  // the sheet says about it, which is what sourceRowKey stores — see
+  // source-row-key.ts for why the product's own brand/model/title cannot be
+  // used here any more: those are precisely the fields we edit.
+  const rowKey = sourceRowKeyFor(row);
+  if (rowKey) {
+    const keyMatch = await db.product.findFirst({
+      where: { sourceId, isTemporarySku: true, sourceRowKey: rowKey },
+    });
+    if (keyMatch) return keyMatch;
+  }
+
+  // Products created before the key existed have none stored yet, so the
+  // old comparison stays as the last resort. It is wrong whenever the
+  // product has been edited, which is the whole reason for the key — but it
+  // is still better than no match at all, and every product it does find
+  // gets a key written on this same run, so each sync shrinks this path.
   return db.product.findFirst({
     where: {
       sourceId,
       isTemporarySku: true,
+      sourceRowKey: null,
       brandId,
       model: row.model,
       title: row.title,
@@ -264,6 +283,12 @@ async function applyOneRow(
 
   const stockLines = displayStockLines(row);
 
+  // Written on create and refreshed on every update, so a product created
+  // before this existed picks one up the first time its row is seen again —
+  // which is what lets the legacy brand+model+title fallback in
+  // findExistingProduct shrink to nothing instead of living forever.
+  const sourceRowKey = sourceRowKeyFor(row);
+
   const data = {
     sku,
     isTemporarySku,
@@ -290,6 +315,7 @@ async function applyOneRow(
     sourceId,
     sourceSheet: row.sheetName,
     sourceRowRef: row.rowIndex,
+    sourceRowKey,
     lastExcelSyncAt: new Date(),
     missingFromSourceSince: null,
     // Store policy: zero stock means fully off the site, not just
@@ -320,7 +346,10 @@ async function applyOneRow(
   //
   // Source position (sourceId/sheet/rowRef) stays current because
   // findExistingProduct matches on it — a product whose row moved would
-  // otherwise stop being recognised and come back as a duplicate.
+  // otherwise stop being recognised and come back as a duplicate. And
+  // sourceRowKey for the same reason one step further out: position is
+  // what fails when the supplier inserts a row, and the key is what
+  // recognises the product after it does.
   const stockOnlyUpdate = {
     stockStatus: data.stockStatus,
     stockQty: data.stockQty,
@@ -328,6 +357,7 @@ async function applyOneRow(
     sourceId: data.sourceId,
     sourceSheet: data.sourceSheet,
     sourceRowRef: data.sourceRowRef,
+    sourceRowKey: data.sourceRowKey,
     lastExcelSyncAt: data.lastExcelSyncAt,
     missingFromSourceSince: data.missingFromSourceSince,
   };
