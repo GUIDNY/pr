@@ -15,7 +15,9 @@
     "fix:brands": "NODE_OPTIONS=--conditions=react-server tsx scripts/backfill-brand-attribution.ts",
     "check:content": "tsx scripts/check-product-content.ts",
     "check:guards": "tsx scripts/check-import-guards.ts",
-    "scan:labels": "tsx scripts/check-energy-labels.ts"
+    "scan:labels": "tsx scripts/check-energy-labels.ts",
+    "check:categories": "tsx scripts/check-category-rules.ts",
+    "fix:categories": "NODE_OPTIONS=--conditions=react-server tsx scripts/classify-categories.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
