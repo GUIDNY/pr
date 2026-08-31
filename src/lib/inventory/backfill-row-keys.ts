@@ -114,6 +114,20 @@ export async function stampSourceRowKeys(
     return result;
   }
 
+  // Every product this source has ever created, indexed by the position it
+  // was last seen at. One query instead of one per row: the upload action
+  // calls this inline while an admin waits, and the largest source has
+  // ~1,000 products behind a few thousand rows.
+  const existing = await db.product.findMany({
+    where: { sourceId: source.id },
+    select: { id: true, sku: true, title: true, isTemporarySku: true, sourceRowKey: true, sourceSheet: true, sourceRowRef: true },
+  });
+  const atPosition = new Map<string, (typeof existing)[number]>();
+  for (const p of existing) {
+    if (p.sourceSheet === null || p.sourceRowRef === null) continue;
+    atPosition.set(`${p.sourceSheet}\u0000${p.sourceRowRef}`, p);
+  }
+
   const candidates: StampedKey[] = [];
   const byKey = new Map<string, StampedKey[]>();
 
@@ -145,10 +159,7 @@ export async function stampSourceRowKeys(
         continue;
       }
 
-      const product = await db.product.findFirst({
-        where: { sourceId: source.id, sourceSheet: sheet.sheetName, sourceRowRef: parsedRow.rowIndex },
-        select: { id: true, sku: true, title: true, isTemporarySku: true, sourceRowKey: true },
-      });
+      const product = atPosition.get(`${sheet.sheetName}\u0000${parsedRow.rowIndex}`);
       if (!product) {
         result.noProductAtPosition++;
         continue;
@@ -184,9 +195,16 @@ export async function stampSourceRowKeys(
   result.collidedProductIds = [...collided];
   result.written = candidates.filter((c) => !collided.has(c.productId));
 
+  // Chunked rather than one statement at a time: same reason as the single
+  // read above — this runs inline in the upload action, and 400-odd
+  // sequential round trips to the pooler is long enough to matter.
   if (apply) {
-    for (const c of result.written) {
-      await db.product.update({ where: { id: c.productId }, data: { sourceRowKey: c.key } });
+    for (let i = 0; i < result.written.length; i += 100) {
+      await db.$transaction(
+        result.written
+          .slice(i, i + 100)
+          .map((c) => db.product.update({ where: { id: c.productId }, data: { sourceRowKey: c.key } })),
+      );
     }
   }
   return result;

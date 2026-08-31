@@ -75,10 +75,15 @@ export async function uploadInventorySourceAction(formData: FormData) {
     select: { id: true, key: true, sourceType: true, storagePath: true, sheetUrl: true, categorySlugOverride: true },
   });
   if (previous) {
-    try {
-      await stampSourceRowKeys(previous, { apply: true });
-    } catch {
-      // swallowed — see above
+    const needKeys = await db.product.count({
+      where: { sourceId: previous.id, isTemporarySku: true, sourceRowKey: null },
+    });
+    if (needKeys > 0) {
+      try {
+        await stampSourceRowKeys(previous, { apply: true });
+      } catch {
+        // swallowed — see above
+      }
     }
   }
 
