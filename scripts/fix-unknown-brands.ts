@@ -45,9 +45,21 @@ async function main() {
     .filter((b) => b.cleaned !== b.name.trim());
 
   // The vocabulary a title may be matched against: every brand that is not
-  // the placeholder and not one of the junk rows.
+  // the placeholder and not one of the junk rows — and, for names shorter
+  // than three characters, only those the catalog leans on. LG carries 40
+  // products and is worth finding in a title; "PL" carries 4 and is a
+  // connector type printed in cable names ("כבל מאריך PL ל - PL"), "DS"
+  // carries 1. A two-character string is too small to be evidence on its
+  // own, so the catalog's own use of it is the evidence instead.
+  const SHORT_NAME_MIN_PRODUCTS = 5;
+  const counts = new Map(
+    (await db.product.groupBy({ by: ["brandId"], _count: { _all: true } })).map((g) => [g.brandId, g._count._all]),
+  );
   const junkIds = new Set(junk.map((b) => b.id));
-  const vocabulary = brands.filter((b) => b.id !== byName.get(PLACEHOLDER)?.id && !junkIds.has(b.id)).map((b) => b.name);
+  const vocabulary = brands
+    .filter((b) => b.id !== byName.get(PLACEHOLDER)?.id && !junkIds.has(b.id))
+    .filter((b) => b.name.trim().length >= 3 || (counts.get(b.id) ?? 0) >= SHORT_NAME_MIN_PRODUCTS)
+    .map((b) => b.name);
 
   const products = await db.product.findMany({
     where: { OR: [{ brand: { name: PLACEHOLDER } }, { brandId: { in: [...junkIds] } }] },
@@ -59,6 +71,14 @@ async function main() {
     },
   });
 
+  const existingNames = brands.map((b) => b.name.trim()).filter((n) => n !== PLACEHOLDER);
+  const mergeTarget = (name: string): string | null => {
+    const candidates = existingNames
+      .filter((n) => n.length >= 3 && n.length < name.length && name.startsWith(`${n} `))
+      .sort((a, b) => b.length - a.length);
+    return candidates[0] ?? null;
+  };
+
   const moves: Move[] = [];
   const stuck: { sku: string; title: string; category: string; live: boolean }[] = [];
   const cleanedName = new Map(junk.map((b) => [b.id, b.cleaned]));
@@ -67,7 +87,12 @@ async function main() {
     const live = p.isPublished && p.stockQty > 0 && p.images.length > 0;
     // A junk brand row that still holds a real name inside it — "כרומקס
     // CHS8000" -> כרומקס — resolves without reading the title at all.
-    const fromCell = cleanedName.get(p.brand.id) ?? null;
+    // A cleaned name that still starts with a shorter brand the catalog
+    // already has belongs to that one: "גורניה  י.שלום" is Gorenje plus its
+    // importer, and giving it a row of its own would split the brand rather
+    // than repair it.
+    const rawCell = cleanedName.get(p.brand.id) ?? null;
+    const fromCell = rawCell ? (mergeTarget(rawCell) ?? rawCell) : null;
     const fromTitle = brandFromTitle(p.title, vocabulary);
     // A product left on a junk brand row is worse off than one on the
     // placeholder: "DS82" reads as a manufacturer on the brands page and is

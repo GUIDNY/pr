@@ -108,9 +108,12 @@ export function isPlausibleBrandCell(value: string): boolean {
   if (v.length < 2 || v.length > 24) return false;
   if (!/[A-Za-z\u0590-\u05FF]/.test(v)) return false;
   if (/^[\d/\\.\-\s]+$/.test(v)) return false;
-  // A leading count — "5 גז רשתות", "3 סלסלאות דיגיטלי 15". Requires the
-  // whitespace: "3i" and "3M" are real manufacturers and must survive.
+  // A leading count — "5 גז רשתות", "3 סלסלאות דיגיטלי 15", and the same
+  // thing with the space missing, "3סלסלאות דיגיטלי 15". A digit followed by
+  // a Hebrew letter is always a count; "3i" and "3M" are real manufacturers
+  // and survive because what follows their digit is Latin.
   if (/^\d+\s/.test(v)) return false;
+  if (/^\d+[\u0590-\u05FF]/.test(v)) return false;
   if (NON_BRAND_WORDS.test(v)) return false;
   if (PRODUCT_TYPE_WORDS.test(v)) return false;
   return true;
@@ -198,7 +201,10 @@ export function extractBrandFromDivider(sectionLabel: string | null): string | n
 // "פיור אקוסטיק" wins over "פיור", and a Hebrew-aware boundary on both sides,
 // because \b is defined on ASCII word characters and never matches between two
 // Hebrew letters: without it "בקו" would match inside "בקורת".
-const LETTER = "A-Za-z\u0590-\u05FF";
+// Digits belong in the boundary as well as letters: without them "DS" would
+// match at the front of "DS82-BK" — a model code — because the digit is not
+// a letter. Confirmed on real data, where that produced a brand called DS.
+const LETTER = "A-Za-z0-9\u0590-\u05FF";
 
 export function brandFromTitle(title: string, catalogBrands: string[]): string | null {
   const text = title.trim();

@@ -27,6 +27,8 @@ const JUNK: [string, string | null, string][] = [
   ["סט 5.1", null, "a set with a channel count is not a maker"],
   ["5 גז רשתות", null, "a burner count written where a name belongs"],
   ["3 סלסלאות דיגיטלי 15", null, "same"],
+  ["3סלסלאות דיגיטלי 15", null, "same, with the space missing — a digit against a Hebrew letter is always a count"],
+  ["גורניה  י.שלום", "גורניה י.שלום", "double spacing is normalised; the caller then merges it into גורניה"],
   ["6 תכ חצי כמות דיגיטלי 14", null, "same"],
   ["מיקסר אומנים 10 ערוצים", null, "a product description"],
   ["מצנמים", null, "a category label — this class filed 68 products once"],
@@ -52,7 +54,7 @@ const REAL = [
 for (const name of REAL) eq(cleanBrandCell(name), name, `a real manufacturer must come back unchanged`);
 
 // --- brandFromTitle: only ever a name the catalog already uses -----------
-const VOCAB = ["לקסוס", "HAMA", "פיור", "פיור אקוסטיק", "כרומקס", "נקסט", "בקו", "LG", "סמסונג"];
+const VOCAB = ["לקסוס", "HAMA", "פיור", "פיור אקוסטיק", "כרומקס", "נקסט", "בקו", "LG", "סמסונג", "DS"];
 const TITLES: [string, string | null, string][] = [
   ["לקסוס 1.5 מ' 3RCA ל 3RCA פשוט", "לקסוס", "the manufacturer opens the title"],
   ["כבל אופטי 1.5 מ' HAMA דגם 42927", "HAMA", "it sits in the middle"],
@@ -63,6 +65,8 @@ const TITLES: [string, string | null, string][] = [
   ["מקרר בקורת איכות מיוחדת", null, "בקו must not match inside בקורת — \\b never fires between two Hebrew letters"],
   ["טלוויזיה LG OLED 65", "LG", "a two-letter Latin brand is still found"],
   ["מסך LGB-500 של יצרן אחר", null, "and not inside a longer token"],
+  ['DS82-BK סאב וופר אקטיבי דגם ELAC', null, "a brand must not match where a digit follows it — DS at the front of DS82"],
+  ["כבל מאריך PL ל - PL", null, "PL is a connector printed in cable names; the caller keeps it out of the vocabulary"],
 ];
 for (const [title, want, why] of TITLES) eq(brandFromTitle(title, VOCAB), want, `${why}: ${JSON.stringify(title)}`);
 
