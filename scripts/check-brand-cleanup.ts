@@ -54,7 +54,7 @@ const REAL = [
 for (const name of REAL) eq(cleanBrandCell(name), name, `a real manufacturer must come back unchanged`);
 
 // --- brandFromTitle: only ever a name the catalog already uses -----------
-const VOCAB = ["לקסוס", "HAMA", "פיור", "פיור אקוסטיק", "כרומקס", "נקסט", "בקו", "LG", "סמסונג", "DS"];
+const VOCAB = ["לקסוס", "HAMA", "פיור", "פיור אקוסטיק", "כרומקס", "נקסט", "בקו", "LG", "סמסונג", "DS", "מורפי ריצ'ארד", "גאג'יה"];
 const TITLES: [string, string | null, string][] = [
   ["לקסוס 1.5 מ' 3RCA ל 3RCA פשוט", "לקסוס", "the manufacturer opens the title"],
   ["כבל אופטי 1.5 מ' HAMA דגם 42927", "HAMA", "it sits in the middle"],
@@ -67,6 +67,8 @@ const TITLES: [string, string | null, string][] = [
   ["מסך LGB-500 של יצרן אחר", null, "and not inside a longer token"],
   ['DS82-BK סאב וופר אקטיבי דגם ELAC', null, "a brand must not match where a digit follows it — DS at the front of DS82"],
   ["כבל מאריך PL ל - PL", null, "PL is a connector printed in cable names; the caller keeps it out of the vocabulary"],
+  ["מורפי ריצארד אופה לחם דיגטלי דגם 48297", "מורפי ריצ'ארד", "a geresh typed one way in the brand row and another in the title is the same name"],
+  ["מכשיר של גאגיה", "גאג'יה", "same, the other direction"],
 ];
 for (const [title, want, why] of TITLES) eq(brandFromTitle(title, VOCAB), want, `${why}: ${JSON.stringify(title)}`);
 

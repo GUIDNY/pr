@@ -206,6 +206,14 @@ export function extractBrandFromDivider(sectionLabel: string | null): string | n
 // a letter. Confirmed on real data, where that produced a brand called DS.
 const LETTER = "A-Za-z0-9\u0590-\u05FF";
 
+// Hebrew geresh and gershayim are typed several ways for the same name —
+// מורפי ריצ'ארד in the brand row, מורפי ריצארד in a title written later —
+// and a match that told them apart would miss a manufacturer the catalog
+// plainly holds. Both sides are compared with those marks removed; the name
+// returned is still the stored one, spelled as the catalog spells it.
+const GERESH = /['\u05F3\u05F4"\u2018\u2019\u201C\u201D`]/g;
+const deGeresh = (s: string) => s.replace(GERESH, "");
+
 export function brandFromTitle(title: string, catalogBrands: string[]): string | null {
   const text = title.trim();
   if (!text) return null;
@@ -217,9 +225,11 @@ export function brandFromTitle(title: string, catalogBrands: string[]): string |
     .map((b) => b.trim())
     .filter((b) => (/^[A-Za-z0-9&.\- ]+$/.test(b) ? b.length >= 2 : b.length >= 3))
     .sort((a, b) => b.length - a.length);
+  const flattened = deGeresh(text);
   for (const brand of candidates) {
-    const escaped = brand.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    if (new RegExp(`(?<![${LETTER}])${escaped}(?![${LETTER}])`).test(text)) return brand.trim();
+    const escaped = deGeresh(brand).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!escaped) continue;
+    if (new RegExp(`(?<![${LETTER}])${escaped}(?![${LETTER}])`).test(flattened)) return brand;
   }
   return null;
 }
