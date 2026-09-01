@@ -3,7 +3,8 @@ import Link from "next/link";
 import { CheckCircle2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderTimeline } from "@/components/order/order-timeline";
-import { getOrderByNumber } from "@/lib/queries/orders";
+import { getOrderByNumber, getLatestPaymentForOrder } from "@/lib/queries/orders";
+import { PaymentConfirmation } from "@/components/checkout/payment-confirmation";
 import { formatPrice, formatDateTime } from "@/lib/format";
 import type { OrderStatus, DeliveryMethod } from "@/lib/enums";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
@@ -13,15 +14,35 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
   const order = await getOrderByNumber(orderNumber);
   if (!order) notFound();
 
+  /* An order paid through the gateway is only confirmed by Pelecard's
+     server-side callback, and that can land a second or two after the customer
+     is redirected back here — so the page reports whatever the database
+     currently says and lets the panel below poll until it settles. This page
+     never writes a payment status. */
+  const payment = order.paymentMethod === "PELECARD" ? await getLatestPaymentForOrder(order.id) : null;
+  const awaitingGateway = order.paymentMethod === "PELECARD";
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
         <CheckCircle2 className="text-success size-16" strokeWidth={1.5} />
-        <h1 className="text-2xl font-bold">ההזמנה התקבלה בהצלחה!</h1>
+        <h1 className="text-2xl font-bold">
+          {awaitingGateway && order.paymentStatus !== "CAPTURED" ? "ההזמנה נשמרה" : "ההזמנה התקבלה בהצלחה!"}
+        </h1>
         <p className="text-muted-foreground">
           מספר הזמנה <span className="text-foreground font-semibold">{order.orderNumber}</span> · בוצעה ב-{formatDateTime(order.createdAt)}
         </p>
       </div>
+
+      {awaitingGateway && (
+        <PaymentConfirmation
+          orderNumber={order.orderNumber}
+          initialStatus={order.paymentStatus}
+          approvalNo={payment?.approvalNo ?? null}
+          cardLast4={payment?.cardLast4 ?? null}
+          clearerName={payment?.clearerName ?? null}
+        />
+      )}
 
       <div className="border-border mb-6 rounded-xl border p-5">
         <OrderTimeline status={order.status as OrderStatus} />

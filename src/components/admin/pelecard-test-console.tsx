@@ -1,0 +1,106 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
+import { Copy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { createSandboxTestOrderAction } from "@/actions/pelecard-test";
+
+/* QAResultStatus makes Pelecard return exactly the code you ask for, which is
+   how the failure paths get tested without hunting for a card that declines.
+   The server action behind this refuses to run outside the sandbox. */
+const RESULTS = [
+  { code: "000", label: "הצלחה" },
+  { code: "006", label: "CVV שגוי" },
+  { code: "033", label: "כרטיס פסול" },
+  { code: "036", label: "כרטיס פג תוקף" },
+  { code: "301", label: "Timeout" },
+];
+
+const TEST_CARD = "458045804580";
+
+export function PelecardTestConsole() {
+  const [amount, setAmount] = useState("149.90");
+  const [qaResultStatus, setQaResultStatus] = useState("000");
+  const [isPending, startTransition] = useTransition();
+
+  function run() {
+    startTransition(async () => {
+      const result = await createSandboxTestOrderAction(Number(amount), qaResultStatus);
+      if (!result.success) {
+        toast.error(result.error ?? "שגיאה ביצירת בדיקה");
+        return;
+      }
+      window.location.href = result.redirectUrl;
+    });
+  }
+
+  return (
+    <div className="border-border bg-card flex flex-col gap-4 rounded-xl border p-5">
+      <h2 className="font-semibold">הרצת עסקת בדיקה</h2>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="test-amount" className="mb-1.5">
+            סכום לבדיקה (₪)
+          </Label>
+          <Input
+            id="test-amount"
+            type="number"
+            step="0.01"
+            min="0.1"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <p className="text-muted-foreground mt-1 text-xs">
+            נשלח לפלאקארד באגורות: {Number.isFinite(Number(amount)) ? Math.round(Number(amount) * 100) : "—"}
+          </p>
+        </div>
+
+        <div>
+          <Label htmlFor="test-result" className="mb-1.5">
+            תוצאה לאלץ (QAResultStatus)
+          </Label>
+          <select
+            id="test-result"
+            value={qaResultStatus}
+            onChange={(e) => setQaResultStatus(e.target.value)}
+            className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm"
+          >
+            {RESULTS.map((r) => (
+              <option key={r.code} value={r.code}>
+                {r.code} — {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-muted flex flex-wrap items-center gap-2 rounded-lg p-3 text-sm">
+        <span className="font-medium">כרטיס בדיקה:</span>
+        <code dir="ltr" className="font-mono">
+          {TEST_CARD}
+        </code>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1"
+          onClick={() => {
+            void navigator.clipboard.writeText(TEST_CARD);
+            toast.success("הועתק");
+          }}
+        >
+          <Copy className="size-3.5" />
+          העתקה
+        </Button>
+        <span className="text-muted-foreground text-xs">תוקף: כל תאריך עתידי (MMYY) · CVV: כל 3 ספרות</span>
+      </div>
+
+      <Button variant="brand" onClick={run} disabled={isPending} className="self-start">
+        {isPending ? "פותח עסקה..." : "יצירת הזמנת בדיקה ומעבר לסליקה"}
+      </Button>
+    </div>
+  );
+}

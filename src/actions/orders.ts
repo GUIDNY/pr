@@ -1,12 +1,13 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { getOrCreateCart } from "@/lib/cart";
+import { getCart, getOrCreateCart } from "@/lib/cart";
 import { getSession } from "@/lib/auth";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
 import { verifyOrderAccess } from "@/lib/queries/orders";
+import { pelecardEnabled } from "@/lib/pelecard/config";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -51,8 +52,14 @@ export async function createOrderAction(input: CheckoutInput) {
     orderNumber = generateOrderNumber();
   }
 
-  const paymentStatus = data.paymentMethod === "DEMO_CARD" ? "CAPTURED" : "PENDING";
-  const orderStatus = data.paymentMethod === "DEMO_CARD" ? "PAID" : "NEW";
+  /* With a real gateway wired in, an order is never born paid: it is created
+     as awaiting payment, the customer is sent to Pelecard, and only the
+     server-side callback may mark it captured. The old DEMO behaviour — mark
+     it paid on the spot because the form said so — stays exactly as it was
+     while the flag is off, so nothing changes until it is switched on. */
+  const payWithPelecard = pelecardEnabled() && data.paymentMethod === "DEMO_CARD";
+  const paymentStatus = payWithPelecard ? "PENDING" : data.paymentMethod === "DEMO_CARD" ? "CAPTURED" : "PENDING";
+  const orderStatus = payWithPelecard ? "PAYMENT_PENDING" : data.paymentMethod === "DEMO_CARD" ? "PAID" : "NEW";
 
   const order = await db.order.create({
     data: {
@@ -101,7 +108,7 @@ export async function createOrderAction(input: CheckoutInput) {
     data: { orderId: order.id, toStatus: orderStatus, note: "הזמנה נוצרה" },
   });
 
-  if (paymentStatus === "CAPTURED") {
+  if (!payWithPelecard && paymentStatus === "CAPTURED") {
     const last4 = data.cardNumber ? data.cardNumber.replace(/\s/g, "").slice(-4) : null;
     await db.payment.create({
       data: {
@@ -112,6 +119,22 @@ export async function createOrderAction(input: CheckoutInput) {
         reference: last4 ? `DEMO-**** ${last4}` : "DEMO-COD",
       },
     });
+  }
+
+  /* A cart being emptied is the sign that the order went through. With
+     Pelecard the order is not through yet — the customer is about to be sent
+     to a payment page they may abandon or fail — so the cart is left alone
+     and cleared once the payment is confirmed (clearPaidOrderCartAction).
+     Emptying it here would leave someone whose card was declined with an
+     order they cannot pay for and a cart they have to rebuild. */
+  if (payWithPelecard) {
+    return {
+      success: true as const,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      requiresPayment: true as const,
+      error: null,
+    };
   }
 
   // clear the cart now that the order owns a snapshot of its contents,
@@ -135,7 +158,49 @@ export async function createOrderAction(input: CheckoutInput) {
     },
   });
 
-  return { success: true as const, orderNumber: order.orderNumber, error: null };
+  return {
+    success: true as const,
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    requiresPayment: false as const,
+    error: null,
+  };
+}
+
+/**
+ * Empties the cart once a gateway payment has actually been confirmed.
+ *
+ * Called from the confirmation page, and it checks the order itself rather
+ * than trusting the caller: the browser arriving at that page proves nothing
+ * (see the callback route), so a cart is only cleared for an order the
+ * database says is captured.
+ */
+export async function clearPaidOrderCartAction(orderNumber: string) {
+  const order = await db.order.findUnique({
+    where: { orderNumber },
+    select: { id: true, paymentStatus: true },
+  });
+  if (!order || order.paymentStatus !== "CAPTURED") return { success: false as const };
+
+  const cart = await getCart();
+  if (!cart.id) return { success: false as const };
+
+  await db.cartItem.deleteMany({ where: { cartId: cart.id } });
+  await db.cart.update({
+    where: { id: cart.id },
+    data: {
+      couponCode: null,
+      contactName: null,
+      contactPhone: null,
+      contactEmail: null,
+      contactAt: null,
+      followUpStatus: "NEW",
+      followUpNote: null,
+      followUpAt: null,
+      followUpById: null,
+    },
+  });
+  return { success: true as const };
 }
 
 export async function trackOrderAction(orderNumber: string, contact: string) {

@@ -27,6 +27,16 @@ function normaliseEmail(value: string): string {
   return value.trim().toLowerCase();
 }
 
+/** The most recent payment attempt on an order — what the confirmation page
+    shows once the gateway has confirmed it. */
+export async function getLatestPaymentForOrder(orderId: string) {
+  return db.payment.findFirst({
+    where: { orderId },
+    orderBy: { createdAt: "desc" },
+    select: { status: true, approvalNo: true, cardLast4: true, clearerName: true },
+  });
+}
+
 export async function verifyOrderAccess(orderNumber: string, contact: string) {
   const order = await getOrderByNumber(orderNumber);
   if (!order) return null;

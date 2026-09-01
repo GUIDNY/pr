@@ -23,10 +23,14 @@ export function CheckoutForm({
   defaultName,
   defaultEmail,
   defaultPhone,
+  payViaGateway = false,
 }: {
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
+  /** True once the Pelecard flow is switched on: the card is then entered on
+      Pelecard's own page, and this form never sees a card number. */
+  payViaGateway?: boolean;
 }) {
   const cart = useCartStore((s) => s.cart);
   const setCart = useCartStore((s) => s.setCart);
@@ -75,6 +79,32 @@ export function CheckoutForm({
         toast.error(result.error ?? "שגיאה בביצוע ההזמנה");
         return;
       }
+
+      /* The order exists but is not paid: hand it to the gateway and send the
+         customer to their page. The cart is deliberately left as it is —
+         until the payment is confirmed there is nothing to clear, and a
+         declined card should leave the customer with their cart intact. */
+      if (result.requiresPayment) {
+        try {
+          const res = await fetch("/api/pelecard/checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId: result.orderId }),
+          });
+          const data = (await res.json()) as { redirectUrl?: string; error?: string };
+          if (!res.ok || !data.redirectUrl) {
+            toast.error("לא הצלחנו לפתוח את עמוד התשלום. ההזמנה נשמרה — נסו שוב או צרו קשר.");
+            router.push(`/checkout/error?order=${result.orderNumber}`);
+            return;
+          }
+          window.location.href = data.redirectUrl;
+        } catch {
+          toast.error("לא הצלחנו להתחבר לשרת התשלומים. ההזמנה נשמרה.");
+          router.push(`/checkout/error?order=${result.orderNumber}`);
+        }
+        return;
+      }
+
       setCart({ ...cart, items: [], itemCount: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0, couponCode: null });
       router.push(`/checkout/success/${result.orderNumber}`);
     });
@@ -213,7 +243,18 @@ export function CheckoutForm({
             </Label>
           </RadioGroup>
 
-          {form.paymentMethod === "DEMO_CARD" && (
+          {/* With the gateway on, the card is entered on Pelecard's own secure
+              page — this site never sees, transmits or stores a card number,
+              which is both the PCI requirement and the gateway's own. */}
+          {form.paymentMethod === "DEMO_CARD" && payViaGateway && (
+            <p className="text-muted-foreground bg-muted flex items-center gap-2 rounded-md p-3 text-xs leading-relaxed">
+              <ShieldCheck className="size-4 shrink-0" />
+              לאחר לחיצה על &quot;בצע הזמנה&quot; תועברו לעמוד תשלום מאובטח של חברת הסליקה להזנת פרטי הכרטיס. פרטי
+              האשראי אינם עוברים דרך האתר ואינם נשמרים בו.
+            </p>
+          )}
+
+          {form.paymentMethod === "DEMO_CARD" && !payViaGateway && (
             <div className="flex flex-col gap-3">
               <p className="text-muted-foreground bg-muted flex items-center gap-2 rounded-md p-2 text-xs">
                 <ShieldCheck className="size-4 shrink-0" />
