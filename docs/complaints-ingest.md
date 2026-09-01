@@ -57,10 +57,26 @@ too. `occurredAt` falls back to now when missing or unparseable.
 
 ## What it decides
 
-**Opening.** A complaint is opened only when `needsHuman` is true or `intent`
-is one of `complaint`, `human_request`, `order_status`, `returns`,
-`warranty`. Anything else returns `{"created": false, "appended": false}` and
-writes nothing — a queue that fills with "היי" is a queue nobody reads.
+**Opening.** A complaint is opened only when `needsHuman` is true, or
+`intent` is `complaint` or `human_request`. Anything else returns
+`{"created": false, "appended": false}` and writes nothing.
+
+Two intents, deliberately. `order_status`, `returns` and `warranty` were on
+this list in the first draft and came off: "מתי יגיע?" and "מה האחריות?" are
+questions, and a queue that fills with questions is a queue nobody reads —
+which is the failure this feature exists to fix, arrived at from the other
+side.
+
+The bot does not escalate on its own either. When it recognises a grievance
+it asks the customer whether someone should look into it and sends
+`needsHuman` only on a yes — except for someone who asked for a person or
+said "תלונה" outright, who goes straight through. So by the time a request
+arrives the customer has already agreed, and a second filter here would only
+discard something they asked for. Note what that does *not* mean: the
+customer was asked whether someone should look into their problem, which is
+an ordinary thing to be asked. They are still never told a complaint record
+exists, never given a ticket number, and never shown anything from this
+system.
 
 **Appending.** Once a complaint is open, **every** later message from that
 `waId` joins it, whatever its intent. A "תודה" is part of the story, and a

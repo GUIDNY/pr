@@ -87,12 +87,16 @@ eq(deriveSubject("   "), "פנייה ללא טקסט", "an empty message still g
 eq(deriveSubject("הזמנתי מקרר"), "הזמנתי מקרר", "a short message is used as it is");
 
 // --- the opening gate ----------------------------------------------------
-for (const intent of ["complaint", "human_request", "order_status", "returns", "warranty"] as const) {
+for (const intent of ["complaint", "human_request"] as const) {
   if (!COMPLAINT_OPENING_INTENTS.includes(intent)) fail(`${intent} must be able to open a complaint`); else ok();
 }
-for (const intent of ["greeting", "product_question", "price_question", "off_topic"] as const) {
+// Everything else, and specifically the three that were on this list in the
+// first draft: they are questions, and a queue full of questions is the
+// failure this feature exists to fix.
+for (const intent of ["order_status", "returns", "warranty", "greeting", "product_question", "price_question", "shipping", "payment", "technical_support", "off_topic", "other"] as const) {
   if (COMPLAINT_OPENING_INTENTS.includes(intent)) fail(`${intent} must not open a complaint on its own`); else ok();
 }
+if (COMPLAINT_OPENING_INTENTS.length !== 2) fail(`exactly two intents may open a complaint, found ${COMPLAINT_OPENING_INTENTS.length}`); else ok();
 for (const intent of COMPLAINT_OPENING_INTENTS) {
   if (!BOT_INTENTS.includes(intent)) fail(`"${intent}" is not one of the intents the bot can return`); else ok();
 }
@@ -126,6 +130,12 @@ async function liveChecks() {
 
   const greeting = await post({ waId, waMessageId: `g-${stamp}`, customerText: "היי", intent: "greeting", needsHuman: false });
   eq([greeting.json?.created, greeting.json?.appended], [false, false], "a greeting with no needsHuman opens nothing");
+
+  // The three that came off the opening list: a question, on its own, opens
+  // nothing. With needsHuman it does — which is the case where the customer
+  // said yes to the bot's offer.
+  const question = await post({ waId, waMessageId: `q-${stamp}`, customerText: "מתי ההזמנה שלי מגיעה?", intent: "order_status", needsHuman: false });
+  eq([question.json?.created, question.json?.appended], [false, false], "order_status alone no longer opens a complaint");
 
   const first = await post({
     waId, customerName: "בדיקה", waMessageId: `a-${stamp}`,

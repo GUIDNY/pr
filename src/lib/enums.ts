@@ -443,18 +443,25 @@ export const BOT_INTENTS = [
 ] as const;
 export type BotIntent = (typeof BOT_INTENTS)[number];
 
-// Which of them may OPEN a complaint. Deliberately narrow: a "היי" or a
-// question about a price is a conversation, not a grievance, and a queue
-// that fills with those is a queue nobody reads.
+// Which of them may OPEN a complaint. Two, and deliberately only two.
 //
-// This gate applies only to opening. Once a complaint is open, every later
+// order_status, returns and warranty were on this list in the first draft
+// and came off: "מתי יגיע?" and "מה האחריות?" are questions, and a queue
+// that fills with questions is a queue nobody reads — which is the failure
+// this whole feature exists to fix, arrived at from the other side.
+//
+// The bot no longer escalates on its own either. When it recognises a
+// grievance it asks the customer whether to open one, and only sends
+// needsHuman on a "yes" — except for someone who asked for a person or said
+// "תלונה" outright, who goes straight through. So by the time a request
+// reaches this endpoint the customer has already agreed, and a second filter
+// here would only throw away something they asked for. (Note this does not
+// mean the customer knows a *complaint record* exists: they were asked
+// whether someone should look into it, which is a different thing, and no
+// ticket number or system detail ever reaches them.)
+//
+// The gate applies only to opening. Once a complaint is open, every later
 // message from that number joins it whatever its intent — a "תודה" is part
 // of the story, and a thread with the calm parts removed misleads whoever
 // reads it.
-export const COMPLAINT_OPENING_INTENTS: BotIntent[] = [
-  "complaint",
-  "human_request",
-  "order_status",
-  "returns",
-  "warranty",
-];
+export const COMPLAINT_OPENING_INTENTS: BotIntent[] = ["complaint", "human_request"];
