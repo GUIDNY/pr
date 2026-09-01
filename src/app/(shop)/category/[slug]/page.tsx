@@ -20,6 +20,7 @@ import { getArticleByCategorySlug } from "@/lib/queries/articles";
 import { findCategoryBySlug } from "@/lib/category-tree";
 import { PackageSearch, BookOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CategoryIntro } from "@/components/category/category-intro";
 
 const PAGE_SIZE = 24;
 // "Everything on one page" is really just a much larger page. Keeping it as
@@ -152,7 +153,7 @@ export default async function CategoryPage({
       </Breadcrumb>
 
       <h1 className="mt-3 text-2xl font-bold sm:text-3xl">{category.name}</h1>
-      {category.description && <p className="text-muted-foreground mt-2 max-w-2xl text-sm">{category.description}</p>}
+      <CategoryIntro description={category.description} />
 
       <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[240px_1fr]">
         <aside className="hidden lg:block">
