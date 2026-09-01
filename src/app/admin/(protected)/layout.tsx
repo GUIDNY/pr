@@ -12,6 +12,7 @@ import {
   Boxes,
   MessageCircle,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { logoutAction } from "@/actions/auth";
@@ -20,6 +21,7 @@ const NAV = [
   { href: "/admin", label: "לוח בקרה", icon: LayoutDashboard, exact: true },
   { href: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
   { href: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart },
+  { href: "/admin/complaints", label: "תלונות", icon: AlertTriangle },
   { href: "/admin/products", label: "מוצרים", icon: Package },
   { href: "/admin/inventory", label: "בקרת מלאי", icon: Boxes },
   { href: "/admin/promotions", label: "מבצעים", icon: TagIcon },

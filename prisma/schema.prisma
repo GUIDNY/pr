@@ -42,6 +42,9 @@ model User {
   triggeredSyncRuns InventorySyncRun[]   @relation("SyncTriggeredBy")
   resolvedAlerts    InventoryAlert[]     @relation("AlertResolvedBy")
   cartFollowUps     Cart[]               @relation("CartFollowUp")
+  complaints        Complaint[]          @relation("ComplaintCustomer")
+  assignedComplaints Complaint[]         @relation("ComplaintAssignee")
+  complaintMessages ComplaintMessage[]   @relation("ComplaintMessageAuthor")
 }
 
 model Address {
@@ -438,6 +441,7 @@ model Order {
 
   @@index([status])
   @@index([userId])
+  complaints         Complaint[]
 }
 
 model OrderItem {
@@ -706,4 +710,82 @@ model ChatbotSettings {
   serviceHours    String?
   additionalNotes String?
   updatedAt       DateTime @updatedAt
+}
+
+// A WhatsApp conversation the bot could not close on its own, kept as a
+// thread rather than the single alert it used to be.
+//
+// The rule that shapes everything here: the customer is never told this
+// exists. No ticket number reaches them, no "we opened a case", no change in
+// how the bot answers. The whole record is written after the reply has
+// already gone out, on a path the reply does not depend on — see
+// src/app/api/internal/complaints/ingest/route.ts.
+//
+// Deliberately NOT an extension of SupportRequest: that table is the site's
+// "contact us" form — one submission, no thread, no WhatsApp identity, no
+// severity — and widening it to carry conversations would leave both jobs
+// half done.
+model Complaint {
+  id            String  @id @default(cuid())
+  // A human number for the staff to say out loud to each other. Internal
+  // only: it is never sent to the customer, which is the whole point.
+  ticketNumber  Int     @unique @default(autoincrement())
+  // The customer's WhatsApp number, international, no plus — 972501234567.
+  // The only identity the bot knows, so every lookup starts here.
+  waId          String
+  customerName  String?
+  userId        String?
+  user          User?   @relation("ComplaintCustomer", fields: [userId], references: [id])
+  orderId       String?
+  order         Order?  @relation(fields: [orderId], references: [id])
+  channel       String  @default("WHATSAPP")
+
+  category      String  @default("OTHER")
+  severity      String  @default("MEDIUM")
+  status        String  @default("OPEN")
+  subject       String
+
+  assignedToId  String?
+  assignedTo    User?   @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
+
+  firstMessageAt DateTime @default(now())
+  lastMessageAt  DateTime @default(now())
+  resolvedAt     DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  messages ComplaintMessage[]
+
+  @@index([waId])
+  @@index([lastMessageAt])
+  @@index([status, severity])
+}
+
+model ComplaintMessage {
+  id          String    @id @default(cuid())
+  complaintId String
+  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  role        String // CUSTOMER | BOT | STAFF | SYSTEM
+  body        String
+  authorId    String?
+  author      User?     @relation("ComplaintMessageAuthor", fields: [authorId], references: [id])
+  // WhatsApp's own message id. Unique, which is what makes the ingest
+  // endpoint idempotent: n8n retries, and a retry must not double the thread.
+  waMessageId String?   @unique
+  mediaMime   String?
+  // Path inside the private complaint-media bucket. Never a URL: WhatsApp's
+  // own media links expire in minutes and need a bearer token, so a stored
+  // URL is a dead link by the time anyone opens the complaint.
+  mediaStoragePath String?
+  // JSON array of what was removed from `body` before it was saved, e.g.
+  // ["credit_card"]. The removed values themselves are not stored anywhere.
+  redactedFields String?
+  // Everything is internal today. The flag exists so that if a customer-
+  // facing view is ever built, what may be shown is a decision someone makes
+  // per message rather than a default that leaks the lot.
+  internalOnly Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([complaintId])
+  @@index([createdAt])
 }

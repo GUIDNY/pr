@@ -319,3 +319,142 @@ export const CART_FOLLOW_UP_STATUS_COLORS: Record<CartFollowUpStatus, string> = 
   HANDLED: "bg-success/10 text-success",
   NOT_RELEVANT: "bg-muted text-muted-foreground",
 };
+
+// ---------------------------------------------------------------------------
+// Complaints (/admin/complaints)
+// ---------------------------------------------------------------------------
+// A complaint is a WhatsApp conversation the bot could not close on its own,
+// kept as a thread so whoever picks it up sees what was already said. The
+// whole record is internal: the customer is never told a complaint exists,
+// never gets a ticket number, and never sees a word of this. See
+// src/app/api/internal/complaints/ingest/route.ts.
+
+export const COMPLAINT_STATUSES = ["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER", "RESOLVED", "CLOSED"] as const;
+export type ComplaintStatus = (typeof COMPLAINT_STATUSES)[number];
+export const complaintStatusSchema = z.enum(COMPLAINT_STATUSES);
+
+export const COMPLAINT_STATUS_LABELS: Record<ComplaintStatus, string> = {
+  OPEN: "פתוחה",
+  IN_PROGRESS: "בטיפול",
+  WAITING_CUSTOMER: "ממתין ללקוח",
+  RESOLVED: "נפתרה",
+  CLOSED: "סגורה",
+};
+
+export const COMPLAINT_STATUS_COLORS: Record<ComplaintStatus, string> = {
+  OPEN: "bg-brand/10 text-brand",
+  IN_PROGRESS: "bg-accent text-accent-foreground",
+  WAITING_CUSTOMER: "bg-warning/15 text-warning-foreground",
+  RESOLVED: "bg-success/10 text-success",
+  CLOSED: "bg-muted text-muted-foreground",
+};
+
+// A complaint in one of these is finished: a new message from the same
+// number opens a fresh one rather than reviving it.
+export const CLOSED_COMPLAINT_STATUSES: ComplaintStatus[] = ["RESOLVED", "CLOSED"];
+
+export const COMPLAINT_SEVERITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
+export type ComplaintSeverity = (typeof COMPLAINT_SEVERITIES)[number];
+export const complaintSeveritySchema = z.enum(COMPLAINT_SEVERITIES);
+
+export const COMPLAINT_SEVERITY_LABELS: Record<ComplaintSeverity, string> = {
+  LOW: "נמוכה",
+  MEDIUM: "בינונית",
+  HIGH: "גבוהה",
+  CRITICAL: "קריטית",
+};
+
+export const COMPLAINT_SEVERITY_COLORS: Record<ComplaintSeverity, string> = {
+  LOW: "bg-muted text-muted-foreground",
+  MEDIUM: "bg-accent text-accent-foreground",
+  HIGH: "bg-warning/15 text-warning-foreground",
+  CRITICAL: "bg-destructive/10 text-destructive",
+};
+
+// Ordered, so "more severe than what is already there" is a comparison and
+// not a lookup table. A complaint never becomes less severe on its own.
+export const COMPLAINT_SEVERITY_RANK: Record<ComplaintSeverity, number> = {
+  LOW: 0,
+  MEDIUM: 1,
+  HIGH: 2,
+  CRITICAL: 3,
+};
+
+export const COMPLAINT_CATEGORIES = [
+  "PRODUCT_DEFECT",
+  "DELIVERY_DELAY",
+  "DELIVERY_DAMAGE",
+  "WRONG_ITEM",
+  "MISSING_ITEM",
+  "BILLING",
+  "WARRANTY",
+  "INSTALLATION",
+  "SERVICE_QUALITY",
+  "RETURN_REFUND",
+  "OTHER",
+] as const;
+export type ComplaintCategory = (typeof COMPLAINT_CATEGORIES)[number];
+export const complaintCategorySchema = z.enum(COMPLAINT_CATEGORIES);
+
+export const COMPLAINT_CATEGORY_LABELS: Record<ComplaintCategory, string> = {
+  PRODUCT_DEFECT: "מוצר פגום",
+  DELIVERY_DELAY: "עיכוב במשלוח",
+  DELIVERY_DAMAGE: "נזק במשלוח",
+  WRONG_ITEM: "מוצר שגוי",
+  MISSING_ITEM: "פריט חסר",
+  BILLING: "חיוב",
+  WARRANTY: "אחריות",
+  INSTALLATION: "התקנה",
+  SERVICE_QUALITY: "איכות השירות",
+  RETURN_REFUND: "החזרה או זיכוי",
+  OTHER: "אחר",
+};
+
+// Who said it. SYSTEM is the thread's own bookkeeping ("status changed to
+// RESOLVED by ..."), never anything a person typed.
+export const COMPLAINT_MESSAGE_ROLES = ["CUSTOMER", "BOT", "STAFF", "SYSTEM"] as const;
+export type ComplaintMessageRole = (typeof COMPLAINT_MESSAGE_ROLES)[number];
+
+export const COMPLAINT_MESSAGE_ROLE_LABELS: Record<ComplaintMessageRole, string> = {
+  CUSTOMER: "לקוח",
+  BOT: "אלפרד",
+  STAFF: "נציג",
+  SYSTEM: "מערכת",
+};
+
+// The closed set of intents the WhatsApp bot returns. Kept here rather than
+// in the endpoint because it is a contract with something outside this repo:
+// changing it means changing the bot too.
+export const BOT_INTENTS = [
+  "greeting",
+  "product_question",
+  "price_question",
+  "stock_question",
+  "order_status",
+  "shipping",
+  "warranty",
+  "returns",
+  "complaint",
+  "human_request",
+  "payment",
+  "technical_support",
+  "off_topic",
+  "other",
+] as const;
+export type BotIntent = (typeof BOT_INTENTS)[number];
+
+// Which of them may OPEN a complaint. Deliberately narrow: a "היי" or a
+// question about a price is a conversation, not a grievance, and a queue
+// that fills with those is a queue nobody reads.
+//
+// This gate applies only to opening. Once a complaint is open, every later
+// message from that number joins it whatever its intent — a "תודה" is part
+// of the story, and a thread with the calm parts removed misleads whoever
+// reads it.
+export const COMPLAINT_OPENING_INTENTS: BotIntent[] = [
+  "complaint",
+  "human_request",
+  "order_status",
+  "returns",
+  "warranty",
+];
