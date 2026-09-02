@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, Package, ExternalLink } from "lucide-react";
-import { getAttentionProducts } from "@/lib/queries/admin-inventory";
+import { getAttentionItems } from "@/lib/queries/admin-inventory";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { formatDateTime } from "@/lib/format";
 
@@ -23,11 +23,16 @@ const ROW_KIND = {
 } as const;
 
 export default async function AttentionInventoryPage() {
-  const items = await getAttentionProducts();
-  const hidden = items.filter((i) => i.type === "URGENT_MISSING_MEDIA").length;
-  const photoless = items.filter((i) => i.type === "MISSING_IMAGE").length;
-  const manual = items.filter((i) => i.type === "MANUAL_ATTENTION").length;
-  const arrivals = items.filter((i) => i.type === "NEW_FROM_SOURCE").length;
+  // One entry per product. A product can hold more than one reason at once —
+  // the sheet created it this morning AND it arrived with no photo — so the
+  // counts below overlap and deliberately add up to more than the total.
+  // The total is what it says: how many products are waiting.
+  const items = await getAttentionItems();
+  const hidden = items.filter((i) => i.types.includes("URGENT_MISSING_MEDIA")).length;
+  const photoless = items.filter((i) => i.types.includes("MISSING_IMAGE")).length;
+  const manual = items.filter((i) => i.types.includes("MANUAL_ATTENTION")).length;
+  const arrivals = items.filter((i) => i.types.includes("NEW_FROM_SOURCE")).length;
+  const noPhoto = hidden + photoless;
 
   return (
     <div>
@@ -37,14 +42,19 @@ export default async function AttentionInventoryPage() {
       <div className="mb-4 flex items-center gap-2">
         <AlertTriangle className="text-warning-foreground size-5" />
         <h2 className="text-lg font-bold">טיפול</h2>
-        <span className="text-muted-foreground text-sm">({items.length.toLocaleString("he-IL")})</span>
+        <span className="text-muted-foreground text-sm">
+          {items.length.toLocaleString("he-IL")} מוצרים
+        </span>
       </div>
       <p className="text-muted-foreground mb-3 text-sm">
-        כל מוצר שנמצא במלאי וחסרה לו תמונה, בתוספת מוצרים שסומנו ידנית לטיפול מדף המוצר. מוצר בלי תמונה לא מוצג
-        באתר — לא ברשימות, לא בחיפוש ולא בדף המוצר — ויחזור לתצוגה מיד כשתוסיפו לו תמונה. מוצר שסומן ידנית יורד
-        מהרשימה רק כשתסירו את הסימון מדף המוצר.
+        <strong>{noPhoto.toLocaleString("he-IL")} מתוך {items.length.toLocaleString("he-IL")} המוצרים כאן מחכים לתמונה</strong> — וזו כל
+        הסיבה שהם לא באתר. מוצר בלי תמונה לא מוצג בשום מקום — לא ברשימות, לא בחיפוש ולא בדף המוצר — ויחזור
+        לתצוגה מיד כשתוסיפו לו אחת, בלי סנכרון באמצע. מוצר שסומן ידנית יורד מהרשימה רק כשתסירו את הסימון מדף
+        המוצר.
       </p>
-      <div className="mb-5 flex flex-wrap gap-2 text-xs">
+      {/* Reasons, not slices: a product counted here can be counted in the
+          chip beside it too, so these add up to more than the total above. */}
+      <div className="mb-5 flex flex-wrap items-center gap-2 text-xs">
         <span className="bg-brand/10 text-brand rounded-full px-3 py-1 font-medium">
           חדשים מהגיליון: {arrivals.toLocaleString("he-IL")}
         </span>
@@ -57,6 +67,7 @@ export default async function AttentionInventoryPage() {
         <span className="bg-muted text-muted-foreground rounded-full px-3 py-1 font-medium">
           סומנו ידנית: {manual.toLocaleString("he-IL")}
         </span>
+        <span className="text-muted-foreground">מוצר יכול להופיע ביותר מסיבה אחת</span>
       </div>
 
       {items.length === 0 ? (
@@ -67,7 +78,7 @@ export default async function AttentionInventoryPage() {
       ) : (
         <div className="flex flex-col gap-2">
           {items.map((item) => (
-            <div key={item.id} className="border-border bg-card flex items-center gap-3 rounded-xl border p-3">
+            <div key={item.productId} className="border-border bg-card flex items-center gap-3 rounded-xl border p-3">
               <span className="bg-muted text-muted-foreground flex size-11 shrink-0 items-center justify-center rounded-lg">
                 <Package className="size-5" />
               </span>
@@ -78,14 +89,17 @@ export default async function AttentionInventoryPage() {
                   {item.product.stockQty}
                 </p>
                 <p className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5 text-xs">
-                  <span
-                    className={`rounded-full px-2 py-0.5 font-medium ${
-                      ROW_KIND[item.type as keyof typeof ROW_KIND]?.tone ?? "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {ROW_KIND[item.type as keyof typeof ROW_KIND]?.label ?? item.type}
-                  </span>
-                  {formatDateTime(item.createdAt)}
+                  {item.types.map((type) => (
+                    <span
+                      key={type}
+                      className={`rounded-full px-2 py-0.5 font-medium ${
+                        ROW_KIND[type as keyof typeof ROW_KIND]?.tone ?? "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {ROW_KIND[type as keyof typeof ROW_KIND]?.label ?? type}
+                    </span>
+                  ))}
+                  {formatDateTime(item.latestAt)}
                 </p>
               </div>
               <Link

@@ -336,6 +336,50 @@ export async function getAttentionProducts() {
   );
 }
 
+// One entry per product, not per alert — which is what the screen is a list
+// of, and what its count means when somebody reads it.
+//
+// The two automatic reasons overlap by design: a product the sheet created
+// this morning is NEW_FROM_SOURCE, and having arrived with nothing but a
+// title and a price it is also URGENT_MISSING_MEDIA. Both are true and both
+// are worth showing. But rendering the alerts directly put that product on
+// the screen twice and counted it twice, so a queue of 186 products
+// announced itself as 296 and read as though the backlog had doubled
+// overnight. The reasons belong on the product as badges; the number above
+// them is a number of products.
+//
+// Order is inherited from getAttentionProducts, which sorts by severity, so
+// a product takes the position of its most severe reason.
+export type AttentionItem = {
+  productId: string;
+  product: Awaited<ReturnType<typeof getAttentionProducts>>[number]["product"];
+  types: string[];
+  latestAt: Date;
+};
+
+export async function getAttentionItems(): Promise<AttentionItem[]> {
+  const alerts = await getAttentionProducts();
+  const byProduct = new Map<string, AttentionItem>();
+
+  for (const alert of alerts) {
+    const key = alert.product.id;
+    const seen = byProduct.get(key);
+    if (!seen) {
+      byProduct.set(key, {
+        productId: key,
+        product: alert.product,
+        types: [alert.type],
+        latestAt: alert.createdAt,
+      });
+      continue;
+    }
+    if (!seen.types.includes(alert.type)) seen.types.push(alert.type);
+    if (alert.createdAt > seen.latestAt) seen.latestAt = alert.createdAt;
+  }
+
+  return [...byProduct.values()];
+}
+
 // The "טיפול דחוף" list: only products an admin explicitly sent there via
 // the button on the product page (setProductReviewFlagAction(..., "URGENT"))
 // — never populated automatically, unlike getAttentionProducts above.
