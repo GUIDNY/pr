@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
-import { isSandboxGateway } from "@/lib/pelecard/gateway";
+import { isPaymentConsoleAvailable } from "@/lib/pelecard/gateway";
 
 /**
- * The sandbox payment console must not exist in a build that can charge a real
- * card. The page itself calls notFound(), but by the time it runs the admin
- * shell has already begun streaming and the response is committed as 200 — the
- * visitor sees a 404 page over a 200, and anything checking the status is told
- * the page is there.
+ * The payment console exists in exactly two situations: the sandbox gateway,
+ * where nothing can be charged, and a deliberately armed live test on a preview
+ * deployment. Anywhere else — the live site above all — it must not exist.
+ *
+ * The page itself calls notFound(), but by the time it runs the admin shell has
+ * already begun streaming and the response is committed as 200 — the visitor
+ * sees a 404 page over a 200, and anything checking the status is told the page
+ * is there.
  *
  * Deciding it here, before rendering starts, makes the answer honest: a real
  * 404, from the routing layer, exactly as if the route did not exist.
@@ -17,7 +20,7 @@ import { isSandboxGateway } from "@/lib/pelecard/gateway";
  * warns on every dev start about the old name.
  */
 export function proxy() {
-  if (isSandboxGateway()) return NextResponse.next();
+  if (isPaymentConsoleAvailable()) return NextResponse.next();
 
   return new NextResponse("404 — Not Found", {
     status: 404,

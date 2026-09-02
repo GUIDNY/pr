@@ -21,10 +21,23 @@ const RESULTS = [
 
 const TEST_CARD = "458045804580";
 
-export function PelecardTestConsole() {
-  const [amount, setAmount] = useState("149.90");
+export function PelecardTestConsole({
+  liveTest = false,
+  maxLiveAmount = 5,
+}: {
+  liveTest?: boolean;
+  maxLiveAmount?: number;
+}) {
+  const [amount, setAmount] = useState(liveTest ? "1.00" : "149.90");
   const [qaResultStatus, setQaResultStatus] = useState("000");
+  const [confirmation, setConfirmation] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  /* Against the production gateway this button spends real money, so it is not
+     something a stray click should be able to do. Typing the word is the
+     smallest barrier that cannot be crossed by accident. */
+  const CONFIRM_WORD = "לחייב";
+  const armed = !liveTest || confirmation.trim() === CONFIRM_WORD;
 
   function run() {
     startTransition(async () => {
@@ -39,7 +52,7 @@ export function PelecardTestConsole() {
 
   return (
     <div className="border-border bg-card flex flex-col gap-4 rounded-xl border p-5">
-      <h2 className="font-semibold">הרצת עסקת בדיקה</h2>
+      <h2 className="font-semibold">{liveTest ? "הרצת עסקה אמיתית לבדיקה" : "הרצת עסקת בדיקה"}</h2>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
@@ -51,6 +64,7 @@ export function PelecardTestConsole() {
             type="number"
             step="0.01"
             min="0.1"
+            max={liveTest ? maxLiveAmount : undefined}
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
           />
@@ -59,7 +73,7 @@ export function PelecardTestConsole() {
           </p>
         </div>
 
-        <div>
+        <div className={liveTest ? "hidden" : undefined}>
           <Label htmlFor="test-result" className="mb-1.5">
             תוצאה לאלץ (QAResultStatus)
           </Label>
@@ -78,7 +92,9 @@ export function PelecardTestConsole() {
         </div>
       </div>
 
-      <div className="bg-muted flex flex-wrap items-center gap-2 rounded-lg p-3 text-sm">
+      <div
+        className={`bg-muted flex flex-wrap items-center gap-2 rounded-lg p-3 text-sm ${liveTest ? "hidden" : ""}`}
+      >
         <span className="font-medium">כרטיס בדיקה:</span>
         <code dir="ltr" className="font-mono">
           {TEST_CARD}
@@ -98,8 +114,35 @@ export function PelecardTestConsole() {
         <span className="text-muted-foreground text-xs">תוקף: כל תאריך עתידי (MMYY) · CVV: כל 3 ספרות</span>
       </div>
 
-      <Button variant="brand" onClick={run} disabled={isPending} className="self-start">
-        {isPending ? "פותח עסקה..." : "יצירת הזמנת בדיקה ומעבר לסליקה"}
+      {liveTest && (
+        <div className="border-destructive/40 bg-destructive/10 rounded-lg border p-3">
+          <p className="mb-2 text-sm leading-relaxed">
+            העסקה הבאה תחייב <strong>כרטיס אשראי אמיתי</strong> בסכום שלמעלה, עד ₪{maxLiveAmount}. השתמשו בכרטיס
+            שלכם. לזיכוי — דרך הפאנל של פלאקארד.
+          </p>
+          <Label htmlFor="live-confirm" className="mb-1.5">
+            להמשך, הקלידו: <span className="font-bold">{CONFIRM_WORD}</span>
+          </Label>
+          <Input
+            id="live-confirm"
+            value={confirmation}
+            onChange={(e) => setConfirmation(e.target.value)}
+            className="max-w-40"
+          />
+        </div>
+      )}
+
+      <Button
+        variant={liveTest ? "destructive" : "brand"}
+        onClick={run}
+        disabled={isPending || !armed}
+        className="self-start"
+      >
+        {isPending
+          ? "פותח עסקה..."
+          : liveTest
+            ? `חיוב אמיתי של ₪${amount} ומעבר לסליקה`
+            : "יצירת הזמנת בדיקה ומעבר לסליקה"}
       </Button>
 
       <TransactionLookup />

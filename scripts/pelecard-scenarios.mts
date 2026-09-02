@@ -271,6 +271,49 @@ console.log("\n--- configuration guards (no server involved) ---");
     (await throws(() => initPayment({ Total: "100" }, { qaResultStatus: "00" }))) === true
   );
 
+  /* The live-test console opens REAL charges, so what turns it on matters more
+     than what it does. Four things at once, and losing any one turns it off. */
+  const { isPaymentConsoleAvailable, isLiveTestConsoleEnabled } = await import("../src/lib/pelecard/gateway");
+  const live = {
+    PELECARD_BASE_URL: "https://gateway21.pelecard.biz",
+    PELECARD_ALLOW_PRODUCTION: "I_UNDERSTAND",
+    PELECARD_LIVE_TEST: "I_WILL_BE_CHARGED",
+    VERCEL_ENV: "preview",
+  };
+
+  check(
+    "16 · the sandbox console exists against the test gateway",
+    withEnv({ PELECARD_BASE_URL: "https://gateway20.pelecard.biz" }, () => isPaymentConsoleAvailable()) === true
+  );
+  check(
+    "     · production alone gives no console",
+    withEnv({ PELECARD_BASE_URL: "https://gateway21.pelecard.biz", PELECARD_ALLOW_PRODUCTION: "I_UNDERSTAND" }, () =>
+      isPaymentConsoleAvailable()
+    ) === false
+  );
+  check(
+    "     · production + the live-test flag on a preview does",
+    withEnv(live, () => isPaymentConsoleAvailable() && isLiveTestConsoleEnabled()) === true
+  );
+  check(
+    "     · but never on the production deployment",
+    withEnv({ ...live, VERCEL_ENV: "production" }, () => isPaymentConsoleAvailable()) === false
+  );
+  check(
+    "     · nor with the flag misspelled",
+    withEnv({ ...live, PELECARD_LIVE_TEST: "true" }, () => isPaymentConsoleAvailable()) === false
+  );
+  check(
+    "     · nor without the production acknowledgement",
+    withEnv({ ...live, PELECARD_ALLOW_PRODUCTION: undefined }, () => isPaymentConsoleAvailable()) === false
+  );
+  check(
+    "     · and the sandbox is never mistaken for a live test",
+    withEnv({ PELECARD_BASE_URL: "https://gateway20.pelecard.biz", PELECARD_LIVE_TEST: "I_WILL_BE_CHARGED" }, () =>
+      isLiveTestConsoleEnabled()
+    ) === false
+  );
+
   check("17 · 149.90 becomes 14990 agorot", toAgorot(149.9) === 14990, String(toAgorot(149.9)));
   check("     · 0.1 becomes 10", toAgorot(0.1) === 10, String(toAgorot(0.1)));
   check("     · 1234.56 becomes 123456", toAgorot(1234.56) === 123456, String(toAgorot(1234.56)));

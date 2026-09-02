@@ -8,31 +8,52 @@ import {
   toAgorot,
   siteUrl,
   callbackSecret,
-  isPelecardSandbox,
+  isPelecardLiveTest,
+  isPelecardConsoleAvailable,
+  LIVE_TEST_MAX_SHEKELS,
 } from "@/lib/pelecard/config";
 import { generateOrderNumber } from "@/lib/pricing";
 
 /**
- * Creates a throwaway order and opens a sandbox payment against it, so every
- * failure path can be exercised without a real cart and without hunting for a
- * card that declines.
+ * Creates a throwaway order and opens a payment against it, so the flow can be
+ * exercised without a real cart.
  *
- * Three separate refusals stand between this and a real charge: it is admin
- * only, it stops unless the configured gateway is the test one, and
- * initPayment() throws if the QA parameters would ever reach production. The
- * orders it creates are marked in their own number and note so nobody mistakes
- * one for a customer's.
+ * It runs in one of two modes, and which one is decided in gateway.ts, never
+ * here:
+ *
+ *   SANDBOX — the test gateway. No money moves, and a result can be forced with
+ *   QAResultStatus so the failure paths are reachable without hunting for a card
+ *   that declines.
+ *
+ *   LIVE TEST — the production gateway, deliberately. Every payment is a REAL
+ *   charge on a REAL card. It exists because the test gateway cannot complete a
+ *   transaction against this terminal at all, which left the merchant unable to
+ *   find out whether their own terminal works. Forcing a result is impossible
+ *   here (initPayment() throws), the amount is capped, and the order says in its
+ *   own number what it is.
+ *
+ * Admin only in both, and unreachable entirely on the production deployment.
  */
 export async function createSandboxTestOrderAction(amountShekels: number, qaResultStatus: string) {
   const session = await requireAdmin();
 
-  if (!isPelecardSandbox()) {
+  if (!isPelecardConsoleAvailable()) {
     return { success: false as const, error: "זמין רק בסביבת הבדיקה" };
   }
+  const liveTest = isPelecardLiveTest();
+
   if (!Number.isFinite(amountShekels) || amountShekels <= 0) {
     return { success: false as const, error: "סכום לא תקין" };
   }
-  if (!/^\d{3}$/.test(qaResultStatus)) {
+  if (liveTest && amountShekels > LIVE_TEST_MAX_SHEKELS) {
+    return {
+      success: false as const,
+      error: `בבדיקה חיה מותר עד ₪${LIVE_TEST_MAX_SHEKELS} — זהו חיוב אמיתי.`,
+    };
+  }
+  // Forcing a result is a sandbox affordance. initPayment() refuses it against
+  // production anyway; refusing it here means the request never gets that far.
+  if (!liveTest && !/^\d{3}$/.test(qaResultStatus)) {
     return { success: false as const, error: "קוד תוצאה חייב להיות 3 ספרות" };
   }
 
@@ -42,7 +63,7 @@ export async function createSandboxTestOrderAction(amountShekels: number, qaResu
 
   const order = await db.order.create({
     data: {
-      orderNumber: `TEST-${generateOrderNumber()}`,
+      orderNumber: `${liveTest ? "LIVETEST" : "TEST"}-${generateOrderNumber()}`,
       userId: session.sub,
       guestName: "בדיקת סליקה",
       guestEmail: "sandbox@prec.co.il",
@@ -53,7 +74,9 @@ export async function createSandboxTestOrderAction(amountShekels: number, qaResu
       total: amountShekels,
       paymentStatus: "PENDING",
       paymentMethod: "PELECARD",
-      customerNote: `הזמנת בדיקה אוטומטית (QAResultStatus=${qaResultStatus}) — לא הזמנה אמיתית`,
+      customerNote: liveTest
+        ? `בדיקה חיה מול פלאקארד — חיוב אמיתי של ₪${amountShekels}. לא הזמנת לקוח.`
+        : `הזמנת בדיקה אוטומטית (QAResultStatus=${qaResultStatus}) — לא הזמנה אמיתית`,
     },
   });
 
@@ -88,7 +111,7 @@ export async function createSandboxTestOrderAction(amountShekels: number, qaResu
       SupportedCards: SUPPORTED_CARDS,
       TakeIshurPopUp: "False",
     },
-    { qaResultStatus }
+    liveTest ? undefined : { qaResultStatus }
   );
 
   const errCode = result.Error?.ErrCode;
@@ -126,7 +149,7 @@ export async function createSandboxTestOrderAction(amountShekels: number, qaResu
 export async function lookupTransactionAction(transactionId: string) {
   await requireAdmin();
 
-  if (!isPelecardSandbox()) {
+  if (!isPelecardConsoleAvailable()) {
     return { success: false as const, error: "זמין רק בסביבת הבדיקה" };
   }
   const id = transactionId.trim();

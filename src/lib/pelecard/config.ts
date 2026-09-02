@@ -1,5 +1,5 @@
 import "server-only";
-import { resolveGateway, isSandboxGateway } from "./gateway";
+import { resolveGateway, isSandboxGateway, isLiveTestConsoleEnabled, isPaymentConsoleAvailable } from "./gateway";
 
 /* Pelecard has no separate test credentials: the same terminal/user/password
    work against both environments, and the ONLY thing deciding whether a card
@@ -62,6 +62,23 @@ export function pelecardEnabled(): boolean {
 export function isPelecardSandbox(): boolean {
   return isSandboxGateway();
 }
+
+/**
+ * True when the console is opening REAL charges against the production gateway.
+ * Everything gated on this has to say so to the person using it.
+ */
+export function isPelecardLiveTest(): boolean {
+  return isLiveTestConsoleEnabled();
+}
+
+/** True when the payment console exists — in either mode. */
+export function isPelecardConsoleAvailable(): boolean {
+  return isPaymentConsoleAvailable();
+}
+
+/** The most a single live test may charge. A slip of the keyboard on a real
+    card should cost pocket change, not a fridge. */
+export const LIVE_TEST_MAX_SHEKELS = 5;
 
 /**
  * Shekels (a float, which is how this database stores money) → agorot (an

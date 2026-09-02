@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { isPelecardSandbox, pelecardConfig, pelecardEnabled } from "@/lib/pelecard/config";
+import {
+  isPelecardConsoleAvailable,
+  isPelecardLiveTest,
+  pelecardConfig,
+  pelecardEnabled,
+  LIVE_TEST_MAX_SHEKELS,
+} from "@/lib/pelecard/config";
 import { PelecardTestConsole } from "@/components/admin/pelecard-test-console";
 import { formatPrice, formatDateTime } from "@/lib/format";
 
@@ -8,17 +14,21 @@ export const metadata = { title: "בדיקות סליקה | A&I Electronics Admi
 export const dynamic = "force-dynamic";
 
 /**
- * The sandbox console. It exists only where a card cannot be charged: if the
- * gateway in the environment is the production one, this page is not "hidden"
- * or "disabled" — it does not exist, because a page that can force a payment
- * result has no business being reachable in a build that takes real money.
+ * The payment console, in one of two modes.
+ *
+ * Against the test gateway it forces results and charges nothing. Against the
+ * production gateway — which takes four deliberate switches to reach, see
+ * isLiveTestConsoleEnabled() — every payment it opens is a real charge on a
+ * real card, and the page has to say so before anything else. Without either,
+ * it is not hidden or disabled: it does not exist.
  */
 export default async function PelecardTestPage() {
-  if (!isPelecardSandbox()) notFound();
+  if (!isPelecardConsoleAvailable()) notFound();
 
   const config = pelecardConfig();
+  const liveTest = isPelecardLiveTest();
   const payments = await db.payment.findMany({
-    where: { environment: "sandbox" },
+    where: { environment: config.environment },
     orderBy: { createdAt: "desc" },
     take: 20,
     include: { order: { select: { orderNumber: true, paymentStatus: true, status: true } } },
@@ -26,8 +36,24 @@ export default async function PelecardTestPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="border-warning bg-warning/15 rounded-xl border-2 p-4">
-        <p className="text-lg font-bold">PELECARD SANDBOX — לא מתבצעים חיובים אמיתיים</p>
+      <div
+        className={
+          liveTest
+            ? "border-destructive bg-destructive/15 rounded-xl border-2 p-4"
+            : "border-warning bg-warning/15 rounded-xl border-2 p-4"
+        }
+      >
+        <p className="text-lg font-bold">
+          {liveTest
+            ? "⚠️ פלאקארד — שרת אמיתי. כל עסקה כאן היא חיוב אמיתי בכרטיס אמיתי."
+            : "PELECARD SANDBOX — לא מתבצעים חיובים אמיתיים"}
+        </p>
+        {liveTest && (
+          <p className="mt-1 text-sm font-semibold">
+            הכסף באמת יורד. הסכום המרבי לבדיקה הוא ₪{LIVE_TEST_MAX_SHEKELS}, ואי אפשר לאלץ תוצאה. לזיכוי — דרך
+            הפאנל של פלאקארד.
+          </p>
+        )}
         <p className="mt-1 font-mono text-sm" dir="ltr">
           {config.baseUrl}
         </p>
@@ -36,12 +62,14 @@ export default async function PelecardTestPage() {
         </p>
       </div>
 
-      <PelecardTestConsole />
+      <PelecardTestConsole liveTest={liveTest} maxLiveAmount={LIVE_TEST_MAX_SHEKELS} />
 
       <div className="border-border bg-card rounded-xl border p-5">
-        <h2 className="mb-3 font-semibold">20 העסקאות האחרונות בסביבת הבדיקה</h2>
+        <h2 className="mb-3 font-semibold">
+          20 העסקאות האחרונות ({config.environment})
+        </h2>
         {payments.length === 0 ? (
-          <p className="text-muted-foreground text-sm">עוד לא בוצעו עסקאות בסנדבוקס.</p>
+          <p className="text-muted-foreground text-sm">עוד לא בוצעו עסקאות בסביבה הזו.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
