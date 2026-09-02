@@ -8,13 +8,18 @@ export const dynamic = "force-dynamic";
  * The stylesheet Pelecard's payment page loads, handed to them as `CssURL` at
  * init.
  *
- * A route rather than a file in /public because it imports the configured
- * gateway's own sheet as its base, and that host has to follow the
- * configuration — a hard-coded one here would be the single string still
- * pointing at the test server on the day of the switch.
+ * The address matters more than the file. Pelecard ignore `CssURL` unless the
+ * exact URL has been whitelisted by their support, and the page silently falls
+ * back to its default — so the URL is a thing to be registered once and then
+ * never changed. That is why this is a route at a fixed public path rather than
+ * a file in /public: the address stays put while the design keeps moving, and
+ * the base sheet it imports can follow whichever gateway is configured instead
+ * of being a hard-coded host that outlives the switch to production.
  *
  * Public on purpose: their servers and their customers' browsers have to be
  * able to fetch it, and it is a stylesheet, so there is nothing here to leak.
+ * It must also stay outside any Vercel deployment protection, or Pelecard get
+ * a login page where they expected CSS.
  */
 export async function GET() {
   let baseUrl: string;

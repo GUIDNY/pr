@@ -189,11 +189,16 @@ export const SUPPORTED_CARDS = {
  */
 export function paymentPageStyle(site: string) {
   return {
-    // Ours, not theirs — see src/lib/pelecard/checkout-css.ts. It imports the
-    // configured gateway's own sheet as its base and overrides from there, so
-    // the page keeps their layout and gains the shop's face.
-    CssURL: `${site}/api/pelecard/checkout-css`,
-    LogoURL: `${site}/brand/logo.png`,
+    /* Ours, not theirs — see src/lib/pelecard/checkout-css.ts.
+
+       Both of these addresses have to be whitelisted by Pelecard support before
+       they are honoured at all; until then the page quietly renders in their
+       default skin and nothing here has any effect. They are registered once
+       and never renamed, which is why the stylesheet lives at a fixed path
+       served by a route: the URL stays approved while the design keeps
+       changing. */
+    CssURL: `${site}/pelecard/ai-orange.css`,
+    LogoURL: `${site}/pelecard/logo.png`,
     // Captions inside the fields rather than above them — shorter form, which
     // matters most on the phone where the keyboard covers half the screen.
     PlaceholderCaptions: "True",

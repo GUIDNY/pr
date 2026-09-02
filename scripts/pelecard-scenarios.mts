@@ -576,8 +576,11 @@ console.log("\n--- how Pelecard's page is dressed ---");
   const { paymentPageStyle } = await import("../src/lib/pelecard/client");
   const style = paymentPageStyle("https://shop.example.com") as Record<string, string>;
 
-  check("25 · the logo is an absolute address on our own site", style.LogoURL === "https://shop.example.com/brand/logo.png", style.LogoURL);
-  check("     · the stylesheet is our own, not theirs", style.CssURL === "https://shop.example.com/api/pelecard/checkout-css", style.CssURL);
+  /* Both addresses are registered with Pelecard support once and honoured only
+     if they match exactly, so a rename is not a refactor — it is two days of
+     waiting and a payment page that silently loses its skin in the meantime. */
+  check("25 · the logo is at the address registered with Pelecard", style.LogoURL === "https://shop.example.com/pelecard/logo.png", style.LogoURL);
+  check("     · so is the stylesheet", style.CssURL === "https://shop.example.com/pelecard/ai-orange.css", style.CssURL);
   check("     · the form is Hebrew-friendly on a phone", style.NumericInputMode === "True" && style.PlaceholderCaptions === "True");
   check("     · errors appear on the field that caused them", style.InputErrorDisplayByField === "True");
 
