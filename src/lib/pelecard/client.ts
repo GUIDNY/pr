@@ -189,17 +189,15 @@ export const SUPPORTED_CARDS = {
  */
 export function paymentPageStyle(site: string) {
   return {
-    /* Ours, not theirs — see src/lib/pelecard/checkout-css.ts.
-
-       Both of these addresses have to be whitelisted by Pelecard support before
-       they are honoured at all; until then the page quietly renders in their
-       default skin and nothing here has any effect. They are registered once
-       and never renamed, which is why the stylesheet lives at a fixed path
-       served by a route: the URL stays approved while the design keeps
-       changing. */
+    /* Both addresses are honoured only after Pelecard's support whitelist the
+       exact URL; until then they are ignored in silence and the page renders in
+       their default skin. They are registered once and never renamed, which is
+       why the stylesheet sits at a fixed path served by a route — the URL stays
+       approved while the design keeps changing underneath it. */
     CssURL: `${site}/pelecard/ai-orange.css`,
     LogoURL: `${site}/pelecard/logo.png`,
-    // Captions inside the fields rather than above them — shorter form, which
+
+    // Captions inside the fields rather than above them: a shorter form, which
     // matters most on the phone where the keyboard covers half the screen.
     PlaceholderCaptions: "True",
     SplitCCNumber: "True",
@@ -207,11 +205,14 @@ export function paymentPageStyle(site: string) {
     NumericInputMode: "True",
     // Errors against the field that caused them, not one line at the top.
     InputErrorDisplayByField: "True",
-    // The card's own brand mark, so the customer can see their card was read.
-    ShowBrandLogo: "True",
     HiddenPelecardLogo: "True",
     HiddenPciLogo: "True",
-    HiddenSslSeal: "True",
+
+    /* HiddenSslSeal is deliberately not sent. The stylesheet styles that footer
+       — the card marks and "התשלום מאובטח ומוצפן" — and it is the one thing on
+       the page telling a customer their card details are safe here. Hiding it
+       would remove a reassurance from the screen that needs it most, and leave
+       the rules that dress it doing nothing. */
   };
 }
 

@@ -590,7 +590,34 @@ console.log("\n--- how Pelecard's page is dressed ---");
   const sheet = pelecardCheckoutCss("https://gateway20.pelecard.biz");
   check("     · it imports the configured gateway's sheet as its base", sheet.includes('@import url("https://gateway20.pelecard.biz/Content/Css/variant-he-4.css")'));
   check("     · it does not hard-code a gateway anywhere else", (sheet.match(/pelecard\.biz/g) ?? []).length === 1);
-  check("     · fields are 16px, so iOS does not zoom on focus", /font-size:\s*16px/.test(sheet));
+  const formControl = sheet.slice(sheet.indexOf(".form-control {"), sheet.indexOf(".form-control::placeholder"));
+  check("     · fields are 16px, so iOS does not zoom on focus", /font-size:\s*16px/.test(formControl));
+
+  /* Written against Pelecard's own markup. If one of these disappears the page
+     silently reverts to their default skin in that spot, which is the failure
+     mode worth catching here rather than on a customer's screen. */
+  for (const selector of [".form-control", ".btn-submit", "#totalAllRow", "#dateContainer", ".errorRow", "#cancelBtn", ".tab-button.pay-btn", ".credit-title .logo"]) {
+    check(`     · it styles ${selector}`, sheet.includes(selector));
+  }
+
+  /* Their page is aimed at browsers that may not read custom properties, so
+     every var() is preceded by a literal. A bare var() would take the whole
+     declaration with it on such a browser. */
+  const lines = sheet.split("\n");
+  const bareVars = lines.filter((line, i) => {
+    const m = line.match(/^\s*([a-z-]+)\s*:\s*[^;]*var\(--ai-/);
+    if (!m) return false;
+    // The declaration before it must set the same property to a literal.
+    const previous = lines[i - 1] ?? "";
+    return !new RegExp(`^\\s*${m[1]}\\s*:`).test(previous);
+  });
+  check("     · every var() has a literal fallback on the line above", bareVars.length === 0, bareVars.slice(0, 3).join(" | "));
+
+  const preview = readFileSync("public/pelecard/preview.html", "utf8");
+  check("26 · the offline preview links the live sheet", preview.includes('href="/pelecard/ai-orange.css"'));
+  check("     · it carries no copy of the CSS to drift", !preview.includes("--ai-orange:"));
+  check("     · it says plainly that it is not a payment page", preview.includes("לא דף תשלום"));
+  check("     · and is kept out of search results", preview.includes('name="robots"'));
 
   for (const file of ["src/app/api/pelecard/checkout/route.ts", "src/actions/pelecard-test.ts"]) {
     check(`     · ${file} applies it`, readFileSync(file, "utf8").includes("...paymentPageStyle(site)"));

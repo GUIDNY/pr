@@ -3,237 +3,427 @@
  *
  * Their page accepts a `CssURL` at init, and it does not have to be one of
  * theirs — so this is how the last screen of the checkout stops looking like a
- * different company's form. It is the screen where the customer is deciding
- * whether to trust us with a card number, and until now it was the only one in
- * the whole shop that did not look like the shop.
+ * different company's form. It is the screen where a customer decides whether
+ * to trust us with a card number, and it was the only screen in the whole shop
+ * that did not look like the shop.
  *
- * It is written against plain elements — inputs, selects, buttons, fieldsets —
- * rather than their class names, which are not documented and which their own
- * stylesheet is free to rename. Their sheet is imported first and kept as the
- * base layout, so anything not overridden here still behaves as it did.
+ * Two things about this file are not obvious:
  *
- * Served from a route rather than /public because the import has to follow
- * whichever gateway is configured: hard-coding the host here would leave
- * exactly one string still pointing at the test server after go-live.
+ * It is written against Pelecard's own class names and ids — `.form-control`,
+ * `.btn-submit`, `#totalAllRow`, `#dateContainer`, `.errorRow_Vita`,
+ * `.tab-button.pay-btn`. Those are their markup, not ours, and they are free to
+ * change it; if they do, the rules keyed to a renamed selector stop applying and
+ * that part of the page quietly returns to their default. Nothing breaks, but
+ * the page stops being ours, so it is worth looking at after any change on
+ * their side. `public/pelecard/preview.html` renders the same markup offline
+ * and is how that gets checked without spending a transaction.
+ *
+ * Every custom property is paired with a literal fallback on the line above it.
+ * The page is rendered by their markup on their domain, aimed at whatever
+ * browsers they still support, and a var() an old browser cannot read would
+ * otherwise take the whole declaration with it.
+ *
+ * None of this has any effect until Pelecard's support whitelist the exact URL
+ * it is served from. Until then CssURL is ignored in silence and the customer
+ * gets the default skin, with no error anywhere to notice.
+ *
+ * Served from a route rather than /public so the base sheet it imports can
+ * follow whichever gateway is configured: a host written into a static file is
+ * the one string still pointing at the test server after go-live.
  */
 export function pelecardCheckoutCss(gatewayBaseUrl: string): string {
   return `@import url("${gatewayBaseUrl}/Content/Css/variant-he-4.css");
-@import url("https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap");
 
-/* ---- the shop's palette, in hex ----------------------------------------
-   Not oklch, which is what the site itself uses: this page is rendered by
-   somebody else's markup on somebody else's domain, and an older browser that
-   cannot parse the colour would fall back to no styling at all. */
+/* ---- Fonts (Rubik, same source Pelecard uses) ---- */
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 300;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Light.woff') format('woff'); font-display: swap; }
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 400;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Regular.woff') format('woff'); font-display: swap; }
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 500;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Medium.woff') format('woff'); font-display: swap; }
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 700;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Bold.woff') format('woff'); font-display: swap; }
+
+/* ---- Brand palette ----
+   NOTE: the payment page is served by Pelecard and may not support
+   CSS custom properties in every browser they still target.
+   Every var() below is therefore paired with a literal fallback.
+   --------------------------------------------------------------- */
 :root {
-  --ai-brand: #e9631f;
-  --ai-brand-hover: #d5551a;
-  --ai-navy: #262f63;
-  --ai-ink: #1f1c19;
-  --ai-muted: #6f6a65;
-  --ai-border: #e4e1de;
-  --ai-bg: #f7f6f4;
-  --ai-surface: #ffffff;
-  --ai-danger: #d92d20;
-  --ai-radius: 14px;
+  --ai-orange:        #F07E1A;   /* primary  */
+  --ai-orange-dark:   #D2650B;   /* hover    */
+  --ai-orange-soft:   #FFF3E6;   /* tint     */
+  --ai-ink:           #1F2933;   /* text     */
+  --ai-ink-soft:      #6B7280;   /* muted    */
+  --ai-line:          #D7DDE3;   /* borders  */
+  --ai-error:         #C0392B;
+  --ai-radius:        14px;
 }
 
-/* ---- page ---- */
-html, body {
-  background: var(--ai-bg) !important;
-  color: var(--ai-ink) !important;
-  font-family: "Heebo", system-ui, -apple-system, "Segoe UI", Arial, sans-serif !important;
-  -webkit-font-smoothing: antialiased;
-}
-
+/* =========================  BASE  ========================= */
 body {
-  padding: 16px !important;
+  font-family: Rubik, "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
+  color: #1F2933;
+  color: var(--ai-ink);
+  background: #FAFAFA;
+  direction: rtl;
+  text-align: right;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0 0 30px;
 }
 
-/* The form itself becomes a card, centred, with room to breathe. Max-width so
-   the fields do not stretch across a desktop monitor, which is what makes a
-   payment form feel like a spreadsheet. */
-form {
-  max-width: 560px !important;
-  margin: 0 auto !important;
-  background: var(--ai-surface) !important;
-  border: 1px solid var(--ai-border) !important;
-  border-radius: 20px !important;
-  padding: 28px 24px !important;
-  box-shadow: 0 1px 2px rgba(31, 28, 25, .04), 0 12px 32px -12px rgba(31, 28, 25, .14) !important;
+.container { max-width: 780px; padding: 0 15px; margin: 0 auto; }
+
+.main-title {
+  margin: 0 0 .6em;
+  font-size: 20px;
+  font-weight: 500;
+  text-align: center;
+  color: #1F2933;
+  color: var(--ai-ink);
+}
+h1#paymentByCC { display: none; }
+
+/* =========================  HEADER / LOGO  ========================= */
+.credit-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  margin-top: 28px;
+  margin-bottom: 8px;
+}
+.credit-title .logo {
+  display: block;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  width: 210px;
+  max-width: 60vw;
 }
 
-h1, h2, h3, legend {
-  font-family: inherit !important;
-  color: var(--ai-ink) !important;
-  font-weight: 700 !important;
+/* =========================  AMOUNT BOX  ========================= */
+#totalAllRow {
+  border: solid 2px #F07E1A;
+  border: solid 2px var(--ai-orange);
+  background: #FFF3E6;
+  background: var(--ai-orange-soft);
+  padding: 12px 16px;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  margin: 16px 0 22px;
+}
+#totalAllRow label,
+#totalAllRow .control-label {
+  color: #1F2933;
+  color: var(--ai-ink);
+  font-weight: 500;
+}
+#totalAll {
+  font-family: Rubik, sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  text-align: right;
+  background: none;
+  border: none;
+  color: #D2650B;
+  color: var(--ai-orange-dark);
+  padding: 2px 0;
 }
 
-/* ---- fields ----
-   Their default is a bottom rule per field, which reads as a form to fill in
-   rather than a box to type in, and on a phone gives nothing to aim at. A real
-   bordered box with a 48px target is the difference. */
-input[type="text"],
-input[type="tel"],
-input[type="number"],
-input[type="email"],
-input[type="password"],
-input:not([type]),
-select,
-textarea {
-  width: 100% !important;
-  box-sizing: border-box !important;
-  min-height: 48px !important;
-  padding: 10px 14px !important;
-  background: var(--ai-surface) !important;
-  color: var(--ai-ink) !important;
-  border: 1.5px solid var(--ai-border) !important;
-  border-radius: var(--ai-radius) !important;
-  /* 16px so iOS does not zoom the page when a field is focused. */
-  font-size: 16px !important;
-  font-family: inherit !important;
-  line-height: 1.4 !important;
-  transition: border-color .15s ease, box-shadow .15s ease !important;
+/* =========================  FIELDS  ========================= */
+.form-group { margin-bottom: 16px; }
+.form-group, .control-group { display: flex; flex-direction: column; width: 100%; }
+
+.control-label {
+  min-height: 1.2em;
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+}
+
+.form-control {
+  width: 100%;
+  height: 44px;
+  padding: 6px 12px;
+  font-family: Rubik, sans-serif;
+  font-size: 16px;              /* 16px keeps iOS from zooming on focus */
+  color: #1F2933;
+  color: var(--ai-ink);
+  background-color: #fff;
+  border: 1px solid #D7DDE3;
+  border: 1px solid var(--ai-line);
+  border-radius: 10px;
+  box-shadow: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.form-control::placeholder { color: #A9B2BC; }
+.form-control:focus {
+  outline: 0;
+  background-color: #fff;
+  border-color: #F07E1A;
+  border-color: var(--ai-orange);
+  box-shadow: 0 0 0 3px rgba(240, 126, 26, .18);
+}
+.form-control.read-only,
+.form-control[readonly],
+.form-control[disabled] {
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+  background-color: #F2F4F6;
+  border-color: #E4E8EC;
+}
+
+select.form-control {
   appearance: none;
   -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #6B7280 50%),
+                    linear-gradient(135deg, #6B7280 50%, transparent 50%);
+  background-position: calc(0% + 14px) 19px, calc(0% + 19px) 19px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-left: 34px;
 }
 
-select {
-  /* Room for the chevron on the correct side in RTL. */
-  padding-inline-start: 38px !important;
-  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236f6a65' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") !important;
-  background-repeat: no-repeat !important;
-  background-position: left 12px center !important;
+#credit_card_number_input,
+#date_month_input, #date_year_input,
+#id_number_input, #cvv_input,
+#num_of_payments, #each_payment_input, #first_payment_input,
+#phone_input, #email_input { direction: rtl; }
+
+#dateContainer select#date_month_input,
+#dateContainer select#date_year_input { width: 48%; }
+#dateContainer .delimiter {
+  display: block; width: 4%; text-align: center;
+  line-height: 44px; color: #6B7280; color: var(--ai-ink-soft);
+}
+#IdAndCvvRow { display: flex; gap: 10px; }
+
+.control-group .ext {
+  width: auto;
+  color: #F07E1A;
+  color: var(--ai-orange);
+  padding: 0 10px;
+}
+.mandatory:after {
+  content: "*";
+  color: #F07E1A;
+  color: var(--ai-orange);
+  font-size: 15px;
+  margin-right: 3px;
 }
 
-input::placeholder, textarea::placeholder { color: var(--ai-muted) !important; opacity: 1 !important; }
-
-input:focus, select:focus, textarea:focus {
-  outline: none !important;
-  border-color: var(--ai-brand) !important;
-  box-shadow: 0 0 0 3px rgba(233, 99, 31, .18) !important;
+/* =========================  ERRORS  ========================= */
+.errorRow {
+  background-color: #FDECEA;
+  color: #C0392B;
+  color: var(--ai-error);
+  border: 1px solid #F5C6C2;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+.errorRow_Vita {
+  background-color: transparent;
+  color: #C0392B;
+  color: var(--ai-error);
+  margin: 4px 0 0;
+  font-size: 13px;
+  border: none;
+  padding: 0;
+}
+.red-field,
+.form-control.red-field {
+  border: 1px solid #C0392B !important;
+  border: 1px solid var(--ai-error) !important;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, .12);
 }
 
-/* Keyboard focus stays visible for anyone not using a mouse — the site itself
-   is built to WCAG 2.2 AA and this page is part of the same purchase. */
-a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
-  outline: 3px solid var(--ai-brand) !important;
-  outline-offset: 2px !important;
+/* =========================  SUBMIT / BUTTONS  ========================= */
+.btn {
+  display: inline-block;
+  font-family: Rubik, sans-serif;
+  background-color: #EDEFF2;
+  color: #1F2933;
+  color: var(--ai-ink);
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
 }
 
-label {
-  display: block !important;
-  margin-bottom: 6px !important;
-  color: var(--ai-muted) !important;
-  font-size: 14px !important;
-  font-weight: 500 !important;
+.btn-submit, .btn-paypal {
+  width: 100%;
+  height: 56px;
+  background: #F07E1A;
+  background: var(--ai-orange);
+  border: none;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  font-family: Rubik, sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  padding: 0;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color .15s ease, box-shadow .15s ease, transform .05s ease;
+}
+.btn-submit:hover, .btn-submit:focus,
+.btn-paypal:hover, .btn-paypal:focus {
+  background-color: #D2650B;
+  background-color: var(--ai-orange-dark);
+  box-shadow: 0 8px 18px rgba(240, 126, 26, .32);
+  outline: none;
+}
+.btn-submit:active { transform: translateY(1px); }
+.btn-submit[disabled], .btn-submit.disabled {
+  background-color: #E7C3A0;
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
-fieldset {
-  border: 1px solid var(--ai-border) !important;
-  border-radius: var(--ai-radius) !important;
-  padding: 12px !important;
-  margin: 0 0 4px !important;
+.form-group-submit { margin: 22px 0 10px; text-align: center; }
+.form-group-submit-in .btn {
+  margin-bottom: 10px;
+  max-width: 340px;
+  max-height: 60px;
+  background-color: #F07E1A;
+  background-color: var(--ai-orange);
+  color: #fff;
 }
 
-legend { font-size: 13px !important; color: var(--ai-muted) !important; font-weight: 500 !important; padding: 0 6px !important; }
+#cancelBtn {
+  background-color: #fff;
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+  height: 48px;
+  border: 1px solid #D7DDE3;
+  border: 1px solid var(--ai-line);
+  border-radius: 12px;
+  font-size: 16px;
+}
+#cancelBtn:hover { background-color: #F2F4F6; }
 
-/* ---- errors ----
-   Red text alone is not an error message anyone can act on, and it is also the
-   one thing a colour-blind customer cannot see. Weight and size carry it too. */
-.error, .field-error, [class*="error"], [class*="Error"], span[style*="red"] {
-  color: var(--ai-danger) !important;
-  font-size: 13.5px !important;
-  font-weight: 500 !important;
-  margin-top: 4px !important;
+/* =========================  PAYMENT-METHOD TABS  ========================= */
+.tab-button.pay-btn {
+  background-color: #fff;
+  color: #1F2933;
+  color: var(--ai-ink);
+  border: solid 2px #E4E8EC;
+  padding: 12px 6px;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  width: 90px;
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.tab-button.pay-btn:hover {
+  border: solid 2px #F07E1A;
+  border: solid 2px var(--ai-orange);
+}
+.tab-button.pay-btn.tab-button-selected {
+  border: solid 2px #F07E1A;
+  border: solid 2px var(--ai-orange);
+  background-color: #FFF3E6;
+  background-color: var(--ai-orange-soft);
+  box-shadow: none;
+}
+.tab-button h4 { font-size: 12px; line-height: 13px; font-weight: 500; margin: 0; }
+
+/* =========================  CHECKBOX  ========================= */
+.checkbox label {
+  cursor: pointer;
+  font-weight: 400;
+  font-size: 14px;
+  padding-right: 24px;
+  color: #1F2933;
+  color: var(--ai-ink);
+}
+.checkbox input[type="checkbox"] {
+  margin-right: -24px;
+  position: absolute;
+  width: 16px; height: 16px;
+  accent-color: #F07E1A;
+  accent-color: var(--ai-orange);
+  border: 1px solid #D7DDE3;
 }
 
-input.error, select.error, input[aria-invalid="true"], select[aria-invalid="true"] {
-  border-color: var(--ai-danger) !important;
-  box-shadow: 0 0 0 3px rgba(217, 45, 32, .14) !important;
+/* =========================  FOOTER / SEALS  ========================= */
+.footer {
+  background-color: #fff;
+  border: 1px solid #EDEFF2;
+  padding: 14px 0;
+  margin-top: 22px;
+}
+.footer.centerBG {
+  max-width: 780px;
+  margin: 22px auto 0;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+}
+.footer-title {
+  text-align: center;
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+  font-size: 14px;
+  font-weight: 500;
+  margin: 10px 0;
+}
+.form-group-sup { max-width: 450px; margin: 0 auto; padding: 4px; text-align: center; }
+.form-group-sup-1 .form-group-sup-in > div { width: 16%; max-width: 56px; height: 56px; margin: 0 1%; }
+.form-group-sup-2 .form-group-sup-in > a  { width: 30%; max-width: 110px; height: 48px; margin: 0 1%; }
+
+/* =========================  3DS IFRAME  ========================= */
+iframe#threeDSCReqIframe {
+  width: 100%;
+  height: 615px;
+  overflow: auto;
+  position: relative;
+  border: 1px solid #E4E8EC;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  background: #fff;
+}
+.frame3dsContainer { position: static; width: 100%; margin: 0 auto; text-align: center; }
+
+/* =========================  bit POPUP  ========================= */
+.popup-content { border-radius: 16px; }
+.popup-close-icon { background: #FFF3E6; background: var(--ai-orange-soft); }
+.popup-title, .popup-subtitle { color: #1F2933; color: var(--ai-ink); }
+.popup-qrcode-wrapper { background: #FFF3E6; background: var(--ai-orange-soft); }
+.popup-timer-highlight { color: #D2650B; color: var(--ai-orange-dark); }
+.popup-link {
+  background: #F07E1A;
+  background: var(--ai-orange);
+  border-radius: 9999px;
+  color: #fff;
 }
 
-/* ---- buttons ----
-   One obvious action. The pay button is the shop's orange, full width, and
-   large enough to hit with a thumb; cancel is quiet and secondary, because a
-   payment form with two equally loud buttons is a payment form people misclick. */
-button, input[type="submit"], input[type="button"], .btn, a.button {
-  font-family: inherit !important;
-  font-size: 17px !important;
-  font-weight: 700 !important;
-  min-height: 52px !important;
-  padding: 12px 24px !important;
-  border-radius: var(--ai-radius) !important;
-  border: 1.5px solid transparent !important;
-  cursor: pointer !important;
-  transition: background-color .15s ease, transform .08s ease, box-shadow .15s ease !important;
+/* =========================  RESPONSIVE  ========================= */
+@media (max-width: 750px) {
+  .container { padding: 0 12px; }
+  .credit-title { margin-top: 18px; }
+  #totalAll { font-size: 23px; }
+  .btn-submit, .btn-paypal { height: 52px; font-size: 19px; }
 }
-
-button[type="submit"], input[type="submit"], button.submit, .btn-primary {
-  width: 100% !important;
-  background: var(--ai-brand) !important;
-  color: #fff !important;
-  box-shadow: 0 8px 20px -8px rgba(233, 99, 31, .55) !important;
-}
-
-button[type="submit"]:hover, input[type="submit"]:hover, .btn-primary:hover {
-  background: var(--ai-brand-hover) !important;
-}
-
-button[type="submit"]:active, input[type="submit"]:active { transform: translateY(1px) !important; }
-
-button[type="button"], input[type="button"], .btn-secondary, .cancel, [class*="cancel"] {
-  background: transparent !important;
-  color: var(--ai-muted) !important;
-  border-color: var(--ai-border) !important;
-  box-shadow: none !important;
-}
-
-button[type="button"]:hover, input[type="button"]:hover { background: var(--ai-bg) !important; }
-
-button[disabled], input[disabled] { opacity: .5 !important; cursor: not-allowed !important; }
-
-/* ---- the amount ----
-   The number the customer is agreeing to. It should be the most legible thing
-   on the page and unmistakably not an input field. */
-[class*="total"], [class*="Total"], [class*="amount"], [class*="Amount"], [class*="sum"] {
-  background: rgba(38, 47, 99, .05) !important;
-  border: 1px solid rgba(38, 47, 99, .14) !important;
-  border-radius: var(--ai-radius) !important;
-  color: var(--ai-navy) !important;
-  font-weight: 700 !important;
-  font-size: 26px !important;
-  padding: 14px 18px !important;
-  text-align: center !important;
-}
-
-/* ---- the shop's logo ---- */
-img[src*="logo"], .logo img, #logo img {
-  max-height: 56px !important;
-  width: auto !important;
-  margin: 0 auto 18px !important;
-  display: block !important;
-}
-
-/* ---- the card marks at the foot ---- */
-img[src*="card"], img[src*="visa"], img[src*="master"], img[src*="isracard"] {
-  max-height: 28px !important;
-  width: auto !important;
-  filter: saturate(.9);
-}
-
-a { color: var(--ai-brand) !important; text-decoration-thickness: 1px; text-underline-offset: 2px; }
-
-/* ---- phones ----
-   Where most of this checkout happens. */
-@media (max-width: 600px) {
-  body { padding: 8px !important; }
-  form { padding: 20px 16px !important; border-radius: 16px !important; box-shadow: none !important; }
-  button, input[type="submit"] { min-height: 54px !important; }
-}
-
-/* ---- honour the customer's own settings ---- */
-@media (prefers-reduced-motion: reduce) {
-  * { transition: none !important; animation: none !important; }
+@media (max-width: 400px) {
+  .tab-button.pay-btn { width: 76px; height: 82px; }
+  .form-group-sup-1 .form-group-sup-in > div { max-width: 44px; height: 44px; }
 }
 `;
 }

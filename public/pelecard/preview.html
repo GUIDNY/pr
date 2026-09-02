@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>תצוגה מקדימה — דף התשלום של A&amp;I</title>
+<link rel="stylesheet" href="/pelecard/ai-orange.css">
+<style>
+  /* עוטף התצוגה בלבד — לא חלק מה-CSS שנשלח לפלאקארד */
+  .preview-note{max-width:780px;margin:20px auto 0;padding:12px 16px;background:#FFF7ED;
+    border:1px solid #F5D5AE;border-radius:12px;font:14px Rubik,Arial,sans-serif;color:#7C4A03}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .tabs{display:flex;gap:10px;justify-content:center;margin:18px 0 24px}
+  .logo-text{font:700 26px Rubik,Arial,sans-serif;color:#F07E1A;letter-spacing:-.5px}
+  .logo-text small{display:block;font:400 13px Rubik,Arial,sans-serif;color:#6B7280;letter-spacing:2px}
+  .icons{display:flex;gap:8px;justify-content:center;align-items:center}
+  .icons span{width:44px;height:28px;border:1px solid #E4E8EC;border-radius:5px;
+    font:600 10px Rubik,Arial;color:#6B7280;display:flex;align-items:center;justify-content:center;background:#fff}
+</style>
+</head>
+<body>
+
+<div class="preview-note">
+  <strong>תצוגה מקדימה — לא דף תשלום.</strong> אי אפשר לשלם כאן, שום שדה לא נשלח לשום מקום
+  ואף כפתור לא עושה דבר. המבנה והמחלקות (<code>.form-control</code>, <code>.btn-submit</code>,
+  <code>#totalAllRow</code>, <code>.tab-button.pay-btn</code>) זהים לדף האמיתי של פלאקארד, כך
+  שמה שנראה כאן הוא מה שיתקבל שם. הדף טוען את <code>/pelecard/ai-orange.css</code> החי — כל
+  שינוי בעיצוב מופיע כאן ברענון, בלי לחכות ל-whitelist ובלי לבזבז עסקה.
+</div>
+
+<div class="container">
+
+  <div class="credit-title">
+    <div class="logo-text">A&amp;I ELECTRONICS<small>פ.ר אלקטרוניקה</small></div>
+  </div>
+
+  <h2 class="main-title">תשלום מאובטח</h2>
+
+  <div class="tabs">
+    <button class="tab-button pay-btn tab-button-selected" type="button">
+      <span style="font-size:22px">💳</span><h4>כרטיס אשראי</h4>
+    </button>
+    <button class="tab-button pay-btn" type="button">
+      <span style="font-size:22px"></span><h4>Apple&nbsp;Pay</h4>
+    </button>
+    <button class="tab-button pay-btn" type="button">
+      <span style="font-size:22px">G</span><h4>Google&nbsp;Pay</h4>
+    </button>
+    <button class="tab-button pay-btn" type="button">
+      <span style="font-size:22px">₿</span><h4>bit</h4>
+    </button>
+  </div>
+
+  <div id="totalAllRow" class="form-group">
+    <label class="control-label" for="totalAll">סה״כ לתשלום</label>
+    <input id="totalAll" type="text" value="₪ 1,290.00" readonly>
+  </div>
+
+  <div class="form-group">
+    <label class="control-label mandatory" for="credit_card_number_input">מספר כרטיס</label>
+    <input class="form-control" id="credit_card_number_input" type="text" placeholder="0000 0000 0000 0000">
+  </div>
+
+  <div class="form-group" id="dateContainer">
+    <label class="control-label mandatory">תוקף</label>
+    <div class="row">
+      <select class="form-control" id="date_month_input" style="width:48%">
+        <option>חודש</option><option>01</option><option>02</option><option selected>09</option>
+      </select>
+      <select class="form-control" id="date_year_input" style="width:48%">
+        <option>שנה</option><option>2026</option><option selected>2029</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="form-group" id="IdAndCvvRow">
+    <div style="flex:1">
+      <label class="control-label mandatory" for="id_number_input">תעודת זהות</label>
+      <input class="form-control" id="id_number_input" type="text" placeholder="9 ספרות">
+    </div>
+    <div style="flex:1">
+      <label class="control-label mandatory" for="cvv_input">CVV</label>
+      <input class="form-control red-field" id="cvv_input" type="text" placeholder="3 ספרות">
+      <div class="errorRow_Vita">קוד ה-CVV אינו תקין</div>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="control-label" for="num_of_payments">מספר תשלומים</label>
+    <select class="form-control" id="num_of_payments">
+      <option selected>תשלום אחד</option><option>2</option><option>3</option><option>12</option>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label class="control-label" for="email_input">אימייל לקבלה</label>
+    <input class="form-control" id="email_input" type="email" placeholder="name@example.com">
+  </div>
+
+  <div class="checkbox" style="margin:14px 0 4px">
+    <label><input type="checkbox" checked> אני מאשר/ת את תנאי השימוש ומדיניות הפרטיות</label>
+  </div>
+
+  <div class="errorRow">העסקה סורבה על ידי חברת האשראי. נסה כרטיס אחר.</div>
+
+  <div class="form-group-submit">
+    <button class="btn btn-submit" type="button">לתשלום מאובטח</button>
+    <button class="btn" id="cancelBtn" type="button" style="width:100%;margin-top:10px">ביטול</button>
+  </div>
+
+  <div class="footer centerBG">
+    <div class="footer-title">התשלום מאובטח ומוצפן</div>
+    <div class="icons">
+      <span>VISA</span><span>MC</span><span>AMEX</span><span>ISRA</span><span>DINERS</span>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
