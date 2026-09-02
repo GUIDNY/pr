@@ -129,20 +129,10 @@ export async function checkImageUrl(url: string): Promise<"ok" | "confirmed-bad"
   }
 }
 
-export async function findOrCreateBrandId(name: string): Promise<string> {
-  const trimmed = name.trim();
-  const existing = await db.brand.findFirst({ where: { name: trimmed } });
-  if (existing) return existing.id;
-  const slug = trimmed
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .toLowerCase();
-  const created = await db.brand.create({
-    data: { name: trimmed, slug: `${slug || "brand"}-${Date.now().toString(36)}` },
-  });
-  return created.id;
-}
+// The one resolver, shared with the inventory sync. It used to be a near
+// copy here, and the copy is where a renamed brand's slug collision threw
+// instead of reusing the row it collided with — see brand-resolver.ts.
+export { resolveBrandId as findOrCreateBrandId } from "@/lib/inventory/brand-resolver";
 
 // Same shape as inventory sync's own slug generator (asciiSlug + a short
 // hash of the identifying value) — an ASCII base from the title, plus a

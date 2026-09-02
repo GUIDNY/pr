@@ -6,6 +6,7 @@
 //
 //   npm run check:brand-cleanup
 import { cleanBrandCell, brandFromTitle } from "../src/lib/inventory/brand-extractor";
+import { brandSlugFor } from "../src/lib/inventory/brand-resolver";
 
 let failed = 0;
 let passed = 0;
@@ -75,6 +76,30 @@ for (const [title, want, why] of TITLES) eq(brandFromTitle(title, VOCAB), want, 
 // Nothing is ever invented: a manufacturer the catalog does not know stays
 // unfound, however plainly the title names it.
 eq(brandFromTitle("DS82-BK סאב וופר אקטיבי דגם ELAC", VOCAB), null, "a brand absent from the vocabulary is never created out of the title");
+
+// --- the slug a brand keeps after it is renamed -------------------------
+// A brand's slug is derived from its name once and then frozen, because it
+// is public in /brand/<slug>. "PolkAudio" was imported, given the slug
+// polkaudio-81d337, and later renamed to "Polk Audio" in the admin — which
+// is what the admin is for. The next sheet said "PolkAudio" again, the
+// lookup was by name only, and creating it recomputed the same slug:
+// "Unique constraint failed on the fields: (slug)", which threw and took
+// four PolkAudio soundbars out of that sync.
+//
+// The slug being a pure function of the name is what makes the repair
+// possible: a row already holding this slug can only be this brand under an
+// older name, so resolveBrandId looks up by slug as well and reuses it.
+eq(brandSlugFor("PolkAudio"), "polkaudio-81d337", "the slug in production today, recomputed from the name it was born with");
+if (brandSlugFor("PolkAudio") === brandSlugFor("Polk Audio"))
+  fail("two genuinely different names must not share a slug, or the reuse rule would merge real brands");
+else ok();
+eq(brandSlugFor("PolkAudio"), brandSlugFor("  PolkAudio  "), "surrounding whitespace is not a different brand");
+if (!/^[a-z0-9-]+$/.test(brandSlugFor("מורפי ריצ'ארד")))
+  fail("a Hebrew-only name still has to produce a URL-safe slug");
+else ok();
+if (brandSlugFor("מורפי ריצ'ארד") === brandSlugFor("קאסו"))
+  fail("two Hebrew names must not collapse to the same slug once the Latin part is empty");
+else ok();
 
 console.log(`${passed}/${passed + failed} checks passed`);
 process.exitCode = failed > 0 ? 1 : 0;

@@ -15,6 +15,7 @@ import type { SourceKey } from "./sheet-map";
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
+import { resolveBrandId } from "./brand-resolver";
 import { looksLikeEnergyLabelUrl, looksLikeMarketingTitle } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
 
@@ -113,24 +114,11 @@ function slugFor(row: NormalizedProductRow, sku: string) {
   return `${base}-${suffix}`;
 }
 
-// Exported for scripts/backfill-brand-attribution.ts, which has to resolve
-// a brand name exactly the way a sync would — a second implementation that
-// drifted would file products under a near-duplicate brand row.
-export async function resolveBrandId(name: string | null): Promise<string> {
-  const brandName = (name ?? "לא ידוע").trim() || "לא ידוע";
-  const existing = await db.brand.findFirst({ where: { name: brandName } });
-  if (existing) return existing.id;
-  const slug =
-    asciiSlug(brandName) ||
-    createHash("sha1").update(brandName).digest("hex").slice(0, 10);
-  const created = await db.brand.create({
-    data: {
-      name: brandName,
-      slug: `${slug}-${createHash("sha1").update(brandName).digest("hex").slice(0, 6)}`,
-    },
-  });
-  return created.id;
-}
+// Kept as a re-export so scripts/backfill-brand-attribution.ts and the
+// enrich endpoints all resolve a brand exactly the way a sync does — a
+// second implementation that drifted is what filed four PolkAudio soundbars
+// nowhere at all. See brand-resolver.ts.
+export { resolveBrandId };
 
 async function resolveCategoryId(slug: string | null): Promise<string | null> {
   if (!slug) return null;
