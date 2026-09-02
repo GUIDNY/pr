@@ -36,9 +36,12 @@ export function PaymentFrame({ src }: { src: string }) {
   }, []);
 
   return (
-    <div className="border-border bg-card relative overflow-hidden rounded-xl border">
+    /* White, because their page is white: a card-coloured shell around a white
+       form reads as a box inside a box, which is exactly what an embedded
+       gateway should not look like. */
+    <div className="border-border relative overflow-hidden rounded-xl border bg-white">
       {state === "loading" && (
-        <div className="text-muted-foreground absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-card">
+        <div className="text-muted-foreground absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white">
           <Loader2 className="text-brand size-8 animate-spin" aria-hidden />
           <p className="text-sm">טוענים את טופס התשלום המאובטח...</p>
         </div>

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Image from "next/image";
 import { ShieldCheck, Lock, Phone, RotateCcw, SearchX } from "lucide-react";
 import { db } from "@/lib/db";
 import { openPelecardPayment } from "@/lib/pelecard/open-payment";
@@ -49,17 +48,21 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
   const opened = await openPelecardPayment(order.id);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-6 flex flex-col items-center gap-2 text-center">
-        <Image src="/brand/logo.png" alt="A&I Electronics" width={132} height={132} className="h-14 w-auto" priority />
-        <h1 className="text-2xl font-bold">תשלום מאובטח</h1>
-        <p className="text-muted-foreground text-sm">
-          הזמנה <span className="text-foreground font-semibold">{order.orderNumber}</span>
+    <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
+      <div className="mb-5 text-center">
+        <h1 className="text-xl font-bold sm:text-2xl">כמעט סיימנו</h1>
+        <p className="text-muted-foreground mt-1 text-sm">
+          הזמנה <span className="text-foreground font-semibold">{order.orderNumber}</span> · מלאו את פרטי הכרטיס
+          לסיום
         </p>
-      </header>
+      </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_20rem] lg:items-start">
-        <div className="order-2 lg:order-1">
+      {/* The form leads on a phone, where the summary below it is one thumb
+          away; on a desktop the summary sits alongside and follows the page
+          down, because the customer's last question before typing a card
+          number is "how much, and for what". */}
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
+        <div className="min-w-0">
           {opened.ok ? (
             <PaymentFrame src={opened.redirectUrl} />
           ) : (
@@ -67,13 +70,13 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
           )}
         </div>
 
-        <aside className="order-1 flex flex-col gap-4 lg:order-2">
+        <aside className="flex flex-col gap-3 lg:sticky lg:top-20">
           <section className="border-border bg-card rounded-xl border p-4">
-            <h2 className="mb-3 font-semibold">מה משלמים עליו</h2>
+            <h2 className="mb-3 text-sm font-semibold">מה משלמים עליו</h2>
             <ul className="divide-border flex flex-col divide-y text-sm">
               {order.items.map((item) => (
                 <li key={item.id} className="flex justify-between gap-3 py-2">
-                  <span className="text-muted-foreground">
+                  <span className="text-muted-foreground line-clamp-2">
                     {item.titleSnap}
                     {item.quantity > 1 && <span className="text-xs"> × {item.quantity}</span>}
                   </span>
@@ -89,31 +92,33 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
             </div>
           </section>
 
-          <section className="border-border bg-card text-muted-foreground flex flex-col gap-2.5 rounded-xl border p-4 text-sm">
+          <section className="border-border bg-card text-muted-foreground flex flex-col gap-2.5 rounded-xl border p-4 text-xs leading-relaxed">
             <p className="flex items-start gap-2">
-              <Lock className="text-success mt-0.5 size-4 shrink-0" aria-hidden />
+              <Lock className="text-success mt-0.5 size-3.5 shrink-0" aria-hidden />
               <span>
                 פרטי הכרטיס נמסרים ישירות לחברת הסליקה ו<strong>אינם עוברים דרך האתר שלנו</strong> ואינם נשמרים
                 אצלנו.
               </span>
             </p>
             <p className="flex items-start gap-2">
-              <ShieldCheck className="text-success mt-0.5 size-4 shrink-0" aria-hidden />
-              <span>הסליקה מאובטחת בתקן PCI DSS ומוצפנת ב-SSL.</span>
+              <ShieldCheck className="text-success mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <span>מאובטח בתקן PCI DSS ומוצפן ב-SSL.</span>
             </p>
             <p className="flex items-start gap-2">
-              <Phone className="text-brand mt-0.5 size-4 shrink-0" aria-hidden />
+              <Phone className="text-brand mt-0.5 size-3.5 shrink-0" aria-hidden />
               <span>
-                נתקעתם? <a href="tel:04-6639510" className="text-brand underline underline-offset-2">04-6639510</a>
+                נתקעתם?{" "}
+                <a href="tel:04-6639510" className="text-brand font-medium underline underline-offset-2">
+                  04-6639510
+                </a>
               </span>
             </p>
+            <p className="border-border mt-1 border-t pt-2.5">
+              <Link href="/privacy" className="underline underline-offset-2">מדיניות פרטיות</Link>
+              {" · "}
+              <Link href="/accessibility" className="underline underline-offset-2">הצהרת נגישות</Link>
+            </p>
           </section>
-
-          <p className="text-muted-foreground text-center text-xs">
-            <Link href="/privacy" className="underline underline-offset-2">מדיניות פרטיות</Link>
-            {" · "}
-            <Link href="/accessibility" className="underline underline-offset-2">הצהרת נגישות</Link>
-          </p>
         </aside>
       </div>
     </div>
