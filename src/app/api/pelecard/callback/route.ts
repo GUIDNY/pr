@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   validateByUniqueKey,
   getTransaction,
+  normalizeFeedback,
   CLEARERS,
   type PelecardFeedback,
 } from "@/lib/pelecard/client";
@@ -38,6 +39,9 @@ function secretMatches(given: string, expected: string): boolean {
  * So the parser accepts what a gateway actually sends: JSON, form-encoded, or
  * a query string. An unreadable body is no longer a reason to reject a
  * notification we can still identify from our own callback URL.
+ *
+ * Whatever the encoding, the result goes through normalizeFeedback(), because
+ * the field names are not the ones the browser return uses either — see there.
  */
 async function readFeedback(req: Request): Promise<{ feedback: PelecardFeedback; raw: string }> {
   const raw = await req.text().catch(() => "");
@@ -45,13 +49,26 @@ async function readFeedback(req: Request): Promise<{ feedback: PelecardFeedback;
 
   try {
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") return { feedback: parsed as PelecardFeedback, raw };
+    if (parsed && typeof parsed === "object") {
+      return { feedback: normalizeFeedback(parsed as Record<string, unknown>), raw };
+    }
   } catch {
     // Not JSON — fall through to the form encoding.
   }
 
   try {
-    return { feedback: Object.fromEntries(new URLSearchParams(raw)) as PelecardFeedback, raw };
+    const form = Object.fromEntries(new URLSearchParams(raw)) as Record<string, unknown>;
+    // A form-encoded body cannot nest, so Pelecard flattens ResultData back
+    // into a JSON string under that key. Unwrapping it here means the
+    // normaliser sees the same shape either way.
+    if (typeof form.ResultData === "string") {
+      try {
+        form.ResultData = JSON.parse(form.ResultData);
+      } catch {
+        delete form.ResultData;
+      }
+    }
+    return { feedback: normalizeFeedback(form), raw };
   } catch {
     console.error("[pelecard] unreadable callback body", { sample: raw.slice(0, 200) });
     return { feedback: {}, raw };
@@ -118,7 +135,13 @@ export async function POST(req: Request) {
           orderId,
           fromStatus: order.status,
           toStatus: order.status,
-          note: `תשלום נכשל · ${reason}${feedback.PelecardStatusCode ? ` · קוד ${feedback.PelecardStatusCode}` : ""}`,
+          note: [
+            `תשלום נכשל · ${reason}`,
+            feedback.PelecardStatusCode ? `קוד ${feedback.PelecardStatusCode}` : null,
+            feedback.ErrorMessage,
+          ]
+            .filter(Boolean)
+            .join(" · "),
         },
       }),
     ]);
@@ -167,13 +190,16 @@ export async function POST(req: Request) {
     return fail("validation empty");
   }
 
-  // 6. The full record, for the day a charge is disputed. Best effort: a
-  //    payment that is otherwise valid is not failed over a missing detail.
-  let details: Record<string, unknown> = {};
+  // 6. The full record, for the day a charge is disputed. The notification
+  //    already carries most of it, so that is the starting point and
+  //    GetTransaction only adds to it: a payment that is otherwise valid is
+  //    never failed — nor left without a card number and an approval number —
+  //    over a call that did not answer.
+  let details: Record<string, unknown> = { ...(feedback.ResultData ?? {}) };
   try {
     if (feedback.PelecardTransactionId) {
       const transaction = await getTransaction(feedback.PelecardTransactionId);
-      details = transaction.ResultData ?? {};
+      details = { ...details, ...(transaction.ResultData ?? {}) };
     }
   } catch (error) {
     console.error("[pelecard] GetTransaction failed (payment still valid)", { orderId, error });
@@ -190,7 +216,8 @@ export async function POST(req: Request) {
       data: {
         status: "CAPTURED",
         environment,
-        reference: feedback.ApprovalNo ?? feedback.PelecardTransactionId ?? null,
+        reference:
+          feedback.ApprovalNo ?? feedback.PelecardTransactionNumber ?? feedback.PelecardTransactionId ?? null,
         pelecardTransactionId: feedback.PelecardTransactionId,
         pelecardStatusCode: feedback.PelecardStatusCode,
         approvalNo: feedback.ApprovalNo ?? (details.DebitApproveNumber as string | undefined) ?? null,

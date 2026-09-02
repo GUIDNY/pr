@@ -22,6 +22,7 @@
     "fix:rowkeys": "NODE_OPTIONS=--conditions=react-server tsx scripts/backfill-source-row-keys.ts",
     "fix:category-names": "tsx scripts/sync-category-names.ts",
     "check:api": "tsx scripts/check-integration-api.ts",
+    "check:pelecard": "NODE_OPTIONS=--conditions=react-server tsx scripts/pelecard-scenarios.mts",
     "check:complaints": "tsx scripts/check-complaints.ts",
     "check:brand-cleanup": "tsx scripts/check-brand-cleanup.ts",
     "fix:brand-unknowns": "tsx scripts/fix-unknown-brands.ts"

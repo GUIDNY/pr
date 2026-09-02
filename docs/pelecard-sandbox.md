@@ -82,20 +82,59 @@ The amount is compared against `Payment.amountAgorot` — the integer we sent �
 and never against the float on the order. `toAgorot()` is the only place money
 is converted.
 
+### The shape the notification actually arrives in
+
+Not the one the documentation describes for the browser return. The server-side
+notification is nested, and every field the checks above depend on lives inside
+`ResultData` under a different name:
+
+```json
+{
+  "StatusCode": "000",
+  "ErrorMessage": "",
+  "ResultData": {
+    "TransactionId": "5c3f9c94-…",       // the GUID GetTransaction accepts
+    "TransactionPelecardId": "3081963254", // a different id — not interchangeable
+    "AdditionalDetailsParamX": "<order id>",
+    "UserKey": "<order id>",
+    "DebitTotal": "14990",                // agorot — this is TotalX100
+    "DebitApproveNumber": "1234567",      // this is ApprovalNo
+    "ConfirmationKey": "…",
+    "ShvaResult": "000"
+  }
+}
+```
+
+Read flat, `PelecardStatusCode`, `ParamX` and `TotalX100` are all `undefined`,
+and the callback would fail an approved payment on `undefined !== "000"` — the
+customer sent to the error page for a card that was charged. `normalizeFeedback()`
+in `src/lib/pelecard/client.ts` is the single place that translation happens;
+the flat form is still accepted, because that is what the browser gets.
+
+The scenario suite posts this exact envelope, captured from a live sandbox
+transaction. That matters: every other assertion in the file posts a shape we
+invented, which is precisely why the earlier ones all passed while the real
+payload broke.
+
 ## Testing
 
 **Automated** (everything that does not need the live gateway):
 
 ```bash
 PELECARD_TEST_DB=<db url> PELECARD_CALLBACK_SECRET=<same as the server> \
-  npx tsx scripts/pelecard-scenarios.mts
+  npm run check:pelecard
 ```
+
+`NODE_OPTIONS=--conditions=react-server` is not optional and is why that is a
+script rather than a bare `tsx` call: without it the suite dies partway through
+on `server-only`, after printing a screenful of passes — which reads like a
+crash at the end rather than a third of the checks never running.
 
 with the app running against that database. It writes test orders — never point
 it at production.
 
 **By hand, through the gateway**: `/admin/pelecard-test`, which exists only
-when the configured gateway is the test one (the middleware returns a real 404
+when the configured gateway is the test one (the proxy returns a real 404
 otherwise). It creates a throwaway order, lets you force any result through
 `QAResultStatus`, and lists the last 20 sandbox payments with their full raw
 responses.

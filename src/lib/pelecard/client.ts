@@ -27,12 +27,58 @@ export interface InitResponse {
 export interface PelecardFeedback {
   PelecardStatusCode?: string;
   PelecardTransactionId?: string;
+  PelecardTransactionNumber?: string;
   ApprovalNo?: string;
   Token?: string;
   ParamX?: string;
   UserKey?: string;
   ConfirmationKey?: string;
   TotalX100?: string;
+  ErrorMessage?: string;
+  /** Pelecard's own record of the transaction, when the notification carried it. */
+  ResultData?: Record<string, unknown>;
+}
+
+/**
+ * Puts Pelecard's server-side notification into the shape the rest of this
+ * code expects.
+ *
+ * It is not the shape their documentation describes for the browser return.
+ * The notification arrives nested — `{StatusCode, ErrorMessage, ResultData:{…}}`
+ * — and every field we act on lives inside `ResultData` under a different name:
+ * the order id is `AdditionalDetailsParamX`, the amount is `DebitTotal`, the
+ * approval number is `DebitApproveNumber`. Read flat, all of them are
+ * `undefined`, which meant an approved payment would have been recorded as a
+ * decline (`undefined !== "000"`) and the customer sent to the error page for a
+ * card that was charged. That is the worst failure this integration has.
+ *
+ * The flat form is still accepted unchanged: it is what the browser gets, and
+ * a gateway is free to send either.
+ */
+export function normalizeFeedback(body: Record<string, unknown>): PelecardFeedback {
+  const nested = body.ResultData;
+  if (!nested || typeof nested !== "object") return body as PelecardFeedback;
+
+  const rd = nested as Record<string, unknown>;
+  const str = (v: unknown) => (v === undefined || v === null || v === "" ? undefined : String(v));
+
+  return {
+    // The top-level code is the transaction's verdict; ShvaResult is the same
+    // answer from the card network, and stands in if the envelope lacks one.
+    PelecardStatusCode: str(body.StatusCode) ?? str(rd.ShvaResult),
+    ErrorMessage: str(body.ErrorMessage),
+    // The GUID — the id GetTransaction accepts and the one in their payment
+    // page's address. The numeric id is a different thing and kept apart.
+    PelecardTransactionId: str(rd.TransactionId),
+    PelecardTransactionNumber: str(rd.TransactionPelecardId),
+    ApprovalNo: str(rd.DebitApproveNumber),
+    Token: str(rd.Token),
+    ParamX: str(rd.AdditionalDetailsParamX) ?? str(rd.ParamX),
+    UserKey: str(rd.UserKey),
+    ConfirmationKey: str(rd.ConfirmationKey),
+    TotalX100: str(rd.DebitTotal),
+    ResultData: rd,
+  };
 }
 
 export interface TransactionResponse {
@@ -117,6 +163,7 @@ export const PELECARD_STATUS_MESSAGES: Record<string, string> = {
   "033": "הכרטיס אינו תקין. נסו כרטיס אחר.",
   "036": "תוקף הכרטיס פג. נסו כרטיס אחר.",
   "039": "מספר הכרטיס שגוי. בדקו את הספרות ונסו שוב.",
+  "125": "הטרמינל אינו מורשה לקבל את סוג הכרטיס הזה. זו הגדרה אצל חברת הסליקה ולא תקלה בכרטיס.",
   "301": "לא קיבלנו תשובה מחברת האשראי. ייתכן שהעסקה כן בוצעה — בדקו את ההזמנות שלכם או צרו קשר לפני ניסיון נוסף.",
 };
 

@@ -2,7 +2,7 @@
  * The two Pelecard hosts, and the rule for choosing between them.
  *
  * This file exists so those two strings are written down exactly once and can
- * still be read from the edge middleware, which cannot import the server-only
+ * still be read from the proxy, which cannot import the server-only
  * config module. Everything else goes through src/lib/pelecard/config.ts.
  */
 

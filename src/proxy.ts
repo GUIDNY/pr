@@ -12,8 +12,11 @@ import { isSandboxGateway } from "@/lib/pelecard/gateway";
  * 404, from the routing layer, exactly as if the route did not exist.
  *
  * Scoped to that single path — nothing else in the app passes through here.
+ *
+ * Named `proxy` rather than `middleware`: Next 16 renamed the convention and
+ * warns on every dev start about the old name.
  */
-export function middleware() {
+export function proxy() {
   if (isSandboxGateway()) return NextResponse.next();
 
   return new NextResponse("404 — Not Found", {

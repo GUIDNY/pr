@@ -349,6 +349,103 @@ console.log("\n--- the shape the gateway actually posts ---");
   check("a callback with no order reference at all is still refused", res3.status === 400, `(got ${res3.status})`);
 }
 
+console.log("\n--- the envelope the gateway actually posts ---");
+{
+  /* Captured from the first sandbox transaction that reached the callback.
+     Nothing this route reads is where the documentation for the browser return
+     puts it: the order id is AdditionalDetailsParamX, the amount is DebitTotal,
+     the approval number is DebitApproveNumber, and the status code is one level
+     up. Read flat they are all undefined — so an approved payment would have
+     been failed on `undefined !== "000"` and the customer sent to the error
+     page for a card that was charged.
+
+     These assertions use the real envelope for exactly the reason the previous
+     round of them missed the bug: every other check in this file posts a shape
+     we invented. */
+  const envelope = (orderId: string, statusCode: string, totalAgorot: string, errorMessage = "") => ({
+    StatusCode: statusCode,
+    ErrorMessage: errorMessage,
+    ResultData: {
+      TransactionId: "5c3f9c94-529c-43f0-a1ca-949ef5dc9c62",
+      ShvaResult: statusCode,
+      AdditionalDetailsParamX: orderId,
+      UserKey: orderId,
+      DebitApproveNumber: statusCode === "000" ? "1234567" : "0000000",
+      ConfirmationKey: "test-confirmation-key",
+      VoucherId: "86-001-001",
+      TransactionPelecardId: "3081963254",
+      CreditCardNumber: "45******4580",
+      CreditCardCompanyClearer: "2",
+      DebitTotal: totalAgorot,
+      TotalPayments: "1",
+    },
+  });
+
+  const reasonOf = async (orderId: string) => {
+    const payment = (await db.payment.findFirst({ where: { orderId } }))!;
+    return (payment.rawResponse as { reason?: string } | null)?.reason ?? "";
+  };
+
+  // The order is found from the body alone — no &order= to fall back on.
+  const { order } = await makeOrder({ total: 149.9 });
+  const res = await callback(envelope(order.id, "125", "14990", "terminal not allowed to accept Imex/36 transaction."));
+  const after = (await db.order.findUnique({ where: { id: order.id } }))!;
+  const payment = (await db.payment.findFirst({ where: { orderId: order.id } }))!;
+  const history = await db.orderStatusHistory.findFirst({
+    where: { orderId: order.id },
+    orderBy: { createdAt: "desc" },
+  });
+  check("18 · the nested envelope identifies its own order", res.status === 200, `(got ${res.status})`);
+  check("     · the decline is recorded", after.paymentStatus === "FAILED", `(${after.paymentStatus})`);
+  check("     · with the code from one level up", payment.pelecardStatusCode === "125", `(${payment.pelecardStatusCode})`);
+  check("     · and the GUID, not the numeric id", payment.pelecardTransactionId === "5c3f9c94-529c-43f0-a1ca-949ef5dc9c62", `(${payment.pelecardTransactionId})`);
+  check("     · the note carries Pelecard's own words", (history?.note ?? "").includes("terminal not allowed"), history?.note ?? "");
+
+  // The amount is read from DebitTotal. Wrong amount → caught.
+  const { order: cheap } = await makeOrder({ total: 149.9 });
+  await callback(envelope(cheap.id, "000", "100"));
+  const cheapReason = await reasonOf(cheap.id);
+  check("19 · a nested envelope claiming ₪1 for a ₪149.90 order is caught", cheapReason === "amount mismatch", cheapReason);
+
+  /* Right amount → it gets past the amount check. It still fails here, because
+     ValidateByUniqueKey needs the real gateway and this suite runs without it;
+     the point of the assertion is that the reason is no longer the amount. A
+     route reading TotalX100 flat would compare NaN to 14990 and stop here. */
+  const { order: correct } = await makeOrder({ total: 149.9 });
+  await callback(envelope(correct.id, "000", "14990"));
+  const reason = await reasonOf(correct.id);
+  check("     · and the matching amount passes that check", reason !== "amount mismatch" && reason !== "missing keys", reason);
+}
+
+console.log("\n--- normalizeFeedback ---");
+{
+  const { normalizeFeedback } = await import("../src/lib/pelecard/client");
+
+  const nested = normalizeFeedback({
+    StatusCode: "000",
+    ErrorMessage: "",
+    ResultData: {
+      TransactionId: "guid-1",
+      TransactionPelecardId: "3081963254",
+      AdditionalDetailsParamX: "order-1",
+      UserKey: "order-1",
+      DebitTotal: "14990",
+      DebitApproveNumber: "1234567",
+      ConfirmationKey: "key-1",
+      ShvaResult: "000",
+    },
+  });
+  check("20 · the nested envelope is flattened", nested.PelecardStatusCode === "000" && nested.ParamX === "order-1" && nested.TotalX100 === "14990");
+  check("     · the two transaction ids are kept apart", nested.PelecardTransactionId === "guid-1" && nested.PelecardTransactionNumber === "3081963254");
+  check("     · the approval number is found", nested.ApprovalNo === "1234567");
+
+  const flat = normalizeFeedback({ PelecardStatusCode: "000", ParamX: "order-2", TotalX100: "500" });
+  check("     · a flat body is left as it is", flat.PelecardStatusCode === "000" && flat.ParamX === "order-2" && flat.TotalX100 === "500");
+
+  const empty = normalizeFeedback({ StatusCode: "125", ErrorMessage: "nope", ResultData: {} });
+  check("     · an empty ResultData yields no false order reference", empty.ParamX === undefined && empty.PelecardStatusCode === "125");
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 await db.$disconnect();
 process.exit(fail === 0 ? 0 : 1);
