@@ -577,9 +577,17 @@ console.log("\n--- how Pelecard's page is dressed ---");
   const style = paymentPageStyle("https://shop.example.com") as Record<string, string>;
 
   check("25 · the logo is an absolute address on our own site", style.LogoURL === "https://shop.example.com/brand/logo.png", style.LogoURL);
-  check("     · the stylesheet follows the configured gateway", style.CssURL.startsWith("https://gateway2") && style.CssURL.endsWith("/Content/Css/variant-he-4.css"), style.CssURL);
+  check("     · the stylesheet is our own, not theirs", style.CssURL === "https://shop.example.com/api/pelecard/checkout-css", style.CssURL);
   check("     · the form is Hebrew-friendly on a phone", style.NumericInputMode === "True" && style.PlaceholderCaptions === "True");
   check("     · errors appear on the field that caused them", style.InputErrorDisplayByField === "True");
+
+  // The sheet keeps their layout as its base, and that base has to follow the
+  // configured gateway rather than name a host outright.
+  const { pelecardCheckoutCss } = await import("../src/lib/pelecard/checkout-css");
+  const sheet = pelecardCheckoutCss("https://gateway20.pelecard.biz");
+  check("     · it imports the configured gateway's sheet as its base", sheet.includes('@import url("https://gateway20.pelecard.biz/Content/Css/variant-he-4.css")'));
+  check("     · it does not hard-code a gateway anywhere else", (sheet.match(/pelecard\.biz/g) ?? []).length === 1);
+  check("     · fields are 16px, so iOS does not zoom on focus", /font-size:\s*16px/.test(sheet));
 
   for (const file of ["src/app/api/pelecard/checkout/route.ts", "src/actions/pelecard-test.ts"]) {
     check(`     · ${file} applies it`, readFileSync(file, "utf8").includes("...paymentPageStyle(site)"));

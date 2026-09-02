@@ -179,18 +179,20 @@ export const SUPPORTED_CARDS = {
  * is where a checkout is abandoned. These parameters are how the page is made
  * to look like it belongs to the shop.
  *
- * The stylesheet is taken from whichever gateway is configured rather than
- * named outright, so this cannot become the one string still pointing at the
- * old host after a switch.
+ * The stylesheet is ours — a route on this site, which imports the configured
+ * gateway's own sheet as its base and overrides from there. That keeps their
+ * layout while the colours, the fields and the buttons become the shop's.
  *
  * `LogoURL` has to be an absolute address Pelecard's page can actually load, so
  * it is built from our own site URL — a relative path would silently resolve
  * against their domain and show nothing.
  */
 export function paymentPageStyle(site: string) {
-  const { baseUrl } = pelecardConfig();
   return {
-    CssURL: `${baseUrl}/Content/Css/variant-he-4.css`,
+    // Ours, not theirs — see src/lib/pelecard/checkout-css.ts. It imports the
+    // configured gateway's own sheet as its base and overrides from there, so
+    // the page keeps their layout and gains the shop's face.
+    CssURL: `${site}/api/pelecard/checkout-css`,
     LogoURL: `${site}/brand/logo.png`,
     // Captions inside the fields rather than above them — shorter form, which
     // matters most on the phone where the keyboard covers half the screen.
