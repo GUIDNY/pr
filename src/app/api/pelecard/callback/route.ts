@@ -75,6 +75,37 @@ async function readFeedback(req: Request): Promise<{ feedback: PelecardFeedback;
   }
 }
 
+/**
+ * The columns worth having as columns.
+ *
+ * Everything Pelecard says is kept verbatim in `rawResponse`, which stays the
+ * source of truth. But a blob cannot be queried, sorted or shown in a table, so
+ * the handful of fields the shop actually looks up — approval number, last four
+ * digits, which card company, how many instalments — are lifted out as well.
+ *
+ * This runs on declines too, and deliberately: "which card was refused" is the
+ * first question asked when a customer phones about a payment that did not go
+ * through, and it was being thrown away.
+ */
+function paymentColumns(feedback: PelecardFeedback, details: Record<string, unknown>) {
+  const cardNumber = String(details.CreditCardNumber ?? "");
+  const clearerCode = String(details.CreditCardCompanyClearer ?? "");
+  return {
+    pelecardStatusCode: feedback.PelecardStatusCode ?? null,
+    // The GUID, not TransactionPelecardId: this is the id GetTransaction takes
+    // and the one the admin lookup needs. The numeric id is an approval-side
+    // reference and is kept in `reference` instead.
+    pelecardTransactionId: feedback.PelecardTransactionId ?? null,
+    approvalNo: feedback.ApprovalNo ?? (details.DebitApproveNumber as string | undefined) ?? null,
+    voucherId: (details.VoucherId as string | undefined) ?? null,
+    cardLast4: cardNumber.replace(/\D/g, "").slice(-4) || null,
+    // The card company, from its code — not TerminalName, which is this shop's
+    // own name and would label every payment "פ.ר אלקטרוניקה".
+    clearerName: CLEARERS[clearerCode] ?? null,
+    totalPayments: Number(details.TotalPayments) || 1,
+  };
+}
+
 export async function POST(req: Request) {
   const url = new URL(req.url);
 
@@ -118,23 +149,49 @@ export async function POST(req: Request) {
   if (order.paymentStatus === "CAPTURED") return NextResponse.json({ ok: true });
 
   const fail = async (reason: string, extra?: unknown) => {
-    console.error("[pelecard] payment rejected", { orderId, reason, extra });
+    // Pelecard's own verdict, in our logs. `reason` is our summary of why we
+    // refused it; the code and their message are the evidence, and printing the
+    // summary alone is how a real answer ("terminal not allowed to accept
+    // Imex/36") gets thrown away in favour of "error feedback url".
+    console.error("[pelecard] payment rejected", {
+      orderId,
+      reason,
+      statusCode: feedback.PelecardStatusCode ?? null,
+      errorMessage: feedback.ErrorMessage ?? null,
+      transactionId: feedback.PelecardTransactionId ?? null,
+      extra,
+    });
+
+    /* A failed payment moves the order, and that is the whole point: until now
+       paymentStatus went to FAILED while status stayed PAYMENT_PENDING, so in
+       the admin a declined order was indistinguishable from one the customer
+       is still paying for.
+
+       Only from the two statuses where it can be true, though. A late or
+       redelivered failure must not drag an order that has since been paid for
+       by other means — or already shipped — backwards. */
+    const movesToFailed = order.status === "PAYMENT_PENDING" || order.status === "NEW";
+    const details = feedback.ResultData ?? {};
+
     await db.$transaction([
       db.payment.update({
         where: { id: payment.id },
         data: {
           status: "FAILED",
-          pelecardStatusCode: feedback.PelecardStatusCode,
-          pelecardTransactionId: feedback.PelecardTransactionId,
+          ...paymentColumns(feedback, details),
+          reference: feedback.PelecardTransactionNumber ?? null,
           rawResponse: { feedback, rawBody, reason, extra } as object,
         },
       }),
-      db.order.update({ where: { id: orderId }, data: { paymentStatus: "FAILED" } }),
+      db.order.update({
+        where: { id: orderId },
+        data: { paymentStatus: "FAILED", ...(movesToFailed ? { status: "PAYMENT_FAILED" } : {}) },
+      }),
       db.orderStatusHistory.create({
         data: {
           orderId,
           fromStatus: order.status,
-          toStatus: order.status,
+          toStatus: movesToFailed ? "PAYMENT_FAILED" : order.status,
           note: [
             `תשלום נכשל · ${reason}`,
             feedback.PelecardStatusCode ? `קוד ${feedback.PelecardStatusCode}` : null,
@@ -206,7 +263,6 @@ export async function POST(req: Request) {
   }
 
   const { environment } = pelecardConfig();
-  const cardNumber = String(details.CreditCardNumber ?? "");
 
   // 7. Paid. Status, payment record and history in one transaction — a
   //    half-written payment is worse than none.
@@ -216,15 +272,8 @@ export async function POST(req: Request) {
       data: {
         status: "CAPTURED",
         environment,
-        reference:
-          feedback.ApprovalNo ?? feedback.PelecardTransactionNumber ?? feedback.PelecardTransactionId ?? null,
-        pelecardTransactionId: feedback.PelecardTransactionId,
-        pelecardStatusCode: feedback.PelecardStatusCode,
-        approvalNo: feedback.ApprovalNo ?? (details.DebitApproveNumber as string | undefined) ?? null,
-        voucherId: (details.VoucherId as string | undefined) ?? null,
-        cardLast4: cardNumber.slice(-4) || null,
-        clearerName: CLEARERS[String(details.CreditCardCompanyClearer)] ?? null,
-        totalPayments: Number(details.TotalPayments) || 1,
+        ...paymentColumns(feedback, details),
+        reference: feedback.PelecardTransactionNumber ?? feedback.PelecardTransactionId ?? null,
         rawResponse: { feedback, rawBody, validation, details } as object,
       },
     }),

@@ -41,7 +41,13 @@ function check(name: string, ok: boolean, detail = "") {
   }
 }
 
-async function makeOrder({ total = 149.9, paymentStatus = "PENDING", withPayment = true } = {}) {
+async function makeOrder({
+  total = 149.9,
+  paymentStatus = "PENDING",
+  withPayment = true,
+  status,
+}: { total?: number; paymentStatus?: string; withPayment?: boolean; status?: string } = {}) {
+  status ??= paymentStatus === "CAPTURED" ? "PAID" : "PAYMENT_PENDING";
   const order = await db.order.create({
     data: {
       orderNumber: `T-${Math.random().toString(36).slice(2, 9).toUpperCase()}`,
@@ -49,7 +55,7 @@ async function makeOrder({ total = 149.9, paymentStatus = "PENDING", withPayment
       guestEmail: "t@example.com",
       guestPhone: "0500000000",
       deliveryMethod: "PICKUP",
-      status: paymentStatus === "CAPTURED" ? "PAID" : "PAYMENT_PENDING",
+      status,
       subtotal: total,
       total,
       paymentStatus,
@@ -444,6 +450,79 @@ console.log("\n--- normalizeFeedback ---");
 
   const empty = normalizeFeedback({ StatusCode: "125", ErrorMessage: "nope", ResultData: {} });
   check("     · an empty ResultData yields no false order reference", empty.ParamX === undefined && empty.PelecardStatusCode === "125");
+}
+
+console.log("\n--- a failed payment is visible as failed ---");
+{
+  /* paymentStatus went to FAILED while status stayed PAYMENT_PENDING, so in the
+     admin list a declined order looked exactly like one the customer is still
+     paying for — and the history read PAYMENT_PENDING → PAYMENT_PENDING. */
+  const envelope = (orderId: string, statusCode: string, errorMessage = "") => ({
+    StatusCode: statusCode,
+    ErrorMessage: errorMessage,
+    ResultData: {
+      TransactionId: "guid-failed-1",
+      TransactionPelecardId: "3081963254",
+      AdditionalDetailsParamX: orderId,
+      UserKey: orderId,
+      DebitTotal: "14990",
+      DebitApproveNumber: "0000000",
+      ConfirmationKey: "test-confirmation-key",
+      VoucherId: "86-001-001",
+      CreditCardNumber: "45******4580",
+      CreditCardCompanyClearer: "2",
+      TotalPayments: "1",
+      ShvaResult: statusCode,
+    },
+  });
+
+  const { order } = await makeOrder({ total: 149.9 });
+  await callback(envelope(order.id, "125", "terminal not allowed to accept Imex/36 transaction."));
+  const after = (await db.order.findUnique({ where: { id: order.id } }))!;
+  const payment = (await db.payment.findFirst({ where: { orderId: order.id } }))!;
+  const history = (await db.orderStatusHistory.findFirst({
+    where: { orderId: order.id },
+    orderBy: { createdAt: "desc" },
+  }))!;
+
+  check("21 · the order moves to PAYMENT_FAILED", after.status === "PAYMENT_FAILED", `(${after.status})`);
+  check("     · and the history records the move", history.fromStatus === "PAYMENT_PENDING" && history.toStatus === "PAYMENT_FAILED", `(${history.fromStatus} → ${history.toStatus})`);
+
+  // The columns exist to be queried and shown; a decline fills them too.
+  check("22 · the last four digits are lifted out", payment.cardLast4 === "4580", `(${payment.cardLast4})`);
+  check("     · so is the card company, from its code", payment.clearerName === "ויזה כאל", `(${payment.clearerName})`);
+  check("     · and the voucher", payment.voucherId === "86-001-001", `(${payment.voucherId})`);
+  check("     · and the instalment count", payment.totalPayments === 1, `(${payment.totalPayments})`);
+  check("     · clearerName is not this shop's own name", payment.clearerName !== "פ.ר אלקטרוניקה");
+  check("     · the transaction id is the GUID GetTransaction takes", payment.pelecardTransactionId === "guid-failed-1", `(${payment.pelecardTransactionId})`);
+  check("     · the numeric id is kept as the reference", payment.reference === "3081963254", `(${payment.reference})`);
+
+  /* A late or redelivered failure must not drag an order that has moved on.
+     Pelecard can redeliver, and an order paid by other means and already sent
+     is not un-shipped by a notification about the card attempt that failed. */
+  const { order: shipped } = await makeOrder({ total: 149.9, status: "SHIPPED" });
+  await callback(envelope(shipped.id, "033"));
+  const afterShipped = (await db.order.findUnique({ where: { id: shipped.id } }))!;
+  check("23 · a late failure does not drag a shipped order backwards", afterShipped.status === "SHIPPED", `(${afterShipped.status})`);
+  check("     · but the payment is still recorded failed", afterShipped.paymentStatus === "FAILED", `(${afterShipped.paymentStatus})`);
+}
+
+console.log("\n--- SupportedCards ---");
+{
+  /* Pelecard rejects the whole init with ErrCode 999 if one of the five is
+     missing or blank, and leaving a brand the terminal cannot take set to True
+     is what produced `125 — terminal not allowed to accept Imex/36`. */
+  const { SUPPORTED_CARDS } = await import("../src/lib/pelecard/client");
+  const brands = ["Amex", "Diners", "Isra", "Master", "Visa"];
+  const values = SUPPORTED_CARDS as Record<string, string>;
+  check("24 · all five brands are named", brands.every((b) => values[b] === "True" || values[b] === "False"), JSON.stringify(values));
+  check("     · the two the terminal cannot take are False", values.Amex === "False" && values.Diners === "False");
+  check("     · the three it can are True", values.Isra === "True" && values.Master === "True" && values.Visa === "True");
+
+  const { readFileSync } = await import("node:fs");
+  for (const file of ["src/app/api/pelecard/checkout/route.ts", "src/actions/pelecard-test.ts"]) {
+    check(`     · ${file} sends it`, readFileSync(file, "utf8").includes("SupportedCards: SUPPORTED_CARDS"));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

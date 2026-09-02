@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { initPayment } from "@/lib/pelecard/client";
+import { initPayment, SUPPORTED_CARDS } from "@/lib/pelecard/client";
 import {
   pelecardConfig,
   pelecardEnabled,
@@ -80,6 +80,7 @@ export async function POST(req: Request) {
         FirstPayment: "auto",
         ShopNo: "001",
         UseLuhnAlgorithm: "True",
+        SupportedCards: SUPPORTED_CARDS,
         TakeIshurPopUp: "False",
       },
       // Forcing a result is a sandbox affordance. initPayment() throws if this

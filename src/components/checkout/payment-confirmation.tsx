@@ -21,8 +21,19 @@ import { clearPaidOrderCartAction } from "@/actions/orders";
  * still being confirmed.
  */
 
-const POLL_INTERVAL_MS = 2_000;
-const POLL_TIMEOUT_MS = 30_000;
+/* The wait has to be measured in minutes, not seconds.
+   3D Secure is on for this terminal, which means the customer leaves for their
+   banking app or waits for an SMS before the card company answers at all. Two
+   sandbox transactions took 32 and 104 seconds end to end, and a real one on a
+   slow phone can take longer. The old thirty-second limit was shorter than the
+   normal case: it declared "the verification is delayed" while the payment was
+   proceeding exactly as designed.
+   Fast polling for the first stretch, because most payments do land quickly,
+   then slower — a five-minute wait at two seconds is 150 pointless requests. */
+const POLL_FAST_MS = 2_000;
+const POLL_SLOW_MS = 5_000;
+const POLL_FAST_UNTIL_MS = 20_000;
+const POLL_TIMEOUT_MS = 300_000;
 
 type Status = "PENDING" | "CAPTURED" | "FAILED" | "TIMED_OUT" | string;
 
@@ -47,11 +58,12 @@ export function PaymentConfirmation({
     if (status !== "PENDING") return;
     const startedAt = Date.now();
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
 
-    const timer = setInterval(async () => {
+    const poll = async () => {
       if (cancelled) return;
-      if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
-        clearInterval(timer);
+      const elapsed = Date.now() - startedAt;
+      if (elapsed > POLL_TIMEOUT_MS) {
         setStatus("TIMED_OUT");
         return;
       }
@@ -59,20 +71,25 @@ export function PaymentConfirmation({
         const res = await fetch(`/api/pelecard/status?order=${encodeURIComponent(orderNumber)}`, {
           cache: "no-store",
         });
-        if (!res.ok) return;
-        const data = (await res.json()) as { paymentStatus?: string };
-        if (data.paymentStatus && data.paymentStatus !== "PENDING") {
-          clearInterval(timer);
-          setStatus(data.paymentStatus);
+        if (res.ok) {
+          const data = (await res.json()) as { paymentStatus?: string };
+          if (data.paymentStatus && data.paymentStatus !== "PENDING") {
+            if (!cancelled) setStatus(data.paymentStatus);
+            return;
+          }
         }
       } catch {
         // A failed poll is not a failed payment — keep waiting for the next one.
       }
-    }, POLL_INTERVAL_MS);
+      if (cancelled) return;
+      timer = setTimeout(poll, elapsed < POLL_FAST_UNTIL_MS ? POLL_FAST_MS : POLL_SLOW_MS);
+    };
+
+    timer = setTimeout(poll, POLL_FAST_MS);
 
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [status, orderNumber]);
 
@@ -117,7 +134,10 @@ export function PaymentConfirmation({
       <div className="border-border bg-muted/40 mb-6 flex flex-col items-center gap-2 rounded-xl border p-5 text-center">
         <Loader2 className="text-brand size-8 animate-spin" />
         <p className="font-semibold">מאמתים את התשלום...</p>
-        <p className="text-muted-foreground text-sm">זה לוקח כמה שניות. אין צורך לרענן את העמוד.</p>
+        <p className="text-muted-foreground text-sm">
+          אם חברת האשראי שלחה לכם קוד אימות בהודעה או באפליקציה — אשרו אותו, וחזרו לעמוד הזה. זה יכול לקחת עד כמה
+          דקות. אין צורך לרענן.
+        </p>
       </div>
     );
   }
@@ -128,8 +148,8 @@ export function PaymentConfirmation({
         <Loader2 className="text-warning-foreground size-8" />
         <p className="font-semibold">האימות מתעכב</p>
         <p className="text-muted-foreground text-sm">
-          ההזמנה נשמרה ואנחנו ממתינים לאישור מחברת האשראי. <strong>אין לבצע תשלום נוסף.</strong> נעדכן אתכם, וניתן
-          לבדוק בעמוד מעקב ההזמנה או ליצור קשר בטלפון 04-6639510.
+          ההזמנה נשמרה ואנחנו עדיין ממתינים לאישור מחברת האשראי. <strong>אין לבצע תשלום נוסף</strong> — ייתכן שהוא כן
+          נקלט. נעדכן אתכם, וניתן לבדוק בעמוד מעקב ההזמנה או ליצור קשר בטלפון 04-6639510.
         </p>
       </div>
     );

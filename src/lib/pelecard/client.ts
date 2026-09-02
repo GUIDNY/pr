@@ -148,6 +148,27 @@ export function checkGoodParamX(paramX: string): Promise<unknown> {
   });
 }
 
+/**
+ * Which card brands this terminal may accept, sent on every init.
+ *
+ * All five are named every time. Pelecard rejects the request outright — ErrCode
+ * 999, before any transaction exists — if one of them is missing or blank, so
+ * there is no such thing as "leave out the ones we don't take".
+ *
+ * Amex and Diners are False because the terminal is not authorised for them.
+ * Leaving the door open produced the first live failure: the customer got as
+ * far as the card form, and the answer came back from the card network as
+ * `125 — terminal not allowed to accept Imex/36 transaction`. Refusing the
+ * brand at the gateway means it is never offered in the first place.
+ */
+export const SUPPORTED_CARDS = {
+  Amex: "False",
+  Diners: "False",
+  Isra: "True",
+  Master: "True",
+  Visa: "True",
+} as const;
+
 /** Card issuer codes, for the record kept against the payment. */
 export const CLEARERS: Record<string, string> = {
   "1": "ישראכרט",
@@ -165,6 +186,9 @@ export const PELECARD_STATUS_MESSAGES: Record<string, string> = {
   "039": "מספר הכרטיס שגוי. בדקו את הספרות ונסו שוב.",
   "125": "הטרמינל אינו מורשה לקבל את סוג הכרטיס הזה. זו הגדרה אצל חברת הסליקה ולא תקלה בכרטיס.",
   "301": "לא קיבלנו תשובה מחברת האשראי. ייתכן שהעסקה כן בוצעה — בדקו את ההזמנות שלכם או צרו קשר לפני ניסיון נוסף.",
+  // Not a decline, and saying "declined" here is wrong in a way that costs a
+  // sale: the card is fine, the identity check (3D Secure) did not complete.
+  "650": "האימות מול חברת האשראי לא הושלם. הכרטיס שלכם תקין — אפשר לנסות שוב ולאשר את ההודעה שנשלחת אליכם.",
 };
 
 /** 301 is a timeout, not a decline: the charge may have gone through, so a
