@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { initPayment } from "@/lib/pelecard/client";
+import { initPayment, getTransaction } from "@/lib/pelecard/client";
 import {
   pelecardConfig,
   toAgorot,
@@ -109,4 +109,43 @@ export async function createSandboxTestOrderAction(amountShekels: number, qaResu
   });
 
   return { success: true as const, redirectUrl: result.URL, orderNumber: order.orderNumber };
+}
+
+/**
+ * Asks Pelecard what they know about one transaction.
+ *
+ * Their reports system only lists transactions that were transmitted to the
+ * card companies, and a sandbox transaction never is — so a payment made here
+ * is invisible in their UI even though it exists on their side. This is how to
+ * see it: give the transaction id and read their own answer.
+ *
+ * It is also the diagnostic for the case where a notification never arrived.
+ * Whatever our database believes, this says what Pelecard believes.
+ */
+export async function lookupTransactionAction(transactionId: string) {
+  await requireAdmin();
+
+  if (!isPelecardSandbox()) {
+    return { success: false as const, error: "זמין רק בסביבת הבדיקה" };
+  }
+  const id = transactionId.trim();
+  if (!id) return { success: false as const, error: "יש להזין מזהה עסקה" };
+
+  try {
+    const transaction = await getTransaction(id);
+    const empty =
+      !transaction ||
+      ((!transaction.ResultData || Object.keys(transaction.ResultData).length === 0) &&
+        (!transaction.UserData || Object.keys(transaction.UserData).length === 0));
+    if (empty) {
+      return {
+        success: false as const,
+        error: "פלאקארד לא מכירים מזהה עסקה כזה — או שהעסקה מעולם לא נוצרה אצלם.",
+      };
+    }
+    return { success: true as const, transaction };
+  } catch (error) {
+    console.error("[pelecard] transaction lookup failed", { transactionId: id, error });
+    return { success: false as const, error: `השליפה נכשלה: ${String(error)}` };
+  }
 }

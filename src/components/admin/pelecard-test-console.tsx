@@ -6,7 +6,7 @@ import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createSandboxTestOrderAction } from "@/actions/pelecard-test";
+import { createSandboxTestOrderAction, lookupTransactionAction } from "@/actions/pelecard-test";
 
 /* QAResultStatus makes Pelecard return exactly the code you ask for, which is
    how the failure paths get tested without hunting for a card that declines.
@@ -101,6 +101,71 @@ export function PelecardTestConsole() {
       <Button variant="brand" onClick={run} disabled={isPending} className="self-start">
         {isPending ? "פותח עסקה..." : "יצירת הזמנת בדיקה ומעבר לסליקה"}
       </Button>
+
+      <TransactionLookup />
+    </div>
+  );
+}
+
+/**
+ * Pelecard's own reports only list transactions that were transmitted to the
+ * card companies, and a sandbox transaction never is — so a payment made here
+ * cannot be found in their UI even though it exists on their side. This asks
+ * them directly.
+ *
+ * The id is on the payment row in the table below, and also in the address of
+ * their payment page (…/PaymentGW?transactionId=…).
+ */
+function TransactionLookup() {
+  const [transactionId, setTransactionId] = useState("");
+  const [result, setResult] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function lookup() {
+    setResult(null);
+    startTransition(async () => {
+      const response = await lookupTransactionAction(transactionId);
+      if (!response.success) {
+        toast.error(response.error ?? "השליפה נכשלה");
+        return;
+      }
+      setResult(JSON.stringify(response.transaction, null, 2));
+    });
+  }
+
+  return (
+    <div className="border-border mt-2 border-t pt-4">
+      <h3 className="mb-1 font-semibold">שליפת עסקה מפלאקארד</h3>
+      <p className="text-muted-foreground mb-3 text-xs leading-relaxed">
+        עסקאות סנדבוקס לא מופיעות במערכת הדוחות של פלאקארד, כי הן לא משודרות לחברות האשראי. זו הדרך לראות מה הם
+        יודעים על עסקה: מדביקים את מזהה העסקה ומקבלים את התשובה שלהם כמו שהיא.
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-[320px] flex-1">
+          <Label htmlFor="txn-id" className="mb-1.5">
+            מזהה עסקה (PelecardTransactionId)
+          </Label>
+          <Input
+            id="txn-id"
+            dir="ltr"
+            placeholder="704e33fb-f044-4a60-b887-0aee71b2f294"
+            value={transactionId}
+            onChange={(e) => setTransactionId(e.target.value)}
+            className="font-mono text-sm"
+          />
+        </div>
+        <Button variant="outline" onClick={lookup} disabled={isPending || !transactionId.trim()}>
+          {isPending ? "שולף..." : "שליפה"}
+        </Button>
+      </div>
+      {result && (
+        <pre
+          dir="ltr"
+          className="bg-muted mt-3 max-h-96 overflow-auto rounded-lg p-3 text-xs leading-relaxed"
+        >
+          {result}
+        </pre>
+      )}
     </div>
   );
 }
