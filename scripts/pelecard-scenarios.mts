@@ -16,6 +16,7 @@
  * PELECARD_CALLBACK_SECRET matching what the server was started with.
  */
 
+import { readFileSync } from "node:fs";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 
@@ -562,9 +563,26 @@ console.log("\n--- SupportedCards ---");
   check("     · the two the terminal cannot take are False", values.Amex === "False" && values.Diners === "False");
   check("     · the three it can are True", values.Isra === "True" && values.Master === "True" && values.Visa === "True");
 
-  const { readFileSync } = await import("node:fs");
   for (const file of ["src/app/api/pelecard/checkout/route.ts", "src/actions/pelecard-test.ts"]) {
     check(`     · ${file} sends it`, readFileSync(file, "utf8").includes("SupportedCards: SUPPORTED_CARDS"));
+  }
+}
+
+console.log("\n--- how Pelecard's page is dressed ---");
+{
+  /* The payment page is served from their domain, and a customer who lands on
+     an unbranded form has no way to tell they are still buying from the same
+     shop. These are the parameters that stop that. */
+  const { paymentPageStyle } = await import("../src/lib/pelecard/client");
+  const style = paymentPageStyle("https://shop.example.com") as Record<string, string>;
+
+  check("25 · the logo is an absolute address on our own site", style.LogoURL === "https://shop.example.com/brand/logo.png", style.LogoURL);
+  check("     · the stylesheet follows the configured gateway", style.CssURL.startsWith("https://gateway2") && style.CssURL.endsWith("/Content/Css/variant-he-4.css"), style.CssURL);
+  check("     · the form is Hebrew-friendly on a phone", style.NumericInputMode === "True" && style.PlaceholderCaptions === "True");
+  check("     · errors appear on the field that caused them", style.InputErrorDisplayByField === "True");
+
+  for (const file of ["src/app/api/pelecard/checkout/route.ts", "src/actions/pelecard-test.ts"]) {
+    check(`     · ${file} applies it`, readFileSync(file, "utf8").includes("...paymentPageStyle(site)"));
   }
 }
 

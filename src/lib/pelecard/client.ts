@@ -169,6 +169,45 @@ export const SUPPORTED_CARDS = {
   Visa: "True",
 } as const;
 
+/**
+ * How Pelecard's hosted payment page is dressed.
+ *
+ * The page is theirs and is served from their domain — that is the whole point,
+ * since it means a card number never touches our servers. But a customer who
+ * has just pressed "pay" on a Hebrew shop and lands on an unbranded English
+ * form has no way to tell they are still buying from the same people, and that
+ * is where a checkout is abandoned. These parameters are how the page is made
+ * to look like it belongs to the shop.
+ *
+ * The stylesheet is taken from whichever gateway is configured rather than
+ * named outright, so this cannot become the one string still pointing at the
+ * old host after a switch.
+ *
+ * `LogoURL` has to be an absolute address Pelecard's page can actually load, so
+ * it is built from our own site URL — a relative path would silently resolve
+ * against their domain and show nothing.
+ */
+export function paymentPageStyle(site: string) {
+  const { baseUrl } = pelecardConfig();
+  return {
+    CssURL: `${baseUrl}/Content/Css/variant-he-4.css`,
+    LogoURL: `${site}/brand/logo.png`,
+    // Captions inside the fields rather than above them — shorter form, which
+    // matters most on the phone where the keyboard covers half the screen.
+    PlaceholderCaptions: "True",
+    SplitCCNumber: "True",
+    // A numeric keypad for the card number instead of a full keyboard.
+    NumericInputMode: "True",
+    // Errors against the field that caused them, not one line at the top.
+    InputErrorDisplayByField: "True",
+    // The card's own brand mark, so the customer can see their card was read.
+    ShowBrandLogo: "True",
+    HiddenPelecardLogo: "True",
+    HiddenPciLogo: "True",
+    HiddenSslSeal: "True",
+  };
+}
+
 /** Card issuer codes, for the record kept against the payment. */
 export const CLEARERS: Record<string, string> = {
   "1": "ישראכרט",

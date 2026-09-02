@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth";
-import { initPayment, getTransaction, SUPPORTED_CARDS } from "@/lib/pelecard/client";
+import { initPayment, getTransaction, SUPPORTED_CARDS, paymentPageStyle } from "@/lib/pelecard/client";
 import {
   pelecardConfig,
   toAgorot,
@@ -110,6 +110,7 @@ export async function createSandboxTestOrderAction(amountShekels: number, qaResu
       UseLuhnAlgorithm: "True",
       SupportedCards: SUPPORTED_CARDS,
       TakeIshurPopUp: "False",
+      ...paymentPageStyle(site),
     },
     liveTest ? undefined : { qaResultStatus }
   );

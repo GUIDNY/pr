@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { initPayment, SUPPORTED_CARDS } from "@/lib/pelecard/client";
+import { initPayment, SUPPORTED_CARDS, paymentPageStyle } from "@/lib/pelecard/client";
 import {
   pelecardConfig,
   pelecardEnabled,
@@ -82,6 +82,7 @@ export async function POST(req: Request) {
         UseLuhnAlgorithm: "True",
         SupportedCards: SUPPORTED_CARDS,
         TakeIshurPopUp: "False",
+        ...paymentPageStyle(site),
       },
       // Forcing a result is a sandbox affordance. initPayment() throws if this
       // ever reaches the production gateway; the guard here means a request
