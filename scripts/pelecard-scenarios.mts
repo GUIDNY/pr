@@ -272,6 +272,41 @@ console.log("\n--- configuration guards (no server involved) ---");
   check("     · a negative amount is refused", throws(() => toAgorot(-5)) === true);
 }
 
+console.log("\n--- the payload the checkout form actually sends ---");
+{
+  /* The gap that let a real bug through: every check above talks to the API
+     routes directly, so none of them ever validated what the form posts. With
+     the gateway on the form has no card fields, and the schema was still
+     demanding a card number for a DEMO_CARD order — so every single gateway
+     order was rejected before it was created, with "מספר כרטיס לא תקין". */
+  const { checkoutSchema } = await import("../src/lib/order-schema");
+  const base = {
+    fullName: "בדיקה",
+    email: "t@example.com",
+    phone: "0501234567",
+    deliveryMethod: "PICKUP" as const,
+  };
+
+  const gateway = checkoutSchema.safeParse({
+    ...base,
+    paymentMethod: "PELECARD",
+    cardNumber: "",
+    cardExpiry: "",
+    cardCvv: "",
+  });
+  check(
+    "a gateway order validates carrying no card details",
+    gateway.success,
+    gateway.success ? "" : JSON.stringify(gateway.error.issues[0])
+  );
+
+  const demoWithoutCard = checkoutSchema.safeParse({ ...base, paymentMethod: "DEMO_CARD", cardNumber: "" });
+  check("a demo-flow order with no card number is still refused", !demoWithoutCard.success);
+
+  const cash = checkoutSchema.safeParse({ ...base, paymentMethod: "CASH_ON_DELIVERY" });
+  check("a cash order still validates", cash.success);
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 await db.$disconnect();
 process.exit(fail === 0 ? 0 : 1);

@@ -57,7 +57,13 @@ export async function createOrderAction(input: CheckoutInput) {
      server-side callback may mark it captured. The old DEMO behaviour — mark
      it paid on the spot because the form said so — stays exactly as it was
      while the flag is off, so nothing changes until it is switched on. */
-  const payWithPelecard = pelecardEnabled() && data.paymentMethod === "DEMO_CARD";
+  const payWithPelecard = data.paymentMethod === "PELECARD";
+  if (payWithPelecard && !pelecardEnabled()) {
+    // The form only sends PELECARD when the server told it the gateway is on.
+    // If that is no longer true, refusing is the only safe answer: the
+    // alternative is an order nobody can pay for, or worse, one marked paid.
+    return { success: false as const, error: "התשלום בכרטיס אינו זמין כרגע. נסו שוב או בחרו תשלום במזומן." };
+  }
   const paymentStatus = payWithPelecard ? "PENDING" : data.paymentMethod === "DEMO_CARD" ? "CAPTURED" : "PENDING";
   const orderStatus = payWithPelecard ? "PAYMENT_PENDING" : data.paymentMethod === "DEMO_CARD" ? "PAID" : "NEW";
 

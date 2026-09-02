@@ -74,7 +74,18 @@ export function CheckoutForm({
   function submit() {
     setErrors({});
     startTransition(async () => {
-      const result = await createOrderAction(form as CheckoutInput);
+      /* The radio still says DEMO_CARD — it is one "credit card" option to the
+         customer either way — but with the gateway on, the order is a PELECARD
+         order and must say so before it is validated. A DEMO_CARD order is
+         required to carry a card number, and this form no longer has one to
+         give: that mismatch rejected every gateway order at the door with
+         "מספר כרטיס לא תקין". */
+      const payload = {
+        ...form,
+        paymentMethod:
+          payViaGateway && form.paymentMethod === "DEMO_CARD" ? "PELECARD" : form.paymentMethod,
+      };
+      const result = await createOrderAction(payload as CheckoutInput);
       if (!result.success) {
         toast.error(result.error ?? "שגיאה בביצוע ההזמנה");
         return;
