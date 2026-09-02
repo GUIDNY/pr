@@ -563,7 +563,7 @@ console.log("\n--- SupportedCards ---");
   check("     · the two the terminal cannot take are False", values.Amex === "False" && values.Diners === "False");
   check("     · the three it can are True", values.Isra === "True" && values.Master === "True" && values.Visa === "True");
 
-  for (const file of ["src/app/api/pelecard/checkout/route.ts", "src/actions/pelecard-test.ts"]) {
+  for (const file of ["src/lib/pelecard/open-payment.ts", "src/actions/pelecard-test.ts"]) {
     check(`     · ${file} sends it`, readFileSync(file, "utf8").includes("SupportedCards: SUPPORTED_CARDS"));
   }
 }
@@ -619,9 +619,54 @@ console.log("\n--- how Pelecard's page is dressed ---");
   check("     · it says plainly that it is not a payment page", preview.includes("לא דף תשלום"));
   check("     · and is kept out of search results", preview.includes('name="robots"'));
 
-  for (const file of ["src/app/api/pelecard/checkout/route.ts", "src/actions/pelecard-test.ts"]) {
+  for (const file of ["src/lib/pelecard/open-payment.ts", "src/actions/pelecard-test.ts"]) {
     check(`     · ${file} applies it`, readFileSync(file, "utf8").includes("...paymentPageStyle(site)"));
   }
+}
+
+console.log("\n--- the payment step, on our own page ---");
+{
+  /* The gateway's form is embedded rather than navigated to, so everything
+     around it is ours. What has to hold: the page exists for an unpaid order,
+     refuses to reopen a payment for one already settled, and the browser's
+     return from the gateway lands somewhere that puts the whole window back —
+     otherwise the confirmation page opens inside the payment box. */
+  const { order } = await makeOrder({ total: 149.9, withPayment: false });
+  const res = await fetch(`${SITE}/checkout/pay/${order.orderNumber}`);
+  const html = await res.text();
+  check("33 · the payment page renders for an unpaid order", res.status === 200, `(got ${res.status})`);
+  check("     · it shows the order it is charging for", html.includes(order.orderNumber));
+  check("     · and says the card never reaches us", html.includes("אינם עוברים דרך האתר שלנו"));
+
+  const { order: paid } = await makeOrder({ paymentStatus: "CAPTURED" });
+  const already = await fetch(`${SITE}/checkout/pay/${paid.orderNumber}`);
+  const alreadyHtml = await already.text();
+  check("34 · a paid order is not offered a second payment", alreadyHtml.includes("כבר שולמה"));
+
+  /* Not a 404: the shop's shell has already streamed by the time the order is
+     looked up, so a status cannot be set any more. What matters is that nobody
+     is shown a payment form for an order that does not exist, and that they are
+     told no charge was made. */
+  const missing = await fetch(`${SITE}/checkout/pay/NO-SUCH-ORDER`);
+  const missingHtml = await missing.text();
+  check("     · an unknown order gets no payment form", !missingHtml.includes("<iframe"), `(got ${missing.status})`);
+  check("     · and is told plainly that nothing was charged", missingHtml.includes("לא מצאנו את ההזמנה") && missingHtml.includes("לא בוצע שום חיוב"));
+
+  const back = await fetch(`${SITE}/checkout/frame-return?to=success&order=${paid.orderNumber}`);
+  const backHtml = await back.text();
+  check("35 · the return page breaks out of the frame", backHtml.includes("window.top.location.replace"));
+  check("     · to the confirmation page for that order", backHtml.includes(`/checkout/success/${paid.orderNumber}`));
+  check("     · with a link for a browser that runs no script", backHtml.includes('target="_top"'));
+
+  const cancelled = await fetch(`${SITE}/checkout/frame-return?to=cancelled&order=${paid.orderNumber}`);
+  check("     · cancelling lands on the cancelled page", (await cancelled.text()).includes("/checkout/cancelled"));
+
+  // An unknown destination must not become an open redirect out of the site.
+  const forged = await fetch(`${SITE}/checkout/frame-return?to=https://evil.example.com&order=x`);
+  const forgedHtml = await forged.text();
+  // The URL itself is echoed back in Next's own payload, so the thing to assert
+  // is where the browser is actually sent — not whether the string appears.
+  check("36 · an unrecognised destination goes nowhere but our checkout", forgedHtml.includes('location.replace("/checkout")') && !/location\.replace\("https?:/.test(forgedHtml));
 }
 
 console.log(`\n${pass} passed, ${fail} failed\n`);

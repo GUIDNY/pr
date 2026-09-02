@@ -91,28 +91,17 @@ export function CheckoutForm({
         return;
       }
 
-      /* The order exists but is not paid: hand it to the gateway and send the
-         customer to their page. The cart is deliberately left as it is —
-         until the payment is confirmed there is nothing to clear, and a
-         declined card should leave the customer with their cart intact. */
+      /* The order exists but is not paid: on to the payment step, which is a
+         page of ours with the gateway's form embedded in it rather than a
+         journey off to somebody else's site. It opens the payment itself, so
+         there is nothing to fetch here first — one less thing between pressing
+         the button and seeing the form.
+
+         The cart is deliberately left as it is: until the payment is confirmed
+         there is nothing to clear, and a declined card should leave the
+         customer with their cart intact. */
       if (result.requiresPayment) {
-        try {
-          const res = await fetch("/api/pelecard/checkout", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ orderId: result.orderId }),
-          });
-          const data = (await res.json()) as { redirectUrl?: string; error?: string };
-          if (!res.ok || !data.redirectUrl) {
-            toast.error("לא הצלחנו לפתוח את עמוד התשלום. ההזמנה נשמרה — נסו שוב או צרו קשר.");
-            router.push(`/checkout/error?order=${result.orderNumber}`);
-            return;
-          }
-          window.location.href = data.redirectUrl;
-        } catch {
-          toast.error("לא הצלחנו להתחבר לשרת התשלומים. ההזמנה נשמרה.");
-          router.push(`/checkout/error?order=${result.orderNumber}`);
-        }
+        router.push(`/checkout/pay/${encodeURIComponent(result.orderNumber)}`);
         return;
       }
 
