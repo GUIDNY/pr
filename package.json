@@ -24,7 +24,8 @@
     "check:api": "tsx scripts/check-integration-api.ts",
     "check:complaints": "tsx scripts/check-complaints.ts",
     "check:brand-cleanup": "tsx scripts/check-brand-cleanup.ts",
-    "fix:brand-unknowns": "tsx scripts/fix-unknown-brands.ts"
+    "fix:brand-unknowns": "tsx scripts/fix-unknown-brands.ts",
+    "check:brand-orphans": "tsx scripts/check-brand-orphans.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

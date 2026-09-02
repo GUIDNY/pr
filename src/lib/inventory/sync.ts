@@ -15,7 +15,7 @@ import type { SourceKey } from "./sheet-map";
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
-import { resolveBrandId } from "./brand-resolver";
+import { resolveBrandId, findBrandId } from "./brand-resolver";
 import {
   looksLikeEnergyLabelUrl,
   looksLikeMarketingTitle,
@@ -50,7 +50,7 @@ async function allocateTempSku(): Promise<string> {
 export async function findExistingProduct(
   sourceId: string,
   row: NormalizedProductRow,
-  brandId: string,
+  brandId: string | null,
 ) {
   const positionMatch = await db.product.findFirst({
     where: { sourceId, sourceSheet: row.sheetName, sourceRowRef: row.rowIndex },
@@ -85,6 +85,11 @@ export async function findExistingProduct(
   // product has been edited, which is the whole reason for the key — but it
   // is still better than no match at all, and every product it does find
   // gets a key written on this same run, so each sync shrinks this path.
+  // No Brand row for this name yet means no product carries it, so this
+  // search has nothing it could match — and asking would only be an excuse
+  // to create the brand up front, which is what filled the table with junk.
+  if (!brandId) return null;
+
   return db.product.findFirst({
     where: {
       sourceId,
@@ -205,13 +210,16 @@ async function applyOneRow(
   result: ApplyResult,
 ): Promise<{ productId: string; types: Set<string> } | null> {
   const hasConflict = conflictSkus.has(row.sku);
-  const brandId = await resolveBrandId(row.brandName);
+
+  // Lookup only — see findBrandId. The row may still be dropped below, and
+  // a dropped row must not leave a Brand behind.
+  const existingBrandId = await findBrandId(row.brandName);
 
   // Position (sourceId+sheet+row) first, content-identity fallback for
   // temp-SKU'd rows, plain SKU lookup otherwise — see findExistingProduct
   // for why this order matters (handles the temp -> real SKU upgrade case
   // without creating a duplicate).
-  const existing = await findExistingProduct(sourceId, row, brandId);
+  const existing = await findExistingProduct(sourceId, row, existingBrandId);
   const rawStock = totalStock(row);
 
   // Zero stock, never seen before: don't pull it into the system at all —
@@ -241,6 +249,10 @@ async function applyOneRow(
     });
     return null;
   }
+
+  // Past every early return, so this row is definitely becoming a product:
+  // now the brand may be created. Reuses whatever findBrandId already found.
+  const brandId = existingBrandId ?? (await resolveBrandId(row.brandName));
 
   const { price: resolved } = resolvedPrice(row);
 

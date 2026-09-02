@@ -86,3 +86,37 @@ export async function resolveBrandId(name: string | null | undefined): Promise<s
     return created.id;
   }
 }
+
+/**
+ * The brand for this name if one already exists, and null otherwise —
+ * never creates a row.
+ *
+ * The sync used to call resolveBrandId at the very top of applyOneRow,
+ * before the two early returns that drop a row (zero stock on a product we
+ * have never seen, and a sheet tab with no matching category). Those rows
+ * write no product, but the brand row was already committed — so every junk
+ * value that ever appeared in a BRAND cell became a permanent Brand: model
+ * codes (EC9155.GR, IQ700), spec fragments (240Hz, 50W RMS), product types
+ * (מיקרוגל), a spreadsheet summary line (סה"כ), even "Invalid Date".
+ *
+ * One sync produced 178 of them in a single run, half the brand table,
+ * every one with zero products — visible in the admin's brand picker and
+ * at a public /brand/<slug> page.
+ *
+ * So matching uses this, and only a row that survives as far as being
+ * written calls resolveBrandId. Nothing is lost by looking up instead of
+ * creating: the one place the sync needs a brand before that point is the
+ * legacy brand+model+title fallback in findExistingProduct, which searches
+ * for a product already carrying this brandId. A brand that does not exist
+ * yet has no products, so that search could never have matched anyway.
+ */
+export async function findBrandId(name: string | null | undefined): Promise<string | null> {
+  const brandName = (name ?? UNKNOWN_BRAND).trim() || UNKNOWN_BRAND;
+  const byName = await db.brand.findFirst({ where: { name: brandName }, select: { id: true } });
+  if (byName) return byName.id;
+  const bySlug = await db.brand.findUnique({
+    where: { slug: brandSlugFor(brandName) },
+    select: { id: true },
+  });
+  return bySlug?.id ?? null;
+}
