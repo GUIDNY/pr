@@ -26,6 +26,38 @@ function secretMatches(given: string, expected: string): boolean {
   return nodeTimingSafeEqual(a, b);
 }
 
+/**
+ * Reads Pelecard's notification whatever shape it arrives in.
+ *
+ * We ask for JSON at init, and the first real transaction proved that is not
+ * what turns up: the body came in a form Request.json() could not parse, this
+ * route answered 400 twice, Pelecard treated the unacknowledged notification
+ * as a failed transaction and sent the customer to the error page — for a
+ * payment that may well have gone through at their end.
+ *
+ * So the parser accepts what a gateway actually sends: JSON, form-encoded, or
+ * a query string. An unreadable body is no longer a reason to reject a
+ * notification we can still identify from our own callback URL.
+ */
+async function readFeedback(req: Request): Promise<{ feedback: PelecardFeedback; raw: string }> {
+  const raw = await req.text().catch(() => "");
+  if (!raw.trim()) return { feedback: {}, raw };
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") return { feedback: parsed as PelecardFeedback, raw };
+  } catch {
+    // Not JSON — fall through to the form encoding.
+  }
+
+  try {
+    return { feedback: Object.fromEntries(new URLSearchParams(raw)) as PelecardFeedback, raw };
+  } catch {
+    console.error("[pelecard] unreadable callback body", { sample: raw.slice(0, 200) });
+    return { feedback: {}, raw };
+  }
+}
+
 export async function POST(req: Request) {
   const url = new URL(req.url);
 
@@ -43,11 +75,17 @@ export async function POST(req: Request) {
     return new NextResponse("forbidden", { status: 403 });
   }
 
-  const feedback = (await req.json().catch(() => null)) as PelecardFeedback | null;
-  if (!feedback) return new NextResponse("bad payload", { status: 400 });
+  const { feedback, raw: rawBody } = await readFeedback(req);
 
-  const orderId = feedback.ParamX;
-  if (!orderId) return new NextResponse("missing ParamX", { status: 400 });
+  /* Which order this is about comes from our own callback URL first. We built
+     that URL at init and it is authenticated by the secret above, so it holds
+     even when the body is something we cannot read — and the body is exactly
+     what a gateway is free to change the shape of. ParamX is the fallback. */
+  const orderId = url.searchParams.get("order") || feedback.ParamX;
+  if (!orderId) {
+    console.error("[pelecard] callback with no order reference", { keys: Object.keys(feedback) });
+    return new NextResponse("missing order reference", { status: 400 });
+  }
 
   const order = await db.order.findUnique({ where: { id: orderId } });
   if (!order) return new NextResponse("unknown order", { status: 404 });
@@ -71,7 +109,7 @@ export async function POST(req: Request) {
           status: "FAILED",
           pelecardStatusCode: feedback.PelecardStatusCode,
           pelecardTransactionId: feedback.PelecardTransactionId,
-          rawResponse: { feedback, reason, extra } as object,
+          rawResponse: { feedback, rawBody, reason, extra } as object,
         },
       }),
       db.order.update({ where: { id: orderId }, data: { paymentStatus: "FAILED" } }),
@@ -160,7 +198,7 @@ export async function POST(req: Request) {
         cardLast4: cardNumber.slice(-4) || null,
         clearerName: CLEARERS[String(details.CreditCardCompanyClearer)] ?? null,
         totalPayments: Number(details.TotalPayments) || 1,
-        rawResponse: { feedback, validation, details } as object,
+        rawResponse: { feedback, rawBody, validation, details } as object,
       },
     }),
     db.order.update({

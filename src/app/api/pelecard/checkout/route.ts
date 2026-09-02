@@ -46,7 +46,10 @@ export async function POST(req: Request) {
 
   const amountAgorot = toAgorot(order.total);
   const site = siteUrl();
-  const callback = `${site}/api/pelecard/callback?secret=${encodeURIComponent(callbackSecret())}`;
+  // The order id travels in the callback URL, not only in ParamX inside the
+  // body: the URL is ours and authenticated by the secret, so a notification
+  // whose body we cannot read is still a notification we can act on.
+  const callback = `${site}/api/pelecard/callback?secret=${encodeURIComponent(callbackSecret())}&order=${order.id}`;
 
   let result;
   try {

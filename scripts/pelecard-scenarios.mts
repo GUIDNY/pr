@@ -307,6 +307,48 @@ console.log("\n--- the payload the checkout form actually sends ---");
   check("a cash order still validates", cash.success);
 }
 
+console.log("\n--- the shape the gateway actually posts ---");
+{
+  /* The first live transaction posted a body this route could not read, so it
+     answered 400 twice, Pelecard treated the unacknowledged notification as a
+     failed transaction, and the customer was sent to the error page. A
+     notification we cannot parse must still be a notification we act on. */
+  const { order } = await makeOrder({ total: 149.9 });
+  const url = `${SITE}/api/pelecard/callback?secret=${encodeURIComponent(SECRET)}&order=${order.id}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      PelecardStatusCode: "006",
+      PelecardTransactionId: "txn-form-encoded",
+      ParamX: order.id,
+      UserKey: order.id,
+      TotalX100: "14990",
+    }).toString(),
+  });
+  const after = (await db.order.findUnique({ where: { id: order.id } }))!;
+  const payment = (await db.payment.findFirst({ where: { orderId: order.id } }))!;
+  check("a form-encoded callback is understood", res.status === 200, `(got ${res.status})`);
+  check("    · and the decline is recorded", after.paymentStatus === "FAILED", `(${after.paymentStatus})`);
+  check("    · with the gateway's status code", payment.pelecardStatusCode === "006", `(${payment.pelecardStatusCode})`);
+
+  const { order: order2 } = await makeOrder({ total: 149.9 });
+  const res2 = await fetch(`${SITE}/api/pelecard/callback?secret=${encodeURIComponent(SECRET)}&order=${order2.id}&failed=1`, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain" },
+    body: "%%%not-parsable%%%",
+  });
+  const after2 = (await db.order.findUnique({ where: { id: order2.id } }))!;
+  check("an unreadable body still fails the order rather than 400", res2.status === 200 && after2.paymentStatus === "FAILED", `(${res2.status}/${after2.paymentStatus})`);
+
+  const res3 = await fetch(`${SITE}/api/pelecard/callback?secret=${encodeURIComponent(SECRET)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  });
+  check("a callback with no order reference at all is still refused", res3.status === 400, `(got ${res3.status})`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 await db.$disconnect();
 process.exit(fail === 0 ? 0 : 1);
