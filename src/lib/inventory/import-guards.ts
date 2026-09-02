@@ -123,3 +123,35 @@ const STOCK_PHRASE =
 export function looksLikeStockPhrase(value: string): boolean {
   return STOCK_PHRASE.test(value.replace(/\s+/g, " ").trim().replace(/[.!:;]+$/, ""));
 }
+
+// ---------------------------------------------------------------------------
+// A price typed into a quantity cell
+// ---------------------------------------------------------------------------
+
+// Eight rows of the white-goods sheet carry a price where a count belongs.
+// "בונדד ספק" is a real quantity column — 131 of its 144 values in this
+// catalog are between 1 and 20 — but on those eight rows it holds 9900,
+// 7900, 6900, 5000, sitting next to a manager code of 12900 and a cost of
+// 13900. The same rows say "אזל-למכור מלאי ותצוגות" in their notes and
+// carry the real count, 1 or 2, in a different column.
+//
+// So the classifier is right and the sheet is wrong, which is exactly the
+// case an import has to survive: a supplier's typo became 9,901 units of a
+// ₪12,900 fridge, published, and a customer could order one.
+//
+// The test is the line's value rather than the count alone, because a count
+// alone cannot be judged — 500 is absurd for a built-in oven and ordinary
+// for a cable. A single SKU worth more than a million shekels is not a
+// stock level, it is a number in the wrong box. Both conditions must hold,
+// so a warehouse genuinely holding 20,000 cheap cables is not caught.
+//
+// Calibrated against the live catalog: 13 rows match, every one of them a
+// misplaced price, and nothing else out of 1,996 products.
+export const IMPLAUSIBLE_LINE_VALUE = 1_000_000;
+export const IMPLAUSIBLE_MIN_QUANTITY = 100;
+
+export function looksLikeMisplacedQuantity(quantity: number, price: number | null): boolean {
+  if (!Number.isFinite(quantity) || quantity < IMPLAUSIBLE_MIN_QUANTITY) return false;
+  if (!price || !Number.isFinite(price) || price <= 0) return false;
+  return quantity * price >= IMPLAUSIBLE_LINE_VALUE;
+}

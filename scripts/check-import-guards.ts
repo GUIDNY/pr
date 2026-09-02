@@ -10,6 +10,7 @@ import {
   looksLikeMarketingTitle,
   hasEnergyLabelShape,
   looksLikeStockPhrase,
+  looksLikeMisplacedQuantity,
 } from "../src/lib/inventory/import-guards";
 
 const LABEL_URLS = [
@@ -184,14 +185,48 @@ for (const v of REAL_MODELS) {
   if (looksLikeStockPhrase(v)) fail(`real model rejected as a stock phrase: ${JSON.stringify(v)}`);
 }
 
+// A price typed into the quantity column. Every REFUSED case below is a real
+// row from the white-goods sheet; every ALLOWED one is a quantity the shop
+// could plausibly hold, and the guard must not touch a single one of them —
+// a stock guard that eats real stock is worse than the typo it prevents.
+const REFUSED: [number, number, string][] = [
+  [9901, 12900, "Samsung Bespoke RF90A9015 — the row's own notes say sold out"],
+  [9900, 11900, "Samsung Bespoke RF70A9115WH"],
+  [7901, 8900, "Samsung RF65A9011B1"],
+  [6901, 7900, "Samsung RF65A9011SL"],
+  [5002, 6000, "Samsung Bespoke RB35A6222BK"],
+  [9901, 3600, "Samsung RT53 — the cheapest of them and still ₪35M"],
+  [2000, 1390, "Electra water bar RXS390"],
+  [1900, 1290, "Sanyo mini bar 1140"],
+];
+for (const [qty, price, why] of REFUSED) {
+  if (!looksLikeMisplacedQuantity(qty, price)) fail(`must be refused — ${why}: ${qty} x ${price}`);
+}
+
+const ALLOWED: [number, number, string][] = [
+  [2, 12900, "two of a premium fridge, which is what the display column actually says"],
+  [74, 4500, "74 air conditioners — the largest real quantity in this catalog"],
+  [500, 50, "five hundred cables at fifty shekels is a normal cable order"],
+  [1000, 30, "a thousand cheap accessories"],
+  [99, 12900, "just under the count floor, so the value test never runs"],
+  [150, 5000, "150 units worth 750k — big, and still under the line"],
+  [0, 12900, "nothing in stock"],
+  [3, 0, "a product with no price yet cannot be judged this way"],
+  [5, 0, "same"],
+];
+for (const [qty, price, why] of ALLOWED) {
+  if (looksLikeMisplacedQuantity(qty, price)) fail(`must be allowed — ${why}: ${qty} x ${price}`);
+}
+
 const total =
   HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
-  SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length;
+  SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length + REFUSED.length + ALLOWED.length;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${LABEL_URLS.length} label urls, ${PRODUCT_URLS.length} photo urls, ` +
     `${MARKETING_TITLES.length} copy titles, ${REAL_TITLES.length} real titles, ${SHAPES.length} shapes, ` +
     `${STOCK_PHRASES.length} stock phrases, ${REAL_MODELS.length} real models, ` +
+    `${REFUSED.length} misplaced prices, ${ALLOWED.length} real quantities, ` +
     `${HTML_CASES.length} html descriptions)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;

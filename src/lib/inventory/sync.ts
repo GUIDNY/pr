@@ -16,7 +16,12 @@ import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
 import { resolveBrandId } from "./brand-resolver";
-import { looksLikeEnergyLabelUrl, looksLikeMarketingTitle } from "./import-guards";
+import {
+  looksLikeEnergyLabelUrl,
+  looksLikeMarketingTitle,
+  looksLikeMisplacedQuantity,
+  IMPLAUSIBLE_LINE_VALUE,
+} from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
 
 // Sequential, persistent, gap-free: 0001, 0002, ... — never reused, never
@@ -207,7 +212,7 @@ async function applyOneRow(
   // for why this order matters (handles the temp -> real SKU upgrade case
   // without creating a duplicate).
   const existing = await findExistingProduct(sourceId, row, brandId);
-  const stock = totalStock(row);
+  const rawStock = totalStock(row);
 
   // Zero stock, never seen before: don't pull it into the system at all —
   // not a product record, not a temp SKU, not an alert. It's not "a
@@ -215,7 +220,7 @@ async function applyOneRow(
   // that used to have stock drops to zero, it's still updated below (kept,
   // not deleted, so it can come back) — this only skips rows with nothing
   // to reactivate in the first place.
-  if (stock <= 0 && !existing) return null;
+  if (rawStock <= 0 && !existing) return null;
 
   // Safety net for the early-exit (missing category) path below: track
   // whatever SKU this row is already known by, so an existing product at
@@ -238,6 +243,17 @@ async function applyOneRow(
   }
 
   const { price: resolved } = resolvedPrice(row);
+
+  // A quantity that is really a price. The supplier typed 9900 into the
+  // "בונדד ספק" column of a ₪12,900 fridge whose own notes say it is sold
+  // out, and the row went live claiming 9,901 units. The number is refused
+  // rather than corrected: what the true count is belongs to whoever reads
+  // the sheet, so the product keeps whatever it already had and the alert
+  // says exactly what was rejected. See looksLikeMisplacedQuantity.
+  const priceForSanity = resolved ?? existing?.price ?? null;
+  const quantityIsImplausible = looksLikeMisplacedQuantity(rawStock, priceForSanity);
+  const stock = quantityIsImplausible ? (existing?.stockQty ?? 0) : rawStock;
+
   let status = deriveStockStatus(row, stock, hasConflict);
   if (status !== "NEEDS_REVIEW" && resolved === null) status = "NEEDS_REVIEW";
   const finalStatus =
@@ -510,6 +526,21 @@ async function applyOneRow(
       syncRunId,
       sourceSku: sku,
       message: `${row.title}: אין נתוני מלאי כלל במקור — לא פורסם, מצריך בדיקה`,
+    });
+  }
+  if (quantityIsImplausible) {
+    currentRowTypes.add("NEGATIVE_STOCK");
+    await upsertAlert({
+      type: "NEGATIVE_STOCK",
+      severity: "CRITICAL",
+      productId,
+      sourceId,
+      syncRunId,
+      sourceSku: sku,
+      message:
+        `${row.title}: הגיליון מדווח ${rawStock.toLocaleString("he-IL")} יחידות במחיר ${(priceForSanity ?? 0).toLocaleString("he-IL")} ₪ — ` +
+        `שווי של מעל ${(IMPLAUSIBLE_LINE_VALUE / 1_000_000).toFixed(0)} מיליון ₪ לשורה אחת. ` +
+        `נראה כמו מחיר שהוקלד בעמודת הכמות. הכמות לא עודכנה ונשארה ${stock.toLocaleString("he-IL")} — צריך לבדוק מול הספק.`,
     });
   }
   if (resolved === null) {
