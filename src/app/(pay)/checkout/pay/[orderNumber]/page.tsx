@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ShieldCheck, Lock, Phone, RotateCcw, SearchX } from "lucide-react";
+import { ShieldCheck, Lock, Phone, RotateCcw, SearchX, FlaskConical } from "lucide-react";
 import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
 import { openPelecardPayment } from "@/lib/pelecard/open-payment";
 import { formatPrice } from "@/lib/format";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
@@ -45,7 +46,23 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
     return <Settled orderNumber={order.orderNumber} />;
   }
 
-  const opened = await openPelecardPayment(order.id);
+  /* A test order is the merchant's own ₪1 transaction against the live
+     terminal, opened from the checkout page's staff panel. It runs on a
+     different switch from customer checkout — Pelecard merely has to be
+     configured, not open to shoppers — so who is asking has to be established
+     here, before the payment is opened, and not inferred from the order.
+
+     Anyone else following the link gets the same answer as for an order that
+     does not exist, which is what it is to them. */
+  const isTestOrder = /^(TEST|LIVETEST)-/.test(order.orderNumber);
+  if (isTestOrder) {
+    const session = await getSession();
+    if (session?.role !== "ADMIN" && session?.role !== "STAFF") {
+      return <OrderNotFound orderNumber={orderNumber} />;
+    }
+  }
+
+  const opened = await openPelecardPayment(order.id, { lane: isTestOrder ? "test" : "customer" });
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
@@ -63,6 +80,12 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
           number is "how much, and for what". */}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_19rem] lg:items-start">
         <div className="min-w-0">
+          {isTestOrder && (
+            <p className="mb-3 flex items-center gap-2 rounded-lg border border-dashed border-amber-400 bg-amber-50/60 px-3 py-2 text-xs font-medium text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+              <FlaskConical className="size-4 shrink-0" aria-hidden />
+              הזמנת בדיקה. זו עסקה אמיתית מול המסוף החי — הכרטיס יחויב בשקל אחד.
+            </p>
+          )}
           {opened.ok ? (
             <PaymentFrame src={opened.redirectUrl} />
           ) : (

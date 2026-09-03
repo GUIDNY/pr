@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
+import { CheckoutTestPanel } from "@/components/checkout/checkout-test-panel";
 import { useCartStore } from "@/stores/cart-store";
 import { createOrderAction } from "@/actions/orders";
 import { saveCheckoutContactAction } from "@/actions/cart";
@@ -24,6 +25,7 @@ export function CheckoutForm({
   defaultEmail,
   defaultPhone,
   payViaGateway = false,
+  isStaff = false,
 }: {
   defaultName?: string;
   defaultEmail?: string;
@@ -31,6 +33,9 @@ export function CheckoutForm({
   /** True once the Pelecard flow is switched on: the card is then entered on
       Pelecard's own page, and this form never sees a card number. */
   payViaGateway?: boolean;
+  /** Staff only, resolved on the server. Shows the test panel — never a
+      customer-visible affordance, and the action behind it checks again. */
+  isStaff?: boolean;
 }) {
   const cart = useCartStore((s) => s.cart);
   const setCart = useCartStore((s) => s.setCart);
@@ -56,6 +61,26 @@ export function CheckoutForm({
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
+  }
+
+  /* Fills the form well enough to pass validation, so the demo lane can be run
+     end to end in one press instead of eleven. The card number is the one every
+     payment provider publishes as their test Visa — it is not a card, it just
+     satisfies the twelve-digit check the DEMO_CARD path makes. */
+  function fillTestDetails() {
+    setForm((f) => ({
+      ...f,
+      fullName: f.fullName || "בדיקה פנימית",
+      email: f.email || "test@prec.co.il",
+      phone: f.phone || "0500000000",
+      city: f.city || "חיפה",
+      street: f.street || "הרצל",
+      houseNo: f.houseNo || "1",
+      paymentMethod: "DEMO_CARD",
+      cardNumber: "4580000000000000",
+      cardExpiry: "12/29",
+      cardCvv: "123",
+    }));
   }
 
   /* Leaving a contact field hands the details to the shop, so a checkout
@@ -126,6 +151,8 @@ export function CheckoutForm({
     <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 py-8 lg:grid-cols-[1fr_360px]">
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-bold">תשלום</h1>
+
+        {isStaff && <CheckoutTestPanel onFillTestDetails={fillTestDetails} />}
 
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">1. פרטי התקשרות</h2>

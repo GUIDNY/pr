@@ -50,8 +50,37 @@ export function pelecardConfig(): PelecardConfig {
   };
 }
 
+/**
+ * Whether CUSTOMERS pay by card. This is the "moment of truth" switch and
+ * nothing else: with it off, the storefront checkout behaves exactly as it did
+ * before Pelecard existed, and a shopper is never sent to a gateway.
+ *
+ * It is deliberately not the same question as "are the credentials present".
+ * The two were one switch until the merchant needed to work on the real payment
+ * page against the live terminal while the shop kept taking orders the old way
+ * — which is impossible if the only thing that arms the gateway also opens it
+ * to every visitor.
+ */
 export function pelecardEnabled(): boolean {
   return process.env.PELECARD_ENABLED === "true";
+}
+
+/**
+ * Whether a payment COULD be opened: a valid gateway host, the production
+ * acknowledgement if that host is production, and credentials.
+ *
+ * This is what the admin test lane runs on, so a ₪1 test transaction can be
+ * opened on the live deployment while customer card payment is still off.
+ * Being configured is not permission to charge a customer — every caller has
+ * to answer that question for itself.
+ */
+export function pelecardConfigured(): boolean {
+  try {
+    pelecardConfig();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -79,6 +108,18 @@ export function isPelecardConsoleAvailable(): boolean {
 /** The most a single live test may charge. A slip of the keyboard on a real
     card should cost pocket change, not a fridge. */
 export const LIVE_TEST_MAX_SHEKELS = 5;
+
+/**
+ * What an admin test order costs. One shekel, always, and not a number anybody
+ * types: the whole point of the lane is that it can be run again and again
+ * without anyone having to think about the amount first, and a test that is
+ * cheap by convention becomes expensive the first time someone is in a hurry.
+ *
+ * It is a real charge on a real card. Pelecard's test gateway cannot complete a
+ * transaction against this terminal, so there is no free way to find out
+ * whether the live one works.
+ */
+export const TEST_ORDER_SHEKELS = 1;
 
 /**
  * Shekels (a float, which is how this database stores money) → agorot (an

@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { initPayment, SUPPORTED_CARDS, paymentPageStyle } from "./client";
-import { pelecardConfig, pelecardEnabled, toAgorot, siteUrl, callbackSecret } from "./config";
+import { pelecardConfig, pelecardEnabled, pelecardConfigured, toAgorot, siteUrl, callbackSecret } from "./config";
 
 /**
  * Opens a Pelecard payment for an order that already exists, and hands back the
@@ -14,14 +14,30 @@ import { pelecardConfig, pelecardEnabled, toAgorot, siteUrl, callbackSecret } fr
  *
  * The amount is read from the order and never from a caller. A browser that can
  * name the price can name it as 1.
+ *
+ * Two lanes, and the difference is only which switch has to be on:
+ *
+ *   "customer" — the storefront. Requires PELECARD_ENABLED, the switch that
+ *   says card payment is open to shoppers. Off by default, everywhere.
+ *
+ *   "test" — the merchant's own ₪1 transaction against the live terminal, so
+ *   the real payment page can be worked on before customers are sent to it.
+ *   Requires only that Pelecard is configured. It does NOT check who is asking:
+ *   the caller must have established that already, and both callers do.
  */
 
 export type OpenPaymentResult =
   | { ok: true; redirectUrl: string; orderId: string }
   | { ok: false; status: number; error: string };
 
-export async function openPelecardPayment(orderId: string): Promise<OpenPaymentResult> {
-  if (!pelecardEnabled()) return { ok: false, status: 503, error: "pelecard disabled" };
+export type PaymentLane = "customer" | "test";
+
+export async function openPelecardPayment(
+  orderId: string,
+  { lane = "customer" }: { lane?: PaymentLane } = {},
+): Promise<OpenPaymentResult> {
+  const armed = lane === "test" ? pelecardConfigured() : pelecardEnabled();
+  if (!armed) return { ok: false, status: 503, error: "pelecard disabled" };
 
   let config;
   try {
