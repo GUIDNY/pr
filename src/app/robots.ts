@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
-
-const BASE_URL = "https://pr-ayam.vercel.app";
+import { SITE_URL } from "@/lib/site-url";
 
 // Explicit allow for the AI crawlers that actually respect robots.txt
 // (GPTBot, Google-Extended, PerplexityBot, ClaudeBot) rather than relying
@@ -17,6 +16,6 @@ export default function robots(): MetadataRoute.Robots {
       { userAgent: "PerplexityBot", allow: "/", disallow },
       { userAgent: "ClaudeBot", allow: "/", disallow },
     ],
-    sitemap: `${BASE_URL}/sitemap.xml`,
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

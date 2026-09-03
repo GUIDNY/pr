@@ -10,6 +10,7 @@ import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
 import { AccessibilityWidget } from "@/components/layout/accessibility-widget";
 import { CookieNotice } from "@/components/layout/cookie-notice";
+import { SITE_URL } from "@/lib/site-url";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -18,7 +19,6 @@ const heebo = Heebo({
   display: "swap",
 });
 
-const SITE_URL = "https://pr-ayam.vercel.app";
 const SITE_NAME = "A&I Electronics";
 const SITE_DESCRIPTION =
   "A&I Electronics - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.";
