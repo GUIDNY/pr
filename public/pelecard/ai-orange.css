@@ -1,0 +1,421 @@
+/* =========================================================================
+   A&I Electronics — Pelecard payment page stylesheet
+   Served from https://pr-ayam.vercel.app/pelecard/ai-orange.css
+   and sent as CssURL on every init.
+
+   THIS ADDRESS IS REGISTERED WITH PELECARD SUPPORT. Do not rename or move the
+   file: they honour CssURL only for the exact URL they approved, and anything
+   else is ignored in silence — the page simply renders in their default skin
+   with no error anywhere to notice. The contents can change freely; the address
+   cannot.
+
+   A static file rather than a generated route, deliberately. This has to be
+   reachable on the production domain, which is the only one approved, and a
+   plain file in /public is reachable there without any of the payment code
+   being deployed with it.
+
+   Written against Pelecard's own class names and ids — .form-control,
+   .btn-submit, #totalAllRow, #dateContainer, .errorRow_Vita, .tab-button.pay-btn.
+   Those are their markup and theirs to rename; if they do, the rules keyed to a
+   renamed selector stop applying and that part of the page quietly returns to
+   their default. /pelecard/preview.html renders the same markup and is how that
+   gets checked without spending a transaction.
+
+   Every custom property is paired with a literal fallback on the line above it,
+   because the page is rendered on their domain for whatever browsers they still
+   support, and a var() an old one cannot read takes its whole declaration away.
+   ========================================================================= */
+
+@import url("https://gateway21.pelecard.biz/Content/Css/variant-he-4.css");
+
+/* ---- Fonts (Rubik, same source Pelecard uses) ---- */
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 300;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Light.woff') format('woff'); font-display: swap; }
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 400;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Regular.woff') format('woff'); font-display: swap; }
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 500;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Medium.woff') format('woff'); font-display: swap; }
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 700;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Bold.woff') format('woff'); font-display: swap; }
+
+/* ---- Brand palette ----
+   NOTE: the payment page is served by Pelecard and may not support
+   CSS custom properties in every browser they still target.
+   Every var() below is therefore paired with a literal fallback.
+   --------------------------------------------------------------- */
+:root {
+  --ai-orange:        #F07E1A;   /* primary  */
+  --ai-orange-dark:   #D2650B;   /* hover    */
+  --ai-orange-soft:   #FFF3E6;   /* tint     */
+  --ai-ink:           #1F2933;   /* text     */
+  --ai-ink-soft:      #6B7280;   /* muted    */
+  --ai-line:          #D7DDE3;   /* borders  */
+  --ai-error:         #C0392B;
+  --ai-radius:        14px;
+}
+
+/* =========================  BASE  ========================= */
+body {
+  font-family: Rubik, "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
+  color: #1F2933;
+  color: var(--ai-ink);
+  background: #FAFAFA;
+  direction: rtl;
+  text-align: right;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0 0 30px;
+}
+
+.container { max-width: 780px; padding: 0 15px; margin: 0 auto; }
+
+.main-title {
+  margin: 0 0 .6em;
+  font-size: 20px;
+  font-weight: 500;
+  text-align: center;
+  color: #1F2933;
+  color: var(--ai-ink);
+}
+h1#paymentByCC { display: none; }
+
+/* =========================  HEADER / LOGO  ========================= */
+.credit-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  margin-top: 28px;
+  margin-bottom: 8px;
+}
+.credit-title .logo {
+  display: block;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  width: 210px;
+  max-width: 60vw;
+}
+
+/* =========================  AMOUNT BOX  ========================= */
+#totalAllRow {
+  border: solid 2px #F07E1A;
+  border: solid 2px var(--ai-orange);
+  background: #FFF3E6;
+  background: var(--ai-orange-soft);
+  padding: 12px 16px;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  margin: 16px 0 22px;
+}
+#totalAllRow label,
+#totalAllRow .control-label {
+  color: #1F2933;
+  color: var(--ai-ink);
+  font-weight: 500;
+}
+#totalAll {
+  font-family: Rubik, sans-serif;
+  font-size: 26px;
+  font-weight: 700;
+  text-align: right;
+  background: none;
+  border: none;
+  color: #D2650B;
+  color: var(--ai-orange-dark);
+  padding: 2px 0;
+}
+
+/* =========================  FIELDS  ========================= */
+.form-group { margin-bottom: 16px; }
+.form-group, .control-group { display: flex; flex-direction: column; width: 100%; }
+
+.control-label {
+  min-height: 1.2em;
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+}
+
+.form-control {
+  width: 100%;
+  height: 44px;
+  padding: 6px 12px;
+  font-family: Rubik, sans-serif;
+  font-size: 16px;              /* 16px keeps iOS from zooming on focus */
+  color: #1F2933;
+  color: var(--ai-ink);
+  background-color: #fff;
+  border: 1px solid #D7DDE3;
+  border: 1px solid var(--ai-line);
+  border-radius: 10px;
+  box-shadow: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.form-control::placeholder { color: #A9B2BC; }
+.form-control:focus {
+  outline: 0;
+  background-color: #fff;
+  border-color: #F07E1A;
+  border-color: var(--ai-orange);
+  box-shadow: 0 0 0 3px rgba(240, 126, 26, .18);
+}
+.form-control.read-only,
+.form-control[readonly],
+.form-control[disabled] {
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+  background-color: #F2F4F6;
+  border-color: #E4E8EC;
+}
+
+select.form-control {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #6B7280 50%),
+                    linear-gradient(135deg, #6B7280 50%, transparent 50%);
+  background-position: calc(0% + 14px) 19px, calc(0% + 19px) 19px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-left: 34px;
+}
+
+#credit_card_number_input,
+#date_month_input, #date_year_input,
+#id_number_input, #cvv_input,
+#num_of_payments, #each_payment_input, #first_payment_input,
+#phone_input, #email_input { direction: rtl; }
+
+#dateContainer select#date_month_input,
+#dateContainer select#date_year_input { width: 48%; }
+#dateContainer .delimiter {
+  display: block; width: 4%; text-align: center;
+  line-height: 44px; color: #6B7280; color: var(--ai-ink-soft);
+}
+#IdAndCvvRow { display: flex; gap: 10px; }
+
+.control-group .ext {
+  width: auto;
+  color: #F07E1A;
+  color: var(--ai-orange);
+  padding: 0 10px;
+}
+.mandatory:after {
+  content: "*";
+  color: #F07E1A;
+  color: var(--ai-orange);
+  font-size: 15px;
+  margin-right: 3px;
+}
+
+/* =========================  ERRORS  ========================= */
+.errorRow {
+  background-color: #FDECEA;
+  color: #C0392B;
+  color: var(--ai-error);
+  border: 1px solid #F5C6C2;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+.errorRow_Vita {
+  background-color: transparent;
+  color: #C0392B;
+  color: var(--ai-error);
+  margin: 4px 0 0;
+  font-size: 13px;
+  border: none;
+  padding: 0;
+}
+.red-field,
+.form-control.red-field {
+  border: 1px solid #C0392B !important;
+  border: 1px solid var(--ai-error) !important;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, .12);
+}
+
+/* =========================  SUBMIT / BUTTONS  ========================= */
+.btn {
+  display: inline-block;
+  font-family: Rubik, sans-serif;
+  background-color: #EDEFF2;
+  color: #1F2933;
+  color: var(--ai-ink);
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.btn-submit, .btn-paypal {
+  width: 100%;
+  height: 56px;
+  background: #F07E1A;
+  background: var(--ai-orange);
+  border: none;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  font-family: Rubik, sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  padding: 0;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color .15s ease, box-shadow .15s ease, transform .05s ease;
+}
+.btn-submit:hover, .btn-submit:focus,
+.btn-paypal:hover, .btn-paypal:focus {
+  background-color: #D2650B;
+  background-color: var(--ai-orange-dark);
+  box-shadow: 0 8px 18px rgba(240, 126, 26, .32);
+  outline: none;
+}
+.btn-submit:active { transform: translateY(1px); }
+.btn-submit[disabled], .btn-submit.disabled {
+  background-color: #E7C3A0;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.form-group-submit { margin: 22px 0 10px; text-align: center; }
+.form-group-submit-in .btn {
+  margin-bottom: 10px;
+  max-width: 340px;
+  max-height: 60px;
+  background-color: #F07E1A;
+  background-color: var(--ai-orange);
+  color: #fff;
+}
+
+#cancelBtn {
+  background-color: #fff;
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+  height: 48px;
+  border: 1px solid #D7DDE3;
+  border: 1px solid var(--ai-line);
+  border-radius: 12px;
+  font-size: 16px;
+}
+#cancelBtn:hover { background-color: #F2F4F6; }
+
+/* =========================  PAYMENT-METHOD TABS  ========================= */
+.tab-button.pay-btn {
+  background-color: #fff;
+  color: #1F2933;
+  color: var(--ai-ink);
+  border: solid 2px #E4E8EC;
+  padding: 12px 6px;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  width: 90px;
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.tab-button.pay-btn:hover {
+  border: solid 2px #F07E1A;
+  border: solid 2px var(--ai-orange);
+}
+.tab-button.pay-btn.tab-button-selected {
+  border: solid 2px #F07E1A;
+  border: solid 2px var(--ai-orange);
+  background-color: #FFF3E6;
+  background-color: var(--ai-orange-soft);
+  box-shadow: none;
+}
+.tab-button h4 { font-size: 12px; line-height: 13px; font-weight: 500; margin: 0; }
+
+/* =========================  CHECKBOX  ========================= */
+.checkbox label {
+  cursor: pointer;
+  font-weight: 400;
+  font-size: 14px;
+  padding-right: 24px;
+  color: #1F2933;
+  color: var(--ai-ink);
+}
+.checkbox input[type="checkbox"] {
+  margin-right: -24px;
+  position: absolute;
+  width: 16px; height: 16px;
+  accent-color: #F07E1A;
+  accent-color: var(--ai-orange);
+  border: 1px solid #D7DDE3;
+}
+
+/* =========================  FOOTER / SEALS  ========================= */
+.footer {
+  background-color: #fff;
+  border: 1px solid #EDEFF2;
+  padding: 14px 0;
+  margin-top: 22px;
+}
+.footer.centerBG {
+  max-width: 780px;
+  margin: 22px auto 0;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+}
+.footer-title {
+  text-align: center;
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+  font-size: 14px;
+  font-weight: 500;
+  margin: 10px 0;
+}
+.form-group-sup { max-width: 450px; margin: 0 auto; padding: 4px; text-align: center; }
+.form-group-sup-1 .form-group-sup-in > div { width: 16%; max-width: 56px; height: 56px; margin: 0 1%; }
+.form-group-sup-2 .form-group-sup-in > a  { width: 30%; max-width: 110px; height: 48px; margin: 0 1%; }
+
+/* =========================  3DS IFRAME  ========================= */
+iframe#threeDSCReqIframe {
+  width: 100%;
+  height: 615px;
+  overflow: auto;
+  position: relative;
+  border: 1px solid #E4E8EC;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  background: #fff;
+}
+.frame3dsContainer { position: static; width: 100%; margin: 0 auto; text-align: center; }
+
+/* =========================  bit POPUP  ========================= */
+.popup-content { border-radius: 16px; }
+.popup-close-icon { background: #FFF3E6; background: var(--ai-orange-soft); }
+.popup-title, .popup-subtitle { color: #1F2933; color: var(--ai-ink); }
+.popup-qrcode-wrapper { background: #FFF3E6; background: var(--ai-orange-soft); }
+.popup-timer-highlight { color: #D2650B; color: var(--ai-orange-dark); }
+.popup-link {
+  background: #F07E1A;
+  background: var(--ai-orange);
+  border-radius: 9999px;
+  color: #fff;
+}
+
+/* =========================  RESPONSIVE  ========================= */
+@media (max-width: 750px) {
+  .container { padding: 0 12px; }
+  .credit-title { margin-top: 18px; }
+  #totalAll { font-size: 23px; }
+  .btn-submit, .btn-paypal { height: 52px; font-size: 19px; }
+}
+@media (max-width: 400px) {
+  .tab-button.pay-btn { width: 76px; height: 82px; }
+  .form-group-sup-1 .form-group-sup-in > div { max-width: 44px; height: 44px; }
+}
