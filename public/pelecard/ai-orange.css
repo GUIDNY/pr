@@ -1,0 +1,529 @@
+/* =========================================================================
+   A&I Electronics — Pelecard payment page stylesheet
+   Served from https://pr-ayam.vercel.app/pelecard/ai-orange.css
+   and sent as CssURL on every init.
+
+   THIS ADDRESS IS REGISTERED WITH PELECARD SUPPORT. Do not rename or move the
+   file: they honour CssURL only for the exact URL they approved, and anything
+   else is ignored in silence — the page simply renders in their default skin
+   with no error anywhere to notice. The contents can change freely; the address
+   cannot.
+
+   A static file rather than a generated route, deliberately. This has to be
+   reachable on the production domain, which is the only one approved, and a
+   plain file in /public is reachable there without any of the payment code
+   being deployed with it.
+
+   Written against Pelecard's own class names and ids — .form-control,
+   .btn-submit, #totalAllRow, #dateContainer, .errorRow_Vita, .tab-button.pay-btn.
+   Those are their markup and theirs to rename; if they do, the rules keyed to a
+   renamed selector stop applying and that part of the page quietly returns to
+   their default. /pelecard/preview.html renders the same markup and is how that
+   gets checked without spending a transaction.
+
+   Every custom property is paired with a literal fallback on the line above it,
+   because the page is rendered on their domain for whatever browsers they still
+   support, and a var() an old one cannot read takes its whole declaration away.
+   ========================================================================= */
+
+@import url("https://gateway21.pelecard.biz/Content/Css/variant-he-4.css");
+
+/* ---- Fonts (Rubik, same source Pelecard uses) ---- */
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 300;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Light.woff') format('woff'); font-display: swap; }
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 400;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Regular.woff') format('woff'); font-display: swap; }
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 500;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Medium.woff') format('woff'); font-display: swap; }
+@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 700;
+  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Bold.woff') format('woff'); font-display: swap; }
+
+/* ---- Brand palette ----
+   NOTE: the payment page is served by Pelecard and may not support
+   CSS custom properties in every browser they still target.
+   Every var() below is therefore paired with a literal fallback.
+   --------------------------------------------------------------- */
+:root {
+  --ai-orange:        #F07E1A;   /* primary  */
+  --ai-orange-dark:   #D2650B;   /* hover    */
+  --ai-orange-soft:   #FFF3E6;   /* tint     */
+  --ai-ink:           #1F2933;   /* text     */
+  --ai-ink-soft:      #6B7280;   /* muted    */
+  --ai-line:          #D7DDE3;   /* borders  */
+  --ai-error:         #C0392B;
+  --ai-radius:        14px;
+}
+
+/* =========================  BASE  ========================= */
+/* Every width here is 100% with padding on top of it. Without border-box that
+   arithmetic overflows its container, and the symptom is subtle: the amount
+   strip and the fields bleed a few pixels past the page margin, which reads as
+   a broken layout rather than as a box-model default. Their own CSS sets this,
+   being bootstrap-derived — we set it too so the file is correct on its own,
+   and so the offline preview shows what the live page shows. */
+*, *:before, *:after { box-sizing: border-box; }
+
+body {
+  font-family: Rubik, "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
+  color: #1F2933;
+  color: var(--ai-ink);
+  background: #fff;
+  direction: rtl;
+  text-align: right;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0 0 18px;
+}
+
+.container { max-width: 620px; padding: 0 14px; margin: 0 auto; }
+
+.main-title {
+  margin: 0 0 .6em;
+  font-size: 20px;
+  font-weight: 500;
+  text-align: center;
+  color: #1F2933;
+  color: var(--ai-ink);
+}
+h1#paymentByCC { display: none; }
+
+/* =========================  HEADER / LOGO  ========================= */
+/* Their header box has a height of its own and clips whatever is inside it.
+   Our shop mark is square, so it came out as an orange dome: the top 50px of a
+   210px-tall image. Both halves of that have to be undone — the box must stop
+   clipping, and the mark must be sized by height, not width.
+
+   Fixed box, contained image: correct whether .logo is an <img> (object-fit)
+   or a div carrying a background (background-size). We cannot see their markup
+   from here, so the rule answers both. */
+.credit-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  overflow: visible !important;
+  margin: 0;
+  padding: 16px 0 12px;
+}
+.credit-title .logo,
+.credit-title img {
+  display: block;
+  width: 200px !important;
+  height: 58px !important;
+  max-width: 62vw;
+  object-fit: contain;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* The captions live in the placeholders — PlaceholderCaptions is sent True on
+   every init — so every label on the page is an empty element, and the only
+   thing left inside it is the asterisk from .mandatory. That rendered as a
+   lone red star floating on its own line above two of the fields, and, for the
+   expiry, as a second "תוקף כרטיס" directly above the fieldset legend that
+   already says it.
+
+   So the labels go, and with them the note explaining the asterisks. What the
+   caption is stays visible in the placeholder and in the legend; nothing here
+   removes an accessible name, because an empty label never carried one. */
+.control-label { display: none; }
+.mandatory:after { content: none; }
+.main-title { display: none; }
+h1#paymentByCC { display: none; }
+
+/* Their expiry pair is a fieldset, and a bordered box around two fields in a
+   form where nothing else is boxed reads as an error before anything is wrong.
+   The legend stays — with the labels gone it is the only caption those two
+   selects have. */
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+legend {
+  width: auto;
+  border: 0;
+  margin: 0;
+  padding: 0 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+}
+
+/* =========================  AMOUNT  ========================= */
+/* Pelecard put the total in the middle of the form, between the card fields
+   and the contact fields, and as a full-width orange billboard it cut the form
+   in two. The page it is embedded in already states the total in its own
+   panel, so this one only has to confirm it — one quiet line, and first,
+   before the fields rather than through them.
+
+   The move is done with order on the form, which is safe to attempt blind:
+   every other child keeps a higher order, so if the form is not the flex
+   parent we guessed, the rule does nothing at all rather than something
+   unpredictable. */
+form { display: flex; flex-direction: column; }
+form > * { order: 2; }
+form > #totalAllRow { order: 1; }
+
+#totalAllRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid #F3D5B4;
+  background: #FFF8F1;
+  background: var(--ai-orange-soft);
+  padding: 11px 14px;
+  border-radius: 12px;
+  margin: 4px 0 20px;
+}
+#totalAllRow:before {
+  content: "סה״כ לתשלום";
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: #1F2933;
+  color: var(--ai-ink);
+}
+#totalAllRow .control-group,
+#totalAllRow > div {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 3px;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+#totalAllRow .ext {
+  padding: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #D2650B;
+  color: var(--ai-orange-dark);
+}
+#totalAll {
+  font-family: Rubik, sans-serif;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.2;
+  width: 106px;
+  max-width: 106px;
+  height: auto;
+  direction: ltr;
+  text-align: left;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: #D2650B;
+  color: var(--ai-orange-dark);
+  padding: 0;
+}
+
+/* =========================  FIELDS  ========================= */
+.form-group { margin-bottom: 12px; }
+.form-group, .control-group { display: flex; flex-direction: column; width: 100%; }
+
+.form-control {
+  width: 100%;
+  height: 46px;
+  padding: 6px 14px;
+  font-family: Rubik, sans-serif;
+  font-size: 16px;              /* 16px keeps iOS from zooming on focus */
+  color: #1F2933;
+  color: var(--ai-ink);
+  background-color: #fff;
+  border: 1px solid #D7DDE3;
+  border: 1px solid var(--ai-line);
+  border-radius: 10px;
+  box-shadow: none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.form-control::placeholder { color: #8A93A0; }
+.form-control:focus {
+  outline: 0;
+  background-color: #fff;
+  border-color: #F07E1A;
+  border-color: var(--ai-orange);
+  box-shadow: 0 0 0 3px rgba(240, 126, 26, .18);
+}
+.form-control.read-only,
+.form-control[readonly],
+.form-control[disabled] {
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+  background-color: #F2F4F6;
+  border-color: #E4E8EC;
+}
+
+select.form-control {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #6B7280 50%),
+                    linear-gradient(135deg, #6B7280 50%, transparent 50%);
+  background-position: calc(0% + 14px) 20px, calc(0% + 19px) 20px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-left: 34px;
+}
+
+#credit_card_number_input,
+#date_month_input, #date_year_input,
+#id_number_input, #cvv_input,
+#num_of_payments, #each_payment_input, #first_payment_input,
+#phone_input, #email_input { direction: rtl; }
+
+#dateContainer select#date_month_input,
+#dateContainer select#date_year_input { width: 48%; }
+#dateContainer .delimiter {
+  display: block; width: 4%; text-align: center;
+  line-height: 46px; color: #6B7280; color: var(--ai-ink-soft);
+}
+#IdAndCvvRow { display: flex; flex-direction: row; gap: 10px; }
+#IdAndCvvRow > * { flex: 1 1 0; min-width: 0; }
+
+/* A card number is read back in groups, not as one sixteen-digit word. */
+#credit_card_number_input {
+  letter-spacing: .06em;
+  font-variant-numeric: tabular-nums;
+}
+
+.control-group .ext {
+  width: auto;
+  color: #F07E1A;
+  color: var(--ai-orange);
+  padding: 0 10px;
+}
+
+/* =========================  ERRORS  ========================= */
+.errorRow {
+  background-color: #FDECEA;
+  color: #C0392B;
+  color: var(--ai-error);
+  border: 1px solid #F5C6C2;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 12px 0;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+}
+.errorRow_Vita {
+  background-color: transparent;
+  display: block;
+  color: #C0392B;
+  color: var(--ai-error);
+  margin: 4px 0 0;
+  font-size: 13px;
+  border: none;
+  padding: 0;
+}
+.red-field,
+.form-control.red-field {
+  border: 1px solid #C0392B !important;
+  border: 1px solid var(--ai-error) !important;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, .12);
+}
+
+/* =========================  SUBMIT / BUTTONS  ========================= */
+.btn {
+  display: inline-block;
+  font-family: Rubik, sans-serif;
+  background-color: #EDEFF2;
+  color: #1F2933;
+  color: var(--ai-ink);
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.btn-submit, .btn-paypal {
+  width: 100%;
+  height: 54px;
+  background: #F07E1A;
+  background: var(--ai-orange);
+  border: none;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  font-family: Rubik, sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  padding: 0;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color .15s ease, box-shadow .15s ease, transform .05s ease;
+}
+.btn-submit:hover, .btn-submit:focus,
+.btn-paypal:hover, .btn-paypal:focus {
+  background-color: #D2650B;
+  background-color: var(--ai-orange-dark);
+  box-shadow: 0 8px 18px rgba(240, 126, 26, .32);
+  outline: none;
+}
+.btn-submit:active { transform: translateY(1px); }
+.btn-submit[disabled], .btn-submit.disabled {
+  background-color: #E7C3A0;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.form-group-submit {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+  margin: 18px 0 6px;
+  text-align: center;
+}
+.form-group-submit .btn-submit { flex: 1 1 auto; }
+.form-group-submit-in .btn {
+  margin-bottom: 10px;
+  max-width: 340px;
+  max-height: 60px;
+  background-color: #F07E1A;
+  background-color: var(--ai-orange);
+  color: #fff;
+}
+
+#cancelBtn {
+  background-color: #fff;
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 104px;
+  height: 54px;
+  padding: 0 18px;
+  border: 1px solid #D7DDE3;
+  border: 1px solid var(--ai-line);
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  font-size: 16px;
+}
+#cancelBtn:hover { background-color: #F2F4F6; }
+
+/* =========================  PAYMENT-METHOD TABS  ========================= */
+.tab-button.pay-btn {
+  background-color: #fff;
+  color: #1F2933;
+  color: var(--ai-ink);
+  border: solid 2px #E4E8EC;
+  padding: 12px 6px;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  width: 90px;
+  height: 90px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.tab-button.pay-btn:hover {
+  border: solid 2px #F07E1A;
+  border: solid 2px var(--ai-orange);
+}
+.tab-button.pay-btn.tab-button-selected {
+  border: solid 2px #F07E1A;
+  border: solid 2px var(--ai-orange);
+  background-color: #FFF3E6;
+  background-color: var(--ai-orange-soft);
+  box-shadow: none;
+}
+.tab-button h4 { font-size: 12px; line-height: 13px; font-weight: 500; margin: 0; }
+
+/* =========================  CHECKBOX  ========================= */
+.checkbox label {
+  cursor: pointer;
+  font-weight: 400;
+  font-size: 14px;
+  padding-right: 24px;
+  color: #1F2933;
+  color: var(--ai-ink);
+}
+.checkbox input[type="checkbox"] {
+  margin-right: -24px;
+  position: absolute;
+  width: 16px; height: 16px;
+  accent-color: #F07E1A;
+  accent-color: var(--ai-orange);
+  border: 1px solid #D7DDE3;
+}
+
+/* =========================  FOOTER / SEALS  ========================= */
+.footer {
+  background-color: #fff;
+  border: 1px solid #EDEFF2;
+  padding: 14px 0;
+  margin-top: 22px;
+}
+.footer.centerBG {
+  max-width: 780px;
+  margin: 22px auto 0;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+}
+.footer-title {
+  text-align: center;
+  color: #6B7280;
+  color: var(--ai-ink-soft);
+  font-size: 14px;
+  font-weight: 500;
+  margin: 10px 0;
+}
+.form-group-sup { max-width: 450px; margin: 0 auto; padding: 4px; text-align: center; }
+.form-group-sup-1 .form-group-sup-in > div { width: 16%; max-width: 56px; height: 56px; margin: 0 1%; }
+.form-group-sup-2 .form-group-sup-in > a  { width: 30%; max-width: 110px; height: 48px; margin: 0 1%; }
+
+/* =========================  3DS IFRAME  ========================= */
+iframe#threeDSCReqIframe {
+  width: 100%;
+  height: 615px;
+  overflow: auto;
+  position: relative;
+  border: 1px solid #E4E8EC;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
+  background: #fff;
+}
+.frame3dsContainer { position: static; width: 100%; margin: 0 auto; text-align: center; }
+
+/* =========================  bit POPUP  ========================= */
+.popup-content { border-radius: 16px; }
+.popup-close-icon { background: #FFF3E6; background: var(--ai-orange-soft); }
+.popup-title, .popup-subtitle { color: #1F2933; color: var(--ai-ink); }
+.popup-qrcode-wrapper { background: #FFF3E6; background: var(--ai-orange-soft); }
+.popup-timer-highlight { color: #D2650B; color: var(--ai-orange-dark); }
+.popup-link {
+  background: #F07E1A;
+  background: var(--ai-orange);
+  border-radius: 9999px;
+  color: #fff;
+}
+
+/* =========================  RESPONSIVE  ========================= */
+@media (max-width: 750px) {
+  .container { padding: 0 12px; }
+  .credit-title { padding: 12px 0 10px; }
+  .credit-title .logo, .credit-title img { height: 50px !important; }
+  #totalAllRow { padding: 10px 12px; margin-bottom: 16px; }
+  #totalAll { font-size: 19px; width: 96px; max-width: 96px; }
+  .btn-submit, .btn-paypal { height: 52px; font-size: 19px; }
+  #cancelBtn { height: 52px; min-width: 88px; padding: 0 14px; }
+}
+@media (max-width: 400px) {
+  .tab-button.pay-btn { width: 76px; height: 82px; }
+  .form-group-sup-1 .form-group-sup-in > div { max-width: 44px; height: 44px; }
+}

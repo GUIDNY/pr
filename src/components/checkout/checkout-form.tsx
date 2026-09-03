@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
+import { CheckoutTestPanel } from "@/components/checkout/checkout-test-panel";
 import { useCartStore } from "@/stores/cart-store";
 import { createOrderAction } from "@/actions/orders";
 import { saveCheckoutContactAction } from "@/actions/cart";
@@ -23,10 +24,18 @@ export function CheckoutForm({
   defaultName,
   defaultEmail,
   defaultPhone,
+  payViaGateway = false,
+  isStaff = false,
 }: {
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
+  /** True once the Pelecard flow is switched on: the card is then entered on
+      Pelecard's own page, and this form never sees a card number. */
+  payViaGateway?: boolean;
+  /** Staff only, resolved on the server. Shows the test panel — never a
+      customer-visible affordance, and the action behind it checks again. */
+  isStaff?: boolean;
 }) {
   const cart = useCartStore((s) => s.cart);
   const setCart = useCartStore((s) => s.setCart);
@@ -54,6 +63,26 @@ export function CheckoutForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  /* Fills the form well enough to pass validation, so the demo lane can be run
+     end to end in one press instead of eleven. The card number is the one every
+     payment provider publishes as their test Visa — it is not a card, it just
+     satisfies the twelve-digit check the DEMO_CARD path makes. */
+  function fillTestDetails() {
+    setForm((f) => ({
+      ...f,
+      fullName: f.fullName || "בדיקה פנימית",
+      email: f.email || "test@prec.co.il",
+      phone: f.phone || "0500000000",
+      city: f.city || "חיפה",
+      street: f.street || "הרצל",
+      houseNo: f.houseNo || "1",
+      paymentMethod: "DEMO_CARD",
+      cardNumber: "4580000000000000",
+      cardExpiry: "12/29",
+      cardCvv: "123",
+    }));
+  }
+
   /* Leaving a contact field hands the details to the shop, so a checkout
      someone walks away from halfway is a callback rather than a silent lost
      sale. On blur and not on every keystroke — a half-typed phone number is
@@ -70,11 +99,37 @@ export function CheckoutForm({
   function submit() {
     setErrors({});
     startTransition(async () => {
-      const result = await createOrderAction(form as CheckoutInput);
+      /* The radio still says DEMO_CARD — it is one "credit card" option to the
+         customer either way — but with the gateway on, the order is a PELECARD
+         order and must say so before it is validated. A DEMO_CARD order is
+         required to carry a card number, and this form no longer has one to
+         give: that mismatch rejected every gateway order at the door with
+         "מספר כרטיס לא תקין". */
+      const payload = {
+        ...form,
+        paymentMethod:
+          payViaGateway && form.paymentMethod === "DEMO_CARD" ? "PELECARD" : form.paymentMethod,
+      };
+      const result = await createOrderAction(payload as CheckoutInput);
       if (!result.success) {
         toast.error(result.error ?? "שגיאה בביצוע ההזמנה");
         return;
       }
+
+      /* The order exists but is not paid: on to the payment step, which is a
+         page of ours with the gateway's form embedded in it rather than a
+         journey off to somebody else's site. It opens the payment itself, so
+         there is nothing to fetch here first — one less thing between pressing
+         the button and seeing the form.
+
+         The cart is deliberately left as it is: until the payment is confirmed
+         there is nothing to clear, and a declined card should leave the
+         customer with their cart intact. */
+      if (result.requiresPayment) {
+        router.push(`/checkout/pay/${encodeURIComponent(result.orderNumber)}`);
+        return;
+      }
+
       setCart({ ...cart, items: [], itemCount: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0, couponCode: null });
       router.push(`/checkout/success/${result.orderNumber}`);
     });
@@ -96,6 +151,8 @@ export function CheckoutForm({
     <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 py-8 lg:grid-cols-[1fr_360px]">
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-bold">תשלום</h1>
+
+        {isStaff && <CheckoutTestPanel onFillTestDetails={fillTestDetails} />}
 
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">1. פרטי התקשרות</h2>
@@ -213,7 +270,18 @@ export function CheckoutForm({
             </Label>
           </RadioGroup>
 
-          {form.paymentMethod === "DEMO_CARD" && (
+          {/* With the gateway on, the card is entered on Pelecard's own secure
+              page — this site never sees, transmits or stores a card number,
+              which is both the PCI requirement and the gateway's own. */}
+          {form.paymentMethod === "DEMO_CARD" && payViaGateway && (
+            <p className="text-muted-foreground bg-muted flex items-center gap-2 rounded-md p-3 text-xs leading-relaxed">
+              <ShieldCheck className="size-4 shrink-0" />
+              לאחר לחיצה על &quot;בצע הזמנה&quot; תועברו לעמוד תשלום מאובטח של חברת הסליקה להזנת פרטי הכרטיס. פרטי
+              האשראי אינם עוברים דרך האתר ואינם נשמרים בו.
+            </p>
+          )}
+
+          {form.paymentMethod === "DEMO_CARD" && !payViaGateway && (
             <div className="flex flex-col gap-3">
               <p className="text-muted-foreground bg-muted flex items-center gap-2 rounded-md p-2 text-xs">
                 <ShieldCheck className="size-4 shrink-0" />

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>תצוגה מקדימה — דף התשלום של A&amp;I</title>
+<link rel="stylesheet" href="/pelecard/ai-orange.css">
+<style>
+  /* עוטף התצוגה בלבד — לא חלק מה-CSS שנשלח לפלאקארד */
+  body { background: #EEF1F4; }
+  .preview-note{max-width:620px;margin:20px auto 0;padding:12px 16px;background:#FFF7ED;
+    border:1px solid #F5D5AE;border-radius:12px;font:14px Rubik,Arial,sans-serif;color:#7C4A03}
+  .preview-frame{max-width:620px;margin:16px auto;background:#fff;border:1px solid #E4E8EC;
+    border-radius:14px;overflow:hidden}
+  .topbar{background:#F5F6F7;border-bottom:1px solid #E9ECEF;padding:8px 14px;text-align:center;
+    font:13px Rubik,Arial,sans-serif;color:#4B5563}
+  .topbar a{color:#1D4ED8}
+</style>
+</head>
+<body>
+
+<div class="preview-note">
+  <strong>תצוגה מקדימה — לא דף תשלום.</strong> אי אפשר לשלם כאן, שום שדה לא נשלח לשום מקום
+  ואף כפתור לא עושה דבר. המבנה שוחזר מדף התשלום החי (צילומי מסך של
+  <code>/checkout/pay</code>), כולל הדברים שקל לפספס: תוויות ריקות — כי
+  <code>PlaceholderCaptions</code> מעביר את הכיתוב ל-placeholder — ה-<code>fieldset</code>
+  סביב שדות התוקף, ומיקום סכום העסקה באמצע הטופס. הדף טוען את
+  <code>/pelecard/ai-orange.css</code> החי, כך שכל שינוי בעיצוב נראה כאן ברענון, בלי לחכות
+  ל-whitelist ובלי לבזבז עסקה.
+</div>
+
+<div class="preview-frame">
+  <div class="topbar">🛡 אתר זה מאובטח בטכנולוגיית SSL ובתקן PCI LEVEL 1 · <a href="#">הצהרת נגישות</a></div>
+
+<div class="container">
+
+  <div class="credit-title">
+    <img class="logo" src="/pelecard/logo.png" alt="A&amp;I Electronics">
+  </div>
+
+  <h2 class="main-title">כוכבית הינה שדה חובה</h2>
+
+  <form onsubmit="return false">
+
+    <div class="form-group">
+      <label class="control-label" for="cardHolderName_input"></label>
+      <input class="form-control" id="cardHolderName_input" type="text" placeholder="שם בעל הכרטיס/חברה">
+    </div>
+
+    <div class="form-group">
+      <label class="control-label mandatory" for="credit_card_number_input"></label>
+      <input class="form-control" id="credit_card_number_input" type="text" placeholder="מספר כרטיס">
+    </div>
+
+    <div class="form-group" id="dateContainer">
+      <label class="control-label mandatory">תוקף כרטיס</label>
+      <fieldset>
+        <legend>תוקף כרטיס</legend>
+        <div style="display:flex;gap:10px">
+          <select class="form-control red-field" id="date_month_input" style="width:48%">
+            <option>חודש</option><option>01</option><option>09</option>
+          </select>
+          <select class="form-control red-field" id="date_year_input" style="width:48%">
+            <option>שנה</option><option>2026</option><option>2029</option>
+          </select>
+        </div>
+      </fieldset>
+      <div class="errorRow_Vita">תוקף הכרטיס לא תקין</div>
+    </div>
+
+    <div class="form-group" id="IdAndCvvRow">
+      <div>
+        <label class="control-label mandatory" for="id_number_input"></label>
+        <input class="form-control" id="id_number_input" type="text" placeholder="תעודת זהות">
+      </div>
+      <div>
+        <label class="control-label mandatory" for="cvv_input"></label>
+        <input class="form-control" id="cvv_input" type="text" placeholder="קוד אימות כרטיס">
+      </div>
+    </div>
+
+    <div id="totalAllRow" class="form-group">
+      <label class="control-label" for="totalAll"></label>
+      <div class="control-group">
+        <input id="totalAll" class="read-only" type="text" value="389.00" readonly>
+        <span class="ext">₪</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="control-label" for="email_input"></label>
+      <input class="form-control" id="email_input" type="email" placeholder="דוא״ל רוכש">
+    </div>
+
+    <div class="form-group">
+      <label class="control-label" for="phone_input"></label>
+      <input class="form-control" id="phone_input" type="tel" placeholder="טלפון רוכש">
+    </div>
+
+    <div class="form-group-submit">
+      <button class="btn btn-submit" type="button">בצע תשלום</button>
+      <button class="btn" id="cancelBtn" type="button">ביטול</button>
+    </div>
+
+  </form>
+</div>
+</div>
+</body>
+</html>

@@ -1,21 +1,35 @@
-import { Check, Circle, XCircle, RotateCcw } from "lucide-react";
+import { Check, Circle, XCircle, RotateCcw, CreditCard } from "lucide-react";
 import { ORDER_TIMELINE_STEPS, ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 
-const EXCEPTION_STATUSES: OrderStatus[] = ["CANCELLED", "REFUND_PENDING", "REFUNDED"];
+/* Statuses that are not a step on the way to delivery. Each gets its own card
+   instead of a position on the line — an order that never got paid for has not
+   travelled part of the way, and showing it against the delivery steps reads
+   as "in progress" to the one person who most needs to know it is not. */
+const EXCEPTIONS: Partial<
+  Record<OrderStatus, { icon: typeof XCircle; tone: "bad" | "warn"; note: string }>
+> = {
+  CANCELLED: { icon: XCircle, tone: "bad", note: "ההזמנה בוטלה ולא תחויב." },
+  REFUND_PENDING: { icon: RotateCcw, tone: "warn", note: "אנו מטפלים בבקשת הזיכוי שלכם." },
+  REFUNDED: { icon: RotateCcw, tone: "warn", note: "אנו מטפלים בבקשת הזיכוי שלכם." },
+  PAYMENT_FAILED: {
+    icon: CreditCard,
+    tone: "bad",
+    note: "התשלום לא נקלט ולא בוצע חיוב. ההזמנה שמורה — אפשר לנסות לשלם שוב או ליצור איתנו קשר.",
+  },
+};
 
 export function OrderTimeline({ status }: { status: OrderStatus }) {
-  if (EXCEPTION_STATUSES.includes(status)) {
-    const isCancelled = status === "CANCELLED";
-    const Icon = isCancelled ? XCircle : RotateCcw;
+  const exception = EXCEPTIONS[status];
+  if (exception) {
+    const { icon: Icon, tone, note } = exception;
+    const bad = tone === "bad";
     return (
-      <div className={cn("flex items-center gap-3 rounded-xl border p-4", isCancelled ? "border-destructive/30 bg-destructive/5" : "border-warning/30 bg-warning/10")}>
-        <Icon className={cn("size-6 shrink-0", isCancelled ? "text-destructive" : "text-warning-foreground")} />
+      <div className={cn("flex items-center gap-3 rounded-xl border p-4", bad ? "border-destructive/30 bg-destructive/5" : "border-warning/30 bg-warning/10")}>
+        <Icon className={cn("size-6 shrink-0", bad ? "text-destructive" : "text-warning-foreground")} />
         <div>
           <p className="font-semibold">{ORDER_STATUS_LABELS[status]}</p>
-          <p className="text-muted-foreground text-sm">
-            {isCancelled ? "ההזמנה בוטלה ולא תחויב." : "אנו מטפלים בבקשת הזיכוי שלכם."}
-          </p>
+          <p className="text-muted-foreground text-sm">{note}</p>
         </div>
       </div>
     );
