@@ -12,15 +12,19 @@
 // So it is a setting. Changing the address is now an environment variable
 // in Vercel and a redeploy, with nothing to grep for and nothing to miss.
 //
-// The fallback is the vercel.app address the site has always been at, which
-// keeps a deployment with no variable set working exactly as before.
-//
 // NEXT_PUBLIC_ so the value is identical on the server and in the browser:
 // a canonical tag rendered on the server and a link built on the client have
 // to agree, and a plain server-only variable would leave the client with
 // undefined.
 
-const FALLBACK = "https://pr-ayam.vercel.app";
+// The shop's real, verified domain. It used to be the pr-ayam.vercel.app
+// address, which was harmless while that was where the site lived — but
+// buytoday.co.il is now the claimed domain in Google Merchant Center, and
+// Google rejects a feed whose product links sit on a domain the account
+// hasn't claimed. So an unset NEXT_PUBLIC_SITE_URL must not silently point
+// canonical tags, Open Graph links and the product feed at the vercel.app
+// host any more.
+const FALLBACK = "https://buytoday.co.il";
 
 function normalise(raw: string): string {
   const trimmed = raw.trim().replace(/\/+$/, "");

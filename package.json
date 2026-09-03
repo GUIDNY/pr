@@ -12,6 +12,7 @@
     "db:reset": "prisma db push --force-reset && npm run db:seed",
     "check:brands": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-brand-attribution.ts",
     "check:images": "tsx scripts/check-blocked-image-hosts.ts",
+    "check:feed": "tsx scripts/check-google-feed.ts",
     "fix:brands": "NODE_OPTIONS=--conditions=react-server tsx scripts/backfill-brand-attribution.ts",
     "check:content": "tsx scripts/check-product-content.ts",
     "check:guards": "tsx scripts/check-import-guards.ts",

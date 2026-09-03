@@ -39,6 +39,13 @@ import { ProductRail } from "@/components/home/product-rail";
 import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
 import { getProductBySlug, getRelatedProducts, getCategoryAttributesFor, getProductsByBrandSlug } from "@/lib/queries/products";
 import { getProductReviewFlag } from "@/lib/queries/admin-inventory";
+import {
+  SCHEMA_AVAILABILITY,
+  SCHEMA_AVAILABILITY_FALLBACK,
+  SCHEMA_CURRENCY,
+  feedDescription,
+} from "@/lib/feeds/google-merchant";
+import { absoluteUrl } from "@/lib/site-url";
 import { getFavoriteProductIdsAction } from "@/actions/favorites";
 import { getSession } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
@@ -122,8 +129,70 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     }
   }
 
+  // Structured data for the product, which is what Google actually reads
+  // when it says it is "scanning the site" — there is no crawler looking at
+  // the rendered page and inferring a price from it. It is also the half of
+  // the Merchant Center setup that the feed can't cover on its own: Google
+  // compares a feed item against the JSON-LD on the page it links to, and a
+  // page carrying none is the mismatch it warns about.
+  //
+  // Only emitted for a page a visitor can actually reach. An admin looking
+  // at an unpublished or photo-less product is being shown a preview, and
+  // marking it up as a live offer would advertise something the store has
+  // deliberately not put on sale.
+  const productJsonLd = offSiteForVisitors
+    ? null
+    : {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: product.title,
+        // The same text the feed sends, from the same helper — description
+        // is stored as HTML for the page, and JSON-LD wants plain text.
+        description: feedDescription(product),
+        sku: product.sku,
+        // The manufacturer's model number, never the internal sku — the two
+        // are different fields here and schema.org's mpn means the former.
+        mpn: product.model ?? undefined,
+        color: product.colorName ?? undefined,
+        image: product.images.map((img) => img.url),
+        brand: { "@type": "Brand", name: product.brand.name },
+        offers: {
+          "@type": "Offer",
+          url: absoluteUrl(`/product/${product.slug}`),
+          priceCurrency: SCHEMA_CURRENCY,
+          price: product.price.toFixed(2),
+          itemCondition: "https://schema.org/NewCondition",
+          availability:
+            SCHEMA_AVAILABILITY[product.stockStatus as StockStatus] ?? SCHEMA_AVAILABILITY_FALLBACK,
+        },
+        // Only when there is a real rating behind it. schema.org rejects an
+        // aggregateRating with a zero reviewCount, and inventing one is the
+        // kind of thing that costs a merchant its rich results outright.
+        aggregateRating:
+          product.ratingCount > 0
+            ? {
+                "@type": "AggregateRating",
+                ratingValue: product.ratingAvg.toFixed(1),
+                reviewCount: product.ratingCount,
+              }
+            : undefined,
+      };
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 pb-24 lg:pb-6">
+      {productJsonLd && (
+        <script
+          type="application/ld+json"
+          // Every "<" escaped to its JSON \u form. Descriptions are stored
+          // HTML written by the enrichment agent, and a "</script>" anywhere
+          // in one would otherwise close this tag early and put the rest of
+          // the product's text into the page as live markup.
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(productJsonLd).replace(/</g, "\\u003c"),
+          }}
+        />
+      )}
+
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>

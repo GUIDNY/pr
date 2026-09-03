@@ -91,6 +91,34 @@ everything in stock with no image into the "טיפול" tab (`MISSING_IMAGE`).
 Consequence worth knowing before touching the catalog: a large share of invisible
 products are invisible for missing *content*, not because anyone hid them.
 
+## The Google Merchant Center feed is a read of the storefront
+
+`/feeds/google-merchant.xml` is what Google fetches once a day for
+[buytoday.co.il](https://buytoday.co.il) — the domain claimed in Merchant Center
+account 5847431184. It is a pull-based feed on purpose, not the Merchant API:
+there is no secret to hold, nothing writes back into the catalog, and stock only
+moves when someone presses sync anyway.
+
+It is built from `PUBLIC_PRODUCT_WHERE`, and that is not a detail. Google
+compares every feed item against the page it links to and suspends accounts over
+a feed that disagrees with the shop, so "what is in the feed" has to stay the
+same predicate as "what is on the site" rather than a second copy that drifts.
+The product page carries matching JSON-LD (`Product` + `Offer`) from the same
+availability table, for the same reason.
+
+Two things that are easy to undo by accident:
+
+- **It lives under `/feeds/`, not `/api/`.** `robots.ts` disallows `/api` for
+  every crawler and Merchant Center's fetcher honours robots.txt — moving it
+  breaks the daily fetch with an error that never mentions robots.
+- **`Product.description` is HTML** (`<h3>`, `<p>`, `<ul>` — the product page
+  renders it). Google rejects markup in a feed description, so the feed sends
+  `shortDescription`, falling back to the flattened long text. Sending
+  `description` raw rejects every item.
+
+`npm run check:feed` guards the escaping, the exclusions and the price/identifier
+rules without needing a database.
+
 ## Structured specs hang off leaf categories
 
 `CategoryAttribute` rows belong to leaf categories, not departments. `sheet-map.ts` maps
