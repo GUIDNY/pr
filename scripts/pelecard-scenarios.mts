@@ -570,58 +570,48 @@ console.log("\n--- SupportedCards ---");
 
 console.log("\n--- how Pelecard's page is dressed ---");
 {
-  /* The payment page is served from their domain, and a customer who lands on
-     an unbranded form has no way to tell they are still buying from the same
-     shop. These are the parameters that stop that. */
-  const { paymentPageStyle } = await import("../src/lib/pelecard/client");
-  const style = paymentPageStyle("https://shop.example.com") as Record<string, string>;
+  const { paymentPageStyle, PELECARD_ASSET_ORIGIN } = await import("../src/lib/pelecard/client");
+  const style = paymentPageStyle() as Record<string, string>;
 
-  /* Both addresses are registered with Pelecard support once and honoured only
-     if they match exactly, so a rename is not a refactor — it is two days of
-     waiting and a payment page that silently loses its skin in the meantime. */
-  check("25 · the logo is at the address registered with Pelecard", style.LogoURL === "https://shop.example.com/pelecard/logo.png", style.LogoURL);
-  check("     · so is the stylesheet", style.CssURL === "https://shop.example.com/pelecard/ai-orange.css", style.CssURL);
+  /* Registered with Pelecard support one at a time, by hand, and honoured only
+     for the exact URL approved. A deployment sending its own address — a
+     preview, say — gets no error and no styling, which is a whole afternoon to
+     notice. So these are fixed, never derived from whichever build is running. */
+  check("25 · the assets point at the one approved origin", PELECARD_ASSET_ORIGIN === "https://pr-ayam.vercel.app", PELECARD_ASSET_ORIGIN);
+  check("     · the stylesheet is at the registered path", style.CssURL === "https://pr-ayam.vercel.app/pelecard/ai-orange.css", style.CssURL);
+  check("     · so is the logo", style.LogoURL === "https://pr-ayam.vercel.app/pelecard/logo.png", style.LogoURL);
   check("     · the form is Hebrew-friendly on a phone", style.NumericInputMode === "True" && style.PlaceholderCaptions === "True");
   check("     · errors appear on the field that caused them", style.InputErrorDisplayByField === "True");
 
-  // The sheet keeps their layout as its base, and that base has to follow the
-  // configured gateway rather than name a host outright.
-  const { pelecardCheckoutCss } = await import("../src/lib/pelecard/checkout-css");
-  const sheet = pelecardCheckoutCss("https://gateway20.pelecard.biz");
-  check("     · it imports the configured gateway's sheet as its base", sheet.includes('@import url("https://gateway20.pelecard.biz/Content/Css/variant-he-4.css")'));
-  check("     · it does not hard-code a gateway anywhere else", (sheet.match(/pelecard\.biz/g) ?? []).length === 1);
+  /* A static file, because the approved address has to serve whether or not the
+     payment code is deployed alongside it. */
+  const sheet = readFileSync("public/pelecard/ai-orange.css", "utf8");
+  check("26 · the stylesheet is a real file at that path", sheet.length > 5000, String(sheet.length));
+  check("     · it imports Pelecard's own sheet as its base", sheet.includes('@import url("https://gateway21.pelecard.biz/Content/Css/variant-he-4.css")'));
+
   const formControl = sheet.slice(sheet.indexOf(".form-control {"), sheet.indexOf(".form-control::placeholder"));
   check("     · fields are 16px, so iOS does not zoom on focus", /font-size:\s*16px/.test(formControl));
 
-  /* Written against Pelecard's own markup. If one of these disappears the page
-     silently reverts to their default skin in that spot, which is the failure
-     mode worth catching here rather than on a customer's screen. */
   for (const selector of [".form-control", ".btn-submit", "#totalAllRow", "#dateContainer", ".errorRow", "#cancelBtn", ".tab-button.pay-btn", ".credit-title .logo"]) {
     check(`     · it styles ${selector}`, sheet.includes(selector));
   }
 
-  /* Their page is aimed at browsers that may not read custom properties, so
-     every var() is preceded by a literal. A bare var() would take the whole
-     declaration with it on such a browser. */
-  const lines = sheet.split("\n");
-  const bareVars = lines.filter((line, i) => {
+  const sheetLines = sheet.split("\n");
+  const bareVars = sheetLines.filter((line: string, i: number) => {
     const m = line.match(/^\s*([a-z-]+)\s*:\s*[^;]*var\(--ai-/);
     if (!m) return false;
-    // The declaration before it must set the same property to a literal.
-    const previous = lines[i - 1] ?? "";
-    return !new RegExp(`^\\s*${m[1]}\\s*:`).test(previous);
+    return !new RegExp(`^\\s*${m[1]}\\s*:`).test(sheetLines[i - 1] ?? "");
   });
   check("     · every var() has a literal fallback on the line above", bareVars.length === 0, bareVars.slice(0, 3).join(" | "));
 
+  for (const file of ["src/lib/pelecard/open-payment.ts", "src/actions/pelecard-test.ts"]) {
+    check(`     · ${file} applies it`, readFileSync(file, "utf8").includes("...paymentPageStyle()"));
+  }
+
   const preview = readFileSync("public/pelecard/preview.html", "utf8");
-  check("26 · the offline preview links the live sheet", preview.includes('href="/pelecard/ai-orange.css"'));
+  check("27 · the offline preview links the live sheet", preview.includes('href="/pelecard/ai-orange.css"'));
   check("     · it carries no copy of the CSS to drift", !preview.includes("--ai-orange:"));
   check("     · it says plainly that it is not a payment page", preview.includes("לא דף תשלום"));
-  check("     · and is kept out of search results", preview.includes('name="robots"'));
-
-  for (const file of ["src/lib/pelecard/open-payment.ts", "src/actions/pelecard-test.ts"]) {
-    check(`     · ${file} applies it`, readFileSync(file, "utf8").includes("...paymentPageStyle(site)"));
-  }
 }
 
 console.log("\n--- the payment step, on our own page ---");

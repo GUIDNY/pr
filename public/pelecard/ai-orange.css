@@ -1,38 +1,32 @@
-/**
- * The stylesheet Pelecard's hosted payment page loads.
- *
- * Their page accepts a `CssURL` at init, and it does not have to be one of
- * theirs — so this is how the last screen of the checkout stops looking like a
- * different company's form. It is the screen where a customer decides whether
- * to trust us with a card number, and it was the only screen in the whole shop
- * that did not look like the shop.
- *
- * Two things about this file are not obvious:
- *
- * It is written against Pelecard's own class names and ids — `.form-control`,
- * `.btn-submit`, `#totalAllRow`, `#dateContainer`, `.errorRow_Vita`,
- * `.tab-button.pay-btn`. Those are their markup, not ours, and they are free to
- * change it; if they do, the rules keyed to a renamed selector stop applying and
- * that part of the page quietly returns to their default. Nothing breaks, but
- * the page stops being ours, so it is worth looking at after any change on
- * their side. `public/pelecard/preview.html` renders the same markup offline
- * and is how that gets checked without spending a transaction.
- *
- * Every custom property is paired with a literal fallback on the line above it.
- * The page is rendered by their markup on their domain, aimed at whatever
- * browsers they still support, and a var() an old browser cannot read would
- * otherwise take the whole declaration with it.
- *
- * None of this has any effect until Pelecard's support whitelist the exact URL
- * it is served from. Until then CssURL is ignored in silence and the customer
- * gets the default skin, with no error anywhere to notice.
- *
- * Served from a route rather than /public so the base sheet it imports can
- * follow whichever gateway is configured: a host written into a static file is
- * the one string still pointing at the test server after go-live.
- */
-export function pelecardCheckoutCss(gatewayBaseUrl: string): string {
-  return `@import url("${gatewayBaseUrl}/Content/Css/variant-he-4.css");
+/* =========================================================================
+   A&I Electronics — Pelecard payment page stylesheet
+   Served from https://pr-ayam.vercel.app/pelecard/ai-orange.css
+   and sent as CssURL on every init.
+
+   THIS ADDRESS IS REGISTERED WITH PELECARD SUPPORT. Do not rename or move the
+   file: they honour CssURL only for the exact URL they approved, and anything
+   else is ignored in silence — the page simply renders in their default skin
+   with no error anywhere to notice. The contents can change freely; the address
+   cannot.
+
+   A static file rather than a generated route, deliberately. This has to be
+   reachable on the production domain, which is the only one approved, and a
+   plain file in /public is reachable there without any of the payment code
+   being deployed with it.
+
+   Written against Pelecard's own class names and ids — .form-control,
+   .btn-submit, #totalAllRow, #dateContainer, .errorRow_Vita, .tab-button.pay-btn.
+   Those are their markup and theirs to rename; if they do, the rules keyed to a
+   renamed selector stop applying and that part of the page quietly returns to
+   their default. /pelecard/preview.html renders the same markup and is how that
+   gets checked without spending a transaction.
+
+   Every custom property is paired with a literal fallback on the line above it,
+   because the page is rendered on their domain for whatever browsers they still
+   support, and a var() an old one cannot read takes its whole declaration away.
+   ========================================================================= */
+
+@import url("https://gateway21.pelecard.biz/Content/Css/variant-he-4.css");
 
 /* ---- Fonts (Rubik, same source Pelecard uses) ---- */
 @font-face { font-family: 'Rubik'; font-style: normal; font-weight: 300;
@@ -424,6 +418,4 @@ iframe#threeDSCReqIframe {
 @media (max-width: 400px) {
   .tab-button.pay-btn { width: 76px; height: 82px; }
   .form-group-sup-1 .form-group-sup-in > div { max-width: 44px; height: 44px; }
-}
-`;
 }

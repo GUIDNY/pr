@@ -170,32 +170,35 @@ export const SUPPORTED_CARDS = {
 } as const;
 
 /**
+ * Where the assets Pelecard load from us actually live.
+ *
+ * Not the deployment's own address. Pelecard honour CssURL and LogoURL only for
+ * URLs their support has registered, one at a time, by hand — and what they
+ * registered is the production domain. A preview deployment sending its own
+ * address gets no error and no styling: the URL is simply not on the list, so
+ * the page renders in their default skin as though nothing had been asked for.
+ *
+ * So this is fixed rather than derived. Every deployment points at the one
+ * approved origin, which is also the only place the files are guaranteed to be
+ * reachable. The override exists for the day the shop moves to its own domain,
+ * and that day starts with a new whitelist request, not with a deploy.
+ */
+export const PELECARD_ASSET_ORIGIN =
+  process.env.PELECARD_ASSET_ORIGIN?.trim().replace(/\/$/, "") || "https://pr-ayam.vercel.app";
+
+/**
  * How Pelecard's hosted payment page is dressed.
  *
- * The page is theirs and is served from their domain — that is the whole point,
+ * The page is theirs and served from their domain — that is the whole point,
  * since it means a card number never touches our servers. But a customer who
- * has just pressed "pay" on a Hebrew shop and lands on an unbranded English
- * form has no way to tell they are still buying from the same people, and that
- * is where a checkout is abandoned. These parameters are how the page is made
- * to look like it belongs to the shop.
- *
- * The stylesheet is ours — a route on this site, which imports the configured
- * gateway's own sheet as its base and overrides from there. That keeps their
- * layout while the colours, the fields and the buttons become the shop's.
- *
- * `LogoURL` has to be an absolute address Pelecard's page can actually load, so
- * it is built from our own site URL — a relative path would silently resolve
- * against their domain and show nothing.
+ * has just pressed "pay" on a Hebrew shop and lands on an unbranded form has no
+ * way to tell they are still buying from the same people, and that is where a
+ * checkout is abandoned.
  */
-export function paymentPageStyle(site: string) {
+export function paymentPageStyle() {
   return {
-    /* Both addresses are honoured only after Pelecard's support whitelist the
-       exact URL; until then they are ignored in silence and the page renders in
-       their default skin. They are registered once and never renamed, which is
-       why the stylesheet sits at a fixed path served by a route — the URL stays
-       approved while the design keeps changing underneath it. */
-    CssURL: `${site}/pelecard/ai-orange.css`,
-    LogoURL: `${site}/pelecard/logo.png`,
+    CssURL: `${PELECARD_ASSET_ORIGIN}/pelecard/ai-orange.css`,
+    LogoURL: `${PELECARD_ASSET_ORIGIN}/pelecard/logo.png`,
 
     // Captions inside the fields rather than above them: a shorter form, which
     // matters most on the phone where the keyboard covers half the screen.
@@ -208,11 +211,9 @@ export function paymentPageStyle(site: string) {
     HiddenPelecardLogo: "True",
     HiddenPciLogo: "True",
 
-    /* HiddenSslSeal is deliberately not sent. The stylesheet styles that footer
+    /* HiddenSslSeal is deliberately not sent. The stylesheet dresses that footer
        — the card marks and "התשלום מאובטח ומוצפן" — and it is the one thing on
-       the page telling a customer their card details are safe here. Hiding it
-       would remove a reassurance from the screen that needs it most, and leave
-       the rules that dress it doing nothing. */
+       the page telling a customer their card details are safe here. */
   };
 }
 

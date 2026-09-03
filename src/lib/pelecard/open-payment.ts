@@ -79,7 +79,7 @@ export async function openPelecardPayment(orderId: string): Promise<OpenPaymentR
       UseLuhnAlgorithm: "True",
       SupportedCards: SUPPORTED_CARDS,
       TakeIshurPopUp: "False",
-      ...paymentPageStyle(site),
+      ...paymentPageStyle(),
     });
   } catch (error) {
     console.error("[pelecard] init threw", { orderId: order.id, error });

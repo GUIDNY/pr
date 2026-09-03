@@ -110,7 +110,7 @@ export async function createSandboxTestOrderAction(amountShekels: number, qaResu
       UseLuhnAlgorithm: "True",
       SupportedCards: SUPPORTED_CARDS,
       TakeIshurPopUp: "False",
-      ...paymentPageStyle(site),
+      ...paymentPageStyle(),
     },
     liveTest ? undefined : { qaResultStatus }
   );
