@@ -5,7 +5,8 @@ import { getSession } from "@/lib/auth";
 import { getOrCreateCart } from "@/lib/cart";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { generateOrderNumber } from "@/lib/pricing";
-import { pelecardConfigured, TEST_ORDER_SHEKELS } from "@/lib/pelecard/config";
+import { pelecardConfig, siteUrl, callbackSecret, TEST_ORDER_SHEKELS } from "@/lib/pelecard/config";
+import { PELECARD_PROD_BASE } from "@/lib/pelecard/gateway";
 
 /**
  * The merchant's own way into the real payment page.
@@ -30,13 +31,8 @@ export async function createTestPaymentOrderAction() {
     return { success: false as const, error: "אין הרשאה" };
   }
 
-  if (!pelecardConfigured()) {
-    return {
-      success: false as const,
-      error:
-        "פלאקארד לא מוגדר בסביבה הזו. חסרים PELECARD_BASE_URL / PELECARD_ALLOW_PRODUCTION / פרטי המסוף.",
-    };
-  }
+  const missing = whatIsMissing();
+  if (missing) return { success: false as const, error: missing };
 
   const cart = await getOrCreateCart();
   if (cart.items.length === 0) {
@@ -95,4 +91,52 @@ export async function createTestPaymentOrderAction() {
      time they check the payment page would make the lane annoying enough to
      stop using. */
   return { success: true as const, orderNumber: order.orderNumber, orderId: order.id };
+}
+
+/**
+ * Names the one variable that is actually missing.
+ *
+ * The first version of this listed every variable that could have caused the
+ * refusal, which is the same as naming none of them: the person reading it is
+ * standing in the Vercel dashboard trying to work out which row to add, and a
+ * message that lists three is a message that sends them to check all three.
+ *
+ * Safe to show, because it names variables and never values, and because the
+ * only caller is behind an admin session.
+ */
+function whatIsMissing(): string | null {
+  try {
+    pelecardConfig();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes("is not set")) {
+      return `חסר PELECARD_BASE_URL. הוסיפו אותו ב-Vercel (Production) עם הערך ${PELECARD_PROD_BASE}`;
+    }
+    if (message.includes("must be exactly")) {
+      return `PELECARD_BASE_URL מכיל ערך לא תקין. הוא חייב להיות בדיוק ${PELECARD_PROD_BASE}`;
+    }
+    if (message.includes("Refusing to use")) {
+      return "חסר PELECARD_ALLOW_PRODUCTION. הערך חייב להיות בדיוק I_UNDERSTAND";
+    }
+    if (message.includes("credentials are missing")) {
+      return "חסרים פרטי המסוף: PELECARD_TERMINAL / PELECARD_USER / PELECARD_PASSWORD";
+    }
+    return `פלאקארד לא מוגדר: ${message}`;
+  }
+
+  /* Not part of pelecardConfig(), and both are needed before a payment can be
+     opened: one builds the customer's return links, the other authenticates
+     the notification that is the only thing allowed to mark an order paid. */
+  try {
+    siteUrl();
+  } catch {
+    return "חסר NEXT_PUBLIC_SITE_URL";
+  }
+  try {
+    callbackSecret();
+  } catch {
+    return "חסר PELECARD_CALLBACK_SECRET";
+  }
+
+  return null;
 }

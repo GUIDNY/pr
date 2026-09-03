@@ -39,9 +39,19 @@ export async function openPelecardPayment(
   const armed = lane === "test" ? pelecardConfigured() : pelecardEnabled();
   if (!armed) return { ok: false, status: 503, error: "pelecard disabled" };
 
+  /* siteUrl() and callbackSecret() throw as readily as pelecardConfig() does,
+     and they used to be called further down, outside any try — so a deployment
+     with the gateway configured but NEXT_PUBLIC_SITE_URL or
+     PELECARD_CALLBACK_SECRET missing did not reach the "payment unavailable"
+     state, it threw through the page and rendered a crash. All three resolve
+     here, together, and a missing one is a refusal like any other. */
   let config;
+  let site;
+  let secret;
   try {
     config = pelecardConfig();
+    site = siteUrl();
+    secret = callbackSecret();
   } catch (error) {
     console.error("[pelecard] configuration refused", error);
     return { ok: false, status: 503, error: "payment not configured" };
@@ -52,12 +62,11 @@ export async function openPelecardPayment(
   if (order.paymentStatus === "CAPTURED") return { ok: false, status: 409, error: "already paid" };
 
   const amountAgorot = toAgorot(order.total);
-  const site = siteUrl();
 
   /* The order id travels in the callback URL, not only in ParamX inside the
      body: the URL is ours and authenticated by the secret, so a notification
      whose body we cannot read is still one we can act on. */
-  const callback = `${site}/api/pelecard/callback?secret=${encodeURIComponent(callbackSecret())}&order=${order.id}`;
+  const callback = `${site}/api/pelecard/callback?secret=${encodeURIComponent(secret)}&order=${order.id}`;
 
   /* Where the customer's browser lands afterwards. In the framed flow these
      open inside the frame, so they go to a page whose only job is to put the
