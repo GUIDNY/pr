@@ -2,6 +2,33 @@ import type { NextConfig } from "next";
 import path from "node:path";
 
 const nextConfig: NextConfig = {
+  // The shop moved to buytoday.co.il, and pr-ayam.vercel.app is still live:
+  // Vercel always keeps that alias and it cannot be given up. Left alone it
+  // is a second, complete copy of the shop at a different address — which is
+  // how a domain move loses its search ranking, since Google has no way to
+  // tell which of two identical sites is the real one. A 308 says the shop
+  // moved permanently and hands the ranking to the new address.
+  //
+  // Everything except /pelecard/. Those two files — the payment page's
+  // stylesheet and logo — are fetched by Pelecard from the origin their
+  // support whitelisted by hand, which is still pr-ayam.vercel.app. A
+  // redirect there sends them to an address that is not on their list, and
+  // the failure is silent: no error, the payment page simply renders in
+  // their default skin. See PELECARD_ASSET_ORIGIN in lib/pelecard/client.ts;
+  // this exclusion comes out on the day they approve the new domain.
+  //
+  // Only the bare alias is matched. Preview deployments have their own
+  // hostnames (pr-ayam-<hash>.vercel.app) and keep working untouched.
+  async redirects() {
+    return [
+      {
+        source: "/:path((?!pelecard/).*)",
+        has: [{ type: "host", value: "pr-ayam.vercel.app" }],
+        destination: "https://buytoday.co.il/:path",
+        permanent: true,
+      },
+    ];
+  },
   turbopack: {
     root: path.join(__dirname),
   },
