@@ -75,7 +75,7 @@ export function PaymentFrame({ src }: { src: string }) {
           loaded.current = true;
           setState("ready");
         }}
-        className={`w-full ${state === "blocked" ? "hidden" : "block"} min-h-[46rem] sm:min-h-[42rem]`}
+        className={`w-full ${state === "blocked" ? "hidden" : "block"} min-h-[48rem] sm:min-h-[45rem]`}
       />
     </div>
   );
