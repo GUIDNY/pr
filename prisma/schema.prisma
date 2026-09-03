@@ -462,11 +462,37 @@ model Payment {
   id        String   @id @default(cuid())
   orderId   String
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  provider  String   @default("DEMO") // DEMO | (future real gateway)
+  provider  String   @default("DEMO") // DEMO | PELECARD
   amount    Float
-  status    String // AUTHORIZED | CAPTURED | FAILED | REFUNDED
+  status    String // PENDING | AUTHORIZED | CAPTURED | FAILED | REFUNDED
   reference String?
   createdAt DateTime @default(now())
+
+  // ---------- Gateway record ----------
+  // `amount` above is a Float because that is how this database has always
+  // stored money; amountAgorot is the integer the gateway was actually asked
+  // to charge, and it is what the callback checks the charged sum against.
+  // Money comparisons happen on this column, never on the float.
+  amountAgorot Int?
+
+  // Which gateway this went through — the sandbox and the real one are the
+  // same credentials against different hosts, so without this a row cannot be
+  // told apart from a real charge afterwards.
+  environment String? // sandbox | production
+
+  confirmationKey       String? // from init; without it a transaction can't be validated
+  pelecardTransactionId String?
+  pelecardStatusCode    String? // "000" is success
+  approvalNo            String?
+  voucherId             String?
+  cardLast4             String?
+  clearerName           String?
+  totalPayments         Int?
+  rawResponse           Json? // the full exchange, for the day something is disputed
+  updatedAt             DateTime? @updatedAt
+
+  @@index([pelecardTransactionId])
+  @@index([orderId])
 }
 
 model OrderStatusHistory {

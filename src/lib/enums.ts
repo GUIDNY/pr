@@ -8,6 +8,7 @@ import { z } from "zod";
 export const ORDER_STATUSES = [
   "NEW",
   "PAYMENT_PENDING",
+  "PAYMENT_FAILED",
   "PAID",
   "PROCESSING",
   "AWAITING_SUPPLIER",
@@ -25,6 +26,7 @@ export const orderStatusSchema = z.enum(ORDER_STATUSES);
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: "הזמנה התקבלה",
   PAYMENT_PENDING: "ממתין לתשלום",
+  PAYMENT_FAILED: "התשלום נכשל",
   PAID: "התשלום אושר",
   PROCESSING: "בטיפול",
   AWAITING_SUPPLIER: "ממתין לספק",
@@ -53,6 +55,7 @@ export const ORDER_TIMELINE_STEPS: OrderStatus[] = [
 export const ORDER_STATUS_COLORS: Record<OrderStatus, string> = {
   NEW: "bg-muted text-muted-foreground",
   PAYMENT_PENDING: "bg-warning/15 text-warning-foreground",
+  PAYMENT_FAILED: "bg-destructive/15 text-destructive",
   PAID: "bg-success/15 text-success",
   PROCESSING: "bg-accent text-accent-foreground",
   AWAITING_SUPPLIER: "bg-warning/15 text-warning-foreground",
@@ -108,6 +111,9 @@ export const DESTRUCTIVE_ORDER_STATUSES: OrderStatus[] = ["CANCELLED", "REFUND_P
 export const NEXT_ORDER_STATUS: Record<OrderStatus, OrderStatus | null> = {
   NEW: "PAID",
   PAYMENT_PENDING: "PAID",
+  // No default step: a failed payment is a decision — chase the customer, take
+  // it on delivery, or cancel — not something to advance with one click.
+  PAYMENT_FAILED: null,
   PAID: "PROCESSING",
   PROCESSING: "AWAITING_SUPPLIER",
   AWAITING_SUPPLIER: "SUPPLIER_CONFIRMED",
@@ -129,6 +135,9 @@ export const NEXT_ORDER_STATUS: Record<OrderStatus, OrderStatus | null> = {
 export const ORDER_STALE_AFTER_HOURS: Record<OrderStatus, number | null> = {
   NEW: 24,
   PAYMENT_PENDING: 48,
+  // A customer whose card was declined is still trying to buy something. Half
+  // a day is already long to leave that without a phone call.
+  PAYMENT_FAILED: 12,
   PAID: 24,
   PROCESSING: 48,
   AWAITING_SUPPLIER: 120,

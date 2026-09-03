@@ -55,3 +55,6 @@ skills-lock.json
 
 # allow the example env to be committed
 !.env.example
+
+# gateway credentials handed over out of band — never committed
+pelecard-secrets.txt

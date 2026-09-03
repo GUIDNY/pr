@@ -55,20 +55,28 @@
 }
 
 /* =========================  BASE  ========================= */
+/* Every width here is 100% with padding on top of it. Without border-box that
+   arithmetic overflows its container, and the symptom is subtle: the amount
+   strip and the fields bleed a few pixels past the page margin, which reads as
+   a broken layout rather than as a box-model default. Their own CSS sets this,
+   being bootstrap-derived — we set it too so the file is correct on its own,
+   and so the offline preview shows what the live page shows. */
+*, *:before, *:after { box-sizing: border-box; }
+
 body {
   font-family: Rubik, "Segoe UI", Arial, sans-serif;
   font-size: 16px;
   color: #1F2933;
   color: var(--ai-ink);
-  background: #FAFAFA;
+  background: #fff;
   direction: rtl;
   text-align: right;
   line-height: 1.5;
   margin: 0;
-  padding: 0 0 30px;
+  padding: 0 0 18px;
 }
 
-.container { max-width: 780px; padding: 0 15px; margin: 0 auto; }
+.container { max-width: 620px; padding: 0 14px; margin: 0 auto; }
 
 .main-title {
   margin: 0 0 .6em;
@@ -81,73 +89,156 @@ body {
 h1#paymentByCC { display: none; }
 
 /* =========================  HEADER / LOGO  ========================= */
+/* Their header box has a height of its own and clips whatever is inside it.
+   Our shop mark is square, so it came out as an orange dome: the top 50px of a
+   210px-tall image. Both halves of that have to be undone — the box must stop
+   clipping, and the mark must be sized by height, not width.
+
+   Fixed box, contained image: correct whether .logo is an <img> (object-fit)
+   or a div carrying a background (background-size). We cannot see their markup
+   from here, so the rule answers both. */
 .credit-title {
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: transparent;
-  margin-top: 28px;
-  margin-bottom: 8px;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 0;
+  overflow: visible !important;
+  margin: 0;
+  padding: 16px 0 12px;
 }
-.credit-title .logo {
+.credit-title .logo,
+.credit-title img {
   display: block;
+  width: 200px !important;
+  height: 58px !important;
+  max-width: 62vw;
+  object-fit: contain;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
-  width: 210px;
-  max-width: 60vw;
 }
 
-/* =========================  AMOUNT BOX  ========================= */
-#totalAllRow {
-  border: solid 2px #F07E1A;
-  border: solid 2px var(--ai-orange);
-  background: #FFF3E6;
-  background: var(--ai-orange-soft);
-  padding: 12px 16px;
-  border-radius: 14px;
-  border-radius: var(--ai-radius);
-  margin: 16px 0 22px;
-}
-#totalAllRow label,
-#totalAllRow .control-label {
-  color: #1F2933;
-  color: var(--ai-ink);
-  font-weight: 500;
-}
-#totalAll {
-  font-family: Rubik, sans-serif;
-  font-size: 26px;
-  font-weight: 700;
-  text-align: right;
-  background: none;
-  border: none;
-  color: #D2650B;
-  color: var(--ai-orange-dark);
-  padding: 2px 0;
-}
+/* The captions live in the placeholders — PlaceholderCaptions is sent True on
+   every init — so every label on the page is an empty element, and the only
+   thing left inside it is the asterisk from .mandatory. That rendered as a
+   lone red star floating on its own line above two of the fields, and, for the
+   expiry, as a second "תוקף כרטיס" directly above the fieldset legend that
+   already says it.
 
-/* =========================  FIELDS  ========================= */
-.form-group { margin-bottom: 16px; }
-.form-group, .control-group { display: flex; flex-direction: column; width: 100%; }
+   So the labels go, and with them the note explaining the asterisks. What the
+   caption is stays visible in the placeholder and in the legend; nothing here
+   removes an accessible name, because an empty label never carried one. */
+.control-label { display: none; }
+.mandatory:after { content: none; }
+.main-title { display: none; }
+h1#paymentByCC { display: none; }
 
-.control-label {
-  min-height: 1.2em;
-  display: flex;
-  flex-direction: row-reverse;
-  justify-content: flex-end;
-  padding-top: 4px;
-  padding-bottom: 4px;
-  font-size: 14px;
+/* Their expiry pair is a fieldset, and a bordered box around two fields in a
+   form where nothing else is boxed reads as an error before anything is wrong.
+   The legend stays — with the labels gone it is the only caption those two
+   selects have. */
+fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+legend {
+  width: auto;
+  border: 0;
+  margin: 0;
+  padding: 0 0 6px;
+  font-size: 13px;
   font-weight: 500;
   color: #6B7280;
   color: var(--ai-ink-soft);
 }
 
+/* =========================  AMOUNT  ========================= */
+/* Pelecard put the total in the middle of the form, between the card fields
+   and the contact fields, and as a full-width orange billboard it cut the form
+   in two. The page it is embedded in already states the total in its own
+   panel, so this one only has to confirm it — one quiet line, and first,
+   before the fields rather than through them.
+
+   The move is done with order on the form, which is safe to attempt blind:
+   every other child keeps a higher order, so if the form is not the flex
+   parent we guessed, the rule does nothing at all rather than something
+   unpredictable. */
+form { display: flex; flex-direction: column; }
+form > * { order: 2; }
+form > #totalAllRow { order: 1; }
+
+#totalAllRow {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid #F3D5B4;
+  background: #FFF8F1;
+  background: var(--ai-orange-soft);
+  padding: 11px 14px;
+  border-radius: 12px;
+  margin: 4px 0 20px;
+}
+#totalAllRow:before {
+  content: "סה״כ לתשלום";
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: #1F2933;
+  color: var(--ai-ink);
+}
+#totalAllRow .control-group,
+#totalAllRow > div {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 3px;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+}
+#totalAllRow .ext {
+  padding: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #D2650B;
+  color: var(--ai-orange-dark);
+}
+#totalAll {
+  font-family: Rubik, sans-serif;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.2;
+  width: 106px;
+  max-width: 106px;
+  height: auto;
+  direction: ltr;
+  text-align: left;
+  background: none;
+  border: none;
+  box-shadow: none;
+  color: #D2650B;
+  color: var(--ai-orange-dark);
+  padding: 0;
+}
+
+/* =========================  FIELDS  ========================= */
+.form-group { margin-bottom: 12px; }
+.form-group, .control-group { display: flex; flex-direction: column; width: 100%; }
+
 .form-control {
   width: 100%;
-  height: 44px;
-  padding: 6px 12px;
+  height: 46px;
+  padding: 6px 14px;
   font-family: Rubik, sans-serif;
   font-size: 16px;              /* 16px keeps iOS from zooming on focus */
   color: #1F2933;
@@ -159,7 +250,7 @@ h1#paymentByCC { display: none; }
   box-shadow: none;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
-.form-control::placeholder { color: #A9B2BC; }
+.form-control::placeholder { color: #8A93A0; }
 .form-control:focus {
   outline: 0;
   background-color: #fff;
@@ -181,7 +272,7 @@ select.form-control {
   -webkit-appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, #6B7280 50%),
                     linear-gradient(135deg, #6B7280 50%, transparent 50%);
-  background-position: calc(0% + 14px) 19px, calc(0% + 19px) 19px;
+  background-position: calc(0% + 14px) 20px, calc(0% + 19px) 20px;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
   padding-left: 34px;
@@ -197,22 +288,22 @@ select.form-control {
 #dateContainer select#date_year_input { width: 48%; }
 #dateContainer .delimiter {
   display: block; width: 4%; text-align: center;
-  line-height: 44px; color: #6B7280; color: var(--ai-ink-soft);
+  line-height: 46px; color: #6B7280; color: var(--ai-ink-soft);
 }
-#IdAndCvvRow { display: flex; gap: 10px; }
+#IdAndCvvRow { display: flex; flex-direction: row; gap: 10px; }
+#IdAndCvvRow > * { flex: 1 1 0; min-width: 0; }
+
+/* A card number is read back in groups, not as one sixteen-digit word. */
+#credit_card_number_input {
+  letter-spacing: .06em;
+  font-variant-numeric: tabular-nums;
+}
 
 .control-group .ext {
   width: auto;
   color: #F07E1A;
   color: var(--ai-orange);
   padding: 0 10px;
-}
-.mandatory:after {
-  content: "*";
-  color: #F07E1A;
-  color: var(--ai-orange);
-  font-size: 15px;
-  margin-right: 3px;
 }
 
 /* =========================  ERRORS  ========================= */
@@ -230,6 +321,7 @@ select.form-control {
 }
 .errorRow_Vita {
   background-color: transparent;
+  display: block;
   color: #C0392B;
   color: var(--ai-error);
   margin: 4px 0 0;
@@ -259,7 +351,7 @@ select.form-control {
 
 .btn-submit, .btn-paypal {
   width: 100%;
-  height: 56px;
+  height: 54px;
   background: #F07E1A;
   background: var(--ai-orange);
   border: none;
@@ -287,7 +379,15 @@ select.form-control {
   cursor: not-allowed;
 }
 
-.form-group-submit { margin: 22px 0 10px; text-align: center; }
+.form-group-submit {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+  margin: 18px 0 6px;
+  text-align: center;
+}
+.form-group-submit .btn-submit { flex: 1 1 auto; }
 .form-group-submit-in .btn {
   margin-bottom: 10px;
   max-width: 340px;
@@ -301,10 +401,15 @@ select.form-control {
   background-color: #fff;
   color: #6B7280;
   color: var(--ai-ink-soft);
-  height: 48px;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 104px;
+  height: 54px;
+  padding: 0 18px;
   border: 1px solid #D7DDE3;
   border: 1px solid var(--ai-line);
-  border-radius: 12px;
+  border-radius: 14px;
+  border-radius: var(--ai-radius);
   font-size: 16px;
 }
 #cancelBtn:hover { background-color: #F2F4F6; }
@@ -411,9 +516,12 @@ iframe#threeDSCReqIframe {
 /* =========================  RESPONSIVE  ========================= */
 @media (max-width: 750px) {
   .container { padding: 0 12px; }
-  .credit-title { margin-top: 18px; }
-  #totalAll { font-size: 23px; }
+  .credit-title { padding: 12px 0 10px; }
+  .credit-title .logo, .credit-title img { height: 50px !important; }
+  #totalAllRow { padding: 10px 12px; margin-bottom: 16px; }
+  #totalAll { font-size: 19px; width: 96px; max-width: 96px; }
   .btn-submit, .btn-paypal { height: 52px; font-size: 19px; }
+  #cancelBtn { height: 52px; min-width: 88px; padding: 0 14px; }
 }
 @media (max-width: 400px) {
   .tab-button.pay-btn { width: 76px; height: 82px; }

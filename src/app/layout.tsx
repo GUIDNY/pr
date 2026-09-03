@@ -10,6 +10,7 @@ import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
 import { AccessibilityWidget } from "@/components/layout/accessibility-widget";
 import { CookieNotice } from "@/components/layout/cookie-notice";
+import { ShoppingOnly } from "@/components/layout/shopping-only";
 import "./globals.css";
 
 const heebo = Heebo({
@@ -90,9 +91,12 @@ export default function RootLayout({
               <CartProvider />
             </Suspense>
             {children}
-            <CartDrawer />
-            <CompareTray />
-            <AlfredChatWidget />
+            {/* Browsing furniture. Hidden on the payment step — see ShoppingOnly. */}
+            <ShoppingOnly>
+              <CartDrawer />
+              <CompareTray />
+              <AlfredChatWidget />
+            </ShoppingOnly>
             <AccessibilityWidget />
             <CookieNotice />
             <Toaster position="top-center" richColors />

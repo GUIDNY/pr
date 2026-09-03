@@ -13,9 +13,11 @@ import {
   MessageCircle,
   Sparkles,
   AlertTriangle,
+  CreditCard,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { logoutAction } from "@/actions/auth";
+import { isPelecardSandbox } from "@/lib/pelecard/config";
 
 const NAV = [
   { href: "/admin", label: "לוח בקרה", icon: LayoutDashboard, exact: true },
@@ -36,6 +38,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/admin/login");
   }
 
+  /* The sandbox console is listed only where it exists: outside the test
+     gateway the page itself 404s, and a dead link in the sidebar is how
+     someone concludes the back office is broken. */
+  const nav = isPelecardSandbox()
+    ? [...NAV, { href: "/admin/pelecard-test", label: "בדיקות סליקה (סנדבוקס)", icon: CreditCard }]
+    : NAV;
+
   return (
     <div dir="rtl" className="bg-secondary/30 flex min-h-svh">
       <aside className="bg-primary text-primary-foreground hidden w-64 shrink-0 flex-col lg:flex">
@@ -49,7 +58,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
