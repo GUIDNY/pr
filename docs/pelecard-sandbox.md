@@ -31,17 +31,58 @@ every payment path throws before a request is sent.
 | `PELECARD_TERMINAL` `PELECARD_USER` `PELECARD_PASSWORD` | terminal credentials. Server-side only, never `NEXT_PUBLIC_` |
 | `PELECARD_BASE_URL` | the gateway host, exactly one of the two above |
 | `PELECARD_ALLOW_PRODUCTION` | must be `I_UNDERSTAND` to use the production host |
-| `PELECARD_ENABLED` | `true` switches checkout onto the gateway. Anything else keeps the existing demo flow |
+| `PELECARD_ENABLED` | `true` switches **customers** onto the gateway. Anything else keeps the existing demo flow. Not needed for the staff test lane |
 | `PELECARD_CALLBACK_SECRET` | ours, not Pelecard's. Carried in the callback URL so the endpoint can tell a real notification from a forged one. `openssl rand -hex 32` |
 | `NEXT_PUBLIC_SITE_URL` | the public site address. Pelecard builds the customer's return links and the server-side callback URL from it |
 
-Recommended while testing:
+### The two switches are not the same switch
+
+`PELECARD_ENABLED` answers "do customers pay by card". Everything else answers
+"could a payment be opened at all" — a valid host, the production
+acknowledgement, credentials — which is what `pelecardConfigured()` reports.
+
+They were one switch until the merchant needed to work on the real payment page
+against the live terminal while the shop kept taking orders the old way, and
+that is impossible if the only thing that arms the gateway also opens it to
+every visitor. Now the credentials can be present on Production with
+`PELECARD_ENABLED` unset: customers keep the demo and cash lanes, and the staff
+test lane on `/checkout` can open a ₪1 transaction against the live terminal.
+
+This is the state to be in while the payment page is being worked on:
 
 | | Development | Preview | Production |
 |---|---|---|---|
-| `PELECARD_BASE_URL` | gateway20 | gateway20 | gateway20 |
-| `PELECARD_ALLOW_PRODUCTION` | — | — | — |
-| `PELECARD_ENABLED` | `true` | `true` | `false` |
+| `PELECARD_BASE_URL` | gateway21 | gateway21 | gateway21 |
+| `PELECARD_ALLOW_PRODUCTION` | `I_UNDERSTAND` | `I_UNDERSTAND` | `I_UNDERSTAND` |
+| `PELECARD_ENABLED` | — | — | **—** |
+
+Every transaction opened in that state is a real charge; the test lane caps it
+at `TEST_ORDER_SHEKELS`, which is 1. Turning `PELECARD_ENABLED` on in Production
+is the go-live step and nothing else has to change with it.
+
+gateway20 is still the right host anywhere a charge must be impossible — but it
+cannot complete a transaction against this terminal, so it cannot answer whether
+the terminal works.
+
+## The staff test lane
+
+`/checkout` shows a dashed panel to `ADMIN` and `STAFF` only, with the two
+halves of the flow separated:
+
+- **דף תשלום אמיתי — ₪1** — `createTestPaymentOrderAction()` creates an order
+  numbered `TEST-PR-xxxxxx` carrying one line at ₪1, then goes to
+  `/checkout/pay/<n>`, which opens a real Pelecard transaction on the `"test"`
+  lane. The order's single line is priced at the test amount rather than
+  snapshotting the real cart: an order whose items say ₪389 and whose total says
+  ₪1 is indistinguishable, in the admin list or any report, from a pricing bug.
+- **הזמנת דמה** — fills the checkout form with details that pass validation and
+  selects `DEMO_CARD`. No gateway, no charge, and the order travels the exact
+  path a customer's does.
+
+Both gates are checked twice on the server: once to decide whether the panel
+renders, and again inside the action. `/checkout/pay/<n>` refuses a `TEST-`
+order to anyone without a staff session, answering as it does for an order that
+does not exist.
 
 **Preview builds in this project need more than the Pelecard variables.** Env
 vars here are set for Production only, so a Preview deployment has no
