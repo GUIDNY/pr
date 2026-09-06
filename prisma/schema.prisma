@@ -226,6 +226,7 @@ model Product {
   alerts              InventoryAlert[]
   inventoryLines      InventorySourceLine[]
   enrichmentCandidate EnrichmentCandidate?
+  slugHistory         ProductSlugHistory[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -233,6 +234,26 @@ model Product {
   @@index([sourceId, sourceRowKey])
   @@index([isTemporarySku])
   @@index([model])
+}
+
+// Every address this product has ever been reachable at, so a renamed
+// product 301s from its old URL instead of 404ing. `slug` is public: it is
+// in the product URL, it is what a customer pasted into WhatsApp and what
+// Google has indexed, and once a link is out there it is out there
+// permanently. A single "previous slug" column would have covered exactly
+// one rename and stranded the first URL on the second — a row per address
+// costs nothing and cannot develop that hole.
+//
+// Written by every path that changes a slug (see lib/product-slug-history.ts);
+// read by product/[slug]/page.tsx when a slug misses.
+model ProductSlugHistory {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([productId])
 }
 
 // A proposed image + description pulled from the manufacturer's own site,

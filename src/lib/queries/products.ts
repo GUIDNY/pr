@@ -253,6 +253,24 @@ export async function getProductBySlug(slug: string) {
   });
 }
 
+/**
+ * The slug a product carries *now*, given an address it used to carry.
+ *
+ * Only ever called after a live-slug lookup has already missed, so it costs
+ * nothing on the normal path — and the answer is what the product page 301s
+ * to. Returns null when the address was never this shop's, which is the
+ * ordinary 404.
+ */
+export async function getCurrentSlugForLegacySlug(slug: string): Promise<string | null> {
+  const record = await db.productSlugHistory.findUnique({
+    where: { slug },
+    select: { product: { select: { slug: true } } },
+  });
+  const current = record?.product.slug ?? null;
+  // A stale row pointing at itself would redirect the address to the address.
+  return current && current !== slug ? current : null;
+}
+
 export async function getRelatedProducts(categoryId: string, excludeId: string, take = 4) {
   const rows = await db.product.findMany({
     where: { ...PUBLIC_PRODUCT_WHERE, categoryId, id: { not: excludeId } },

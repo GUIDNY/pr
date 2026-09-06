@@ -127,7 +127,9 @@ async function processCreateItem(item: CreateItem, dryRun: boolean) {
     }
   }
 
-  const slug = generateProductSlug(title, sku);
+  // categorySlug is validated above and is Latin by construction, so it is
+  // the fallback address for a product whose Hebrew title yields none.
+  const slug = generateProductSlug(title, sku, categorySlug);
 
   if (dryRun) {
     return {

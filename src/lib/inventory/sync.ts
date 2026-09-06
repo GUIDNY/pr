@@ -23,6 +23,7 @@ import {
   IMPLAUSIBLE_LINE_VALUE,
 } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
+import { usableSlugBase } from "@/lib/slug-base";
 
 // Sequential, persistent, gap-free: 0001, 0002, ... — never reused, never
 // renumbered on a later sync. A single-row counter table keeps allocation
@@ -108,17 +109,22 @@ export function getLowStockThreshold(): number {
   return Number.isFinite(n) && n >= 0 ? n : 3;
 }
 
-function asciiSlug(input: string) {
-  return input
-    .replace(/[^\w\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .toLowerCase();
-}
-
+// The product's public address, and the one field nothing rewrites after
+// creation — so it is worth spending the row's whole vocabulary on rather
+// than settling early.
+//
+// This used to read `row.model ?? row.brandName ?? row.categorySlug`, which
+// falls through on *null* and not on "the value is there but it is Hebrew".
+// A row with a Hebrew model therefore stopped at that model, got "" out of
+// asciiSlug and landed on the literal word "product" — 249 products are on a
+// product-{hash} URL today because of exactly that. Trying each candidate
+// against the result instead lets the same row reach its category slug, which
+// is Latin by construction ("air-fryers", "fridge-3-door").
 function slugFor(row: NormalizedProductRow, sku: string) {
   const base =
-    asciiSlug(row.model ?? row.brandName ?? row.categorySlug ?? "product") ||
+    usableSlugBase(row.model) ??
+    usableSlugBase(row.brandName) ??
+    usableSlugBase(row.categorySlug) ??
     "product";
   const suffix = createHash("sha1").update(sku).digest("hex").slice(0, 8);
   return `${base}-${suffix}`;
