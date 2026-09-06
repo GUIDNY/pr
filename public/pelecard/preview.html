@@ -8,13 +8,13 @@
 <link rel="stylesheet" href="/pelecard/ai-orange.css">
 <style>
   /* עוטף התצוגה בלבד — לא חלק מה-CSS שנשלח לפלאקארד */
-  body { background: #EEF1F4; }
+  body { background: #EEF1F4; font-family: Heebo, Arial, sans-serif; }
   .preview-note{max-width:620px;margin:20px auto 0;padding:12px 16px;background:#FFF7ED;
-    border:1px solid #F5D5AE;border-radius:12px;font:14px Rubik,Arial,sans-serif;color:#7C4A03}
+    border:1px solid #F5D5AE;border-radius:12px;font:14px Heebo,Arial,sans-serif;color:#7C4A03}
   .preview-frame{max-width:620px;margin:16px auto;background:#fff;border:1px solid #E4E8EC;
     border-radius:14px;overflow:hidden}
   .topbar{background:#F5F6F7;border-bottom:1px solid #E9ECEF;padding:8px 14px;text-align:center;
-    font:13px Rubik,Arial,sans-serif;color:#4B5563}
+    font:13px Heebo,Arial,sans-serif;color:#4B5563}
   .topbar a{color:#1D4ED8}
 </style>
 </head>
@@ -22,7 +22,7 @@
 
 <div class="preview-note">
   <strong>תצוגה מקדימה — לא דף תשלום.</strong> אי אפשר לשלם כאן, שום שדה לא נשלח לשום מקום
-  ואף כפתור לא עושה דבר. המבנה שוחזר מדף התשלום החי (צילומי מסך של
+  ואף כפתור לא עושה דבר. המבנה שוחזר מדף התשלום החי (PlaceholderCaptions=False, כלומר הכיתוב בתווית) (צילומי מסך של
   <code>/checkout/pay</code>), כולל הדברים שקל לפספס: תוויות ריקות — כי
   <code>PlaceholderCaptions</code> מעביר את הכיתוב ל-placeholder — ה-<code>fieldset</code>
   סביב שדות התוקף, ומיקום סכום העסקה באמצע הטופס. הדף טוען את
@@ -44,13 +44,13 @@
   <form onsubmit="return false">
 
     <div class="form-group">
-      <label class="control-label" for="cardHolderName_input"></label>
-      <input class="form-control" id="cardHolderName_input" type="text" placeholder="שם בעל הכרטיס/חברה">
+      <label class="control-label" for="cardHolderName_input">שם בעל הכרטיס/חברה</label>
+      <input class="form-control" id="cardHolderName_input" type="text">
     </div>
 
     <div class="form-group">
-      <label class="control-label mandatory" for="credit_card_number_input"></label>
-      <input class="form-control" id="credit_card_number_input" type="text" placeholder="מספר כרטיס">
+      <label class="control-label mandatory" for="credit_card_number_input">מספר כרטיס</label>
+      <input class="form-control" id="credit_card_number_input" type="text">
     </div>
 
     <div class="form-group" id="dateContainer">
@@ -71,12 +71,12 @@
 
     <div class="form-group" id="IdAndCvvRow">
       <div>
-        <label class="control-label mandatory" for="id_number_input"></label>
-        <input class="form-control" id="id_number_input" type="text" placeholder="תעודת זהות">
+        <label class="control-label mandatory" for="id_number_input">תעודת זהות</label>
+        <input class="form-control" id="id_number_input" type="text">
       </div>
       <div>
-        <label class="control-label mandatory" for="cvv_input"></label>
-        <input class="form-control" id="cvv_input" type="text" placeholder="קוד אימות כרטיס">
+        <label class="control-label mandatory" for="cvv_input">קוד אימות כרטיס</label>
+        <input class="form-control" id="cvv_input" type="text">
       </div>
     </div>
 
@@ -89,13 +89,13 @@
     </div>
 
     <div class="form-group">
-      <label class="control-label" for="email_input"></label>
-      <input class="form-control" id="email_input" type="email" placeholder="דוא״ל רוכש">
+      <label class="control-label" for="email_input">דוא״ל רוכש</label>
+      <input class="form-control" id="email_input" type="email">
     </div>
 
     <div class="form-group">
-      <label class="control-label" for="phone_input"></label>
-      <input class="form-control" id="phone_input" type="tel" placeholder="טלפון רוכש">
+      <label class="control-label" for="phone_input">טלפון רוכש</label>
+      <input class="form-control" id="phone_input" type="tel">
     </div>
 
     <div class="form-group-submit">

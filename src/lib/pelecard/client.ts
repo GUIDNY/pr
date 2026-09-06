@@ -200,10 +200,17 @@ export function paymentPageStyle() {
     CssURL: `${PELECARD_ASSET_ORIGIN}/pelecard/ai-orange.css`,
     LogoURL: `${PELECARD_ASSET_ORIGIN}/pelecard/logo.png`,
 
-    // Captions inside the fields rather than above them: a shorter form, which
-    // matters most on the phone where the keyboard covers half the screen.
-    PlaceholderCaptions: "True",
-    SplitCCNumber: "True",
+    /* Captions above the fields, not inside them, because that is where the
+       shop's own checkout puts them — <Label className="mb-1.5"> over every
+       input, in foreground rather than grey. With this True every label on
+       Pelecard's page comes back empty and the caption lives in the
+       placeholder, which disappears the moment somebody types and leaves a
+       filled form with no field names on it.
+
+       The stylesheet depends on this: .control-label is styled to be seen. */
+    PlaceholderCaptions: "False",
+    // One card-number field, as on our own form — not four boxes.
+    SplitCCNumber: "False",
     // A numeric keypad for the card number instead of a full keyboard.
     NumericInputMode: "True",
     // Errors against the field that caused them, not one line at the top.
