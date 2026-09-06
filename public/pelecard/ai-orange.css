@@ -74,7 +74,7 @@ body {
   direction: rtl;
   text-align: right;
   margin: 0;
-  padding: 12px 16px 16px;      /* the p-5 of the section this imitates */
+  padding: 10px 16px 12px;      /* the p-5 of the section this imitates */
 }
 
 .container { max-width: 100%; padding: 0; margin: 0; }
@@ -108,7 +108,7 @@ body {
    as a red star alone on a line. */
 .control-label {
   display: block;
-  margin: 0 0 6px;
+  margin: 0 0 5px;
   padding: 0;
   font-size: 14px;
   font-weight: 500;
@@ -136,7 +136,7 @@ legend {
 }
 
 /* =========================  FIELDS  ========================= */
-.form-group { margin: 0 0 10px; }        /* the gap-3 between the shop's rows */
+.form-group { margin: 0 0 9px; }        /* the gap-3 between the shop's rows */
 .form-group, .control-group { display: block; width: 100%; }
 
 .form-control {
@@ -269,8 +269,8 @@ select.form-control {
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  margin: 2px 0 14px;
-  padding: 9px 12px;
+  margin: 2px 0 12px;
+  padding: 8px 12px;
   border: 0;
   border-radius: 8px;
   border-radius: var(--ai-radius-sm);
@@ -373,7 +373,7 @@ select.form-control {
   flex-direction: row;
   align-items: stretch;
   gap: 12px;
-  margin: 16px 0 4px;
+  margin: 14px 0 0;
 }
 .form-group-submit .btn-submit { flex: 1 1 auto; }
 .form-group-submit-in .btn {
@@ -457,6 +457,10 @@ select.form-control {
 /* =========================  FOOTER / SEALS  ========================= */
 /* The shop's own reassurance strip: muted surface, 12px muted text, 8px radius
    — the same p-2 notice that sits above the card fields on the checkout. */
+/* Sent hidden now (HiddenSslSeal), so these only apply if that parameter ever
+   stops being honoured. Kept rather than deleted for that reason — unlike the
+   flex-order rules, this one has not been disproved, it has been switched off
+   from our side and can be switched back in one line. */
 .footer {
   background-color: #F7F5F3;
   background-color: var(--ai-surface);

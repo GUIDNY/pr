@@ -218,9 +218,18 @@ export function paymentPageStyle() {
     HiddenPelecardLogo: "True",
     HiddenPciLogo: "True",
 
-    /* HiddenSslSeal is deliberately not sent. The stylesheet dresses that footer
-       — the card marks and "התשלום מאובטח ומוצפן" — and it is the one thing on
-       the page telling a customer their card details are safe here. */
+    /* HiddenSslSeal was deliberately not sent, on the grounds that the footer it
+       controls — the card marks and "התשלום מאובטח ומוצפן" — was the one thing
+       on the page telling a customer their details were safe here.
+
+       That was true of a payment page a customer was sent away to. It is not
+       true now: this form is embedded in step 3 of our own checkout, directly
+       under our own line saying the card is entered at the clearing company and
+       never passes through the site, and above their own SSL bar at the top of
+       the frame. The footer was a third copy of the same reassurance, and it
+       was the last hundred-odd pixels standing between the form and fitting in
+       the frame without a scrollbar of its own. */
+    HiddenSslSeal: "True",
   };
 }
 
