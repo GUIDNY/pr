@@ -1,7 +1,8 @@
 import { Client } from "pg";
 
 /**
- * Every renamed product's old address, as redirect rules for next.config.
+ * Every renamed product's and brand's old address, as redirect rules for
+ * next.config.
  *
  * These are declared in the config on purpose, which puts them in front of
  * every cache. The page-level lookup that used to be the only mechanism
@@ -37,13 +38,18 @@ export async function legacySlugRedirects(): Promise<
   const client = new Client({ connectionString });
   try {
     await client.connect();
-    const { rows } = await client.query<{ old_slug: string; new_slug: string }>(
-      // h.slug <> p.slug drops a row whose product has since moved back onto
+    const { rows } = await client.query<{ prefix: string; old_slug: string; new_slug: string }>(
+      // "<> " on both halves drops a row whose owner has since moved back onto
       // that same address, which would otherwise redirect a live URL to itself.
-      `SELECT h.slug AS old_slug, p.slug AS new_slug
+      `SELECT 'product' AS prefix, h.slug AS old_slug, p.slug AS new_slug
          FROM "ProductSlugHistory" h
          JOIN "Product" p ON p.id = h."productId"
-        WHERE h.slug <> p.slug`,
+        WHERE h.slug <> p.slug
+        UNION ALL
+       SELECT 'brand' AS prefix, h.slug AS old_slug, b.slug AS new_slug
+         FROM "BrandSlugHistory" h
+         JOIN "Brand" b ON b.id = h."brandId"
+        WHERE h.slug <> b.slug`,
     );
     // Vercel caps a deployment at 1,024 redirect rules and rejects the whole
     // build past it. Renames are rare — 223 after the one big cleanup — but
@@ -57,8 +63,8 @@ export async function legacySlugRedirects(): Promise<
     }
 
     return rows.map((row) => ({
-      source: `/product/${row.old_slug}`,
-      destination: `/product/${row.new_slug}`,
+      source: `/${row.prefix}/${row.old_slug}`,
+      destination: `/${row.prefix}/${row.new_slug}`,
       permanent: true as const,
     }));
   } catch (error) {

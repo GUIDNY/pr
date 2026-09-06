@@ -20,13 +20,14 @@ import { SITE_URL as BASE_URL } from "@/lib/site-url";
 // sitemap that claims everything changed this morning is one Google learns
 // to discount wholesale.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [products, categories, articles] = await Promise.all([
+  const [products, categories, articles, brands] = await Promise.all([
     db.product.findMany({
       where: PUBLIC_PRODUCT_WHERE,
-      select: { slug: true, updatedAt: true, categoryId: true },
+      select: { slug: true, updatedAt: true, categoryId: true, brandId: true },
     }),
     db.category.findMany({ select: { id: true, slug: true, parentId: true } }),
     db.article.findMany({ where: { isPublished: true }, select: { slug: true, updatedAt: true } }),
+    db.brand.findMany({ where: { isActive: true }, select: { id: true, slug: true } }),
   ]);
 
   const newest = (dates: (Date | undefined)[]): Date | undefined => {
@@ -60,6 +61,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // the catalog's newest change is what dates it. Not the homepage sections
   // an admin can edit — those have no timestamp to read — which is worth
   // knowing rather than pretending otherwise.
+  // Brand pages were missing from this file entirely — all of them — so a
+  // brand with 106 products in the shop was not offered to a single engine.
+  // Dated by its own newest visible product, for the same reason categories
+  // are: a page's date has to describe what the page shows.
+  //
+  // A brand with nothing visible is left out rather than sent without a date.
+  // Unlike a category it is not part of the navigation anyone browses, so an
+  // empty one is a thin page, and asking a crawler to fetch it spends the
+  // crawl budget that the products need.
+  const brandNewest = new Map<string, Date>();
+  for (const p of products) {
+    const current = brandNewest.get(p.brandId);
+    if (!current || p.updatedAt > current) brandNewest.set(p.brandId, p.updatedAt);
+  }
+
   const catalogNewest = newest(products.map((p) => p.updatedAt));
   const articlesNewest = newest(articles.map((a) => a.updatedAt));
 
@@ -72,6 +88,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily" as const,
       priority: 0.7,
     })),
+    ...brands
+      .filter((b) => brandNewest.has(b.id))
+      .map((b) => ({
+        url: `${BASE_URL}/brand/${b.slug}`,
+        lastModified: brandNewest.get(b.id),
+        changeFrequency: "weekly" as const,
+        priority: 0.6,
+      })),
     ...products.map((p) => ({
       url: `${BASE_URL}/product/${p.slug}`,
       lastModified: p.updatedAt,

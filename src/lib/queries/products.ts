@@ -276,6 +276,20 @@ export async function getCurrentSlugForLegacySlug(slug: string): Promise<string 
   return current && current !== slug ? current : null;
 }
 
+/**
+ * The slug a brand carries now, given one it used to carry. Same shape and
+ * same reasoning as getCurrentSlugForLegacySlug — a brand page is linked from
+ * every product of that brand, so its address is public too.
+ */
+export async function getCurrentSlugForLegacyBrandSlug(slug: string): Promise<string | null> {
+  const record = await db.brandSlugHistory.findUnique({
+    where: { slug },
+    select: { brand: { select: { slug: true } } },
+  });
+  const current = record?.brand.slug ?? null;
+  return current && current !== slug ? current : null;
+}
+
 export async function getRelatedProducts(categoryId: string, excludeId: string, take = 4) {
   const rows = await db.product.findMany({
     where: { ...PUBLIC_PRODUCT_WHERE, categoryId, id: { not: excludeId } },

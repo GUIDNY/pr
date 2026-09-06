@@ -1,8 +1,12 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
 import { ProductCard } from "@/components/product/product-card";
 import { SortSelect } from "@/components/catalog/sort-select";
-import { getProductsByBrandSlug, type ProductSort } from "@/lib/queries/products";
+import {
+  getProductsByBrandSlug,
+  getCurrentSlugForLegacyBrandSlug,
+  type ProductSort,
+} from "@/lib/queries/products";
 import { normalizeDescription } from "@/lib/product-content";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -12,7 +16,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: brand.name,
     description: brand.description ?? undefined,
-    alternates: { canonical: `/brand/${slug}` },
+    // The brand's own slug, never the one that was asked for: a page reached
+    // through an old address must not declare that old address canonical.
+    alternates: { canonical: `/brand/${brand.slug}` },
   };
 }
 
@@ -31,7 +37,14 @@ export default async function BrandPage({
     getProductsByBrandSlug(slug, { sort, pageSize: 48 }),
   ]);
 
-  if (!brand) notFound();
+  // A renamed brand keeps answering at the address it was linked from —
+  // see lib/legacy-slug-redirects.ts for why the same rules also live in
+  // next.config, and what happens when they only live here.
+  if (!brand) {
+    const current = await getCurrentSlugForLegacyBrandSlug(slug);
+    if (current) permanentRedirect(`/brand/${current}`);
+    notFound();
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">

@@ -86,8 +86,9 @@ model Brand {
   seoDesc      String?
   createdAt    DateTime @default(now())
 
-  products Product[]
-  images   BrandImage[]
+  products    Product[]
+  images      BrandImage[]
+  slugHistory BrandSlugHistory[]
 }
 
 // Lifestyle/brand imagery for the "About the Brand" panel — separate from
@@ -246,6 +247,19 @@ model Product {
 //
 // Written by every path that changes a slug (see lib/product-slug-history.ts);
 // read by product/[slug]/page.tsx when a slug misses.
+// The same idea as ProductSlugHistory, for brands. A brand page is a public
+// address too — linked from every product carrying that brand — so renaming
+// one without recording the old value breaks whatever already points at it.
+model BrandSlugHistory {
+  id        String   @id @default(cuid())
+  brandId   String
+  brand     Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([brandId])
+}
+
 model ProductSlugHistory {
   id        String   @id @default(cuid())
   productId String

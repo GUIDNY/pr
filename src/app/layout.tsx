@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionSummaryProvider } from "@/components/layout/session-summary-provider";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
+import { Clarity } from "@/components/analytics/clarity";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
@@ -109,6 +110,7 @@ export default function RootLayout({
             <CookieNotice />
             <Toaster position="top-center" richColors />
             <GoogleAnalytics />
+            <Clarity />
           </TooltipProvider>
         </DirectionProvider>
       </body>

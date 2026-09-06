@@ -39,9 +39,10 @@ export function proxy(request: NextRequest) {
     return rewriteSegment(request, pathname, "/category/", "/category-filtered");
   }
 
-  // A product request from a signed-in browser goes to the twin that can show
-  // the admin's inline editors. Everyone else gets the cached page.
-  if (pathname.startsWith("/product/") && request.cookies.has(SESSION_COOKIE)) {
+  // A product request from someone who is actually staff goes to the twin
+  // that can show the inline editors. Everyone else — including a signed-in
+  // customer — gets the cached page.
+  if (pathname.startsWith("/product/") && looksLikeStaff(request)) {
     return rewriteSegment(request, pathname, "/product/", "/product-admin");
   }
 
@@ -62,6 +63,44 @@ export function proxy(request: NextRequest) {
   }
 
   return NextResponse.next();
+}
+
+const STAFF_ROLES = new Set(["ADMIN", "STAFF"]);
+
+/**
+ * Is this request carrying what looks like a live staff session?
+ *
+ * Reads the role out of the session token WITHOUT verifying its signature,
+ * which is deliberate and safe: this decides which of two routes renders, and
+ * the staff route calls getSession() and verifies properly before it shows an
+ * admin anything. A forged "role":"ADMIN" buys a visitor nothing but the
+ * uncached copy of a page they can already read.
+ *
+ * Presence of the cookie is not enough, and that distinction is the whole
+ * point. Every signed-in customer carries one, and routing on presence sent
+ * all of them to a route Next serves `private, no-store` — the shop's own
+ * account holders would have been the only visitors never getting the fast
+ * page. An expired token is treated the same way, since the staff route would
+ * only render the public view for it anyway.
+ *
+ * Anything unreadable means "not staff", so the failure direction is the
+ * cached page. An admin whose token this cannot parse still has /admin.
+ */
+function looksLikeStaff(request: NextRequest): boolean {
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  if (!token) return false;
+
+  const payload = token.split(".")[1];
+  if (!payload) return false;
+
+  try {
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    const claims = JSON.parse(json) as { role?: unknown; exp?: unknown };
+    if (typeof claims.exp === "number" && claims.exp * 1000 < Date.now()) return false;
+    return typeof claims.role === "string" && STAFF_ROLES.has(claims.role);
+  } catch {
+    return false;
+  }
 }
 
 // The parameters the category page actually reads — see CategoryPageView,
