@@ -427,6 +427,40 @@ select.form-control {
   float: none !important;
 }
 
+/* The pay button by what it IS, not by what it is called.
+   
+   .btn-submit was a guess and it was wrong: the live page rendered that button
+   pink, which is their colour, meaning our background never applied to it. The
+   50/50 layout landed on it anyway because that rule is structural — it matches
+   whatever sits in the submit row — and that is the lesson. So the colour is
+   keyed the same way: inside the submit row, every button that is not the
+   cancel button is the brand button, whatever class it carries.
+
+   #cancelBtn is a confirmed id — the white outlined button on the live page is
+   ours — so excluding it is safe, and it is the only thing in this row that
+   must not be orange. */
+.form-group-submit button:not(#cancelBtn),
+.form-group-submit input[type="submit"]:not(#cancelBtn),
+.form-group-submit input[type="button"]:not(#cancelBtn),
+.form-group-submit a.btn:not(#cancelBtn) {
+  background: #F7590C !important;
+  background-color: var(--ai-brand) !important;
+  border: none !important;
+  color: #fff !important;
+  font-family: Heebo, "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  height: 44px;
+  border-radius: 10px;
+  border-radius: var(--ai-radius);
+  cursor: pointer;
+}
+.form-group-submit button:not(#cancelBtn):hover,
+.form-group-submit input[type="submit"]:not(#cancelBtn):hover {
+  background: #E74600 !important;
+  background-color: var(--ai-brand-hover) !important;
+}
+
 #cancelBtn {
   flex: 1 1 0;
   width: auto;
@@ -502,10 +536,16 @@ select.form-control {
 /* =========================  FOOTER / SEALS  ========================= */
 /* The shop's own reassurance strip: muted surface, 12px muted text, 8px radius
    — the same p-2 notice that sits above the card fields on the checkout. */
-/* Sent hidden now (HiddenSslSeal), so these only apply if that parameter ever
-   stops being honoured. Kept rather than deleted for that reason — unlike the
-   flex-order rules, this one has not been disproved, it has been switched off
-   from our side and can be switched back in one line. */
+/* HiddenSslSeal was sent True and the footer is still on the page, so that
+   parameter is either named differently or not honoured — either way it is not
+   ours to fix. Hidden here instead, which is the one selector on this page we
+   know for certain works: the strip rendered with the rounded muted styling
+   these rules gave it, which is proof they matched.
+
+   It is a third copy of a reassurance the page already makes twice — our own
+   line above the frame, and their SSL bar at the top of it. */
+.footer, .footer.centerBG { display: none !important; }
+
 .footer {
   background-color: #F7F5F3;
   background-color: var(--ai-surface);
