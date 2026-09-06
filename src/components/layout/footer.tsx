@@ -134,7 +134,7 @@ export async function Footer() {
 
       <div className="border-primary-foreground/10 border-t px-4 py-4">
         <div className="text-primary-foreground/50 mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-xs sm:flex-row">
-          <span>© {new Date().getFullYear()} A&I Electronics. כל הזכויות שמורות.</span>
+          <span>© {new Date().getFullYear()} Buy Today. כל הזכויות שמורות.</span>
           <span className="flex items-center gap-1">
             <MapPin className="size-3" /> ישראל
           </span>

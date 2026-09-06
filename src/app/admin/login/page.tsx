@@ -43,8 +43,8 @@ export default function AdminLoginPage() {
             <ShieldCheck className="size-5" />
           </span>
           <h1 className="flex flex-col items-center text-xl leading-none font-bold">
-            <span className="text-brand">A&I</span>
-            <span>Electronics Admin</span>
+            <span className="text-brand">Buy</span>
+            <span>Today Admin</span>
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">כניסה לממשק הניהול</p>
         </div>

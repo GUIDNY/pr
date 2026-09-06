@@ -20,9 +20,9 @@ const heebo = Heebo({
   display: "swap",
 });
 
-const SITE_NAME = "A&I Electronics";
+const SITE_NAME = "Buy Today";
 const SITE_DESCRIPTION =
-  "A&I Electronics - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.";
+  "Buy Today - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.";
 
 export const metadata: Metadata = {
   // Required for the Open Graph image to resolve to an absolute URL. Without

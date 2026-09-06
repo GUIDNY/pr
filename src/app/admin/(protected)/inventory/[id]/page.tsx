@@ -15,7 +15,7 @@ import {
   type InventoryChangeType,
 } from "@/lib/enums";
 
-export const metadata = { title: "פרטי מוצר | A&I Electronics Admin" };
+export const metadata = { title: "פרטי מוצר | Buy Today Admin" };
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (

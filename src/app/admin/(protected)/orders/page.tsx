@@ -14,7 +14,7 @@ import {
 } from "@/lib/enums";
 import { formatPrice, formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "הזמנות | A&I Electronics Admin" };
+export const metadata = { title: "הזמנות | Buy Today Admin" };
 
 const PAGE_SIZE = 20;
 

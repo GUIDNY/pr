@@ -16,7 +16,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@
 import { formatDateTime } from "@/lib/format";
 import type { StockStatus } from "@/lib/enums";
 
-export const metadata = { title: "מרכז המלאי | A&I Electronics Admin" };
+export const metadata = { title: "מרכז המלאי | Buy Today Admin" };
 
 const PAGE_SIZE = 30;
 

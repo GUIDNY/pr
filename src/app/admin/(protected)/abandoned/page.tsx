@@ -11,7 +11,7 @@ import {
 } from "@/lib/enums";
 import { formatPrice, formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "עגלות נטושות | A&I Electronics Admin" };
+export const metadata = { title: "עגלות נטושות | Buy Today Admin" };
 
 const TABS: { value: CartFollowUpStatus | "ALL"; label: string }[] = [
   ...CART_FOLLOW_UP_STATUSES.map((s) => ({ value: s, label: CART_FOLLOW_UP_STATUS_LABELS[s] })),

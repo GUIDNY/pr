@@ -10,7 +10,7 @@ import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { StockStatus } from "@/lib/enums";
 
-export const metadata = { title: "מוצרים | A&I Electronics Admin" };
+export const metadata = { title: "מוצרים | Buy Today Admin" };
 
 const PAGE_SIZE = 25;
 

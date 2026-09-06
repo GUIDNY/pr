@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { SuppliersManager } from "@/components/admin/suppliers-manager";
 
-export const metadata = { title: "ספקים | A&I Electronics Admin" };
+export const metadata = { title: "ספקים | Buy Today Admin" };
 
 export default async function AdminSuppliersPage() {
   const suppliers = await db.supplier.findMany({

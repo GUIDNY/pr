@@ -17,7 +17,7 @@ import {
   type ComplaintStatus,
 } from "@/lib/enums";
 
-export const metadata = { title: "תלונות | A&I Electronics Admin" };
+export const metadata = { title: "תלונות | Buy Today Admin" };
 export const dynamic = "force-dynamic";
 
 type SP = Record<string, string | undefined>;

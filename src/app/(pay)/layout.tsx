@@ -21,10 +21,10 @@ export default function PaymentLayout({ children }: { children: React.ReactNode 
     <>
       <header className="border-border bg-background sticky top-0 z-40 border-b">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          <Link href="/" aria-label="A&I Electronics — לעמוד הבית" className="shrink-0">
+          <Link href="/" aria-label="Buy Today — לעמוד הבית" className="shrink-0">
             <Image
               src="/brand/logo.png"
-              alt="A&I Electronics"
+              alt="Buy Today"
               width={120}
               height={120}
               className="h-10 w-auto"
