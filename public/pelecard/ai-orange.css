@@ -28,12 +28,19 @@
    If those tokens change, these change with them. Nothing here is a colour
    somebody liked; every one of them is a variable the shop already uses.
 
-   Written against Pelecard's own class names and ids — .form-control,
-   .control-label, .btn-submit, #totalAllRow, #dateContainer, #IdAndCvvRow,
-   .errorRow_Vita. Those are their markup and theirs to rename; if they do, the
-   rules keyed to a renamed selector stop applying and that part of the page
-   quietly returns to their default. /pelecard/preview.html renders the same
-   markup and is how that gets checked without spending a transaction.
+   Written against Pelecard's own class names and ids — .row, .col-sm-6,
+   .form-group, .control-label, .control-value_old, #totalAllRow, #dateContainer,
+   #IdAndCvvRow, .errorRow_Vita, .form-group-submit, #cancelBtn. Those are their
+   markup and theirs to rename; if they do, the rules keyed to a renamed selector
+   stop applying and that part of the page quietly returns to their default.
+
+   Everything in that list is now READ from the live DOM rather than inferred
+   from a screenshot. The difference is the whole history of this file: every
+   rule written against a guessed name either did nothing (.btn-submit,
+   .main-title, .mandatory) or hit something it was not aimed at, and the ones
+   that held were the ones describing structure. /pelecard/preview.html renders
+   the same markup and is how a change gets checked without spending a
+   transaction.
 
    Every custom property is paired with a literal fallback on the line above it,
    because a var() an old browser cannot read takes its whole declaration away.
@@ -218,9 +225,15 @@ legend {
    bar, silently took the widths of every field on the page with it.
 
    #totalAllRow and the submit row are protected by their own rules carrying
-   !important and an id, rather than by an exclusion here. */
-*:not(html):not(body):not(.form-group):not(.form-group-submit):has(input),
-*:not(html):not(body):not(.form-group):not(.form-group-submit):has(select),
+   !important and an id, rather than by an exclusion here.
+
+   [class*="col-"] is excluded because a grid column contains a field and so
+   matched this rule, which set it to width:100% and float:none and flattened
+   Pelecard's two-column grid — the fault behind both the narrow fields and the
+   label that was covering them. Columns are laid out as flex halves further
+   down instead. */
+*:not(html):not(body):not(.form-group):not(.form-group-submit):not([class*="col-"]):has(input),
+*:not(html):not(body):not(.form-group):not(.form-group-submit):not([class*="col-"]):has(select),
 .form-group:not(#totalAllRow) > label {
   width: 100% !important;
   max-width: none !important;
@@ -336,37 +349,70 @@ input[type="number"]::-webkit-inner-spin-button {
    for no reason. Floated rather than made flex items, because that needs
    nothing from the parent — which we cannot see and have guessed wrong about
    before — and the row after them is told to clear. */
-/* THIS RULE, NOT THE ONE ABOVE, IS WHAT ACTUALLY WIDENS THE FIELDS.
+/* =====================================================================
+   PELECARD'S OWN GRID — read from their DOM, not inferred any more.
 
-   It was written as a fallback for browsers without :has(), deleted as
-   redundant, and the deletion put every field back to a third of its row while
-   the amount bar and the expiry pair — neither of which depends on it — stayed
-   full width. So the fallback was never the fallback: the :has() rule above is
-   the one not landing, and this is the rule doing the work. Both are kept, and
-   the order of the argument is recorded here rather than repeated later.
+   Their markup pairs the fields itself, with Bootstrap:
 
-   The reason the deletion looked justified is that the first version of this
-   rule broke two things itself: it listed span and p among the wrappers, which
-   made the red asterisk beside every caption a block on a line of its own, and
-   it excluded the three special rows with :not(#id) — three id selectors, which
-   gave it a specificity of 3-1-1 and let it override the id rules for those
-   rows, stacking the expiry pair.
+     <div id="CcAndDateRow" class="row">
+       <div class="col-sm-6"> … card number … </div>
+       <div class="col-sm-6">
+         <div id="creditCardExpDateRow" class="form-group">
+           <label class="control-label" for="date_year_input">…</label>
+           <div id="dateContainer" class="control-value_old"> … </div>
+         </div>
+         <div class="errorRow_Vita" id="errorRow_Vita_date_year_input">…</div>
+       </div>
+     </div>
 
-   Both are fixed by aiming it better rather than by deleting it. span and p are
-   out: a caption's own text is inside a span on the live page, so a wrapper rule
-   that catches spans catches captions.
+   Three things in that are worth more than everything guessed before it:
+   #dateContainer is NOT the form group, it is the value box inside one;
+   the value box has a class of its own, .control-value_old; and the card
+   number's partner on its row is the expiry, not the cardholder name.
 
-   And the three rows are excluded by ATTRIBUTE rather than by id — [id="x"]
-   scores 0-1-0 where #x scores 1-0-0, so the exclusions no longer outrank the
-   very rules they exist to protect. The first attempt at that used a bare
-   :not([id]), which matched nothing at all: every row on the live page carries
-   an id, so the whole guard switched itself off and the fields stayed at a
-   third of their row through another deploy. Name the three, not the shape. */
-.form-group:not([id="totalAllRow"]):not([id="IdAndCvvRow"]):not([id="dateContainer"]) div,
-.form-group:not([id="totalAllRow"]):not([id="IdAndCvvRow"]):not([id="dateContainer"]) td,
-.form-group:not([id="totalAllRow"]):not([id="IdAndCvvRow"]):not([id="dateContainer"]) table,
-.form-group:not([id="totalAllRow"]):not([id="IdAndCvvRow"]):not([id="dateContainer"]) fieldset {
-  display: block !important;
+   THIS IS ALSO WHY THE FIELDS COULD NOT BE TYPED IN. The wrapper rule above
+   was setting every .col-sm-6 to width:100% and float:none — it contains an
+   input, so it matched — which flattened their grid. The float rules written
+   here to pair the fields then took the card and name rows out of flow, and a
+   float does not push the BLOCK box of what follows, only its line boxes: the
+   next label's box was laid over the two fields, 272 by 86 pixels of it, and
+   swallowed every click aimed at them. Its for= sent the focus to the year
+   select instead, which is why the expiry was the one thing that responded.
+
+   So the floats are gone and the grid is used as it was meant to be. Columns
+   are excluded from the wrapper rule by [class*="col-"] and laid out as flex
+   halves; nothing is taken out of flow, so nothing can overlap anything.
+   ===================================================================== */
+.row {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: flex-start;
+  gap: 0 12px;
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+}
+.row > [class*="col-"] {
+  flex: 1 1 calc(50% - 6px);
+  width: auto;
+  min-width: 0;
+  max-width: none;
+  float: none;
+  padding-left: 0;
+  padding-right: 0;
+}
+/* A full-width column stays full width — col-sm-12, col-xs-12, col-md-12. */
+.row > [class*="col-"][class*="-12"] { flex-basis: 100%; }
+
+/* The value box, by the name it actually has. This is the box that was
+   holding every field at a third of its row, and naming it is the end of a
+   long line of rules that tried to describe it instead: "any div inside a
+   form group", "any ancestor of an input". Those had to be broad because the
+   name was unknown, and every one of them caught something it should not
+   have — the expiry pair, the asterisks, the submit row. */
+.control-value_old,
+.control-value,
+.controls {
   width: 100% !important;
   max-width: none !important;
   float: none !important;
@@ -374,107 +420,49 @@ input[type="number"]::-webkit-inner-spin-button {
   padding-right: 0 !important;
 }
 
-/* Excluded from the rule that opens up field wrappers rather than fighting it.
-   That one outspecifies anything reasonable written after it.
-
-   The exclusion names the ROW and not the field, and that distinction was a
-   real bug: written as :not(:has(#email_input)) it excluded every ancestor of
-   that input — the wrapper included — so the row widened to half the form while
-   the field inside it stayed at its intrinsic ~257px. Half a row with a short
-   field floating in it, on the two rows that had just been paired. */
-.form-group:has(#email_input) {
-  float: right;
-  width: calc(50% - 6px) !important;
-}
-.form-group:has(#phone_input) {
-  float: left;
-  width: calc(50% - 6px) !important;
-}
-
-/* The cardholder name and the card number share a row.
-
-   The name row would be better matched by position — "the row before the card
-   number's" — but that needs :has() inside :has(), which CSS forbids: written
-   that way the selector is invalid and the browser drops the whole rule. It
-   very nearly took the width rule with it, since the same construct had gone
-   into that rule's exclusion list.
-
-   So it is matched by id, and the id is a guess: four plausible spellings, each
-   in its own selector so that the ones that miss cost nothing. If none of them
-   is right, the name row simply stays full width and the card number sits under
-   it — which is where they both were. */
-.form-group:has(#cardHolderName_input),
-.form-group:has(#card_holder_name_input),
-.form-group:has(#holder_name_input),
-.form-group:has(#name_input) {
-  float: right;
-  width: calc(50% - 6px) !important;
-}
-.form-group:has(#credit_card_number_input) {
-  float: left;
-  width: calc(50% - 6px) !important;
-}
-#dateContainer { clear: both; }
-.form-group-submit { clear: both; }
-
-/* Two fields to a row, 12px between them — grid-cols-2 gap-3, the shape the
-   shop's expiry and CVV sit in. */
-/* #dateContainer is made a row itself, not only its inner div, and that is the
-   fix for the expiry pair rendering one select per line.
-
-   The rule here used to be "#dateContainer > div", which assumes the two
-   selects are wrapped. On the live page they are not — they are its direct
-   children with the slash between them — so that selector matched nothing and
-   the selects, which the field rule gives display:block and width:100%, stacked.
-   Both shapes are covered now: the container is a row, and so is a wrapping div
-   that has a select in it.
-
-   flex-wrap, so that anything else Pelecard put in there — a caption, a legend,
-   the "תוקף הכרטיס לא תקין" line — takes a line of its own instead of being
-   squeezed in beside the selects. */
+/* The expiry pair. #dateContainer is the value box of its form group, and the
+   two selects are inside it with a slash between them. */
 #dateContainer,
 #dateContainer > div:has(select),
-#dateContainer .row,
 #IdAndCvvRow {
   display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: wrap;
+  flex-flow: row wrap;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100% !important;
   max-width: none !important;
 }
-#dateContainer > div:has(select) > *,
-#dateContainer .row > *,
-#IdAndCvvRow > * {
-  flex: 1 1 0;
-  min-width: 0;
-  width: auto;
-}
-/* The two selects divide the row between them. Everything else in it is either
-   a full line — a label, a legend, an error — or as wide as its own text, which
-   is what the slash between the two is. */
-#dateContainer select {
+#dateContainer select,
+#dateContainer > div:has(select) > select {
   flex: 1 1 0 !important;
   min-width: 0 !important;
   width: auto !important;
 }
-#dateContainer > label,
-#dateContainer > .control-label,
-#dateContainer > legend,
-#dateContainer > .errorRow_Vita,
-#dateContainer > .errorRow {
-  flex: 0 0 100% !important;
-  width: 100% !important;
+#IdAndCvvRow > * {
+  flex: 1 1 0 !important;
+  min-width: 0;
+  width: auto !important;
 }
-#dateContainer > div:has(select) > *:not(select):not(input),
-#dateContainer > *:not(select):not(div):not(label):not(.control-label):not(legend):not(.errorRow_Vita):not(.errorRow) {
+/* Whatever else is in the expiry box — the slash — is as wide as its own text
+   and no wider, so the two selects keep the rest between them. */
+#dateContainer > *:not(select):not(div),
+#dateContainer > div:has(select) > *:not(select) {
   flex: 0 0 auto !important;
   width: auto !important;
   margin: 0;
   color: #615C59;
   color: var(--ai-ink-soft);
 }
+/* A caption or an error inside the box takes a line of its own. */
+#dateContainer > label,
+#dateContainer > .control-label,
+#dateContainer > legend,
+#dateContainer > .errorRow_Vita {
+  flex: 0 0 100% !important;
+  width: 100% !important;
+}
+
+.form-group-submit { clear: both; }
 
 #credit_card_number_input,
 #date_month_input, #date_year_input,
@@ -487,7 +475,14 @@ input[type="number"]::-webkit-inner-spin-button {
 /* =========================  ERRORS  ========================= */
 /* Under the field, 12px, destructive — the shop's
    <p className="text-destructive mt-1 text-xs">. */
+/* !important throughout, because this element carries its own inline style on
+   the live page — style="display: block; text-align: center; margin-top: -9px"
+   — and an inline declaration beats any selector that is not important. Their
+   centring and negative offset were tuned for their own layout; under ours the
+   line belongs under its field, right-aligned like everything else. */
 .errorRow_Vita {
+  text-align: right !important;
+  margin-top: 4px !important;
   display: block;
   background-color: transparent;
   border: none;
