@@ -7,96 +7,90 @@
    file: they honour CssURL only for the exact URL they approved, and anything
    else is ignored in silence — the page simply renders in their default skin
    with no error anywhere to notice. The contents can change freely; the address
-   cannot.
+   cannot. The shop has since moved to buytoday.co.il and this URL has not,
+   which is why the redirect off pr-ayam.vercel.app excludes /pelecard/.
 
-   A static file rather than a generated route, deliberately. This has to be
-   reachable on the production domain, which is the only one approved, and a
-   plain file in /public is reachable there without any of the payment code
-   being deployed with it.
+   THE TARGET IS THE SHOP'S OWN CHECKOUT, not a tasteful payment form. Every
+   value below is the storefront's, converted from the oklch tokens in
+   src/app/globals.css to hex because this page is rendered on Pelecard's domain
+   for whatever browsers they support and cannot read our Tailwind theme:
+
+     --brand            oklch(0.668 0.206 40)    #F7590C
+     --brand-hover      oklch(0.62 0.208 38.5)   #E74600
+     --foreground       oklch(0.204 0.008 48.3)  #1A1614
+     --muted-foreground oklch(0.48 0.008 55)     #615C59
+     --muted            oklch(0.97 0.003 60)     #F7F5F3
+     --border / --input oklch(0.912 0.004 60)    #E4E1DF
+     --ring             oklch(0.705 0.213 47.6)  #FF6900
+     --destructive      oklch(0.577 0.245 27.325)#E7000B
+     --radius           0.625rem                 10px
+
+   If those tokens change, these change with them. Nothing here is a colour
+   somebody liked; every one of them is a variable the shop already uses.
 
    Written against Pelecard's own class names and ids — .form-control,
-   .btn-submit, #totalAllRow, #dateContainer, .errorRow_Vita, .tab-button.pay-btn.
-   Those are their markup and theirs to rename; if they do, the rules keyed to a
-   renamed selector stop applying and that part of the page quietly returns to
-   their default. /pelecard/preview.html renders the same markup and is how that
-   gets checked without spending a transaction.
+   .control-label, .btn-submit, #totalAllRow, #dateContainer, #IdAndCvvRow,
+   .errorRow_Vita. Those are their markup and theirs to rename; if they do, the
+   rules keyed to a renamed selector stop applying and that part of the page
+   quietly returns to their default. /pelecard/preview.html renders the same
+   markup and is how that gets checked without spending a transaction.
 
    Every custom property is paired with a literal fallback on the line above it,
-   because the page is rendered on their domain for whatever browsers they still
-   support, and a var() an old one cannot read takes its whole declaration away.
+   because a var() an old browser cannot read takes its whole declaration away.
    ========================================================================= */
 
 @import url("https://gateway21.pelecard.biz/Content/Css/variant-he-4.css");
+@import url("https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap");
 
-/* ---- Fonts (Rubik, same source Pelecard uses) ---- */
-@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 300;
-  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Light.woff') format('woff'); font-display: swap; }
-@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 400;
-  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Regular.woff') format('woff'); font-display: swap; }
-@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 500;
-  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Medium.woff') format('woff'); font-display: swap; }
-@font-face { font-family: 'Rubik'; font-style: normal; font-weight: 700;
-  src: url('https://fonts.cdnfonts.com/s/15684/Rubik-Bold.woff') format('woff'); font-display: swap; }
-
-/* ---- Brand palette ----
-   NOTE: the payment page is served by Pelecard and may not support
-   CSS custom properties in every browser they still target.
-   Every var() below is therefore paired with a literal fallback.
-   --------------------------------------------------------------- */
+/* ---- Tokens, the storefront's own ---- */
 :root {
-  --ai-orange:        #F07E1A;   /* primary  */
-  --ai-orange-dark:   #D2650B;   /* hover    */
-  --ai-orange-soft:   #FFF3E6;   /* tint     */
-  --ai-ink:           #1F2933;   /* text     */
-  --ai-ink-soft:      #6B7280;   /* muted    */
-  --ai-line:          #D7DDE3;   /* borders  */
-  --ai-error:         #C0392B;
-  --ai-radius:        14px;
+  --ai-brand:       #F7590C;
+  --ai-brand-hover: #E74600;
+  --ai-brand-tint:  #FEF1EA;   /* bg-brand/5 over white */
+  --ai-ink:         #1A1614;
+  --ai-ink-soft:    #615C59;
+  --ai-line:        #E4E1DF;
+  --ai-surface:     #F7F5F3;
+  --ai-ring:        #FF6900;
+  --ai-error:       #E7000B;
+  --ai-radius:      10px;      /* rounded-lg  — fields, buttons */
+  --ai-radius-sm:   8px;       /* rounded-md  — notices */
+  --ai-radius-lg:   14px;      /* rounded-xl  — cards */
 }
 
-/* =========================  BASE  ========================= */
-/* Every width here is 100% with padding on top of it. Without border-box that
-   arithmetic overflows its container, and the symptom is subtle: the amount
-   strip and the fields bleed a few pixels past the page margin, which reads as
-   a broken layout rather than as a box-model default. Their own CSS sets this,
-   being bootstrap-derived — we set it too so the file is correct on its own,
-   and so the offline preview shows what the live page shows. */
+/* Every width here is 100% with padding on top of it, and without border-box
+   that arithmetic overflows its container: the fields bleed past the page
+   margin, which reads as a broken layout rather than a box-model default. */
 *, *:before, *:after { box-sizing: border-box; }
 
+/* =========================  BASE  ========================= */
 body {
-  font-family: Rubik, "Segoe UI", Arial, sans-serif;
-  font-size: 16px;
-  color: #1F2933;
+  font-family: Heebo, "Segoe UI", Arial, sans-serif;
+  font-size: 16px;              /* 16px keeps iOS from zooming on focus */
+  line-height: 1.5;
+  color: #1A1614;
   color: var(--ai-ink);
   background: #fff;
   direction: rtl;
   text-align: right;
-  line-height: 1.5;
   margin: 0;
-  padding: 0 0 18px;
+  padding: 2px 18px 20px;       /* the p-5 of the section this imitates */
 }
 
-.container { max-width: 620px; padding: 0 14px; margin: 0 auto; }
+.container { max-width: 100%; padding: 0; margin: 0; }
 
-.main-title {
-  margin: 0 0 .6em;
-  font-size: 20px;
-  font-weight: 500;
-  text-align: center;
-  color: #1F2933;
-  color: var(--ai-ink);
-}
-h1#paymentByCC { display: none; }
+/* The page title and the note explaining the asterisks both go: the frame sits
+   under our own heading, which already says what this is, and with the
+   asterisks gone the note describes nothing. */
+.main-title, h1#paymentByCC { display: none; }
+.mandatory:after { content: none; }
 
 /* =========================  HEADER / LOGO  ========================= */
-/* Their header box has a height of its own and clips whatever is inside it.
-   Our shop mark is square, so it came out as an orange dome: the top 50px of a
-   210px-tall image. Both halves of that have to be undone — the box must stop
-   clipping, and the mark must be sized by height, not width.
-
-   Fixed box, contained image: correct whether .logo is an <img> (object-fit)
-   or a div carrying a background (background-size). We cannot see their markup
-   from here, so the rule answers both. */
+/* Their header box has a height of its own and clips what is inside it. The
+   shop mark is square, so left alone it came out as an orange dome: the top
+   fifty pixels of a two-hundred-pixel image. Fixed box, contained image —
+   correct whether .logo is an <img> (object-fit) or a div carrying a
+   background (background-size), which we cannot tell from here. */
 .credit-title {
   display: flex;
   align-items: center;
@@ -107,67 +101,184 @@ h1#paymentByCC { display: none; }
   min-height: 0;
   overflow: visible !important;
   margin: 0;
-  padding: 16px 0 12px;
+  padding: 10px 0 14px;
 }
 .credit-title .logo,
 .credit-title img {
   display: block;
-  width: 200px !important;
-  height: 58px !important;
-  max-width: 62vw;
+  width: 140px !important;
+  height: 38px !important;
+  max-width: 50%;
   object-fit: contain;
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
 }
 
-/* The captions live in the placeholders — PlaceholderCaptions is sent True on
-   every init — so every label on the page is an empty element, and the only
-   thing left inside it is the asterisk from .mandatory. That rendered as a
-   lone red star floating on its own line above two of the fields, and, for the
-   expiry, as a second "תוקף כרטיס" directly above the fieldset legend that
-   already says it.
-
-   So the labels go, and with them the note explaining the asterisks. What the
-   caption is stays visible in the placeholder and in the legend; nothing here
-   removes an accessible name, because an empty label never carried one. */
-.control-label { display: none; }
-.mandatory:after { content: none; }
-.main-title { display: none; }
-h1#paymentByCC { display: none; }
-
-/* Their expiry pair is a fieldset, and a bordered box around two fields in a
-   form where nothing else is boxed reads as an error before anything is wrong.
-   The legend stays — with the labels gone it is the only caption those two
-   selects have. */
-fieldset {
-  border: 0;
-  margin: 0;
+/* =========================  LABELS  ========================= */
+/* The shop puts the caption above the field — <Label className="mb-1.5"> —
+   in foreground, not grey. PlaceholderCaptions is sent False so that Pelecard
+   fill these rather than the placeholder; with it True every label on the page
+   is empty and the only thing left inside one is the asterisk, which rendered
+   as a red star alone on a line. */
+.control-label {
+  display: block;
+  margin: 0 0 6px;
   padding: 0;
-  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.15;
+  color: #1A1614;
+  color: var(--ai-ink);
+  text-align: right;
 }
+
+/* Their expiry pair is a fieldset whose legend repeats the label directly above
+   it. The border goes — a boxed pair in a form where nothing else is boxed
+   reads as an error before anything is wrong — and the legend is hidden from
+   the eye but left for a screen reader. */
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 legend {
-  width: auto;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
   border: 0;
-  margin: 0;
-  padding: 0 0 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* =========================  FIELDS  ========================= */
+.form-group { margin: 0 0 12px; }        /* the gap-3 between the shop's rows */
+.form-group, .control-group { display: block; width: 100%; }
+
+.form-control {
+  display: block;
+  width: 100%;
+  height: 32px;                          /* h-8, the shop's input height */
+  padding: 0 10px;                       /* px-2.5 */
+  font-family: Heebo, "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
+  line-height: 30px;
+  color: #1A1614;
+  color: var(--ai-ink);
+  background-color: transparent;
+  border: 1px solid #E4E1DF;
+  border: 1px solid var(--ai-line);
+  border-radius: 10px;
+  border-radius: var(--ai-radius);
+  box-shadow: none;
+  transition: color .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.form-control::placeholder {
+  color: #615C59;
+  color: var(--ai-ink-soft);
+  opacity: 1;
+}
+.form-control:focus {
+  outline: 0;
+  border-color: #FF6900;
+  border-color: var(--ai-ring);
+  box-shadow: 0 0 0 3px rgba(255, 105, 0, .22);
+}
+.form-control.read-only,
+.form-control[readonly],
+.form-control[disabled] {
+  color: #615C59;
+  color: var(--ai-ink-soft);
+  background-color: #F7F5F3;
+  background-color: var(--ai-surface);
+}
+
+select.form-control {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-left: 26px;
+  background-image: linear-gradient(45deg, transparent 50%, #615C59 50%),
+                    linear-gradient(135deg, #615C59 50%, transparent 50%);
+  background-position: calc(0% + 10px) 14px, calc(0% + 15px) 14px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+/* Two fields to a row, 12px between them — grid-cols-2 gap-3, the shape the
+   shop's expiry and CVV sit in. */
+#dateContainer > div,
+#dateContainer .row,
+#IdAndCvvRow {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+}
+#dateContainer > div > *,
+#dateContainer .row > *,
+#IdAndCvvRow > * {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+}
+#dateContainer select#date_month_input,
+#dateContainer select#date_year_input { width: 100%; }
+#dateContainer .delimiter { display: none; }
+
+#credit_card_number_input,
+#date_month_input, #date_year_input,
+#id_number_input, #cvv_input,
+#num_of_payments, #each_payment_input, #first_payment_input,
+#phone_input, #email_input { direction: rtl; }
+
+#credit_card_number_input { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+
+/* =========================  ERRORS  ========================= */
+/* Under the field, 12px, destructive — the shop's
+   <p className="text-destructive mt-1 text-xs">. */
+.errorRow_Vita {
+  display: block;
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #E7000B;
+  color: var(--ai-error);
+}
+.errorRow {
+  background-color: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  border-radius: 8px;
+  border-radius: var(--ai-radius-sm);
+  padding: 10px 12px;
+  margin: 12px 0;
   font-size: 13px;
   font-weight: 500;
-  color: #6B7280;
-  color: var(--ai-ink-soft);
+  color: #E7000B;
+  color: var(--ai-error);
+  text-align: right;
+}
+.red-field,
+.form-control.red-field {
+  border: 1px solid #E7000B !important;
+  border: 1px solid var(--ai-error) !important;
+  box-shadow: 0 0 0 3px rgba(231, 0, 11, .18);
 }
 
 /* =========================  AMOUNT  ========================= */
-/* Pelecard put the total in the middle of the form, between the card fields
-   and the contact fields, and as a full-width orange billboard it cut the form
-   in two. The page it is embedded in already states the total in its own
-   panel, so this one only has to confirm it — one quiet line, and first,
-   before the fields rather than through them.
+/* The shop states the total in its order-summary card as a bordered row, not
+   as a coloured panel, and the page this frame sits in already does that
+   beside it. So this one only confirms, in the same shape. */
+/* Pelecard put the total between the card fields and the contact fields, where
+   a bordered row reads as a section divider in the wrong place and cuts the
+   form in two. It belongs before the fields, under the mark — the page around
+   this frame states it too, in its own summary card, but that card is beside
+   the form on a desktop and below it on a phone, which is exactly where a
+   customer typing a card number cannot see it.
 
-   The move is done with order on the form, which is safe to attempt blind:
-   every other child keeps a higher order, so if the form is not the flex
-   parent we guessed, the rule does nothing at all rather than something
-   unpredictable. */
+   The move is safe to attempt blind: every other child keeps a higher order, so
+   if the form is not the flex parent guessed at here the rules do nothing at
+   all rather than something unpredictable. */
 form { display: flex; flex-direction: column; }
 form > * { order: 2; }
 form > #totalAllRow { order: 1; }
@@ -175,25 +286,26 @@ form > #totalAllRow { order: 1; }
 #totalAllRow {
   display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  border: 1px solid #F3D5B4;
-  background: #FFF8F1;
-  background: var(--ai-orange-soft);
-  padding: 11px 14px;
-  border-radius: 12px;
-  margin: 4px 0 20px;
+  margin: 0 0 16px;
+  padding: 0 0 14px;
+  border: 0;
+  border-bottom: 1px solid #E4E1DF;
+  border-bottom: 1px solid var(--ai-line);
+  background: none;
 }
 #totalAllRow:before {
   content: "סה״כ לתשלום";
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
-  color: #1F2933;
+  color: #1A1614;
   color: var(--ai-ink);
 }
+#totalAllRow .control-label { display: none; }
 #totalAllRow .control-group,
 #totalAllRow > div {
   display: flex;
@@ -203,179 +315,76 @@ form > #totalAllRow { order: 1; }
   gap: 3px;
   flex: 0 0 auto;
   width: auto;
-  min-width: 0;
   margin: 0;
 }
 #totalAllRow .ext {
   padding: 0;
-  font-size: 17px;
-  font-weight: 600;
-  color: #D2650B;
-  color: var(--ai-orange-dark);
+  font-size: 16px;
+  font-weight: 700;
+  color: #1A1614;
+  color: var(--ai-ink);
 }
 #totalAll {
-  font-family: Rubik, sans-serif;
-  font-size: 21px;
-  font-weight: 700;
-  line-height: 1.2;
-  width: 106px;
-  max-width: 106px;
+  width: 92px;
+  max-width: 92px;
   height: auto;
+  padding: 0;
   direction: ltr;
   text-align: left;
+  font-family: Heebo, "Segoe UI", Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
   background: none;
   border: none;
   box-shadow: none;
-  color: #D2650B;
-  color: var(--ai-orange-dark);
-  padding: 0;
-}
-
-/* =========================  FIELDS  ========================= */
-.form-group { margin-bottom: 12px; }
-.form-group, .control-group { display: flex; flex-direction: column; width: 100%; }
-
-.form-control {
-  width: 100%;
-  height: 46px;
-  padding: 6px 14px;
-  font-family: Rubik, sans-serif;
-  font-size: 16px;              /* 16px keeps iOS from zooming on focus */
-  color: #1F2933;
+  color: #1A1614;
   color: var(--ai-ink);
-  background-color: #fff;
-  border: 1px solid #D7DDE3;
-  border: 1px solid var(--ai-line);
-  border-radius: 10px;
-  box-shadow: none;
-  transition: border-color .15s ease, box-shadow .15s ease;
-}
-.form-control::placeholder { color: #8A93A0; }
-.form-control:focus {
-  outline: 0;
-  background-color: #fff;
-  border-color: #F07E1A;
-  border-color: var(--ai-orange);
-  box-shadow: 0 0 0 3px rgba(240, 126, 26, .18);
-}
-.form-control.read-only,
-.form-control[readonly],
-.form-control[disabled] {
-  color: #6B7280;
-  color: var(--ai-ink-soft);
-  background-color: #F2F4F6;
-  border-color: #E4E8EC;
 }
 
-select.form-control {
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, #6B7280 50%),
-                    linear-gradient(135deg, #6B7280 50%, transparent 50%);
-  background-position: calc(0% + 14px) 20px, calc(0% + 19px) 20px;
-  background-size: 5px 5px, 5px 5px;
-  background-repeat: no-repeat;
-  padding-left: 34px;
-}
-
-#credit_card_number_input,
-#date_month_input, #date_year_input,
-#id_number_input, #cvv_input,
-#num_of_payments, #each_payment_input, #first_payment_input,
-#phone_input, #email_input { direction: rtl; }
-
-#dateContainer select#date_month_input,
-#dateContainer select#date_year_input { width: 48%; }
-#dateContainer .delimiter {
-  display: block; width: 4%; text-align: center;
-  line-height: 46px; color: #6B7280; color: var(--ai-ink-soft);
-}
-#IdAndCvvRow { display: flex; flex-direction: row; gap: 10px; }
-#IdAndCvvRow > * { flex: 1 1 0; min-width: 0; }
-
-/* A card number is read back in groups, not as one sixteen-digit word. */
-#credit_card_number_input {
-  letter-spacing: .06em;
-  font-variant-numeric: tabular-nums;
-}
-
-.control-group .ext {
-  width: auto;
-  color: #F07E1A;
-  color: var(--ai-orange);
-  padding: 0 10px;
-}
-
-/* =========================  ERRORS  ========================= */
-.errorRow {
-  background-color: #FDECEA;
-  color: #C0392B;
-  color: var(--ai-error);
-  border: 1px solid #F5C6C2;
-  border-radius: 10px;
-  padding: 10px 14px;
-  margin: 12px 0;
+/* =========================  BUTTONS  ========================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Heebo, "Segoe UI", Arial, sans-serif;
   font-size: 14px;
   font-weight: 500;
-  text-align: right;
-}
-.errorRow_Vita {
-  background-color: transparent;
-  display: block;
-  color: #C0392B;
-  color: var(--ai-error);
-  margin: 4px 0 0;
-  font-size: 13px;
-  border: none;
-  padding: 0;
-}
-.red-field,
-.form-control.red-field {
-  border: 1px solid #C0392B !important;
-  border: 1px solid var(--ai-error) !important;
-  box-shadow: 0 0 0 3px rgba(192, 57, 43, .12);
-}
-
-/* =========================  SUBMIT / BUTTONS  ========================= */
-.btn {
-  display: inline-block;
-  font-family: Rubik, sans-serif;
-  background-color: #EDEFF2;
-  color: #1F2933;
-  color: var(--ai-ink);
-  padding: 10px 14px;
   border: 1px solid transparent;
   border-radius: 10px;
+  border-radius: var(--ai-radius);
   cursor: pointer;
 }
 
+/* The shop's primary button, with one deliberate departure: 44px rather than
+   the storefront's 32px. Everything else here matches a field because it sits
+   among fields; this is the one control a thumb has to hit, at the end of a
+   form where getting it wrong costs the sale. */
 .btn-submit, .btn-paypal {
   width: 100%;
-  height: 54px;
-  background: #F07E1A;
-  background: var(--ai-orange);
-  border: none;
-  border-radius: 14px;
-  border-radius: var(--ai-radius);
-  font-family: Rubik, sans-serif;
-  font-size: 21px;
-  font-weight: 600;
+  height: 44px;
   padding: 0;
+  background: #F7590C;
+  background: var(--ai-brand);
+  border: none;
+  border-radius: 10px;
+  border-radius: var(--ai-radius);
+  font-family: Heebo, "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
   color: #fff;
   cursor: pointer;
-  transition: background-color .15s ease, box-shadow .15s ease, transform .05s ease;
+  transition: background-color .15s ease, box-shadow .15s ease;
 }
 .btn-submit:hover, .btn-submit:focus,
 .btn-paypal:hover, .btn-paypal:focus {
-  background-color: #D2650B;
-  background-color: var(--ai-orange-dark);
-  box-shadow: 0 8px 18px rgba(240, 126, 26, .32);
+  background-color: #E74600;
+  background-color: var(--ai-brand-hover);
   outline: none;
 }
-.btn-submit:active { transform: translateY(1px); }
+.btn-submit:focus-visible { box-shadow: 0 0 0 3px rgba(255, 105, 0, .35); }
 .btn-submit[disabled], .btn-submit.disabled {
-  background-color: #E7C3A0;
-  box-shadow: none;
+  opacity: .5;
   cursor: not-allowed;
 }
 
@@ -383,109 +392,112 @@ select.form-control {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  gap: 10px;
-  margin: 18px 0 6px;
-  text-align: center;
+  gap: 12px;
+  margin: 16px 0 4px;
 }
 .form-group-submit .btn-submit { flex: 1 1 auto; }
 .form-group-submit-in .btn {
-  margin-bottom: 10px;
-  max-width: 340px;
-  max-height: 60px;
-  background-color: #F07E1A;
-  background-color: var(--ai-orange);
+  background-color: #F7590C;
+  background-color: var(--ai-brand);
   color: #fff;
 }
 
 #cancelBtn {
-  background-color: #fff;
-  color: #6B7280;
-  color: var(--ai-ink-soft);
   flex: 0 0 auto;
   width: auto;
-  min-width: 104px;
-  height: 54px;
-  padding: 0 18px;
-  border: 1px solid #D7DDE3;
+  min-width: 92px;
+  height: 44px;
+  padding: 0 16px;
+  background-color: #fff;
+  color: #615C59;
+  color: var(--ai-ink-soft);
+  border: 1px solid #E4E1DF;
   border: 1px solid var(--ai-line);
-  border-radius: 14px;
+  border-radius: 10px;
   border-radius: var(--ai-radius);
-  font-size: 16px;
+  font-size: 14px;
 }
-#cancelBtn:hover { background-color: #F2F4F6; }
+#cancelBtn:hover {
+  background-color: #F7F5F3;
+  background-color: var(--ai-surface);
+}
 
 /* =========================  PAYMENT-METHOD TABS  ========================= */
+/* The shop's method chooser: a bordered row per method, brand border and a 5%
+   brand wash on the chosen one. */
 .tab-button.pay-btn {
-  background-color: #fff;
-  color: #1F2933;
-  color: var(--ai-ink);
-  border: solid 2px #E4E8EC;
-  padding: 12px 6px;
-  border-radius: 14px;
-  border-radius: var(--ai-radius);
-  width: 90px;
-  height: 90px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 6px;
+  width: 88px;
+  height: 76px;
+  padding: 10px 6px;
+  background-color: #fff;
+  color: #1A1614;
+  color: var(--ai-ink);
+  border: 1px solid #E4E1DF;
+  border: 1px solid var(--ai-line);
+  border-radius: 10px;
+  border-radius: var(--ai-radius);
   transition: border-color .15s ease, background-color .15s ease;
 }
 .tab-button.pay-btn:hover {
-  border: solid 2px #F07E1A;
-  border: solid 2px var(--ai-orange);
+  border-color: #F7590C;
+  border-color: var(--ai-brand);
 }
 .tab-button.pay-btn.tab-button-selected {
-  border: solid 2px #F07E1A;
-  border: solid 2px var(--ai-orange);
-  background-color: #FFF3E6;
-  background-color: var(--ai-orange-soft);
+  border-color: #F7590C;
+  border-color: var(--ai-brand);
+  background-color: #FEF1EA;
+  background-color: var(--ai-brand-tint);
   box-shadow: none;
 }
-.tab-button h4 { font-size: 12px; line-height: 13px; font-weight: 500; margin: 0; }
+.tab-button h4 { margin: 0; font-size: 12px; font-weight: 500; line-height: 1.2; }
 
 /* =========================  CHECKBOX  ========================= */
 .checkbox label {
   cursor: pointer;
-  font-weight: 400;
   font-size: 14px;
+  font-weight: 400;
   padding-right: 24px;
-  color: #1F2933;
+  color: #1A1614;
   color: var(--ai-ink);
 }
 .checkbox input[type="checkbox"] {
-  margin-right: -24px;
   position: absolute;
-  width: 16px; height: 16px;
-  accent-color: #F07E1A;
-  accent-color: var(--ai-orange);
-  border: 1px solid #D7DDE3;
+  width: 16px;
+  height: 16px;
+  margin-right: -24px;
+  accent-color: #F7590C;
+  accent-color: var(--ai-brand);
 }
 
 /* =========================  FOOTER / SEALS  ========================= */
+/* The shop's own reassurance strip: muted surface, 12px muted text, 8px radius
+   — the same p-2 notice that sits above the card fields on the checkout. */
 .footer {
-  background-color: #fff;
-  border: 1px solid #EDEFF2;
-  padding: 14px 0;
-  margin-top: 22px;
+  background-color: #F7F5F3;
+  background-color: var(--ai-surface);
+  border: 0;
+  border-radius: 8px;
+  border-radius: var(--ai-radius-sm);
+  padding: 10px 12px;
+  margin: 16px 0 0;
 }
-.footer.centerBG {
-  max-width: 780px;
-  margin: 22px auto 0;
-  border-radius: 14px;
-  border-radius: var(--ai-radius);
-}
+.footer.centerBG { max-width: 100%; margin: 16px 0 0; }
 .footer-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 400;
   text-align: center;
-  color: #6B7280;
+  color: #615C59;
   color: var(--ai-ink-soft);
-  font-size: 14px;
-  font-weight: 500;
-  margin: 10px 0;
 }
-.form-group-sup { max-width: 450px; margin: 0 auto; padding: 4px; text-align: center; }
-.form-group-sup-1 .form-group-sup-in > div { width: 16%; max-width: 56px; height: 56px; margin: 0 1%; }
-.form-group-sup-2 .form-group-sup-in > a  { width: 30%; max-width: 110px; height: 48px; margin: 0 1%; }
+.form-group-sup { max-width: 380px; margin: 0 auto; padding: 0; text-align: center; }
+.form-group-sup-1 .form-group-sup-in > div { width: 16%; max-width: 46px; height: 30px; margin: 0 1%; }
+.form-group-sup-2 .form-group-sup-in > a  { width: 30%; max-width: 92px; height: 38px; margin: 0 1%; }
 
 /* =========================  3DS IFRAME  ========================= */
 iframe#threeDSCReqIframe {
@@ -493,37 +505,39 @@ iframe#threeDSCReqIframe {
   height: 615px;
   overflow: auto;
   position: relative;
-  border: 1px solid #E4E8EC;
-  border-radius: 14px;
-  border-radius: var(--ai-radius);
   background: #fff;
+  border: 1px solid #E4E1DF;
+  border: 1px solid var(--ai-line);
+  border-radius: 14px;
+  border-radius: var(--ai-radius-lg);
 }
 .frame3dsContainer { position: static; width: 100%; margin: 0 auto; text-align: center; }
 
 /* =========================  bit POPUP  ========================= */
-.popup-content { border-radius: 16px; }
-.popup-close-icon { background: #FFF3E6; background: var(--ai-orange-soft); }
-.popup-title, .popup-subtitle { color: #1F2933; color: var(--ai-ink); }
-.popup-qrcode-wrapper { background: #FFF3E6; background: var(--ai-orange-soft); }
-.popup-timer-highlight { color: #D2650B; color: var(--ai-orange-dark); }
+.popup-content { border-radius: 14px; border-radius: var(--ai-radius-lg); }
+.popup-close-icon { background: #F7F5F3; background: var(--ai-surface); }
+.popup-title, .popup-subtitle { color: #1A1614; color: var(--ai-ink); }
+.popup-qrcode-wrapper { background: #F7F5F3; background: var(--ai-surface); }
+.popup-timer-highlight { color: #F7590C; color: var(--ai-brand); }
 .popup-link {
-  background: #F07E1A;
-  background: var(--ai-orange);
+  background: #F7590C;
+  background: var(--ai-brand);
   border-radius: 9999px;
   color: #fff;
 }
 
 /* =========================  RESPONSIVE  ========================= */
-@media (max-width: 750px) {
-  .container { padding: 0 12px; }
-  .credit-title { padding: 12px 0 10px; }
-  .credit-title .logo, .credit-title img { height: 50px !important; }
-  #totalAllRow { padding: 10px 12px; margin-bottom: 16px; }
-  #totalAll { font-size: 19px; width: 96px; max-width: 96px; }
-  .btn-submit, .btn-paypal { height: 52px; font-size: 19px; }
-  #cancelBtn { height: 52px; min-width: 88px; padding: 0 14px; }
+/* The shop is text-base on a phone and text-sm from md up. The frame is about
+   700px wide on a desktop and the full width on a phone, so the breakpoint is
+   the frame's, not the window's — 520px puts 14px on the desktop form and
+   leaves 16px where a smaller size would make iOS zoom the page on focus. */
+@media (min-width: 520px) {
+  .form-control { font-size: 14px; }
+  .btn-submit, .btn-paypal { font-size: 15px; }
 }
-@media (max-width: 400px) {
-  .tab-button.pay-btn { width: 76px; height: 82px; }
-  .form-group-sup-1 .form-group-sup-in > div { max-width: 44px; height: 44px; }
+@media (max-width: 519px) {
+  body { padding: 2px 14px 18px; }
+  .credit-title { padding: 12px 0 14px; }
+  .credit-title .logo, .credit-title img { height: 40px !important; width: 145px !important; }
+  #cancelBtn { min-width: 84px; padding: 0 12px; }
 }

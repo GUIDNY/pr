@@ -580,7 +580,15 @@ console.log("\n--- how Pelecard's page is dressed ---");
   check("25 · the assets point at the one approved origin", PELECARD_ASSET_ORIGIN === "https://pr-ayam.vercel.app", PELECARD_ASSET_ORIGIN);
   check("     · the stylesheet is at the registered path", style.CssURL === "https://pr-ayam.vercel.app/pelecard/ai-orange.css", style.CssURL);
   check("     · so is the logo", style.LogoURL === "https://pr-ayam.vercel.app/pelecard/logo.png", style.LogoURL);
-  check("     · the form is Hebrew-friendly on a phone", style.NumericInputMode === "True" && style.PlaceholderCaptions === "True");
+  check("     · the form is Hebrew-friendly on a phone", style.NumericInputMode === "True");
+
+  /* The stylesheet shows .control-label, because the shop's checkout puts the
+     caption above the field. Pelecard fill that label only with
+     PlaceholderCaptions False; True empties every label on the page and moves
+     the caption into the placeholder, where it disappears the moment somebody
+     types. The two have to agree, and they are set in different files. */
+  check("     · captions go in the labels, which the sheet shows", style.PlaceholderCaptions === "False", style.PlaceholderCaptions);
+  check("     · one card-number field, as on our own form", style.SplitCCNumber === "False", style.SplitCCNumber);
   check("     · errors appear on the field that caused them", style.InputErrorDisplayByField === "True");
 
   /* A static file, because the approved address has to serve whether or not the
@@ -591,6 +599,17 @@ console.log("\n--- how Pelecard's page is dressed ---");
 
   const formControl = sheet.slice(sheet.indexOf(".form-control {"), sheet.indexOf(".form-control::placeholder"));
   check("     · fields are 16px, so iOS does not zoom on focus", /font-size:\s*16px/.test(formControl));
+
+  /* The page is dressed as the storefront's own checkout, so these are the
+     storefront's tokens — src/app/globals.css, converted from oklch because
+     Pelecard's page cannot read our theme. A token that changes there and not
+     here is how the payment page slowly stops matching the shop. */
+  const label = sheet.slice(sheet.indexOf(".control-label {"), sheet.indexOf("/* =========================  FIELDS"));
+  check("     · captions are shown, not hidden", /display:\s*block/.test(label) && !/display:\s*none/.test(label));
+  for (const [name, hex] of [["brand", "#F7590C"], ["foreground", "#1A1614"], ["border", "#E4E1DF"], ["muted", "#F7F5F3"]] as const) {
+    check(`     · it uses the shop's ${name} (${hex})`, sheet.includes(hex));
+  }
+  check("     · and the shop's font", sheet.includes("Heebo"));
 
   for (const selector of [".form-control", ".btn-submit", "#totalAllRow", "#dateContainer", ".errorRow", "#cancelBtn", ".tab-button.pay-btn", ".credit-title .logo"]) {
     check(`     · it styles ${selector}`, sheet.includes(selector));
