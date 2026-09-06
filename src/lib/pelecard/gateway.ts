@@ -30,12 +30,20 @@ export function resolveGateway(env: NodeJS.ProcessEnv = process.env):
     };
   }
 
-  if (baseUrl === PELECARD_PROD_BASE && env.PELECARD_ALLOW_PRODUCTION !== "I_UNDERSTAND") {
+  /* Trimmed, like the host above it. These are typed into a dashboard field
+     and pasted out of a chat message, and a value that arrives as
+     "I_UNDERSTAND " fails an exact comparison while looking correct in every
+     list that shows it — which is an hour of checking a variable that is
+     already there. The refusal also says what it found, because this one is a
+     fixed word rather than a credential and seeing it is the whole diagnosis. */
+  const acknowledgement = env.PELECARD_ALLOW_PRODUCTION?.trim();
+  if (baseUrl === PELECARD_PROD_BASE && acknowledgement !== "I_UNDERSTAND") {
     return {
       ok: false,
       error:
         "Refusing to use the Pelecard PRODUCTION gateway. " +
-        "Set PELECARD_ALLOW_PRODUCTION=I_UNDERSTAND to enable real charges.",
+        "Set PELECARD_ALLOW_PRODUCTION=I_UNDERSTAND to enable real charges." +
+        (acknowledgement ? ` Found: "${acknowledgement.slice(0, 40)}".` : " It is not set."),
     };
   }
 
@@ -66,7 +74,7 @@ export function isSandboxGateway(env: NodeJS.ProcessEnv = process.env): boolean 
  * card should not also decide how much.
  */
 export function isLiveTestConsoleEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  if (env.PELECARD_LIVE_TEST !== "I_WILL_BE_CHARGED") return false;
+  if (env.PELECARD_LIVE_TEST?.trim() !== "I_WILL_BE_CHARGED") return false;
   // Vercel sets this to "production" on the live deployment. Missing (local) is
   // fine; equal to "production" is never fine.
   if (env.VERCEL_ENV === "production") return false;

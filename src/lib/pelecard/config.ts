@@ -34,9 +34,12 @@ export function pelecardConfig(): PelecardConfig {
   const resolved = resolveGateway();
   if (!resolved.ok) throw new Error(resolved.error);
 
-  const terminal = process.env.PELECARD_TERMINAL;
-  const user = process.env.PELECARD_USER;
-  const password = process.env.PELECARD_PASSWORD;
+  /* Trimmed: a credential pasted into a dashboard field can carry a trailing
+     newline, and Pelecard would reject it with an error about the terminal
+     rather than about the whitespace. */
+  const terminal = process.env.PELECARD_TERMINAL?.trim();
+  const user = process.env.PELECARD_USER?.trim();
+  const password = process.env.PELECARD_PASSWORD?.trim();
   if (!terminal || !user || !password) throw new Error("Pelecard credentials are missing");
 
   const { baseUrl, isSandbox } = resolved.gateway;
@@ -62,7 +65,7 @@ export function pelecardConfig(): PelecardConfig {
  * to every visitor.
  */
 export function pelecardEnabled(): boolean {
-  return process.env.PELECARD_ENABLED === "true";
+  return process.env.PELECARD_ENABLED?.trim() === "true";
 }
 
 /**

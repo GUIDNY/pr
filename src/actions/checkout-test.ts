@@ -125,8 +125,13 @@ function whatIsMissing(): string | null {
      this terminal, so an unset host is a host on its way to being that one, and
      reaching it takes a second deliberate acknowledgement either way. */
   const headedForProduction = !base || base === PELECARD_PROD_BASE;
-  if (headedForProduction && process.env.PELECARD_ALLOW_PRODUCTION !== "I_UNDERSTAND") {
-    missing.push("PELECARD_ALLOW_PRODUCTION = I_UNDERSTAND");
+  const acknowledgement = process.env.PELECARD_ALLOW_PRODUCTION?.trim();
+  if (headedForProduction && acknowledgement !== "I_UNDERSTAND") {
+    missing.push(
+      acknowledgement
+        ? `PELECARD_ALLOW_PRODUCTION — הערך הנוכחי הוא "${acknowledgement.slice(0, 40)}" וחייב להיות בדיוק I_UNDERSTAND`
+        : "PELECARD_ALLOW_PRODUCTION = I_UNDERSTAND",
+    );
   }
 
   for (const name of ["PELECARD_TERMINAL", "PELECARD_USER", "PELECARD_PASSWORD"] as const) {
