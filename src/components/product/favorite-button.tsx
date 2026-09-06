@@ -5,7 +5,7 @@ import { Heart } from "lucide-react";
 import { toast } from "sonner";
 import { toggleFavoriteAction } from "@/actions/favorites";
 import { cn } from "@/lib/utils";
-import { useIsFavorite } from "@/components/product/favorites-provider";
+import { useIsFavorite } from "@/components/layout/session-summary-provider";
 
 export function FavoriteButton({
   productId,

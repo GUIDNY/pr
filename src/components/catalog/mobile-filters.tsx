@@ -11,11 +11,13 @@ export function MobileFilters({
   attributes,
   priceRange,
   resultCount,
+  query = "",
 }: {
   brands: { name: string; slug: string }[];
   attributes: FilterAttribute[];
   priceRange: { min: number; max: number };
   resultCount: number;
+  query?: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -32,7 +34,7 @@ export function MobileFilters({
           <SheetTitle>מסננים</SheetTitle>
         </SheetHeader>
         <div className="px-4 pb-4">
-          <FilterSidebar brands={brands} attributes={attributes} priceRange={priceRange} />
+          <FilterSidebar brands={brands} attributes={attributes} priceRange={priceRange} query={query} />
         </div>
         <div className="bg-background sticky bottom-0 border-t p-4">
           <Button variant="brand" className="w-full" onClick={() => setOpen(false)}>

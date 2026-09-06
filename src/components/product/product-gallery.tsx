@@ -33,7 +33,6 @@ export function ProductGallery({
   title,
   brand,
   categoryIcon,
-  isFavorite,
   isAdmin,
   warrantyMonths,
 }: {
@@ -42,7 +41,6 @@ export function ProductGallery({
   title: string;
   brand: string;
   categoryIcon: string | null;
-  isFavorite: boolean;
   isAdmin: boolean;
   // Shown as a corner badge on the photo itself now, instead of its own
   // card lower on the page (that card repeated the same fact the "משלוח
@@ -183,7 +181,7 @@ export function ProductGallery({
         ) : (
           <ProductImagePlaceholder title={title} brand={brand} icon={categoryIcon} />
         )}
-        <FavoriteButton productId={productId} initialFavorite={isFavorite} className="absolute top-4 end-4" />
+        <FavoriteButton productId={productId} className="absolute top-4 end-4" />
 
         {warrantyMonths > 0 && (
           <div className="bg-brand text-brand-foreground absolute top-4 start-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold shadow-lg">

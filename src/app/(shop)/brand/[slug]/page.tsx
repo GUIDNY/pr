@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { ProductCard } from "@/components/product/product-card";
 import { SortSelect } from "@/components/catalog/sort-select";
 import { getProductsByBrandSlug, type ProductSort } from "@/lib/queries/products";
-import { getFavoriteProductIdsAction } from "@/actions/favorites";
 import { normalizeDescription } from "@/lib/product-content";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -28,9 +27,8 @@ export default async function BrandPage({
   const sp = await searchParams;
   const sort = (typeof sp.sort === "string" ? sp.sort : "relevance") as ProductSort;
 
-  const [{ products, total, brand }, favoriteIds] = await Promise.all([
+  const [{ products, total, brand }] = await Promise.all([
     getProductsByBrandSlug(slug, { sort, pageSize: 48 }),
-    getFavoriteProductIdsAction(),
   ]);
 
   if (!brand) notFound();
@@ -59,7 +57,7 @@ export default async function BrandPage({
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => (
-            <ProductCard key={p.id} product={p} isFavorite={favoriteIds.includes(p.id)} />
+            <ProductCard key={p.id} product={p} />
           ))}
         </div>
       )}

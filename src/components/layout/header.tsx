@@ -84,10 +84,11 @@ export async function Header() {
           </Link>
           <Link
             href="/account"
+            aria-label="החשבון שלי"
             className="hover:bg-muted flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-2 transition-colors sm:h-10 sm:min-w-0 sm:justify-start sm:px-3"
           >
             <User className="size-5" />
-            <span className="hidden text-sm font-medium sm:inline">
+            <span className="hidden sm:inline">
               <AccountLabel />
             </span>
           </Link>

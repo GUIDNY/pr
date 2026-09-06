@@ -1,12 +1,11 @@
 import { Tag } from "lucide-react";
 import { ProductCard } from "@/components/product/product-card";
 import { getDeals } from "@/lib/queries/products";
-import { getFavoriteProductIdsAction } from "@/actions/favorites";
 
 export const metadata = { title: "מבצעים" };
 
 export default async function DealsPage() {
-  const [products, favoriteIds] = await Promise.all([getDeals(48), getFavoriteProductIdsAction()]);
+  const products = await getDeals(48);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -25,7 +24,7 @@ export default async function DealsPage() {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => (
-            <ProductCard key={p.id} product={p} isFavorite={favoriteIds.includes(p.id)} />
+            <ProductCard key={p.id} product={p} />
           ))}
         </div>
       )}

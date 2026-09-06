@@ -37,10 +37,17 @@ export async function Footer() {
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-8 px-4 py-10 sm:grid-cols-4">
         <div className="col-span-2 sm:col-span-1">
           {/* The tile alone, matching the header — it carries the name
-              itself, so type beside it only repeated it. */}
+              itself, so type beside it only repeated it.
+
+              Named, unlike the header's copy of the same image. There the
+              logo sits inside a link that is already labelled "Buy Today —
+              לדף הבית", so alt text would make a screen reader say the name
+              twice. Here it stands alone and is the only thing identifying
+              the shop in the footer, so an empty alt really would drop
+              information rather than avoid repeating it. */}
           <Image
             src="/brand/logo.png"
-            alt=""
+            alt="Buy Today"
             width={512}
             height={512}
             className="size-12 rounded-[22%]"

@@ -52,7 +52,7 @@ export function AlfredSection({
         <div className="mx-auto flex flex-col items-center gap-4">
           <Image
             src="/mascot/alfred.png"
-            alt="אלפרד, העוזר החכם של AiEC"
+            alt="אלפרד, העוזר החכם של Buy Today"
             width={280}
             height={280}
             className="h-auto w-48 sm:w-64"

@@ -3,8 +3,8 @@ import { Heebo } from "next/font/google";
 import { DirectionProvider } from "@/components/ui/direction";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
-import { CartHydrator } from "@/components/cart/cart-hydrator";
-import { FavoritesProvider } from "@/components/product/favorites-provider";
+import { SessionSummaryProvider } from "@/components/layout/session-summary-provider";
+import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
@@ -96,8 +96,9 @@ export default function RootLayout({
         </a>
         <DirectionProvider dir="rtl">
           <TooltipProvider delayDuration={150}>
-            <CartHydrator />
-            <FavoritesProvider>{children}</FavoritesProvider>
+            {/* The one request that personalises a page the server built
+                for nobody in particular: name, favourites and cart together. */}
+            <SessionSummaryProvider>{children}</SessionSummaryProvider>
             {/* Browsing furniture. Hidden on the payment step — see ShoppingOnly. */}
             <ShoppingOnly>
               <CartDrawer />
@@ -107,6 +108,7 @@ export default function RootLayout({
             <AccessibilityWidget />
             <CookieNotice />
             <Toaster position="top-center" richColors />
+            <GoogleAnalytics />
           </TooltipProvider>
         </DirectionProvider>
       </body>

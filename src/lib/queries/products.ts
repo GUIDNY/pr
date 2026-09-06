@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
@@ -239,7 +240,11 @@ export async function getCategoryAttributesFor(categoryId: string) {
   return db.categoryAttribute.findMany({ where: { categoryId }, orderBy: { sortOrder: "asc" } });
 }
 
-export async function getProductBySlug(slug: string) {
+// Wrapped in React's cache so the route and the view it renders can each ask
+// for the product without it being fetched twice: the route needs to know
+// whether the slug misses (so it can redirect from an old address), and the
+// view needs the product itself. Two call sites, one query per render.
+export const getProductBySlug = cache(async (slug: string) => {
   return db.product.findUnique({
     where: { slug },
     include: {
@@ -251,7 +256,7 @@ export async function getProductBySlug(slug: string) {
       supplier: true,
     },
   });
-}
+});
 
 /**
  * The slug a product carries *now*, given an address it used to carry.

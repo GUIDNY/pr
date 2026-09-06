@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const OPTIONS = [
@@ -11,10 +12,15 @@ const OPTIONS = [
   { value: "rating", label: "דירוג" },
 ];
 
-export function SortSelect() {
+// `query` is the page's own query string, handed down by the server rather
+// than read here with useSearchParams. A client component that calls
+// useSearchParams cannot be prerendered — it bails the whole route out to
+// client-side rendering — and the category page is prerendered on purpose.
+// The server already knows the filters; passing them costs a prop.
+export function SortSelect({ query = "" }: { query?: string }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const searchParams = useMemo(() => new URLSearchParams(query), [query]);
   const current = searchParams.get("sort") ?? "relevance";
 
   return (

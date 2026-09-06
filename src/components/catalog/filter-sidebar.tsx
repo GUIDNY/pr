@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useMemo } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -19,14 +20,17 @@ export function FilterSidebar({
   brands,
   attributes,
   priceRange,
+  query = "",
 }: {
   brands: { name: string; slug: string }[];
   attributes: FilterAttribute[];
   priceRange: { min: number; max: number };
+  query?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // See SortSelect: handed down, not read, so the route stays prerenderable.
+  const searchParams = useMemo(() => new URLSearchParams(query), [query]);
 
   const selectedBrands = searchParams.getAll("brand");
   const [minPrice, setMinPrice] = useState(searchParams.get("min") ?? "");

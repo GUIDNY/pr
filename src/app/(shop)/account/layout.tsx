@@ -13,6 +13,10 @@ const NAV = [
 
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
+  // proxy.ts already turns a cookie-less request away, and does it knowing
+  // which account page was asked for. This is the check that matters though:
+  // a cookie can be present and still not be a session — expired, forged, or
+  // belonging to a user who no longer exists — and only getSession can tell.
   if (!session) redirect("/login?redirect=/account");
 
   return (

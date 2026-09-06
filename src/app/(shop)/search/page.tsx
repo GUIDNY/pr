@@ -1,7 +1,6 @@
 import { Search as SearchIcon } from "lucide-react";
 import { ProductCard } from "@/components/product/product-card";
 import { searchProducts } from "@/lib/queries/products";
-import { getFavoriteProductIdsAction } from "@/actions/favorites";
 
 export const metadata = { title: "תוצאות חיפוש" };
 
@@ -11,7 +10,7 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { q = "" } = await searchParams;
-  const [products, favoriteIds] = await Promise.all([searchProducts(q, 48), getFavoriteProductIdsAction()]);
+  const products = await searchProducts(q, 48);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -29,7 +28,7 @@ export default async function SearchPage({
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
           {products.map((p) => (
-            <ProductCard key={p.id} product={p} isFavorite={favoriteIds.includes(p.id)} />
+            <ProductCard key={p.id} product={p} />
           ))}
         </div>
       )}
