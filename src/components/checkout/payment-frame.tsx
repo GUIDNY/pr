@@ -46,7 +46,17 @@ const LOAD_DEADLINE_MS = 12_000;
    form with the bank's own frame, which Pelecard size at 615px and which
    scrolls inside itself anyway, so a moment of overflow there costs less than
    350px of emptiness on every payment that never reaches it. */
-const FRAME_MIN_HEIGHT = "42rem";
+/* The height lives in globals.css as .pelecard-frame, not here, because it
+   needs a media query: the stylesheet stops pairing the columns below 520px —
+   two 195px columns with a caption wrapping inside one of them is not a layout
+   — and one field per line is about 170px more form. A frame sized for the
+   paired layout would scroll exactly that much on a phone.
+
+   It is a plain class in a real stylesheet rather than a Tailwind arbitrary
+   value, for the same reason the height was moved out of a class in the first
+   place: min-h-[52rem] had to be generated to exist, and when the form kept
+   scrolling there was no way to tell a wrong number from a class that was
+   never emitted. A rule written out cannot go missing. */
 
 export function PaymentFrame({ src }: { src: string }) {
   const [state, setState] = useState<"loading" | "ready" | "blocked">("loading");
@@ -96,8 +106,7 @@ export function PaymentFrame({ src }: { src: string }) {
           loaded.current = true;
           setState("ready");
         }}
-        style={{ minHeight: FRAME_MIN_HEIGHT }}
-        className={`w-full ${state === "blocked" ? "hidden" : "block"}`}
+        className={`pelecard-frame w-full ${state === "blocked" ? "hidden" : "block"}`}
       />
     </div>
   );

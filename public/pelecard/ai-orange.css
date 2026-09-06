@@ -397,6 +397,21 @@ input[type="number"]::-webkit-inner-spin-button {
   margin-left: 0;
   margin-right: 0;
 }
+
+/* Columns align on their TOPS, which is worth stating because the obvious
+   alternative was tried and is worse. The row on a phone was crooked — "קוד
+   אימות כרטיס (CVV)" wrapped to two lines while "תעודת זהות" beside it stayed
+   on one, so the two fields sat at different heights. Stretching the columns
+   and pushing each value box to the bottom does line those two up, and then
+   breaks the pair the moment an error line appears under one of them: the
+   error sits below the form group, so the field above it is lifted while its
+   neighbour is not. It trades a fault that shows on a phone for one that shows
+   whenever a customer gets something wrong, which is worse.
+
+   The wrapping is a symptom of a column too narrow to hold its caption, and
+   that is fixed where it belongs — the media query at the end of this file
+   gives a phone one field per line. Captions do not wrap at the desktop width,
+   so tops are all that is needed here. */
 /* Bootstrap clears its rows with .row:before and .row:after. Those are
    generated boxes, and the moment .row becomes a flex container they become
    FLEX ITEMS — two extra columns nobody wrote, taking space on the line and
@@ -917,4 +932,19 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
 @media (max-width: 519px) {
   body { padding: 2px 14px 18px; }
   #cancelBtn { min-width: 0; padding: 0 10px; }
+
+  /* One field per line. col-sm-* means "half from the small breakpoint up",
+     and forcing the halves at every width is what squeezed a card number and
+     a wrapping caption into 195 pixels each. Below the breakpoint the columns
+     are full width, which is what the shop's own checkout does and what the
+     class name asked for in the first place. */
+  .row > [class*="col-sm-"][class*="col-sm-"],
+  .row > [class*="col-xs-"][class*="col-xs-"] {
+    flex: 1 1 100% !important;
+  }
+  /* #IdAndCvvRow is paired by an id rule further up, which outranks anything
+     keyed to a column class — so it kept its two halves at 195px each while
+     every other row had already stacked. It stacks here by id as well. */
+  #IdAndCvvRow { flex-wrap: wrap; }
+  #IdAndCvvRow > * { flex: 1 1 100% !important; }
 }

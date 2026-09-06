@@ -379,3 +379,23 @@ html.a11y-focus :is(a, button, input, select, textarea, summary, [tabindex]):foc
 html[data-cookie-notice="open"] .floating-launcher {
   margin-bottom: var(--cookie-notice-h, 0px);
 }
+
+/* The Pelecard payment frame in checkout step 3.
+
+   The number is measured, not guessed: the live form is ~645px, taken by
+   differencing a landmark between two screenshots of the real page rather than
+   estimating from one. The rest is room for a validation line under every
+   field at once, which is the tallest that form gets.
+
+   Below 520px the payment stylesheet stops pairing its columns — two 195px
+   columns with a caption wrapping inside one of them is not a layout — so a
+   phone gets one field per line and about 170px more form. */
+.pelecard-frame {
+  min-height: 42rem;
+}
+
+@media (max-width: 519px) {
+  .pelecard-frame {
+    min-height: 52rem;
+  }
+}
