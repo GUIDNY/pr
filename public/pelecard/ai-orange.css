@@ -229,7 +229,7 @@ textarea,
   transition: color .15s ease, box-shadow .15s ease, border-color .15s ease;
 }
 input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll)::placeholder,
-.container select::placeholder,
+select::placeholder,
 textarea::placeholder,
 .form-control::placeholder {
   color: #615C59;
@@ -237,7 +237,7 @@ textarea::placeholder,
   opacity: 1;
 }
 input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll):focus,
-.container select:focus,
+select:focus,
 textarea:focus,
 .form-control:focus {
   outline: 0;
@@ -730,6 +730,17 @@ iframe#threeDSCReqIframe {
    the frame's, not the window's — 520px puts 14px on the desktop form and
    leaves 16px where a smaller size would make iOS zoom the page on focus. */
 @media (min-width: 520px) {
+  /* Keyed to the elements as well as to the class, and this is not cosmetic
+     pedantry: with only .form-control here, the selects dropped to 14px while
+     every input stayed at 16px. The element-based rule above carries seven
+     :not() clauses and so outspecifies a bare class — inputs kept their 16px
+     and selects, which that rule matches with a single element selector, did
+     not. The expiry pair ended up with smaller text than the field above it,
+     which is exactly the kind of half-millimetre difference that reads as
+     "something is off here" without being nameable. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll),
+  select,
+  textarea,
   .form-control { font-size: 14px; }
   .btn-submit, .btn-paypal { font-size: 15px; }
 }
