@@ -10,6 +10,13 @@ import { getDeals, getBestSellers, getFeaturedProducts, getProductsByIds } from 
 import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
 import { getCategoryTilesWithImages } from "@/lib/queries/categories";
 import { getFavoriteProductIdsAction } from "@/actions/favorites";
+import type { Metadata } from "next";
+
+// Deliberately here and not in the root layout. Metadata is inherited, so a
+// canonical set once at the root would be handed to every page that does not
+// override it — each one announcing itself as the homepage, which is worse
+// than having none at all.
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 export default async function HomePage() {
   const [hero, whyPrec, deals, bestSellers, featured, brands, favoriteIds, categoryTiles, alfredWidget] =

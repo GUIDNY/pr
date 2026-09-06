@@ -21,6 +21,7 @@ import { findCategoryBySlug } from "@/lib/category-tree";
 import { PackageSearch, BookOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CategoryIntro } from "@/components/category/category-intro";
+import { listingCanonical } from "@/lib/site-url";
 
 const PAGE_SIZE = 24;
 // "Everything on one page" is really just a much larger page. Keeping it as
@@ -35,12 +36,23 @@ const PAGE_SIZE = 24;
 // category does not need the whole catalog in one response.
 const ALL_PAGE_SIZE = 500;
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}): Promise<Metadata> {
   const { slug } = await params;
+  const sp = await searchParams;
   const found = findCategoryBySlug(slug);
   if (!found) return {};
   const name = found.sub?.name ?? found.department.name;
-  return { title: name, description: `${name} - מגוון רחב במחירים הטובים ביותר, משלוח עד הבית ואחריות יבואן רשמי.` };
+  return {
+    title: name,
+    description: `${name} - מגוון רחב במחירים הטובים ביותר, משלוח עד הבית ואחריות יבואן רשמי.`,
+    alternates: { canonical: listingCanonical(`/category/${slug}`, Number(sp.page) || 1) },
+  };
 }
 
 export default async function CategoryPage({

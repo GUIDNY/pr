@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/format";
 export const metadata: Metadata = {
   title: "מדריכי קנייה ומאמרים",
   description: "מדריכי קנייה, טיפים והשוואות למוצרי חשמל ואלקטרוניקה — איך לבחור נכון לפני שקונים.",
+  alternates: { canonical: "/articles" },
 };
 
 export default async function ArticlesPage() {

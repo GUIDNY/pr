@@ -5,7 +5,7 @@ import { getCmsPage } from "@/lib/queries/content";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const page = await getCmsPage(slug);
-  return { title: page?.title };
+  return { title: page?.title, alternates: { canonical: `/page/${slug}` } };
 }
 
 export default async function CmsPage({ params }: { params: Promise<{ slug: string }> }) {
