@@ -29,13 +29,13 @@ import type { NextRequest } from "next/server";
 const SESSION_COOKIE = "prec_session";
 
 export function proxy(request: NextRequest) {
-  const { pathname, search } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
   // A category request that carries a filter, a sort or a page number goes to
   // the twin that reads them. The bare address — every crawler's request, and
   // most visitors' — falls through to the cached page. See
   // category/[slug]/page.tsx for why reading them at all is what costs.
-  if (pathname.startsWith("/category/") && search) {
+  if (pathname.startsWith("/category/") && hasCategoryFilter(request)) {
     return rewriteSegment(request, pathname, "/category/", "/category-filtered");
   }
 
@@ -62,6 +62,24 @@ export function proxy(request: NextRequest) {
   }
 
   return NextResponse.next();
+}
+
+// The parameters the category page actually reads — see CategoryPageView,
+// which uses exactly these and ignores everything else.
+//
+// Deliberately a list and not "any query string at all". A shopper arriving
+// from an ad or a shared Facebook link carries ?utm_source=, ?gclid= or
+// ?fbclid=, and treating those as filters would send every ad click and every
+// link posted anywhere to the uncached route — the visits the shop pays for
+// would be the slow ones. They change nothing about the page, so they are
+// nothing to route on.
+const FILTER_PARAMS = new Set(["sort", "page", "view", "brand", "min", "max"]);
+
+function hasCategoryFilter(request: NextRequest): boolean {
+  for (const key of request.nextUrl.searchParams.keys()) {
+    if (FILTER_PARAMS.has(key) || key.startsWith("attr_")) return true;
+  }
+  return false;
 }
 
 function rewriteSegment(request: NextRequest, pathname: string, prefix: string, destination: string) {
