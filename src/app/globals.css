@@ -61,22 +61,26 @@
 
   /* Buy Today brand orange, sampled from the logo file itself
      (public/brand/logo.png) rather than eyeballed. The tile is a gradient
-     running #FC6414 -> #F35002; its core sits at #F7590B, which is this
-     value. The previous token was #FF6900 — 0.032 lighter and 4.4deg
+     running #F95C0D -> #F34F01; its core sits at #F55305, which is this
+     value. An earlier token was #FF6900 — 0.032 lighter and 4.4deg
      yellower, close enough to look intentional on its own and wrong the
-     moment the logo sits next to a CTA.
-
-     These numbers were sampled from the old A&I tile. The Buy Today mark is
-     the same family of orange, but the value has NOT been re-sampled against
-     it — do that when replacing the logo file, or the token drifts from the
-     mark it is supposed to match. --brand drives every CTA/link/
+     moment the logo sits next to a CTA. --brand drives every CTA/link/
      accent surface; --primary (below) carries the navy into the site's
      dark UI chrome (footer, default button/control states).
 
-     --brand-hover is the gradient's dark end, so hovering a button lands on
-     a colour the mark itself already contains. */
-  --brand: oklch(0.668 0.206 40);
-  --brand-hover: oklch(0.62 0.208 38.5);
+     Re-sampled when the mark changed from the A&I tile to Buy Today. The
+     shift was small — 0.010 darker, 0.9deg less yellow — but the point of
+     this token is that it is measured off the logo that ships and not off
+     one that has been replaced.
+
+     --brand-hover is built from the gradient's dark end rather than being
+     it. That end is oklch(0.650 0.211 38.3); the hover keeps its hue and
+     chroma and pulls lightness down a further 0.031. Taken straight, the
+     two would sit 0.008 apart, which on a button reads as no hover at all.
+     The previous pair carried the same 0.031 offset, so hovering still
+     lands on a colour the mark itself contains, only deeper. */
+  --brand: oklch(0.658 0.209 39.1);
+  --brand-hover: oklch(0.619 0.211 38.3);
   --brand-foreground: oklch(0.985 0 0);
   --price-highlight: oklch(0.96 0.15 105);
   --success: oklch(0.644 0.136 161.2);
