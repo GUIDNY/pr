@@ -18,16 +18,25 @@
   .topbar{background:#F5F6F7;border-bottom:1px solid #E9ECEF;padding:8px 14px;text-align:center;
     font:13px Heebo,Arial,sans-serif;color:#4B5563;margin:0 -16px}
   .topbar a{color:#1D4ED8}
+
+  /* Pelecard's own sheet, reproduced — NOT ours. These are the two boxes that
+     were narrowing the fields on the live page while this preview looked fine:
+     a .container the page pins to a fixed width, and a floated wrapper around
+     every input. They are here on purpose. If a rule in ai-orange.css ever
+     stops opening these up, the preview breaks the same way the real page did
+     instead of quietly passing. */
+  .container{width:400px}
+  .controls{width:230px;float:left;padding-right:14px}
 </style>
 </head>
 <body>
 
 <div class="preview-note">
   <strong>תצוגה מקדימה — לא דף תשלום.</strong> אי אפשר לשלם כאן, שום שדה לא נשלח לשום מקום
-  ואף כפתור לא עושה דבר. המבנה שוחזר מדף התשלום החי (PlaceholderCaptions=False, כלומר הכיתוב בתווית) (צילומי מסך של
-  <code>/checkout/pay</code>), כולל הדברים שקל לפספס: תוויות ריקות — כי
-  <code>PlaceholderCaptions</code> מעביר את הכיתוב ל-placeholder — ה-<code>fieldset</code>
-  סביב שדות התוקף, ומיקום סכום העסקה באמצע הטופס. הדף טוען את
+  ואף כפתור לא עושה דבר. המבנה שוחזר מצילומי מסך של דף התשלום החי, כולל הדברים
+  שהתבררו רק שם: שדות התוקף כילדים ישירים של <code>#dateContainer</code> עם לוכסן ביניהם,
+  כיתוב התווית בתוך <code>span</code> משלו לצד הכוכבית, עוטף צר סביב כל שדה,
+  <code>.container</code> ברוחב קבוע, ומיקום סכום העסקה באמצע הטופס. הדף טוען את
   <code>/pelecard/ai-orange.css</code> החי, כך שכל שינוי בעיצוב נראה כאן ברענון, בלי לחכות
   ל-whitelist ובלי לבזבז עסקה.
 </div>
@@ -47,13 +56,13 @@
   <form onsubmit="return false">
 
     <div class="form-group">
-      <label class="control-label" for="cardHolderName_input">שם בעל הכרטיס/חברה</label>
-      <input class="form-control" id="cardHolderName_input" type="text">
+      <label class="control-label" for="cardHolderName_input"><span>שם בעל הכרטיס/חברה</span></label>
+      <div class="controls"><input class="form-control" id="cardHolderName_input" type="text"></div>
     </div>
 
     <div class="form-group">
-      <label class="control-label mandatory" for="credit_card_number_input">מספר כרטיס<span class="mandatory-star">*</span></label>
-      <input class="form-control" id="credit_card_number_input" type="text">
+      <label class="control-label mandatory" for="credit_card_number_input"><span>מספר כרטיס</span><span class="mandatory-star">*</span></label>
+      <div class="controls"><input class="form-control" id="credit_card_number_input" type="text"></div>
     </div>
 
     <!-- The live page's shape, not the one guessed here before: the two selects
@@ -62,7 +71,7 @@
          inline display:flex, which is why this preview always looked right
          while the real page stacked month over year. -->
     <div class="form-group" id="dateContainer">
-      <label class="control-label mandatory">תוקף כרטיס<span class="mandatory-star">*</span></label>
+      <label class="control-label mandatory"><span>תוקף כרטיס</span><span class="mandatory-star">*</span></label>
       <select class="form-control red-field" id="date_month_input">
         <option>חודש</option><option>01</option><option>09</option>
       </select>
@@ -75,12 +84,12 @@
 
     <div class="form-group" id="IdAndCvvRow">
       <div>
-        <label class="control-label mandatory" for="id_number_input">תעודת זהות<span class="mandatory-star">*</span></label>
-        <input class="form-control" id="id_number_input" type="text">
+        <label class="control-label mandatory" for="id_number_input"><span>תעודת זהות</span><span class="mandatory-star">*</span></label>
+        <div class="controls"><input class="form-control" id="id_number_input" type="text"></div>
       </div>
       <div>
-        <label class="control-label mandatory" for="cvv_input">קוד אימות כרטיס<span class="mandatory-star">*</span></label>
-        <input class="form-control" id="cvv_input" type="text">
+        <label class="control-label mandatory" for="cvv_input"><span>קוד אימות כרטיס</span><span class="mandatory-star">*</span></label>
+        <div class="controls"><input class="form-control" id="cvv_input" type="text"></div>
       </div>
     </div>
 
@@ -93,13 +102,13 @@
     </div>
 
     <div class="form-group">
-      <label class="control-label" for="email_input">דוא״ל רוכש</label>
-      <input class="form-control" id="email_input" type="email">
+      <label class="control-label" for="email_input"><span>דוא״ל רוכש</span></label>
+      <div class="controls"><input class="form-control" id="email_input" type="email"></div>
     </div>
 
     <div class="form-group">
-      <label class="control-label" for="phone_input">טלפון רוכש</label>
-      <input class="form-control" id="phone_input" type="tel">
+      <label class="control-label" for="phone_input"><span>טלפון רוכש</span></label>
+      <div class="controls"><input class="form-control" id="phone_input" type="tel"></div>
     </div>
 
     <div class="form-group-submit">
