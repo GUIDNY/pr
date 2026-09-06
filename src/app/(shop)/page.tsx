@@ -11,6 +11,8 @@ import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
 import { getCategoryTilesWithImages } from "@/lib/queries/categories";
 import { getFavoriteProductIdsAction } from "@/actions/favorites";
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/seo/json-ld";
+import { organizationSchema, webSiteSchema } from "@/lib/schema";
 
 // Deliberately here and not in the root layout. Metadata is inherited, so a
 // canonical set once at the root would be handed to every page that does not
@@ -40,6 +42,8 @@ export default async function HomePage() {
 
   return (
     <>
+      <JsonLd data={organizationSchema()} />
+      <JsonLd data={webSiteSchema()} />
       {/* Mobile-only reorder: Alfred's panel first, then top categories,
           then hot deals, then the Hero (title/CTA/benefits) — everything
           below this block keeps its normal document order untouched.

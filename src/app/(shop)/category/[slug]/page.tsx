@@ -22,6 +22,8 @@ import { PackageSearch, BookOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CategoryIntro } from "@/components/category/category-intro";
 import { listingCanonical } from "@/lib/site-url";
+import { JsonLd } from "@/components/seo/json-ld";
+import { breadcrumbSchema, itemListSchema } from "@/lib/schema";
 
 const PAGE_SIZE = 24;
 // "Everything on one page" is really just a much larger page. Keeping it as
@@ -138,8 +140,19 @@ export default async function CategoryPage({
     return hrefWith({ view: v === "all" ? "all" : null, page: null });
   }
 
+  // The visible breadcrumb below and this one are built from the same two
+  // values, so a category that moves cannot leave the machine-readable trail
+  // pointing somewhere the visible one does not.
+  const trail = [
+    { name: "ראשי", path: "/" },
+    ...(found.sub ? [{ name: found.department.name, path: `/category/${found.department.slug}` }] : []),
+    { name: category.name, path: `/category/${slug}` },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
+      <JsonLd data={breadcrumbSchema(trail)} />
+      {products.length > 0 && <JsonLd data={itemListSchema(category.name, products)} />}
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
