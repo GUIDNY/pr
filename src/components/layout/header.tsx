@@ -52,7 +52,7 @@ export async function Header() {
             lockup version now that it carries the identity on its own. */}
         <Link
           href="/"
-          aria-label="A&I Electronics — לדף הבית"
+          aria-label="Buy Today — לדף הבית"
           className="flex shrink-0 items-center justify-self-center sm:justify-self-auto"
         >
           <Image

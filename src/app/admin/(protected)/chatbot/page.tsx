@@ -2,7 +2,7 @@ import { MessageCircle } from "lucide-react";
 import { getChatbotSettings } from "@/lib/queries/chatbot-settings";
 import { ChatbotSettingsForm } from "@/components/admin/chatbot-settings-form";
 
-export const metadata = { title: "אלפרד - צ'אט בוט | A&I Electronics Admin" };
+export const metadata = { title: "אלפרד - צ'אט בוט | Buy Today Admin" };
 
 export default async function AdminChatbotPage() {
   const settings = await getChatbotSettings();

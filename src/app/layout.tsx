@@ -20,9 +20,9 @@ const heebo = Heebo({
   display: "swap",
 });
 
-const SITE_NAME = "A&I Electronics";
+const SITE_NAME = "Buy Today";
 const SITE_DESCRIPTION =
-  "A&I Electronics - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.";
+  "Buy Today - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.";
 
 export const metadata: Metadata = {
   // Required for the Open Graph image to resolve to an absolute URL. Without
@@ -37,7 +37,16 @@ export const metadata: Metadata = {
   applicationName: SITE_NAME,
   // The icon set is picked up by convention from src/app: icon.png for the
   // browser tab, apple-icon.png for an iOS home-screen shortcut. Both are
-  // generated from public/brand/logo.png.
+  // generated from public/brand/logo.png, as is the Pelecard payment page's
+  // mark. apple-icon is deliberately opaque and square — iOS applies its own
+  // corner mask, and a transparent corner handed to it renders black.
+  //
+  // That master is 512px because images are served unoptimized (see
+  // next.config.ts), so whatever sits at /brand/logo.png is what a phone
+  // downloads to draw a 40px header logo — there is no resizing step to hide
+  // an oversized source behind. 512 is the largest thing derived from it
+  // (icon.png), so it is as small as it can be without losing a derivative.
+  // The 1800px artwork as delivered is in git history, added in d81d86b.
   openGraph: {
     type: "website",
     siteName: SITE_NAME,

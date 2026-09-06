@@ -4,7 +4,7 @@ import { getAttentionItems } from "@/lib/queries/admin-inventory";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "טיפול | A&I Electronics Admin" };
+export const metadata = { title: "טיפול | Buy Today Admin" };
 
 // Three sources feed this list, and the difference between them is what
 // the admin needs to see first:

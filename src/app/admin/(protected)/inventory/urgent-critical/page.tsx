@@ -4,7 +4,7 @@ import { getUrgentReviewProducts } from "@/lib/queries/admin-inventory";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "טיפול דחוף | A&I Electronics Admin" };
+export const metadata = { title: "טיפול דחוף | Buy Today Admin" };
 
 // Unlike the "טיפול" tab, nothing lands here automatically — only a product
 // an admin explicitly sent here via the button on its own product page

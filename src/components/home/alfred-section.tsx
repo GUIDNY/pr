@@ -129,7 +129,7 @@ export function AlfredSection({
       <div className="relative mx-auto flex max-w-7xl flex-col items-center gap-2.5 px-4 py-6 text-center sm:hidden">
         <Image
           src="/mascot/alfred.png"
-          alt="אלפרד, העוזר החכם של A&I Electronics"
+          alt="אלפרד, העוזר החכם של Buy Today"
           width={280}
           height={280}
           className="h-auto w-24"
