@@ -30,14 +30,23 @@ import { ExternalLink, Loader2 } from "lucide-react";
 
 const LOAD_DEADLINE_MS = 12_000;
 
-/* An inline style rather than a Tailwind class, deliberately. The height has
-   been raised three times and the form kept scrolling, and one explanation that
+/* An inline style rather than a Tailwind class, deliberately: the height was
+   raised three times while the form kept scrolling, and one explanation that
    could not be ruled out from a screenshot was that the arbitrary-value class
-   was never generated at all — in which case every raise changed nothing and
-   the iframe stayed at its 150px default plus whatever the content forced.
-   A style attribute cannot be purged, so this rules that out and leaves only
-   the height itself to argue with. */
-const FRAME_MIN_HEIGHT = "62rem";
+   had never been generated at all. A style attribute cannot be purged.
+
+   62rem stopped the scrolling and left about 350px of dead white below the
+   buttons, which is its own kind of unfinished. This is that number trimmed to
+   the measured one: the live form is ~645px, taken by scrolling the real page
+   between two screenshots and differencing a landmark, not by estimating from
+   one. The remaining ~90px is room for a validation line under every field at
+   once, which is the tallest the form gets.
+
+   3D Secure is the exception and is left alone deliberately. It replaces the
+   form with the bank's own frame, which Pelecard size at 615px and which
+   scrolls inside itself anyway, so a moment of overflow there costs less than
+   350px of emptiness on every payment that never reaches it. */
+const FRAME_MIN_HEIGHT = "46rem";
 
 export function PaymentFrame({ src }: { src: string }) {
   const [state, setState] = useState<"loading" | "ready" | "blocked">("loading");
