@@ -8,11 +8,13 @@
 <link rel="stylesheet" href="/pelecard/ai-orange.css">
 <style>
   /* עוטף התצוגה בלבד — לא חלק מה-CSS שנשלח לפלאקארד */
-  body { background: #EEF1F4; font-family: Heebo, Arial, sans-serif; }
-  .preview-note{max-width:620px;margin:20px auto 0;padding:12px 16px;background:#FFF7ED;
+  /* body is the frame here, exactly as it is on the live page: the inset
+     comes from the payment sheet's own body padding, not from a wrapper. */
+  body { max-width: 620px; margin: 0 auto; font-family: Heebo, Arial, sans-serif;
+    border: 1px solid #E4E1DF; border-radius: 14px; }
+  .preview-note{margin:16px 0;padding:12px 16px;background:#FFF7ED;
     border:1px solid #F5D5AE;border-radius:12px;font:14px Heebo,Arial,sans-serif;color:#7C4A03}
-  .preview-frame{max-width:620px;margin:16px auto;background:#fff;border:1px solid #E4E8EC;
-    border-radius:14px;overflow:hidden;padding:0 16px}
+  
   .topbar{background:#F5F6F7;border-bottom:1px solid #E9ECEF;padding:8px 14px;text-align:center;
     font:13px Heebo,Arial,sans-serif;color:#4B5563;margin:0 -16px}
   .topbar a{color:#1D4ED8}
@@ -30,7 +32,6 @@
   ל-whitelist ובלי לבזבז עסקה.
 </div>
 
-<div class="preview-frame">
   <div class="topbar">🛡 אתר זה מאובטח בטכנולוגיית SSL ובתקן PCI LEVEL 1 · <a href="#">הצהרת נגישות</a></div>
 
 <div class="container">
@@ -106,7 +107,6 @@
     </div>
 
   </form>
-</div>
 </div>
 </body>
 </html>

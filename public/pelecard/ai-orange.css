@@ -181,8 +181,8 @@ legend {
    be narrow, floated or padded. :has() makes the ancestor the subject, which is
    the only way to say that without counting levels. #totalAllRow is excluded —
    it is a .form-group whose value block must stay at the end of its row. */
-*:not(html):not(body):not(.container):has(input):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(:has(#email_input)):not(:has(#phone_input)),
-*:not(html):not(body):not(.container):has(select):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(:has(#email_input)):not(:has(#phone_input)),
+*:not(html):not(body):not(.container):has(input):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(.form-group:has(#email_input)):not(.form-group:has(#phone_input)):not(.form-group:has(#credit_card_number_input)):not(.form-group:has(#cardHolderName_input)):not(.form-group:has(#card_holder_name_input)):not(.form-group:has(#holder_name_input)):not(.form-group:has(#name_input)),
+*:not(html):not(body):not(.container):has(select):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(.form-group:has(#email_input)):not(.form-group:has(#phone_input)):not(.form-group:has(#credit_card_number_input)):not(.form-group:has(#cardHolderName_input)):not(.form-group:has(#card_holder_name_input)):not(.form-group:has(#holder_name_input)):not(.form-group:has(#name_input)),
 .form-group:not(#totalAllRow) > label {
   width: 100% !important;
   max-width: none !important;
@@ -298,9 +298,33 @@ input[type="number"]::-webkit-inner-spin-button {
    for no reason. Floated rather than made flex items, because that needs
    nothing from the parent — which we cannot see and have guessed wrong about
    before — and the row after them is told to clear. */
-/* Excluded from the rule above rather than fighting it. That one opens up any
-   ancestor of a field — full width, no float — and it outspecifies anything
-   reasonable written after it, so these two would have been silently reset. */
+/* A belt-and-braces pass that uses no :has() at all. Everything above depends
+   on it, and if it ever fails — an older browser, a selector the parser rejects
+   — the fields collapse to their intrinsic width and the form looks broken. The
+   two rows that lay their fields out side by side are excluded, since forcing
+   their inner boxes to block would stack them. */
+.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) div,
+.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) span,
+.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) p,
+.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) td,
+.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) table,
+.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) fieldset {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  float: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Excluded from the rule that opens up field wrappers rather than fighting it.
+   That one outspecifies anything reasonable written after it.
+
+   The exclusion names the ROW and not the field, and that distinction was a
+   real bug: written as :not(:has(#email_input)) it excluded every ancestor of
+   that input — the wrapper included — so the row widened to half the form while
+   the field inside it stayed at its intrinsic ~257px. Half a row with a short
+   field floating in it, on the two rows that had just been paired. */
 .form-group:has(#email_input) {
   float: right;
   width: calc(50% - 6px) !important;
@@ -309,6 +333,31 @@ input[type="number"]::-webkit-inner-spin-button {
   float: left;
   width: calc(50% - 6px) !important;
 }
+
+/* The cardholder name and the card number share a row.
+
+   The name row would be better matched by position — "the row before the card
+   number's" — but that needs :has() inside :has(), which CSS forbids: written
+   that way the selector is invalid and the browser drops the whole rule. It
+   very nearly took the width rule with it, since the same construct had gone
+   into that rule's exclusion list.
+
+   So it is matched by id, and the id is a guess: four plausible spellings, each
+   in its own selector so that the ones that miss cost nothing. If none of them
+   is right, the name row simply stays full width and the card number sits under
+   it — which is where they both were. */
+.form-group:has(#cardHolderName_input),
+.form-group:has(#card_holder_name_input),
+.form-group:has(#holder_name_input),
+.form-group:has(#name_input) {
+  float: right;
+  width: calc(50% - 6px) !important;
+}
+.form-group:has(#credit_card_number_input) {
+  float: left;
+  width: calc(50% - 6px) !important;
+}
+#dateContainer { clear: both; }
 .form-group-submit { clear: both; }
 
 /* Two fields to a row, 12px between them — grid-cols-2 gap-3, the shape the
