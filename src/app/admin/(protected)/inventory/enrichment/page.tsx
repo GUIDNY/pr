@@ -4,7 +4,7 @@ import { EnrichmentReviewCard } from "@/components/admin/enrichment-review-card"
 import { ApproveAllEnrichmentButton } from "@/components/admin/approve-all-enrichment-button";
 import { Sparkles } from "lucide-react";
 
-export const metadata = { title: "העשרת מוצרים | A&I Electronics Admin" };
+export const metadata = { title: "העשרת מוצרים | Buy Today Admin" };
 
 export default async function InventoryEnrichmentPage() {
   const [candidates, summary] = await Promise.all([getEnrichmentCandidates("PENDING"), getEnrichmentSummary()]);

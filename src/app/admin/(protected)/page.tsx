@@ -7,7 +7,7 @@ import { RevenueChart } from "@/components/admin/revenue-chart";
 import { formatPrice, formatDate, formatDateTime } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type OrderStatus } from "@/lib/enums";
 
-export const metadata = { title: "לוח בקרה | A&I Electronics Admin" };
+export const metadata = { title: "לוח בקרה | Buy Today Admin" };
 
 export default async function AdminDashboardPage() {
   const [stats, inventory, abandoned] = await Promise.all([

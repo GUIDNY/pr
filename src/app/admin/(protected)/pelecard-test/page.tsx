@@ -10,7 +10,7 @@ import {
 import { PelecardTestConsole } from "@/components/admin/pelecard-test-console";
 import { formatPrice, formatDateTime } from "@/lib/format";
 
-export const metadata = { title: "בדיקות סליקה | A&I Electronics Admin" };
+export const metadata = { title: "בדיקות סליקה | Buy Today Admin" };
 export const dynamic = "force-dynamic";
 
 /**

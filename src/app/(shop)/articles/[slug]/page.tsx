@@ -46,8 +46,8 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
     datePublished: article.publishedAt.toISOString(),
     dateModified: article.updatedAt.toISOString(),
-    author: { "@type": "Organization", name: "A&I Electronics" },
-    publisher: { "@type": "Organization", name: "A&I Electronics" },
+    author: { "@type": "Organization", name: "Buy Today" },
+    publisher: { "@type": "Organization", name: "Buy Today" },
   };
 
   return (

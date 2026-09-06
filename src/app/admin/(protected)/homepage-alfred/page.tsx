@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { AlfredWidgetManager } from "@/components/admin/alfred-widget-manager";
 
-export const metadata = { title: "אלפרד ממליץ - דף הבית | A&I Electronics Admin" };
+export const metadata = { title: "אלפרד ממליץ - דף הבית | Buy Today Admin" };
 
 export default async function AdminHomepageAlfredPage() {
   const [section, products] = await Promise.all([
