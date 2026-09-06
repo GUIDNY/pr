@@ -227,13 +227,18 @@ legend {
    #totalAllRow and the submit row are protected by their own rules carrying
    !important and an id, rather than by an exclusion here.
 
-   [class*="col-"] is excluded because a grid column contains a field and so
-   matched this rule, which set it to width:100% and float:none and flattened
-   Pelecard's two-column grid — the fault behind both the narrow fields and the
-   label that was covering them. Columns are laid out as flex halves further
-   down instead. */
-*:not(html):not(body):not(.form-group):not(.form-group-submit):not([class*="col-"]):has(input),
-*:not(html):not(body):not(.form-group):not(.form-group-submit):not([class*="col-"]):has(select),
+   Grid columns were briefly excluded here, to stop this rule flattening
+   Pelecard's two-column layout. That exclusion was too wide: every field then
+   rendered at exactly a third of its row, because a col-* class is on the value
+   box inside the form group as well as on the column itself, and excluding the
+   pattern left that box sitting at Bootstrap's own 33.33%. A third is a
+   suspiciously round number and that is what gave it away.
+
+   So nothing is excluded by class pattern. The columns win by weight instead —
+   see the grid rules further down, which carry !important and a specificity
+   above this rule's 0-2-3. */
+*:not(html):not(body):not(.form-group):not(.form-group-submit):has(input),
+*:not(html):not(body):not(.form-group):not(.form-group-submit):has(select),
 .form-group:not(#totalAllRow) > label {
   width: 100% !important;
   max-width: none !important;
@@ -392,17 +397,37 @@ input[type="number"]::-webkit-inner-spin-button {
   margin-left: 0;
   margin-right: 0;
 }
-.row > [class*="col-"] {
-  flex: 1 1 calc(50% - 6px);
-  width: auto;
-  min-width: 0;
-  max-width: none;
-  float: none;
-  padding-left: 0;
-  padding-right: 0;
+/* Bootstrap clears its rows with .row:before and .row:after. Those are
+   generated boxes, and the moment .row becomes a flex container they become
+   FLEX ITEMS — two extra columns nobody wrote, taking space on the line and
+   pushing the second real column onto one of its own. The clearing they do is
+   for floats, and there are no floats left here. */
+.row:before,
+.row:after {
+  content: none !important;
+  display: none !important;
+}
+/* The attribute is written twice on purpose. The wrapper rule at the top of
+   this file scores 0-2-3 and carries !important, and it matches these columns
+   because they contain a field; a single [class*="col-"] scores 0-2-0 and
+   loses to it, taking the whole grid down with it. Repeating the selector
+   makes it 0-3-0, which is the smallest honest way to outrank it.
+
+   flex-basis is 0 rather than calc(50% - 6px): two halves plus a 12px gap come
+   to exactly 100% of the line, and a rounding error of a hundredth of a pixel
+   is enough to wrap the second one onto its own row. A basis of 0 with equal
+   grow divides whatever is there and cannot overflow. */
+.row > [class*="col-"][class*="col-"] {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  float: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
 }
 /* A full-width column stays full width — col-sm-12, col-xs-12, col-md-12. */
-.row > [class*="col-"][class*="-12"] { flex-basis: 100%; }
+.row > [class*="col-"][class*="-12"] { flex: 1 1 100% !important; }
 
 /* The value box, by the name it actually has. This is the box that was
    holding every field at a third of its row, and naming it is the end of a

@@ -27,8 +27,11 @@
      instead of quietly passing. */
   .container{width:400px}
   .row{margin-left:-15px;margin-right:-15px}
+  .row:before,.row:after{content:" ";display:table}
+  .row:after{clear:both}
   .col-sm-6{position:relative;float:left;width:50%;padding-left:15px;padding-right:15px}
-  .control-value_old{width:230px;float:left}
+  .col-sm-4{position:relative;float:left;width:33.3333%;padding-left:15px;padding-right:15px}
+  .control-value_old{float:left}
 </style>
 </head>
 <body>
@@ -66,7 +69,7 @@
       <div class="col-sm-6">
         <div class="form-group" id="creditCardNameRow">
           <label class="control-label" for="cardHolderName_input"><span>שם בעל הכרטיס/חברה</span></label>
-          <div class="control-value_old"><input class="form-control" id="cardHolderName_input" type="text"></div>
+          <div class="col-sm-4 control-value_old"><input class="form-control" id="cardHolderName_input" type="text"></div>
         </div>
       </div>
       <div class="col-sm-6"></div>
@@ -76,13 +79,13 @@
       <div class="col-sm-6">
         <div class="form-group" id="creditCardNumberRow">
           <label class="control-label mandatory" for="credit_card_number_input"><span>מספר כרטיס</span><span class="mandatory-star">*</span></label>
-          <div class="control-value_old"><input class="form-control" id="credit_card_number_input" type="text"></div>
+          <div class="col-sm-4 control-value_old"><input class="form-control" id="credit_card_number_input" type="text"></div>
         </div>
       </div>
       <div class="col-sm-6">
         <div class="form-group" id="creditCardExpDateRow">
           <label class="control-label mandatory" for="date_year_input"><span>תוקף כרטיס</span><span class="mandatory-star">*</span></label>
-          <div id="dateContainer" class="control-value_old">
+          <div id="dateContainer" class="col-sm-4 control-value_old">
             <select class="form-control red-field" id="date_month_input">
               <option>חודש</option><option>01</option><option>09</option>
             </select>
@@ -102,13 +105,13 @@
       <div class="col-sm-6">
         <div class="form-group" id="idNumberRow">
           <label class="control-label mandatory" for="id_number_input"><span>תעודת זהות</span><span class="mandatory-star">*</span></label>
-          <div class="control-value_old"><input class="form-control" id="id_number_input" type="number"></div>
+          <div class="col-sm-4 control-value_old"><input class="form-control" id="id_number_input" type="number"></div>
         </div>
       </div>
       <div class="col-sm-6">
         <div class="form-group" id="cvvRow">
           <label class="control-label mandatory" for="cvv_input"><span>קוד אימות כרטיס</span><span class="mandatory-star">*</span></label>
-          <div class="control-value_old"><input class="form-control" id="cvv_input" type="number"></div>
+          <div class="col-sm-4 control-value_old"><input class="form-control" id="cvv_input" type="number"></div>
         </div>
       </div>
     </div>
@@ -125,13 +128,13 @@
       <div class="col-sm-6">
         <div class="form-group" id="emailRow">
           <label class="control-label" for="email_input"><span>דוא״ל רוכש</span></label>
-          <div class="control-value_old"><input class="form-control" id="email_input" type="email"></div>
+          <div class="col-sm-4 control-value_old"><input class="form-control" id="email_input" type="email"></div>
         </div>
       </div>
       <div class="col-sm-6">
         <div class="form-group" id="phoneRow">
           <label class="control-label" for="phone_input"><span>טלפון רוכש</span></label>
-          <div class="control-value_old"><input class="form-control" id="phone_input" type="tel"></div>
+          <div class="col-sm-4 control-value_old"><input class="form-control" id="phone_input" type="tel"></div>
         </div>
       </div>
     </div>
