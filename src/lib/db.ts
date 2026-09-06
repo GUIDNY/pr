@@ -27,7 +27,20 @@ const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
   max: 1,
   idleTimeoutMillis: 8_000,
-  connectionTimeoutMillis: 10_000,
+  // This is NOT a network timeout. With max:1 it is how long a query waits its
+  // turn for the pool's single connection, and the two are easy to confuse
+  // because pg reports the wait as "timeout exceeded when trying to connect" —
+  // which reads like the database is unreachable when in fact it is answering
+  // fine, one caller at a time.
+  //
+  // It took the production build down. The homepage now runs nine queries in
+  // one Promise.all, and against a cold database the ninth was still waiting
+  // for the connection when ten seconds were up; the page failed to prerender
+  // and the build exited. Raising it costs nothing that the comment above
+  // cares about — the budget is CONNECTIONS, and this bounds a queue, not a
+  // connection. One caller waiting longer for the one connection it is
+  // entitled to opens no new ones.
+  connectionTimeoutMillis: 30_000,
 });
 
 function createClient() {
