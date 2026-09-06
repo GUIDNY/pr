@@ -10,6 +10,7 @@ import { uploadProductImage } from "@/lib/product-image-storage";
 import { reconcileUrgentMissingMedia } from "@/lib/inventory/sync";
 import { checkImageUrl } from "@/lib/integrations/product-enrich-shared";
 import { recordSlugChange } from "@/lib/product-slug-history";
+import { submitUrls, productPaths } from "@/lib/indexnow";
 
 export async function createProductAction(input: ProductInput) {
   const session = await requireAdmin();
@@ -62,6 +63,12 @@ export async function updateProductAction(id: string, input: ProductInput) {
   revalidatePath(`/admin/products/${id}`);
   if (before.slug !== parsed.data.slug) revalidatePath(`/product/${before.slug}`);
   revalidatePath(`/product/${parsed.data.slug}`);
+  // Both addresses when the slug moved: the new page so Bing fetches it, and
+  // the old one so it fetches the redirect and follows it, rather than
+  // keeping the old URL in the index until it happens to re-crawl.
+  await submitUrls(
+    productPaths(before.slug === parsed.data.slug ? [parsed.data.slug] : [parsed.data.slug, before.slug]),
+  );
   return { success: true, error: null };
 }
 
@@ -76,6 +83,8 @@ export async function togglePublishAction(id: string, isPublished: boolean) {
   });
   revalidatePath("/admin/products");
   revalidatePath(`/admin/products/${id}`);
+  const { slug } = await db.product.findUniqueOrThrow({ where: { id }, select: { slug: true } });
+  await submitUrls(productPaths([slug]));
   return { success: true };
 }
 
@@ -108,6 +117,7 @@ export async function updateProductBasicAction(
   revalidatePath(`/product/${product.slug}`);
   revalidatePath("/admin/products");
   revalidatePath(`/admin/products/${id}`);
+  await submitUrls(productPaths([product.slug]));
   return { success: true, error: null };
 }
 

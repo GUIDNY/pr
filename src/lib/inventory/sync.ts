@@ -24,6 +24,8 @@ import {
 } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
 import { usableSlugBase } from "@/lib/slug-base";
+import { submitUrls, productPaths } from "@/lib/indexnow";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 
 // Sequential, persistent, gap-free: 0001, 0002, ... — never reused, never
 // renumbered on a later sync. A single-row counter table keeps allocation
@@ -1153,6 +1155,21 @@ export async function runFullSync(
   const errorCount = await db.inventoryAlert.count({
     where: { syncRunId: syncRun.id, severity: "CRITICAL" },
   });
+
+  // One IndexNow submission for the whole run, listing every product this
+  // sync actually moved. Read back from updatedAt rather than threaded
+  // through the loop: the loop already writes the timestamp, and one query
+  // is cheaper than carrying a set through four call sites that would each
+  // have to remember to add to it.
+  //
+  // Only what is on the site: a product that is unpublished or out of stock
+  // has no page to re-crawl, and asking Bing to fetch a 404 is how a
+  // submitter's URLs stop being trusted.
+  const touched = await db.product.findMany({
+    where: { ...PUBLIC_PRODUCT_WHERE, updatedAt: { gte: syncRun.startedAt } },
+    select: { slug: true },
+  });
+  if (touched.length > 0) await submitUrls(productPaths(touched.map((p) => p.slug)));
 
   return db.inventorySyncRun.update({
     where: { id: syncRun.id },
