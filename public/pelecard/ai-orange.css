@@ -74,7 +74,7 @@ body {
   direction: rtl;
   text-align: right;
   margin: 0;
-  padding: 2px 18px 20px;       /* the p-5 of the section this imitates */
+  padding: 12px 16px 16px;      /* the p-5 of the section this imitates */
 }
 
 .container { max-width: 100%; padding: 0; margin: 0; }
@@ -85,35 +85,20 @@ body {
 .main-title, h1#paymentByCC { display: none; }
 .mandatory:after { content: none; }
 
-/* =========================  HEADER / LOGO  ========================= */
-/* Their header box has a height of its own and clips what is inside it. The
-   shop mark is square, so left alone it came out as an orange dome: the top
-   fifty pixels of a two-hundred-pixel image. Fixed box, contained image —
-   correct whether .logo is an <img> (object-fit) or a div carrying a
-   background (background-size), which we cannot tell from here. */
-.credit-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: transparent;
-  height: auto !important;
-  max-height: none !important;
-  min-height: 0;
-  overflow: visible !important;
-  margin: 0;
-  padding: 10px 0 14px;
-}
-.credit-title .logo,
-.credit-title img {
-  display: block;
-  width: 140px !important;
-  height: 38px !important;
-  max-width: 50%;
-  object-fit: contain;
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-}
+/* =========================  HEADER  ========================= */
+/* The mark is hidden. This form is embedded in step 3 of our own checkout, so
+   the customer is looking at it inside the page they have been filling in,
+   under our header — a second mark inside the frame says nothing the page has
+   not already said, and it was the tallest thing on it.
+
+   That applies to the standalone page too, the one a blocked frame offers as a
+   link, since the same sheet dresses both. Acceptable: whoever is there
+   clicked through from our checkout a moment earlier. LogoURL is still sent,
+   so restoring it is deleting one line rather than another whitelist request.
+
+   The sizing rules that were here are gone with it. A hidden parent makes them
+   dead, and dead CSS keyed to selectors we cannot see is how a sheet rots. */
+.credit-title { display: none; }
 
 /* =========================  LABELS  ========================= */
 /* The shop puts the caption above the field — <Label className="mb-1.5"> —
@@ -151,7 +136,7 @@ legend {
 }
 
 /* =========================  FIELDS  ========================= */
-.form-group { margin: 0 0 12px; }        /* the gap-3 between the shop's rows */
+.form-group { margin: 0 0 10px; }        /* the gap-3 between the shop's rows */
 .form-group, .control-group { display: block; width: 100%; }
 
 .form-control {
@@ -269,20 +254,14 @@ select.form-control {
 /* The shop states the total in its order-summary card as a bordered row, not
    as a coloured panel, and the page this frame sits in already does that
    beside it. So this one only confirms, in the same shape. */
-/* Pelecard put the total between the card fields and the contact fields, where
-   a bordered row reads as a section divider in the wrong place and cuts the
-   form in two. It belongs before the fields, under the mark — the page around
-   this frame states it too, in its own summary card, but that card is beside
-   the form on a desktop and below it on a phone, which is exactly where a
-   customer typing a card number cannot see it.
+/* The total sits between the card fields and the contact fields and it is
+   staying there. Moving it with flex order needed #totalAllRow to be a direct
+   child of the form; the live page says it is not, because the rule did nothing
+   at all. It is gone rather than left in as a comment claiming it might work.
 
-   The move is safe to attempt blind: every other child keeps a higher order, so
-   if the form is not the flex parent guessed at here the rules do nothing at
-   all rather than something unpredictable. */
-form { display: flex; flex-direction: column; }
-form > * { order: 2; }
-form > #totalAllRow { order: 1; }
-
+   So it is styled for where it actually is: a tinted strip that reads as a
+   confirmation between two groups of fields, not a bordered rule that reads as
+   a section break in the middle of one. */
 #totalAllRow {
   display: flex;
   flex-direction: row;
@@ -290,16 +269,17 @@ form > #totalAllRow { order: 1; }
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  margin: 0 0 16px;
-  padding: 0 0 14px;
+  margin: 2px 0 14px;
+  padding: 9px 12px;
   border: 0;
-  border-bottom: 1px solid #E4E1DF;
-  border-bottom: 1px solid var(--ai-line);
-  background: none;
+  border-radius: 8px;
+  border-radius: var(--ai-radius-sm);
+  background: #F7F5F3;
+  background: var(--ai-surface);
 }
 #totalAllRow:before {
   content: "סה״כ לתשלום";
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
   color: #1A1614;
@@ -319,20 +299,20 @@ form > #totalAllRow { order: 1; }
 }
 #totalAllRow .ext {
   padding: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: #1A1614;
   color: var(--ai-ink);
 }
 #totalAll {
-  width: 92px;
-  max-width: 92px;
+  width: 88px;
+  max-width: 88px;
   height: auto;
   padding: 0;
   direction: ltr;
   text-align: left;
   font-family: Heebo, "Segoe UI", Arial, sans-serif;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.2;
   background: none;
@@ -537,7 +517,5 @@ iframe#threeDSCReqIframe {
 }
 @media (max-width: 519px) {
   body { padding: 2px 14px 18px; }
-  .credit-title { padding: 12px 0 14px; }
-  .credit-title .logo, .credit-title img { height: 40px !important; width: 145px !important; }
   #cancelBtn { min-width: 84px; padding: 0 12px; }
 }

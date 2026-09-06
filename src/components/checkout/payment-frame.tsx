@@ -16,10 +16,16 @@ import { ExternalLink, Loader2 } from "lucide-react";
  * payment page as an ordinary link. Nothing is lost by taking it: it is the
  * identical transaction, the same URL the redirect flow would have used.
  *
- * And it has to be tall enough. 3D Secure opens the bank's own challenge inside
- * a further frame — Pelecard size theirs at 615px — so a frame cut to the
- * height of the card form leaves the customer scrolling inside a box to find
- * the button their bank is waiting on. The height here has room for that.
+ * And it has to be tall enough. There is no way to measure the height of a
+ * cross-origin document, so this is a floor chosen from the real page and then
+ * checked against it: too short and the customer gets a scrollbar inside a
+ * scrollbar with the pay button below both, which is what the first embedded
+ * version did. 3D Secure raises the floor again — it opens the bank's own
+ * challenge in a further frame, which Pelecard size at 615px.
+ *
+ * No border and no radius. It is embedded inside a card that already has both,
+ * and a bordered box inside a bordered box is exactly what an embedded gateway
+ * should not look like.
  */
 
 const LOAD_DEADLINE_MS = 12_000;
@@ -36,10 +42,7 @@ export function PaymentFrame({ src }: { src: string }) {
   }, []);
 
   return (
-    /* White, because their page is white: a card-coloured shell around a white
-       form reads as a box inside a box, which is exactly what an embedded
-       gateway should not look like. */
-    <div className="border-border relative overflow-hidden rounded-xl border bg-white">
+    <div className="relative bg-white">
       {state === "loading" && (
         <div className="text-muted-foreground absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white">
           <Loader2 className="text-brand size-8 animate-spin" aria-hidden />
@@ -75,7 +78,7 @@ export function PaymentFrame({ src }: { src: string }) {
           loaded.current = true;
           setState("ready");
         }}
-        className={`w-full ${state === "blocked" ? "hidden" : "block"} min-h-[48rem] sm:min-h-[45rem]`}
+        className={`w-full ${state === "blocked" ? "hidden" : "block"} min-h-[50rem] sm:min-h-[48rem]`}
       />
     </div>
   );

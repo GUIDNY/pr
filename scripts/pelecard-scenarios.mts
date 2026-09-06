@@ -611,7 +611,10 @@ console.log("\n--- how Pelecard's page is dressed ---");
   }
   check("     · and the shop's font", sheet.includes("Heebo"));
 
-  for (const selector of [".form-control", ".btn-submit", "#totalAllRow", "#dateContainer", ".errorRow", "#cancelBtn", ".tab-button.pay-btn", ".credit-title .logo"]) {
+  /* .credit-title is here as a hide rather than a size: the mark inside the
+     frame duplicates the header of the page the frame is embedded in. */
+  check("     · it hides the mark inside the frame", /\.credit-title\s*\{\s*display:\s*none/.test(sheet));
+  for (const selector of [".form-control", ".btn-submit", "#totalAllRow", "#dateContainer", ".errorRow", "#cancelBtn", ".tab-button.pay-btn", ".control-label"]) {
     check(`     · it styles ${selector}`, sheet.includes(selector));
   }
 

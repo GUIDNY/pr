@@ -302,10 +302,17 @@ export function CheckoutForm({
 
           {payment ? (
             <div className="flex flex-col gap-3">
-              <p className="text-muted-foreground bg-muted flex items-center gap-2 rounded-md p-2 text-xs">
-                <Lock className="text-success size-4 shrink-0" />
-                הזמנה <span className="text-foreground font-semibold">{payment.orderNumber}</span> נוצרה. פרטי
-                הכרטיס מוזנים ישירות אצל חברת הסליקה ואינם עוברים דרך האתר.
+              {/* One line, and the order number does not break out of it: it
+                  used to wrap onto a line of its own and split the sentence
+                  around it. The frame below carries its own security notice,
+                  so this one says the short half. */}
+              <p className="text-muted-foreground bg-muted flex items-center gap-1.5 rounded-md px-2.5 py-2 text-xs">
+                <Lock className="text-success size-3.5 shrink-0" />
+                <span>
+                  הזמנה{" "}
+                  <span className="text-foreground font-semibold whitespace-nowrap">{payment.orderNumber}</span>{" "}
+                  נוצרה · פרטי הכרטיס מוזנים אצל חברת הסליקה ואינם עוברים דרך האתר
+                </span>
               </p>
               <PaymentFrame src={payment.url} />
             </div>
