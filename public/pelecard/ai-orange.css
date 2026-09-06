@@ -144,6 +144,25 @@ form {
   text-align: right;
 }
 
+/* The asterisk on a required caption is a real element on the live page, not
+   generated content — .mandatory:after never had anything to remove. It only
+   ever looked wrong because a rule aimed at field wrappers made it a block and
+   dropped it onto a line of its own; that rule is gone, and this says out loud
+   that anything sitting inside a caption belongs on the caption's line. */
+.control-label > span,
+.control-label > em,
+.control-label > i,
+.control-label > b,
+label > span.mandatory-star {
+  display: inline;
+  width: auto;
+  float: none;
+  margin: 0 0 0 3px;
+  font-weight: 400;
+  color: #E7000B;
+  color: var(--ai-error);
+}
+
 /* Their expiry pair is a fieldset whose legend repeats the label directly above
    it. The border goes — a boxed pair in a form where nothing else is boxed
    reads as an error before anything is wrong — and the legend is hidden from
@@ -316,24 +335,21 @@ input[type="number"]::-webkit-inner-spin-button {
    for no reason. Floated rather than made flex items, because that needs
    nothing from the parent — which we cannot see and have guessed wrong about
    before — and the row after them is told to clear. */
-/* A belt-and-braces pass that uses no :has() at all. Everything above depends
-   on it, and if it ever fails — an older browser, a selector the parser rejects
-   — the fields collapse to their intrinsic width and the form looks broken. The
-   two rows that lay their fields out side by side are excluded, since forcing
-   their inner boxes to block would stack them. */
-.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) div,
-.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) span,
-.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) p,
-.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) td,
-.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) table,
-.form-group:not(#totalAllRow):not(#IdAndCvvRow):not(#dateContainer) fieldset {
-  display: block !important;
-  width: 100% !important;
-  max-width: none !important;
-  float: none !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
-}
+/* A belt-and-braces pass that used no :has() at all stood here, in case that
+   selector ever failed and left the fields at their intrinsic width. It is
+   deleted, and deliberately: it could not say "an element that contains a
+   field" without :has(), so it said "every div, span, p, td, table and fieldset
+   inside a form group" instead — and then made all of them block and full
+   width. On the live page that hit two things it was never aimed at.
+
+   The expiry pair stacked: month, a slash, year, each on a line of its own.
+   And the red asterisk beside every required caption became a block, so it
+   dropped onto a line by itself above its own label, on every mandatory field.
+
+   Both are worse than the failure it was insuring against, and the failure has
+   not happened: the paired rows below are :has() rules and they land, which is
+   proof enough that the browsers reaching this page parse it. A guard that
+   breaks the page it is guarding is not a guard. */
 
 /* Excluded from the rule that opens up field wrappers rather than fighting it.
    That one outspecifies anything reasonable written after it.
@@ -380,23 +396,62 @@ input[type="number"]::-webkit-inner-spin-button {
 
 /* Two fields to a row, 12px between them — grid-cols-2 gap-3, the shape the
    shop's expiry and CVV sit in. */
-#dateContainer > div,
+/* #dateContainer is made a row itself, not only its inner div, and that is the
+   fix for the expiry pair rendering one select per line.
+
+   The rule here used to be "#dateContainer > div", which assumes the two
+   selects are wrapped. On the live page they are not — they are its direct
+   children with the slash between them — so that selector matched nothing and
+   the selects, which the field rule gives display:block and width:100%, stacked.
+   Both shapes are covered now: the container is a row, and so is a wrapping div
+   that has a select in it.
+
+   flex-wrap, so that anything else Pelecard put in there — a caption, a legend,
+   the "תוקף הכרטיס לא תקין" line — takes a line of its own instead of being
+   squeezed in beside the selects. */
+#dateContainer,
+#dateContainer > div:has(select),
 #dateContainer .row,
 #IdAndCvvRow {
-  display: flex;
-  flex-direction: row;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
+  width: 100% !important;
+  max-width: none !important;
 }
-#dateContainer > div > *,
+#dateContainer > div:has(select) > *,
 #dateContainer .row > *,
 #IdAndCvvRow > * {
   flex: 1 1 0;
   min-width: 0;
   width: auto;
 }
-#dateContainer select#date_month_input,
-#dateContainer select#date_year_input { width: 100%; }
-#dateContainer .delimiter { display: none; }
+/* The two selects divide the row between them. Everything else in it is either
+   a full line — a label, a legend, an error — or as wide as its own text, which
+   is what the slash between the two is. */
+#dateContainer select {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  width: auto !important;
+}
+#dateContainer > label,
+#dateContainer > .control-label,
+#dateContainer > legend,
+#dateContainer > .errorRow_Vita,
+#dateContainer > .errorRow {
+  flex: 0 0 100% !important;
+  width: 100% !important;
+}
+#dateContainer > div:has(select) > *:not(select):not(input),
+#dateContainer > *:not(select):not(div):not(label):not(.control-label):not(legend):not(.errorRow_Vita):not(.errorRow) {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  margin: 0;
+  color: #615C59;
+  color: var(--ai-ink-soft);
+}
 
 #credit_card_number_input,
 #date_month_input, #date_year_input,

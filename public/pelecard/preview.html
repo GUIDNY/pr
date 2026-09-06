@@ -52,33 +52,34 @@
     </div>
 
     <div class="form-group">
-      <label class="control-label mandatory" for="credit_card_number_input">מספר כרטיס</label>
+      <label class="control-label mandatory" for="credit_card_number_input">מספר כרטיס<span class="mandatory-star">*</span></label>
       <input class="form-control" id="credit_card_number_input" type="text">
     </div>
 
+    <!-- The live page's shape, not the one guessed here before: the two selects
+         are DIRECT children of #dateContainer with a slash between them, and no
+         wrapping fieldset. The old markup wrapped them in a div carrying an
+         inline display:flex, which is why this preview always looked right
+         while the real page stacked month over year. -->
     <div class="form-group" id="dateContainer">
-      <label class="control-label mandatory">תוקף כרטיס</label>
-      <fieldset>
-        <legend>תוקף כרטיס</legend>
-        <div style="display:flex;gap:10px">
-          <select class="form-control red-field" id="date_month_input" style="width:48%">
-            <option>חודש</option><option>01</option><option>09</option>
-          </select>
-          <select class="form-control red-field" id="date_year_input" style="width:48%">
-            <option>שנה</option><option>2026</option><option>2029</option>
-          </select>
-        </div>
-      </fieldset>
+      <label class="control-label mandatory">תוקף כרטיס<span class="mandatory-star">*</span></label>
+      <select class="form-control red-field" id="date_month_input">
+        <option>חודש</option><option>01</option><option>09</option>
+      </select>
+      <span class="delimiter">/</span>
+      <select class="form-control red-field" id="date_year_input">
+        <option>שנה</option><option>2026</option><option>2029</option>
+      </select>
       <div class="errorRow_Vita">תוקף הכרטיס לא תקין</div>
     </div>
 
     <div class="form-group" id="IdAndCvvRow">
       <div>
-        <label class="control-label mandatory" for="id_number_input">תעודת זהות</label>
+        <label class="control-label mandatory" for="id_number_input">תעודת זהות<span class="mandatory-star">*</span></label>
         <input class="form-control" id="id_number_input" type="text">
       </div>
       <div>
-        <label class="control-label mandatory" for="cvv_input">קוד אימות כרטיס</label>
+        <label class="control-label mandatory" for="cvv_input">קוד אימות כרטיס<span class="mandatory-star">*</span></label>
         <input class="form-control" id="cvv_input" type="text">
       </div>
     </div>
