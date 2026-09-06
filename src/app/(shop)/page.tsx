@@ -9,7 +9,6 @@ import { FinderTeaser } from "@/components/home/finder-teaser";
 import { getDeals, getBestSellers, getFeaturedProducts, getProductsByIds } from "@/lib/queries/products";
 import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
 import { getCategoryTilesWithImages } from "@/lib/queries/categories";
-import { getFavoriteProductIdsAction } from "@/actions/favorites";
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/seo/json-ld";
 import { organizationSchema, webSiteSchema } from "@/lib/schema";
@@ -20,8 +19,20 @@ import { organizationSchema, webSiteSchema } from "@/lib/schema";
 // than having none at all.
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
+// Nothing on this page differs between visitors any more — the greeting and
+// the hearts fill themselves in from the browser — so it is prepared once and
+// served from the edge instead of being built per request. That is the whole
+// of the homepage's 2.4-second cold response: not the nine queries, but the
+// fact that a server had to wake up and run them for every single caller,
+// Googlebot included.
+//
+// Five minutes because the catalog moves when someone presses sync, not
+// continuously, and a deal appearing five minutes late costs nothing next to
+// what this saves on every first visit.
+export const revalidate = 300;
+
 export default async function HomePage() {
-  const [hero, whyPrec, deals, bestSellers, featured, brands, favoriteIds, categoryTiles, alfredWidget] =
+  const [hero, whyPrec, deals, bestSellers, featured, brands, categoryTiles, alfredWidget] =
     await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
@@ -29,7 +40,6 @@ export default async function HomePage() {
       getBestSellers(8),
       getFeaturedProducts(4),
       getFeaturedBrands(),
-      getFavoriteProductIdsAction(),
       getCategoryTilesWithImages(),
       getHomepageSection("alfred-widget"),
     ]);
@@ -93,7 +103,7 @@ export default async function HomePage() {
         </div>
 
         <div className="order-3">
-          <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" favoriteIds={favoriteIds} />
+          <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" />
         </div>
       </div>
 
@@ -107,10 +117,10 @@ export default async function HomePage() {
         <CategoryGrid tiles={categoryTiles} />
       </div>
 
-      <ProductRail title="הנמכרים ביותר" products={bestSellers} favoriteIds={favoriteIds} />
+      <ProductRail title="הנמכרים ביותר" products={bestSellers} />
 
       {featured.length > 0 && (
-        <ProductRail title="מומלצים במיוחד" products={featured} favoriteIds={favoriteIds} />
+        <ProductRail title="מומלצים במיוחד" products={featured} />
       )}
 
       <BrandStrip brands={brands} />

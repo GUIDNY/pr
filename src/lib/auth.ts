@@ -8,6 +8,20 @@ import { hashPassword, verifyPassword } from "@/lib/auth-seed-helpers";
 export { hashPassword, verifyPassword };
 
 const SESSION_COOKIE = "prec_session";
+
+// The greeting in the header, and nothing else.
+//
+// The session token stays httpOnly, so the browser cannot read who is signed
+// in — and asking the server on every page is what forced each page to be
+// built per request, which is what made a cold crawler hit take 2.4 seconds.
+// The pages are identical for everyone except this one word, so the word
+// moves out of the page and into a cookie the browser can read for itself.
+//
+// Deliberately not the token, not the id, not the role: a display name only.
+// It grants nothing — every route still checks the signed token — and it is
+// already visible to anyone looking at the screen.
+export { DISPLAY_NAME_COOKIE } from "@/lib/auth-cookie-name";
+import { DISPLAY_NAME_COOKIE } from "@/lib/auth-cookie-name";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 
 function secretKey() {
@@ -38,11 +52,22 @@ export async function createSession(payload: SessionPayload) {
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
   });
+
+  // Same lifetime as the token, so the greeting cannot outlive the session
+  // it describes. Readable by script by design — see DISPLAY_NAME_COOKIE.
+  cookieStore.set(DISPLAY_NAME_COOKIE, encodeURIComponent(payload.name), {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: SESSION_TTL_SECONDS,
+  });
 }
 
 export async function clearSession() {
   const cookieStore = await cookies();
   cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete(DISPLAY_NAME_COOKIE);
 }
 
 export async function getSession(): Promise<SessionPayload | null> {

@@ -5,6 +5,7 @@ import { Heart } from "lucide-react";
 import { toast } from "sonner";
 import { toggleFavoriteAction } from "@/actions/favorites";
 import { cn } from "@/lib/utils";
+import { useIsFavorite } from "@/components/product/favorites-provider";
 
 export function FavoriteButton({
   productId,
@@ -15,7 +16,14 @@ export function FavoriteButton({
   initialFavorite?: boolean;
   className?: string;
 }) {
-  const [isFavorite, setIsFavorite] = useState(initialFavorite);
+  // Two sources, and the local one wins once it exists. `initialFavorite` is
+  // whatever the server knew (nothing, on a cached page); the provider brings
+  // the visitor's real list a moment later; and `toggled` is this button's own
+  // click, which must not be undone by a list fetched before it.
+  const fromList = useIsFavorite(productId);
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  const isFavorite = toggled ?? (fromList || initialFavorite);
+  const setIsFavorite = setToggled;
   const [isPending, startTransition] = useTransition();
 
   return (
