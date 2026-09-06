@@ -30,6 +30,15 @@ import { ExternalLink, Loader2 } from "lucide-react";
 
 const LOAD_DEADLINE_MS = 12_000;
 
+/* An inline style rather than a Tailwind class, deliberately. The height has
+   been raised three times and the form kept scrolling, and one explanation that
+   could not be ruled out from a screenshot was that the arbitrary-value class
+   was never generated at all — in which case every raise changed nothing and
+   the iframe stayed at its 150px default plus whatever the content forced.
+   A style attribute cannot be purged, so this rules that out and leaves only
+   the height itself to argue with. */
+const FRAME_MIN_HEIGHT = "62rem";
+
 export function PaymentFrame({ src }: { src: string }) {
   const [state, setState] = useState<"loading" | "ready" | "blocked">("loading");
   const loaded = useRef(false);
@@ -78,7 +87,8 @@ export function PaymentFrame({ src }: { src: string }) {
           loaded.current = true;
           setState("ready");
         }}
-        className={`w-full ${state === "blocked" ? "hidden" : "block"} min-h-[54rem] sm:min-h-[52rem]`}
+        style={{ minHeight: FRAME_MIN_HEIGHT }}
+        className={`w-full ${state === "blocked" ? "hidden" : "block"}`}
       />
     </div>
   );
