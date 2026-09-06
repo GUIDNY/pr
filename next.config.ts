@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "node:path";
+import { legacySlugRedirects } from "./src/lib/legacy-slug-redirects";
 
 const nextConfig: NextConfig = {
   // The shop moved to buytoday.co.il, and pr-ayam.vercel.app is still live:
@@ -27,6 +28,12 @@ const nextConfig: NextConfig = {
         destination: "https://buytoday.co.il/:path",
         permanent: true,
       },
+      // Every address a product has been renamed away from. Declared here
+      // rather than only inside the page because a redirect that lives in an
+      // ISR route can be outvoted by a 404 already stored for that path —
+      // see lib/legacy-slug-redirects.ts, which is where the reasoning and
+      // the reproduction are written down.
+      ...(await legacySlugRedirects()),
     ];
   },
   turbopack: {
