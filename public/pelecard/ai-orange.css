@@ -451,12 +451,36 @@ input[type="number"]::-webkit-inner-spin-button {
 /* A full-width column stays full width — col-sm-12, col-xs-12, col-md-12. */
 .row > [class*="col-"][class*="-12"] { flex: 1 1 100% !important; }
 
-/* The value box, by the name it actually has. This is the box that was
-   holding every field at a third of its row, and naming it is the end of a
-   long line of rules that tried to describe it instead: "any div inside a
-   form group", "any ancestor of an input". Those had to be broad because the
-   name was unknown, and every one of them caught something it should not
-   have — the expiry pair, the asterisks, the submit row. */
+/* THE VALUE BOX IS TAKEN OUT OF THE LAYOUT RATHER THAN ARGUED WITH.
+
+   This box holds every field, and something in Pelecard's own sheet gives it a
+   width. Three rounds went into out-scoring that: naming the class, naming the
+   element (".form-group div"), doubling an attribute selector. Each one was a
+   guess at a number I cannot see, and the last of them shipped and the fields
+   were still narrow — which is the point at which continuing to bid on
+   specificity is just a slower way of guessing.
+
+   display:contents removes the box from the layout altogether. Its children
+   are laid out as if they were children of the form group, so whatever width,
+   float or padding it carries stops applying — not because our declaration
+   beat theirs, but because there is no longer a box for theirs to describe.
+   It is a different property from the one they set, so there is no contest to
+   win. The input then takes the form group's width, which is the column's,
+   which is ours.
+
+   Nothing is lost with the box: these wrappers carry no background, border or
+   spacing of their own that the form group does not already provide.
+
+   #dateContainer is the exception and stays a box, because the expiry pair
+   needs a flex row to sit in — its own id rule below says so and outranks
+   this. */
+.control-value_old,
+.control-value,
+.controls {
+  display: contents;
+}
+/* Kept for a browser that does not know display:contents, where the box is
+   still a box and these are the best we can do for it. */
 .control-value_old,
 .control-value,
 .controls {

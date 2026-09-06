@@ -31,7 +31,11 @@
   .row:after{clear:both}
   .col-sm-6{position:relative;float:left;width:50%;padding-left:15px;padding-right:15px}
   .col-sm-4{position:relative;float:left;width:33.3333%;padding-left:15px;padding-right:15px}
-  .control-value_old,.control-value{width:56%;float:left}
+  /* deliberately hostile: !important and a specificity our class rule cannot
+     out-score, which is the situation on the live page. display:contents is
+     what gets past it — a different property, so there is no contest. */
+  .form-group > div.control-value_old,
+  .form-group > div.control-value{width:56%!important;float:left!important}
 </style>
 </head>
 <body>
