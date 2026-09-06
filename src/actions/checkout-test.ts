@@ -6,6 +6,7 @@ import { getOrCreateCart } from "@/lib/cart";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { generateOrderNumber } from "@/lib/pricing";
 import { pelecardConfig, siteUrl, callbackSecret, TEST_ORDER_SHEKELS } from "@/lib/pelecard/config";
+import { openPelecardPayment } from "@/lib/pelecard/open-payment";
 import { PELECARD_PROD_BASE, PELECARD_TEST_BASE } from "@/lib/pelecard/gateway";
 
 /**
@@ -86,11 +87,25 @@ export async function createTestPaymentOrderAction() {
     },
   });
 
+  /* Opened here rather than on a page of its own, because the point of this
+     lane is to see what a customer sees — and what a customer sees is the
+     gateway's form inside step 3 of the checkout they were already filling in.
+     A test that arrives somewhere else tests something else. */
+  const opened = await openPelecardPayment(order.id, { lane: "test" });
+  if (!opened.ok) {
+    return { success: false as const, error: `ההזמנה ${order.orderNumber} נוצרה אבל התשלום לא נפתח: ${opened.error}` };
+  }
+
   /* The cart is left alone on purpose. This is a test standing next to the
      merchant's real session, not a purchase, and emptying their cart every
      time they check the payment page would make the lane annoying enough to
      stop using. */
-  return { success: true as const, orderNumber: order.orderNumber, orderId: order.id };
+  return {
+    success: true as const,
+    orderNumber: order.orderNumber,
+    orderId: order.id,
+    paymentUrl: opened.redirectUrl,
+  };
 }
 
 /**

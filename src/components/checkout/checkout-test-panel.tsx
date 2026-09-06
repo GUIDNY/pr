@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { FlaskConical, CreditCard, ClipboardList, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,8 +25,15 @@ import { createTestPaymentOrderAction } from "@/actions/checkout-test";
  * again for itself — a component that decides who may charge a card is a
  * component one `curl` away from being wrong.
  */
-export function CheckoutTestPanel({ onFillTestDetails }: { onFillTestDetails: () => void }) {
-  const router = useRouter();
+export function CheckoutTestPanel({
+  onFillTestDetails,
+  onPaymentOpened,
+}: {
+  onFillTestDetails: () => void;
+  /** Hands the opened payment back to the checkout, which shows it in step 3 —
+      the same place, and the same frame, a customer would see it in. */
+  onPaymentOpened: (url: string, orderNumber: string) => void;
+}) {
   const [isPending, startTransition] = useTransition();
   const [filled, setFilled] = useState(false);
   /* Kept on the panel as well as in the toast. The refusal is a checklist of
@@ -44,7 +50,7 @@ export function CheckoutTestPanel({ onFillTestDetails }: { onFillTestDetails: ()
         toast.error(result.error.split("\n")[0]);
         return;
       }
-      router.push(`/checkout/pay/${encodeURIComponent(result.orderNumber)}`);
+      onPaymentOpened(result.paymentUrl, result.orderNumber);
     });
   }
 
@@ -68,7 +74,7 @@ export function CheckoutTestPanel({ onFillTestDetails }: { onFillTestDetails: ()
           ) : (
             <CreditCard className="size-4" aria-hidden />
           )}
-          דף תשלום אמיתי — ₪1
+          תשלום אמיתי — ₪1
         </Button>
 
         <Button
@@ -93,7 +99,8 @@ export function CheckoutTestPanel({ onFillTestDetails }: { onFillTestDetails: ()
 
       <ul className="mt-3 flex flex-col gap-1 text-xs text-amber-900/80 dark:text-amber-200/80">
         <li>
-          <strong>דף תשלום אמיתי</strong> פותח עסקה מול המסוף החי. זה{" "}
+          <strong>דף תשלום אמיתי</strong> פותח עסקה מול המסוף החי ומציג את טופס הסליקה בסעיף 3, בדיוק כמו
+          שלקוח יראה אותו. זה{" "}
           <strong>חיוב אמיתי של שקל</strong> על כרטיס אמיתי, וההזמנה נושאת <code>TEST-</code> במספר
           שלה.
         </li>

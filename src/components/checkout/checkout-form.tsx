@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { CreditCard, Home, ShieldCheck, Truck, Store } from "lucide-react";
+import { CreditCard, Home, ShieldCheck, Truck, Store, Lock, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { CheckoutTestPanel } from "@/components/checkout/checkout-test-panel";
+import { PaymentFrame } from "@/components/checkout/payment-frame";
 import { useCartStore } from "@/stores/cart-store";
 import { createOrderAction } from "@/actions/orders";
 import { saveCheckoutContactAction } from "@/actions/cart";
@@ -42,6 +43,17 @@ export function CheckoutForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  /* Once this is set the order exists and the gateway's form is on the page.
+     The checkout does not navigate anywhere to collect a card: step 3 stops
+     being our fields and becomes Pelecard's, in the same place, so the
+     customer never leaves the page they have been filling in. */
+  const [payment, setPayment] = useState<{ url: string; orderNumber: string } | null>(null);
+  /* An order that exists but whose payment could not be opened. Kept apart
+     from a failed order: there is nothing to fill in again, only something to
+     retry, and telling somebody to re-enter an address they already gave is
+     how a paid-for cart gets abandoned. */
+  const [stranded, setStranded] = useState<{ orderId: string; orderNumber: string; reason: string } | null>(null);
 
   const [form, setForm] = useState({
     fullName: defaultName ?? "",
@@ -96,6 +108,33 @@ export function CheckoutForm({
     }).catch(() => {});
   }
 
+  /* The order is created first and the payment opened against it, in that
+     order and never the other way round: the amount is read from the order on
+     the server, so a browser that could name the price could name it as 1.
+
+     Two calls rather than one because the failures are different. An order
+     that was never created is a form to fix; an order that exists but whose
+     payment would not open is a button to press again. Folding them together
+     would send somebody back to re-type an address the shop already has. */
+  async function openPayment(orderId: string, orderNumber: string) {
+    setStranded(null);
+    try {
+      const res = await fetch("/api/pelecard/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { redirectUrl?: string; error?: string };
+      if (!res.ok || !data.redirectUrl) {
+        setStranded({ orderId, orderNumber, reason: data.error ?? "לא הצלחנו לפתוח את טופס התשלום" });
+        return;
+      }
+      setPayment({ url: data.redirectUrl, orderNumber });
+    } catch {
+      setStranded({ orderId, orderNumber, reason: "אין חיבור לשרת התשלומים" });
+    }
+  }
+
   function submit() {
     setErrors({});
     startTransition(async () => {
@@ -126,7 +165,7 @@ export function CheckoutForm({
          there is nothing to clear, and a declined card should leave the
          customer with their cart intact. */
       if (result.requiresPayment) {
-        router.push(`/checkout/pay/${encodeURIComponent(result.orderNumber)}`);
+        await openPayment(result.orderId, result.orderNumber);
         return;
       }
 
@@ -152,8 +191,17 @@ export function CheckoutForm({
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-bold">תשלום</h1>
 
-        {isStaff && <CheckoutTestPanel onFillTestDetails={fillTestDetails} />}
+        {isStaff && (
+          <CheckoutTestPanel
+            onFillTestDetails={fillTestDetails}
+            onPaymentOpened={(url, orderNumber) => setPayment({ url, orderNumber })}
+          />
+        )}
 
+        {/* display:contents, so the two sections keep their place in the column
+            while the fieldset does the one thing it is here for: once the order
+            exists, the details it was built from are no longer editable. */}
+        <fieldset disabled={!!payment} className="contents">
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">1. פרטי התקשרות</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -247,8 +295,38 @@ export function CheckoutForm({
           )}
         </section>
 
+        </fieldset>
+
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">3. תשלום</h2>
+
+          {payment ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-muted-foreground bg-muted flex items-center gap-2 rounded-md p-2 text-xs">
+                <Lock className="text-success size-4 shrink-0" />
+                הזמנה <span className="text-foreground font-semibold">{payment.orderNumber}</span> נוצרה. פרטי
+                הכרטיס מוזנים ישירות אצל חברת הסליקה ואינם עוברים דרך האתר.
+              </p>
+              <PaymentFrame src={payment.url} />
+            </div>
+          ) : stranded ? (
+            <div className="flex flex-col items-start gap-3">
+              <p className="text-destructive/90 border-destructive/30 rounded-md border p-3 text-xs leading-relaxed">
+                הזמנה <span className="font-semibold">{stranded.orderNumber}</span> נשמרה, אבל טופס התשלום לא
+                נפתח ({stranded.reason}). ההזמנה מחכה — אפשר לנסות שוב, ואם זה חוזר נשמח שתתקשרו.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => startTransition(async () => { await openPayment(stranded.orderId, stranded.orderNumber); })}
+                disabled={isPending}
+              >
+                <RotateCcw className="size-4" />
+                נסו שוב
+              </Button>
+            </div>
+          ) : (
+          <>
           <RadioGroup
             value={form.paymentMethod}
             onValueChange={(v) => update("paymentMethod", v as "DEMO_CARD" | "CASH_ON_DELIVERY")}
@@ -309,6 +387,8 @@ export function CheckoutForm({
               </div>
             </div>
           )}
+          </>
+          )}
         </section>
       </div>
 
@@ -356,9 +436,15 @@ export function CheckoutForm({
           <span>סה&quot;כ לתשלום</span>
           <span className="tabular-nums">{formatPrice(cart.total)}</span>
         </div>
-        <Button variant="brand" size="lg" className="w-full" disabled={isPending} onClick={submit}>
-          {isPending ? "מבצע הזמנה..." : `בצע הזמנה - ${formatPrice(cart.total)}`}
-        </Button>
+        {payment ? (
+          <p className="border-border text-muted-foreground rounded-lg border border-dashed p-3 text-center text-xs leading-relaxed">
+            ההזמנה נוצרה וממתינה לתשלום. השלימו את פרטי הכרטיס בטופס המאובטח שבסעיף 3.
+          </p>
+        ) : (
+          <Button variant="brand" size="lg" className="w-full" disabled={isPending} onClick={submit}>
+            {isPending ? "מבצע הזמנה..." : `בצע הזמנה - ${formatPrice(cart.total)}`}
+          </Button>
+        )}
         {/* חובת היידוע שבסעיף 11 לחוק הגנת הפרטיות — מסירת הפרטים כאן אינה חובה
             חוקית, והלקוח זכאי לדעת לשם מה הם נאספים לפני שהוא מוסר אותם, לא
             אחרי. */}
