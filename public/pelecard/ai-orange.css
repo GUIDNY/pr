@@ -370,39 +370,61 @@ select.form-control {
   cursor: not-allowed;
 }
 
-/* One row, two equal halves. The cancel button used to be a narrow box wedged
-   beside a full-width orange one, which reads as an afterthought rather than as
-   the other half of a choice.
+/* One row, two equal halves — and this one is written with !important, which
+   the rest of this sheet is not.
+   
+   The first attempt made .form-group-submit a flex row and gave the buttons
+   flex:1. On the live page they came out stacked, with the orange one about
+   240px wide, which says there is a wrapper between the two that we cannot see
+   and that carries a max-width of its own. Their markup is not ours to read —
+   the sandbox cannot reach gateway21 — so this stops trying to match a shape
+   and instead neutralises every width and margin at both levels, whichever one
+   turns out to be the real parent.
 
-   Written for both shapes their markup might have — the buttons as direct
-   children of .form-group-submit, or wrapped in a .form-group-submit-in. We
-   cannot see which, and the pair that does not match does nothing. */
-.form-group-submit {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
-  gap: 12px;
-  width: 100%;
-  margin: 14px 0 0;
-}
-.form-group-submit > * {
-  flex: 1 1 0;
-  min-width: 0;
-}
+   Cost of being wrong here is cosmetic, which is why the heavier hammer is
+   allowed: a rule that misses leaves two buttons where two buttons already
+   were. */
+.form-group-submit,
 .form-group-submit-in {
-  display: flex;
-  flex-direction: row;
-  align-items: stretch;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
   gap: 12px;
-  width: 100%;
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0;
+  text-align: center;
 }
-.form-group-submit-in > * {
-  flex: 1 1 0;
-  min-width: 0;
-  width: auto;
-  max-width: none;
-  max-height: none;
-  margin: 0;
+.form-group-submit { margin: 14px 0 0; }
+.form-group-submit-in { margin: 0 !important; }
+
+/* Any element between the row and the buttons becomes a row itself, whatever
+   it is called. Three shapes were rendered against this offline — the buttons
+   as direct children, wrapped in .form-group-submit-in, and wrapped in a div
+   whose class we do not know — and only the third still stacked, which is what
+   the live page does. A hidden input is display:none and so is not a flex item,
+   which is the one other thing likely to be in there. */
+.form-group-submit > div {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  gap: 12px;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.form-group-submit > *,
+.form-group-submit-in > *,
+.form-group-submit > * > * {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  float: none !important;
 }
 
 #cancelBtn {
