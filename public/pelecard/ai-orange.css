@@ -206,10 +206,21 @@ legend {
 
    So: any element that contains a field, at any depth inside the form, may not
    be narrow, floated or padded. :has() makes the ancestor the subject, which is
-   the only way to say that without counting levels. #totalAllRow is excluded —
-   it is a .form-group whose value block must stay at the end of its row. */
-*:not(html):not(body):not(.form-group):has(input):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *),
-*:not(html):not(body):not(.form-group):has(select):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *),
+   the only way to say that without counting levels.
+
+   EVERY ARGUMENT INSIDE :not() HERE IS A SIMPLE SELECTOR, and that is the
+   point. This rule stopped applying on the live page while the plain
+   :has() rules a few lines down kept working, which rules :has() out as the
+   cause and leaves what was in the :not()s: ":not(#totalAllRow *)" is a complex
+   selector — a descendant combinator inside :not() — and an argument the parser
+   rejects invalidates the whole selector, and with it every rule in this
+   comma-separated list. That is how one exclusion, added to protect the amount
+   bar, silently took the widths of every field on the page with it.
+
+   #totalAllRow and the submit row are protected by their own rules carrying
+   !important and an id, rather than by an exclusion here. */
+*:not(html):not(body):not(.form-group):not(.form-group-submit):has(input),
+*:not(html):not(body):not(.form-group):not(.form-group-submit):has(select),
 .form-group:not(#totalAllRow) > label {
   width: 100% !important;
   max-width: none !important;
@@ -343,14 +354,18 @@ input[type="number"]::-webkit-inner-spin-button {
 
    Both are fixed by aiming it better rather than by deleting it. span and p are
    out: a caption's own text is inside a span on the live page, so a wrapper rule
-   that catches spans catches captions. And the exclusion is now :not([id]),
-   which is one attribute selector rather than three ids — specificity 0-2-1, low
-   enough that every #totalAllRow, #IdAndCvvRow and #dateContainer rule wins
-   against it, and broad enough to cover any row Pelecard gives an id to next. */
-.form-group:not([id]) div,
-.form-group:not([id]) td,
-.form-group:not([id]) table,
-.form-group:not([id]) fieldset {
+   that catches spans catches captions.
+
+   And the three rows are excluded by ATTRIBUTE rather than by id — [id="x"]
+   scores 0-1-0 where #x scores 1-0-0, so the exclusions no longer outrank the
+   very rules they exist to protect. The first attempt at that used a bare
+   :not([id]), which matched nothing at all: every row on the live page carries
+   an id, so the whole guard switched itself off and the fields stayed at a
+   third of their row through another deploy. Name the three, not the shape. */
+.form-group:not([id="totalAllRow"]):not([id="IdAndCvvRow"]):not([id="dateContainer"]) div,
+.form-group:not([id="totalAllRow"]):not([id="IdAndCvvRow"]):not([id="dateContainer"]) td,
+.form-group:not([id="totalAllRow"]):not([id="IdAndCvvRow"]):not([id="dateContainer"]) table,
+.form-group:not([id="totalAllRow"]):not([id="IdAndCvvRow"]):not([id="dateContainer"]) fieldset {
   display: block !important;
   width: 100% !important;
   max-width: none !important;
@@ -545,15 +560,20 @@ textarea.red-field,
   color: var(--ai-ink);
 }
 #totalAllRow .control-label { display: none; }
+/* !important, because the wrapper rule at the top now reaches in here: it no
+   longer excludes #totalAllRow's descendants, since the exclusion that did so
+   was the complex :not() that was invalidating the entire rule. An id plus
+   !important is the protection instead. */
 #totalAllRow .control-group,
 #totalAllRow > div {
-  display: flex;
+  display: flex !important;
   flex-direction: row;
   align-items: baseline;
   justify-content: flex-end;
   gap: 3px;
   flex: 0 0 auto;
-  width: auto;
+  width: auto !important;
+  max-width: none;
   margin: 0;
 }
 #totalAllRow .ext {
