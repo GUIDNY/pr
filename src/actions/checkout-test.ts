@@ -6,7 +6,7 @@ import { getOrCreateCart } from "@/lib/cart";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { generateOrderNumber } from "@/lib/pricing";
 import { pelecardConfig, siteUrl, callbackSecret, TEST_ORDER_SHEKELS } from "@/lib/pelecard/config";
-import { PELECARD_PROD_BASE } from "@/lib/pelecard/gateway";
+import { PELECARD_PROD_BASE, PELECARD_TEST_BASE } from "@/lib/pelecard/gateway";
 
 /**
  * The merchant's own way into the real payment page.
@@ -94,48 +94,61 @@ export async function createTestPaymentOrderAction() {
 }
 
 /**
- * Names the one variable that is actually missing.
+ * Names every variable that is missing, in one answer.
  *
- * The first version of this listed every variable that could have caused the
- * refusal, which is the same as naming none of them: the person reading it is
- * standing in the Vercel dashboard trying to work out which row to add, and a
- * message that lists three is a message that sends them to check all three.
+ * The first version listed all the possible causes without saying which had
+ * happened, which is the same as naming none of them. The second read the throw
+ * from pelecardConfig() and named one — better, but pelecardConfig() stops at
+ * the first failure, so a deployment with nothing set at all reported them one
+ * per attempt, and each attempt costs a variable, a redeploy and a wait.
+ *
+ * So the variables are read here directly rather than inferred from a throw.
+ * That duplicates what config.ts knows, which is why pelecardConfig() is still
+ * called at the end: it stays the authority on whether a payment can be opened,
+ * and anything it refuses for a reason not enumerated above still surfaces
+ * rather than being reported as fine.
  *
  * Safe to show, because it names variables and never values, and because the
  * only caller is behind an admin session.
  */
 function whatIsMissing(): string | null {
-  try {
-    pelecardConfig();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("is not set")) {
-      return `חסר PELECARD_BASE_URL. הוסיפו אותו ב-Vercel (Production) עם הערך ${PELECARD_PROD_BASE}`;
-    }
-    if (message.includes("must be exactly")) {
-      return `PELECARD_BASE_URL מכיל ערך לא תקין. הוא חייב להיות בדיוק ${PELECARD_PROD_BASE}`;
-    }
-    if (message.includes("Refusing to use")) {
-      return "חסר PELECARD_ALLOW_PRODUCTION. הערך חייב להיות בדיוק I_UNDERSTAND";
-    }
-    if (message.includes("credentials are missing")) {
-      return "חסרים פרטי המסוף: PELECARD_TERMINAL / PELECARD_USER / PELECARD_PASSWORD";
-    }
-    return `פלאקארד לא מוגדר: ${message}`;
+  const missing: string[] = [];
+
+  const base = process.env.PELECARD_BASE_URL?.trim();
+  if (!base) {
+    missing.push(`PELECARD_BASE_URL = ${PELECARD_PROD_BASE}`);
+  } else if (base !== PELECARD_PROD_BASE && base !== PELECARD_TEST_BASE) {
+    missing.push(`PELECARD_BASE_URL — הערך הנוכחי לא תקין, חייב להיות בדיוק ${PELECARD_PROD_BASE}`);
   }
 
-  /* Not part of pelecardConfig(), and both are needed before a payment can be
-     opened: one builds the customer's return links, the other authenticates
-     the notification that is the only thing allowed to mark an order paid. */
-  try {
-    siteUrl();
-  } catch {
-    return "חסר NEXT_PUBLIC_SITE_URL";
+  /* The production host is the only one that can complete a transaction against
+     this terminal, so an unset host is a host on its way to being that one, and
+     reaching it takes a second deliberate acknowledgement either way. */
+  const headedForProduction = !base || base === PELECARD_PROD_BASE;
+  if (headedForProduction && process.env.PELECARD_ALLOW_PRODUCTION !== "I_UNDERSTAND") {
+    missing.push("PELECARD_ALLOW_PRODUCTION = I_UNDERSTAND");
   }
+
+  for (const name of ["PELECARD_TERMINAL", "PELECARD_USER", "PELECARD_PASSWORD"] as const) {
+    if (!process.env[name]?.trim()) missing.push(`${name} — מפלאקארד`);
+  }
+
+  // Not part of pelecardConfig(), and both are needed before a payment can be
+  // opened: one builds the customer's return links, the other authenticates the
+  // notification that is the only thing allowed to mark an order paid.
+  if (!process.env.NEXT_PUBLIC_SITE_URL?.trim()) missing.push("NEXT_PUBLIC_SITE_URL = https://buytoday.co.il");
+  if (!process.env.PELECARD_CALLBACK_SECRET?.trim()) missing.push("PELECARD_CALLBACK_SECRET — 40 תווים אקראיים שאתם ממציאים");
+
+  if (missing.length > 0) {
+    return `חסר ב-Vercel → Settings → Environment Variables (Production), ואחרי ההוספה צריך Redeploy:\n\n• ${missing.join("\n• ")}`;
+  }
+
   try {
+    pelecardConfig();
+    siteUrl();
     callbackSecret();
-  } catch {
-    return "חסר PELECARD_CALLBACK_SECRET";
+  } catch (error) {
+    return `פלאקארד לא מוגדר: ${error instanceof Error ? error.message : String(error)}`;
   }
 
   return null;

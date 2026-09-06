@@ -30,12 +30,18 @@ export function CheckoutTestPanel({ onFillTestDetails }: { onFillTestDetails: ()
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [filled, setFilled] = useState(false);
+  /* Kept on the panel as well as in the toast. The refusal is a checklist of
+     variables to go and add somewhere else, and a toast is gone by the time
+     the Vercel dashboard is open in the next tab. */
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   function openRealPayment() {
+    setRefusal(null);
     startTransition(async () => {
       const result = await createTestPaymentOrderAction();
       if (!result.success) {
-        toast.error(result.error);
+        setRefusal(result.error);
+        toast.error(result.error.split("\n")[0]);
         return;
       }
       router.push(`/checkout/pay/${encodeURIComponent(result.orderNumber)}`);
@@ -78,6 +84,12 @@ export function CheckoutTestPanel({ onFillTestDetails }: { onFillTestDetails: ()
           {filled ? "הפרטים מולאו — אפשר לשלוח" : "הזמנת דמה — מלא פרטים"}
         </Button>
       </div>
+
+      {refusal && (
+        <p className="border-destructive/40 text-destructive mt-3 rounded-lg border bg-white p-3 text-xs leading-relaxed whitespace-pre-line dark:bg-transparent">
+          {refusal}
+        </p>
+      )}
 
       <ul className="mt-3 flex flex-col gap-1 text-xs text-amber-900/80 dark:text-amber-200/80">
         <li>
