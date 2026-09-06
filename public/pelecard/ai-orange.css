@@ -165,12 +165,23 @@ legend {
    max-width, no float, and none of the horizontal padding or negative margins a
    grid system puts on its columns. The two side-by-side rows are unaffected —
    their children have a flex-basis of 0 and divide what is left between them. */
-/* #totalAllRow is a .form-group too, and it is the one that must not stretch:
-   its value block sits at the far end of the row against the caption, and
-   opening it to full width pushed the amount into the middle of nowhere. */
-.form-group:not(#totalAllRow) > *,
-.form-group:not(#totalAllRow) > * > *,
-.form-group:not(#totalAllRow) > * > * > * {
+/* Written without any assumption about depth, because the first version made
+   one and it broke the moment Pelecard rebuilt the form.
+
+   Three levels of "> *" was enough for the page at rest. Submitting it with an
+   invalid field re-rendered the fields one level deeper, the rules stopped
+   reaching them, and every input snapped back to a third of the row — worse
+   than before, and only in the state a customer is most likely to be in.
+
+   So: any element that contains a field, at any depth inside the form, may not
+   be narrow, floated or padded. :has() makes the ancestor the subject, which is
+   the only way to say that without counting levels. #totalAllRow is excluded —
+   it is a .form-group whose value block must stay at the end of its row. */
+.container div:has(input):not(#totalAllRow):not(#totalAllRow *),
+.container div:has(select):not(#totalAllRow):not(#totalAllRow *),
+.container fieldset:has(input),
+.container fieldset:has(select),
+.form-group:not(#totalAllRow) > label {
   width: 100% !important;
   max-width: none !important;
   float: none !important;
@@ -179,12 +190,24 @@ legend {
   padding-left: 0 !important;
   padding-right: 0 !important;
 }
-.form-control,
+
+/* And the fields themselves, wherever they ended up. */
+.container input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll),
+.container select,
+.container textarea,
 .control-label {
   width: 100% !important;
   max-width: none !important;
 }
 
+/* Keyed to the elements and not to the class, for the same reason as the width
+   above: a field that comes back from a re-render without .form-control would
+   otherwise render as the browser's own box — a square grey rectangle in the
+   middle of a form where everything else is rounded. Submit and button inputs
+   are excluded; they are dressed as buttons further down. */
+.container input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll),
+.container select,
+.container textarea,
 .form-control {
   display: block;
   width: 100%;
@@ -203,11 +226,17 @@ legend {
   box-shadow: none;
   transition: color .15s ease, box-shadow .15s ease, border-color .15s ease;
 }
+.container input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll)::placeholder,
+.container select::placeholder,
+.container textarea::placeholder,
 .form-control::placeholder {
   color: #615C59;
   color: var(--ai-ink-soft);
   opacity: 1;
 }
+.container input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll):focus,
+.container select:focus,
+.container textarea:focus,
 .form-control:focus {
   outline: 0;
   border-color: #FF6900;
@@ -289,7 +318,13 @@ select.form-control {
   color: var(--ai-error);
   text-align: right;
 }
-.red-field,
+/* Only a field may be marked invalid. Pelecard put .red-field on a wrapper as
+   well as on the input, and a bare .red-field selector painted a red border on
+   a container with no height — which rendered as a long red line drawn across
+   the middle of the form. */
+input.red-field,
+select.red-field,
+textarea.red-field,
 .form-control.red-field {
   border: 1px solid #E7000B !important;
   border: 1px solid var(--ai-error) !important;
