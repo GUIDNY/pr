@@ -74,14 +74,18 @@ body {
   direction: rtl;
   text-align: right;
   margin: 0;
-  padding: 10px 0 12px;
+  padding: 10px 16px 12px;   /* the inset — see .container below */
 }
 
-/* The side padding lives here rather than on the body so that the offline
-   preview, where the body is the whole page and not the frame, insets the form
-   exactly as the live page does. A preview that lies about its margins is a
-   preview that gets trusted about them. */
-.container { max-width: 100%; padding: 0 16px; margin: 0; }
+/* The inset is on the body and not here, because .container turns out not to
+   match anything on the live page — every rule keyed to it did nothing, which
+   is what kept the fields at a third of the row for two rounds while the rules
+   written without it worked. The body is the one box on that page we can be
+   sure exists.
+
+   preview.html adds the same inset to its own frame, since there the body is
+   the whole page rather than the frame. */
+.container { max-width: 100%; padding: 0; margin: 0; }
 
 /* The page title and the note explaining the asterisks both go: the frame sits
    under our own heading, which already says what this is, and with the
@@ -177,8 +181,8 @@ legend {
    be narrow, floated or padded. :has() makes the ancestor the subject, which is
    the only way to say that without counting levels. #totalAllRow is excluded —
    it is a .form-group whose value block must stay at the end of its row. */
-.container *:has(input):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(:has(#email_input)):not(:has(#phone_input)),
-.container *:has(select):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(:has(#email_input)):not(:has(#phone_input)),
+*:not(html):not(body):not(.container):has(input):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(:has(#email_input)):not(:has(#phone_input)),
+*:not(html):not(body):not(.container):has(select):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(:has(#email_input)):not(:has(#phone_input)),
 .form-group:not(#totalAllRow) > label {
   width: 100% !important;
   max-width: none !important;
@@ -190,9 +194,9 @@ legend {
 }
 
 /* And the fields themselves, wherever they ended up. */
-.container input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll),
-.container select,
-.container textarea,
+input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll),
+select,
+textarea,
 .control-label {
   width: 100% !important;
   max-width: none !important;
@@ -203,9 +207,9 @@ legend {
    otherwise render as the browser's own box — a square grey rectangle in the
    middle of a form where everything else is rounded. Submit and button inputs
    are excluded; they are dressed as buttons further down. */
-.container input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll),
-.container select,
-.container textarea,
+input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll),
+select,
+textarea,
 .form-control {
   display: block;
   width: 100%;
@@ -224,17 +228,17 @@ legend {
   box-shadow: none;
   transition: color .15s ease, box-shadow .15s ease, border-color .15s ease;
 }
-.container input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll)::placeholder,
+input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll)::placeholder,
 .container select::placeholder,
-.container textarea::placeholder,
+textarea::placeholder,
 .form-control::placeholder {
   color: #615C59;
   color: var(--ai-ink-soft);
   opacity: 1;
 }
-.container input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll):focus,
+input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"]):not(#totalAll):focus,
 .container select:focus,
-.container textarea:focus,
+textarea:focus,
 .form-control:focus {
   outline: 0;
   border-color: #FF6900;
@@ -259,6 +263,19 @@ select.form-control {
   background-position: calc(0% + 10px) 14px, calc(0% + 15px) 14px;
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
+}
+
+/* "קוד אימות כרטיס" is what Pelecard call the CVV, and CVV is what is printed
+   on the card the customer is holding. Their caption stays and the three
+   letters are added after it — matched by the input the label is for, and by a
+   label sitting directly before that input, because the identity field shares
+   the row and must not pick this up. */
+label[for="cvv_input"]::after,
+.control-label:has(+ #cvv_input)::after {
+  content: " (CVV)";
+  font-weight: 400;
+  color: #615C59;
+  color: var(--ai-ink-soft);
 }
 
 /* An identity number is not a quantity. Their field is type=number, so the
