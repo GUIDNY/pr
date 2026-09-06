@@ -1,4 +1,5 @@
 import { createHash } from "crypto";
+import { usableSlugBase } from "@/lib/slug-base";
 import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { type KeyCheck } from "./api-fields";
@@ -134,17 +135,18 @@ export async function checkImageUrl(url: string): Promise<"ok" | "confirmed-bad"
 // instead of reusing the row it collided with — see brand-resolver.ts.
 export { resolveBrandId as findOrCreateBrandId } from "@/lib/inventory/brand-resolver";
 
-// Same shape as inventory sync's own slug generator (asciiSlug + a short
-// hash of the identifying value) — an ASCII base from the title, plus a
-// hash-of-sku suffix so uniqueness is guaranteed without a DB round-trip to
-// check for collisions.
-export function generateProductSlug(title: string, sku: string): string {
-  const base =
-    title
-      .replace(/[^\w\s-]/g, "")
-      .trim()
-      .replace(/\s+/g, "-")
-      .toLowerCase() || "product";
+// The same derivation the inventory sync uses (lib/slug-base.ts + a short
+// hash of the sku, so uniqueness is guaranteed without a DB round-trip to
+// check for collisions) — deliberately shared, because this endpoint and the
+// sync both create products and a product's address must not depend on which
+// one happened to create it.
+//
+// `fallback` is what to name the product when its title carries no Latin at
+// all, which a Hebrew title routinely does not. Without one the base was the
+// literal word "product", and product-{hash} is not an address — it is what
+// 249 products in the catalog are stuck on today.
+export function generateProductSlug(title: string, sku: string, fallback?: string | null): string {
+  const base = usableSlugBase(title) ?? usableSlugBase(fallback) ?? "product";
   const suffix = createHash("sha1").update(sku).digest("hex").slice(0, 8);
   return `${base}-${suffix}`;
 }

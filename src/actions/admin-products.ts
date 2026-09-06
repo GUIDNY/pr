@@ -9,6 +9,7 @@ import { productSchema, type ProductInput } from "@/lib/product-schema";
 import { uploadProductImage } from "@/lib/product-image-storage";
 import { reconcileUrgentMissingMedia } from "@/lib/inventory/sync";
 import { checkImageUrl } from "@/lib/integrations/product-enrich-shared";
+import { recordSlugChange } from "@/lib/product-slug-history";
 
 export async function createProductAction(input: ProductInput) {
   const session = await requireAdmin();
@@ -37,18 +38,30 @@ export async function updateProductAction(id: string, input: ProductInput) {
   const clashSlug = await db.product.findFirst({ where: { slug: parsed.data.slug, NOT: { id } } });
   if (clashSlug) return { success: false, error: "slug זה כבר קיים במערכת" };
 
+  const before = await db.product.findUniqueOrThrow({ where: { id }, select: { slug: true } });
+
   // Editing a product through this form is a human deciding what it should
   // say — including its title and category, the two fields the nightly sync
   // would otherwise rewrite from the raw sheet row on its next run. Marking
   // it ENRICHED is what tells the sync to leave those alone from here on.
-  await db.product.update({
-    where: { id },
-    data: { ...parsed.data, enrichmentStatus: "ENRICHED" },
+  //
+  // This form can also change the slug, which is the product's public
+  // address. In one transaction with the rename, the old address is recorded
+  // so it keeps working as a 301 — a link already shared does not get to
+  // learn that the page moved.
+  await db.$transaction(async (tx) => {
+    await tx.product.update({
+      where: { id },
+      data: { ...parsed.data, enrichmentStatus: "ENRICHED" },
+    });
+    await recordSlugChange(id, before.slug, parsed.data.slug, tx);
   });
   await logAudit({ actorId: session.sub, action: "PRODUCT_UPDATED", entityType: "Product", entityId: id });
 
   revalidatePath("/admin/products");
   revalidatePath(`/admin/products/${id}`);
+  if (before.slug !== parsed.data.slug) revalidatePath(`/product/${before.slug}`);
+  revalidatePath(`/product/${parsed.data.slug}`);
   return { success: true, error: null };
 }
 

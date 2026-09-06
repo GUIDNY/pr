@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { JsonLd } from "@/components/seo/json-ld";
 import { breadcrumbSchema } from "@/lib/schema";
 import type { Metadata } from "next";
@@ -39,7 +39,13 @@ import { MobileBuyBar } from "@/components/product/mobile-buy-bar";
 import { ConsultSection } from "@/components/product/consult-section";
 import { ProductRail } from "@/components/home/product-rail";
 import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
-import { getProductBySlug, getRelatedProducts, getCategoryAttributesFor, getProductsByBrandSlug } from "@/lib/queries/products";
+import {
+  getProductBySlug,
+  getRelatedProducts,
+  getCategoryAttributesFor,
+  getProductsByBrandSlug,
+  getCurrentSlugForLegacySlug,
+} from "@/lib/queries/products";
 import { getProductReviewFlag } from "@/lib/queries/admin-inventory";
 import {
   SCHEMA_AVAILABILITY,
@@ -60,6 +66,9 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: product.title,
     description: product.shortDescription ?? product.description ?? undefined,
+    // Always the product's own slug, never the requested one: a legacy
+    // address renders nothing here (the page redirects before this matters),
+    // and the live page must never point a canonical at a URL that 301s.
     alternates: { canonical: `/product/${product.slug}` },
   };
 }
@@ -67,7 +76,18 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
-  if (!product || product.stockQty <= 0) notFound();
+  // A product that has been renamed is still reachable at the address it was
+  // shared under. The old slug is in Google's index and in whatever a customer
+  // pasted into WhatsApp, and neither gets a chance to update itself, so the
+  // move is announced with a 301 rather than served as a 404 — see
+  // lib/product-slug-history.ts. Only reached once the live lookup has missed,
+  // so an ordinary page view still costs one query.
+  if (!product) {
+    const current = await getCurrentSlugForLegacySlug(slug);
+    if (current) permanentRedirect(`/product/${current}`);
+    notFound();
+  }
+  if (product.stockQty <= 0) notFound();
 
   const session = await getSession();
   const isAdminViewer = session?.role === "ADMIN" || session?.role === "STAFF";
