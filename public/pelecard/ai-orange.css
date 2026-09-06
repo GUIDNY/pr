@@ -393,9 +393,16 @@ input[type="number"]::-webkit-inner-spin-button {
   flex-flow: row wrap;
   align-items: flex-start;
   gap: 0 12px;
-  width: 100%;
-  margin-left: 0;
-  margin-right: 0;
+  width: 100% !important;
+  max-width: none !important;
+  /* !important, because these cancel Bootstrap's negative row margins — the
+     -15px each side that exists to undo the padding on its columns. The
+     padding is already gone (the column rule below strips it), so what is left
+     is a row 30 pixels wider than the box holding it, hanging off both edges
+     of the frame. The preview reproduces it and it took two passes to stop
+     reading the overflow as a bug in the fields. */
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 /* Columns align on their TOPS, which is worth stating because the obvious
@@ -511,6 +518,35 @@ input[type="number"]::-webkit-inner-spin-button {
 #phone_input, #email_input { direction: rtl; }
 
 #credit_card_number_input { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+
+/* An example of what goes in the card-number field, UNDER it rather than in it.
+
+   Inside it is not available to us. Placeholder text is an attribute of their
+   input, the page is served from their domain, and a stylesheet cannot write
+   an attribute — nor can we reach into the frame to set one, which is the
+   whole point of the frame. Their init API has no field-placeholder parameter
+   either; PlaceholderCaptions only moves their own caption into the
+   placeholder, and there is no way to change what it says.
+
+   So the example is a line of its own, hung off the value box that contains
+   that input. Grey and 12px, the same as a hint under a field on the shop's
+   own checkout, and worded as an example so nobody reads it as a value that
+   is already filled in — which is exactly the risk of faking one inside the
+   box. */
+.control-value_old:has(#credit_card_number_input)::after,
+.control-value:has(#credit_card_number_input)::after,
+.controls:has(#credit_card_number_input)::after {
+  content: "לדוגמה 4580 0000 0000 0000";
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.3;
+  direction: ltr;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #615C59;
+  color: var(--ai-ink-soft);
+}
 
 /* =========================  ERRORS  ========================= */
 /* Under the field, 12px, destructive — the shop's
@@ -947,4 +983,23 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
      every other row had already stacked. It stacks here by id as well. */
   #IdAndCvvRow { flex-wrap: wrap; }
   #IdAndCvvRow > * { flex: 1 1 100% !important; }
+
+  /* Once the fields are stacked, every box between the frame and the field
+     runs the full width — the column, the form group, the value box and the
+     caption. Said outright rather than relied upon: each of those carries a
+     percentage width from Bootstrap at some breakpoint, and one of them
+     keeping it is the difference between a field that reaches the edge of the
+     frame and one that stops halfway with nothing beside it. */
+  .row > [class*="col-"],
+  .form-group,
+  .control-value_old,
+  .control-value,
+  .controls,
+  .control-label {
+    width: 100% !important;
+    max-width: none !important;
+    flex-basis: 100% !important;
+  }
+  /* Except the expiry pair, which shares its line on purpose. */
+  #dateContainer select { flex: 1 1 0 !important; width: auto !important; }
 }
