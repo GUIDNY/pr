@@ -52,3 +52,21 @@ export const SITE_URL: string = (() => {
 export function absoluteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
+
+/**
+ * The canonical path for a listing page, given the query it was requested with.
+ *
+ * A category is reachable at one address and a few hundred variations of it:
+ * ?sort=price_asc, ?brand=bosch, ?min=1000, ?attr_size=60, ?view=all, and any
+ * combination. Every one of those serves a subset of the same catalog under a
+ * different URL, and without a canonical each is a separate page competing with
+ * the others — which is how a shop with 97 categories reports thousands of
+ * near-duplicates and gets none of them ranked.
+ *
+ * `page` is the exception and is kept. Page 2 is not a filtered view of page 1,
+ * it is different products, and pointing it at page 1 tells Google the products
+ * on it do not exist. Everything else is dropped.
+ */
+export function listingCanonical(basePath: string, page: number | undefined): string {
+  return page && page > 1 ? `${basePath}?page=${page}` : basePath;
+}

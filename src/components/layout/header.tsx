@@ -5,11 +5,16 @@ import { SearchBar } from "@/components/layout/search-bar";
 import { MegaMenu } from "@/components/layout/mega-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { CartTrigger } from "@/components/cart/cart-trigger";
-import { getSession } from "@/lib/auth";
+import { AccountLabel } from "@/components/layout/account-label";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 
 export async function Header() {
-  const [session, departments] = await Promise.all([getSession(), getNavigableCategoryTree()]);
+  // Deliberately no visitor lookup here. This header is on every page in the
+  // shop, and identifying the visitor made every one of those pages
+  // uncacheable — a server cannot prepare a page in advance for someone it
+  // has to recognise first. Googlebot, which always arrives cold, paid 2.4
+  // seconds for a greeting. AccountLabel fills it in from the browser.
+  const departments = await getNavigableCategoryTree();
 
   return (
     <header className="bg-background sticky top-0 z-30 border-b">
@@ -71,19 +76,19 @@ export async function Header() {
 
         <div className="flex items-center gap-1 justify-self-end sm:justify-self-auto">
           <Link
-            href={session ? "/account/favorites" : "/login"}
+            href="/account/favorites"
             aria-label="מועדפים"
             className="hover:bg-muted hidden size-10 items-center justify-center rounded-full transition-colors sm:flex"
           >
             <Heart className="size-5" />
           </Link>
           <Link
-            href={session ? "/account" : "/login"}
+            href="/account"
             className="hover:bg-muted flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-2 transition-colors sm:h-10 sm:min-w-0 sm:justify-start sm:px-3"
           >
             <User className="size-5" />
             <span className="hidden text-sm font-medium sm:inline">
-              {session ? session.name.split(" ")[0] : "התחברות"}
+              <AccountLabel />
             </span>
           </Link>
           <CartTrigger />

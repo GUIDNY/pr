@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { JsonLd } from "@/components/seo/json-ld";
+import { breadcrumbSchema } from "@/lib/schema";
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
@@ -52,7 +54,14 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <JsonLd data={jsonLd} />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "ראשי", path: "/" },
+          { name: "מאמרים", path: "/articles" },
+          { name: article.title, path: `/articles/${article.slug}` },
+        ])}
+      />
 
       <Breadcrumb>
         <BreadcrumbList>

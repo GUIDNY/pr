@@ -10,7 +10,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const { brand } = await getProductsByBrandSlug(slug);
   if (!brand) return {};
-  return { title: brand.name, description: brand.description ?? undefined };
+  return {
+    title: brand.name,
+    description: brand.description ?? undefined,
+    alternates: { canonical: `/brand/${slug}` },
+  };
 }
 
 export default async function BrandPage({

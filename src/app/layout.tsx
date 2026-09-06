@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { Heebo } from "next/font/google";
 import { DirectionProvider } from "@/components/ui/direction";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
-import { CartProvider } from "@/components/cart/cart-provider";
+import { CartHydrator } from "@/components/cart/cart-hydrator";
+import { FavoritesProvider } from "@/components/product/favorites-provider";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
@@ -96,10 +96,8 @@ export default function RootLayout({
         </a>
         <DirectionProvider dir="rtl">
           <TooltipProvider delayDuration={150}>
-            <Suspense fallback={null}>
-              <CartProvider />
-            </Suspense>
-            {children}
+            <CartHydrator />
+            <FavoritesProvider>{children}</FavoritesProvider>
             {/* Browsing furniture. Hidden on the payment step — see ShoppingOnly. */}
             <ShoppingOnly>
               <CartDrawer />

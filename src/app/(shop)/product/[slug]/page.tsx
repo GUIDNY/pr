@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { JsonLd } from "@/components/seo/json-ld";
+import { breadcrumbSchema } from "@/lib/schema";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Star, Truck, ShieldCheck, PackageCheck, Pencil } from "lucide-react";
@@ -58,6 +60,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: product.title,
     description: product.shortDescription ?? product.description ?? undefined,
+    alternates: { canonical: `/product/${product.slug}` },
   };
 }
 
@@ -178,20 +181,22 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             : undefined,
       };
 
+  // Same three or four steps the visible breadcrumb renders below.
+  const productTrail = [
+    { name: "ראשי", path: "/" },
+    ...(product.category.parent
+      ? [{ name: product.category.parent.name, path: `/category/${product.category.parent.slug}` }]
+      : []),
+    { name: product.category.name, path: `/category/${product.category.slug}` },
+    { name: product.title, path: `/product/${product.slug}` },
+  ];
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 pb-24 lg:pb-6">
-      {productJsonLd && (
-        <script
-          type="application/ld+json"
-          // Every "<" escaped to its JSON \u form. Descriptions are stored
-          // HTML written by the enrichment agent, and a "</script>" anywhere
-          // in one would otherwise close this tag early and put the rest of
-          // the product's text into the page as live markup.
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(productJsonLd).replace(/</g, "\\u003c"),
-          }}
-        />
-      )}
+      {/* The escaping this used to spell out inline now lives in JsonLd, so
+          the article page gets it too — see the component for why it matters. */}
+      <JsonLd data={productJsonLd} />
+      <JsonLd data={breadcrumbSchema(productTrail)} />
 
       <Breadcrumb>
         <BreadcrumbList>
