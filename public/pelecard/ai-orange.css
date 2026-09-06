@@ -451,12 +451,36 @@ input[type="number"]::-webkit-inner-spin-button {
 /* A full-width column stays full width — col-sm-12, col-xs-12, col-md-12. */
 .row > [class*="col-"][class*="-12"] { flex: 1 1 100% !important; }
 
-/* The value box, by the name it actually has. This is the box that was
-   holding every field at a third of its row, and naming it is the end of a
-   long line of rules that tried to describe it instead: "any div inside a
-   form group", "any ancestor of an input". Those had to be broad because the
-   name was unknown, and every one of them caught something it should not
-   have — the expiry pair, the asterisks, the submit row. */
+/* THE VALUE BOX IS TAKEN OUT OF THE LAYOUT RATHER THAN ARGUED WITH.
+
+   This box holds every field, and something in Pelecard's own sheet gives it a
+   width. Three rounds went into out-scoring that: naming the class, naming the
+   element (".form-group div"), doubling an attribute selector. Each one was a
+   guess at a number I cannot see, and the last of them shipped and the fields
+   were still narrow — which is the point at which continuing to bid on
+   specificity is just a slower way of guessing.
+
+   display:contents removes the box from the layout altogether. Its children
+   are laid out as if they were children of the form group, so whatever width,
+   float or padding it carries stops applying — not because our declaration
+   beat theirs, but because there is no longer a box for theirs to describe.
+   It is a different property from the one they set, so there is no contest to
+   win. The input then takes the form group's width, which is the column's,
+   which is ours.
+
+   Nothing is lost with the box: these wrappers carry no background, border or
+   spacing of their own that the form group does not already provide.
+
+   #dateContainer is the exception and stays a box, because the expiry pair
+   needs a flex row to sit in — its own id rule below says so and outranks
+   this. */
+.control-value_old,
+.control-value,
+.controls {
+  display: contents;
+}
+/* Kept for a browser that does not know display:contents, where the box is
+   still a box and these are the best we can do for it. */
 .control-value_old,
 .control-value,
 .controls {
@@ -519,34 +543,6 @@ input[type="number"]::-webkit-inner-spin-button {
 
 #credit_card_number_input { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
 
-/* An example of what goes in the card-number field, UNDER it rather than in it.
-
-   Inside it is not available to us. Placeholder text is an attribute of their
-   input, the page is served from their domain, and a stylesheet cannot write
-   an attribute — nor can we reach into the frame to set one, which is the
-   whole point of the frame. Their init API has no field-placeholder parameter
-   either; PlaceholderCaptions only moves their own caption into the
-   placeholder, and there is no way to change what it says.
-
-   So the example is a line of its own, hung off the value box that contains
-   that input. Grey and 12px, the same as a hint under a field on the shop's
-   own checkout, and worded as an example so nobody reads it as a value that
-   is already filled in — which is exactly the risk of faking one inside the
-   box. */
-.control-value_old:has(#credit_card_number_input)::after,
-.control-value:has(#credit_card_number_input)::after,
-.controls:has(#credit_card_number_input)::after {
-  content: "לדוגמה 4580 0000 0000 0000";
-  display: block;
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.3;
-  direction: ltr;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  color: #615C59;
-  color: var(--ai-ink-soft);
-}
 
 /* =========================  ERRORS  ========================= */
 /* Under the field, 12px, destructive — the shop's
@@ -990,16 +986,37 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
      percentage width from Bootstrap at some breakpoint, and one of them
      keeping it is the difference between a field that reaches the edge of the
      frame and one that stops halfway with nothing beside it. */
-  .row > [class*="col-"],
-  .form-group,
-  .control-value_old,
-  .control-value,
-  .controls,
+  /* THE ATTRIBUTE IS WRITTEN TWICE HERE FOR THE SAME REASON IT IS WRITTEN
+     TWICE ABOVE, and leaving it off is why the phone kept its half-width
+     fields through a deploy. The desktop column rule is
+     ".row > [class*=col-][class*=col-]" — 0-3-0 — and this one was
+     ".row > [class*=col-]", 0-2-0. Both carry !important, so specificity
+     decides and the desktop rule won inside the media query: the columns kept
+     a flex-basis of 0 and went on sharing their line.
+
+     A media query adds nothing to specificity. It is easy to read one as "this
+     wins because it is more specific about WHEN", and it is not — it only says
+     when the rule is considered, never how strongly. */
+  .row > [class*="col-"][class*="col-"] {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  /* And below the column, anything between a form group and its field runs the
+     full width — named by element rather than by class, because the value box
+     is .control-value on the card-number row and .control-value_old on the
+     expiry row, and a third name is one deploy away. ".form-group div" scores
+     0-1-1 and so beats a bare class from their own sheet. */
+  .form-group div,
+  .form-group table,
+  .form-group > label,
   .control-label {
     width: 100% !important;
     max-width: none !important;
-    flex-basis: 100% !important;
+    float: none !important;
   }
   /* Except the expiry pair, which shares its line on purpose. */
+  #dateContainer { display: flex !important; }
   #dateContainer select { flex: 1 1 0 !important; width: auto !important; }
 }

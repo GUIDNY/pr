@@ -31,7 +31,11 @@
   .row:after{clear:both}
   .col-sm-6{position:relative;float:left;width:50%;padding-left:15px;padding-right:15px}
   .col-sm-4{position:relative;float:left;width:33.3333%;padding-left:15px;padding-right:15px}
-  .control-value_old{float:left}
+  /* deliberately hostile: !important and a specificity our class rule cannot
+     out-score, which is the situation on the live page. display:contents is
+     what gets past it — a different property, so there is no contest. */
+  .form-group > div.control-value_old,
+  .form-group > div.control-value{width:56%!important;float:left!important}
 </style>
 </head>
 <body>
@@ -79,7 +83,9 @@
       <div class="col-sm-6">
         <div class="form-group" id="creditCardNumberRow">
           <label class="control-label mandatory" for="credit_card_number_input"><span>מספר כרטיס</span><span class="mandatory-star">*</span></label>
-          <div class="col-sm-4 control-value_old"><input class="form-control" id="credit_card_number_input" type="text"></div>
+          <div class="control-value"><input class="required form-control" id="credit_card_number_input" name="CreditCard" type="tel" maxlength="50" autocomplete="cc-number" placeholder></div>
+          <div id="reset"></div>
+          <table><tbody><tr><td></td></tr></tbody></table>
         </div>
       </div>
       <div class="col-sm-6">
