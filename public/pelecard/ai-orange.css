@@ -177,10 +177,8 @@ legend {
    be narrow, floated or padded. :has() makes the ancestor the subject, which is
    the only way to say that without counting levels. #totalAllRow is excluded —
    it is a .form-group whose value block must stay at the end of its row. */
-.container div:has(input):not(#totalAllRow):not(#totalAllRow *),
-.container div:has(select):not(#totalAllRow):not(#totalAllRow *),
-.container fieldset:has(input),
-.container fieldset:has(select),
+.container *:has(input):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(:has(#email_input)):not(:has(#phone_input)),
+.container *:has(select):not(#totalAllRow):not(#totalAllRow *):not(.form-group-submit):not(.form-group-submit *):not(:has(#email_input)):not(:has(#phone_input)),
 .form-group:not(#totalAllRow) > label {
   width: 100% !important;
   max-width: none !important;
@@ -262,6 +260,39 @@ select.form-control {
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
 }
+
+/* An identity number is not a quantity. Their field is type=number, so the
+   browser draws stepper arrows on it — a control that means "one more, one
+   less", offered on a nine-digit number where it means nothing and where
+   nudging it by one is a way to get the number wrong without noticing. */
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* Email and phone share a row. They are two short fields on a form that has
+   already asked for everything else, and stacked they push the pay button down
+   for no reason. Floated rather than made flex items, because that needs
+   nothing from the parent — which we cannot see and have guessed wrong about
+   before — and the row after them is told to clear. */
+/* Excluded from the rule above rather than fighting it. That one opens up any
+   ancestor of a field — full width, no float — and it outspecifies anything
+   reasonable written after it, so these two would have been silently reset. */
+.form-group:has(#email_input) {
+  float: right;
+  width: calc(50% - 6px) !important;
+}
+.form-group:has(#phone_input) {
+  float: left;
+  width: calc(50% - 6px) !important;
+}
+.form-group-submit { clear: both; }
 
 /* Two fields to a row, 12px between them — grid-cols-2 gap-3, the shape the
    shop's expiry and CVV sit in. */

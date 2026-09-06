@@ -46,7 +46,7 @@ const LOAD_DEADLINE_MS = 12_000;
    form with the bank's own frame, which Pelecard size at 615px and which
    scrolls inside itself anyway, so a moment of overflow there costs less than
    350px of emptiness on every payment that never reaches it. */
-const FRAME_MIN_HEIGHT = "46rem";
+const FRAME_MIN_HEIGHT = "42rem";
 
 export function PaymentFrame({ src }: { src: string }) {
   const [state, setState] = useState<"loading" | "ready" | "blocked">("loading");
