@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { SITE_URL as BASE_URL } from "@/lib/site-url";
 import { hasDerivedHashSuffix } from "@/lib/derived-slug";
+import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
 
 // One catalog this size (products + categories + articles) comfortably
 // fits under the 50k-URL-per-file cap a sitemap.xml is allowed, so this
@@ -21,12 +22,17 @@ import { hasDerivedHashSuffix } from "@/lib/derived-slug";
 // sitemap that claims everything changed this morning is one Google learns
 // to discount wholesale.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [products, categories, articles, brands] = await Promise.all([
+  const [products, categories, allProducts, articles, brands] = await Promise.all([
     db.product.findMany({
       where: PUBLIC_PRODUCT_WHERE,
       select: { slug: true, updatedAt: true, categoryId: true, brandId: true },
     }),
     db.category.findMany({ select: { id: true, slug: true, parentId: true } }),
+    // Every product, visible or not, only to date the categories that have
+    // nothing on the site yet. A category holding six unpublished products
+    // still changed on the day one of them did, and that is a real date off a
+    // real row — better than no date, and better than inventing today's.
+    db.product.findMany({ select: { updatedAt: true, categoryId: true } }),
     db.article.findMany({ where: { isPublished: true }, select: { slug: true, updatedAt: true } }),
     db.brand.findMany({ where: { isActive: true }, select: { id: true, slug: true } }),
   ]);
@@ -55,8 +61,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     childrenOf.set(c.parentId, siblings);
   }
 
+  // The same rollup over every product, used only where the public one comes
+  // back empty — see the fallback in categoryLastModified.
+  const anyNewest = new Map<string, Date>();
+  for (const p of allProducts) {
+    const current = anyNewest.get(p.categoryId);
+    if (!current || p.updatedAt > current) anyNewest.set(p.categoryId, p.updatedAt);
+  }
+
+  const scopeOf = (id: string) => [id, ...(childrenOf.get(id) ?? [])];
+
   const categoryLastModified = (id: string) =>
-    newest([ownNewest.get(id), ...(childrenOf.get(id) ?? []).map((childId) => ownNewest.get(childId))]);
+    newest(scopeOf(id).map((cid) => ownNewest.get(cid))) ??
+    newest(scopeOf(id).map((cid) => anyNewest.get(cid)));
+
+  // A category with no products at all — not hidden ones, none — is an empty
+  // page, and offering an empty page spends the crawl budget the products
+  // need. Same call as the empty brands. It is still in the navigation and
+  // still reachable; it simply is not advertised until it has something.
+  const hasAnything = (id: string) => scopeOf(id).some((cid) => anyNewest.has(cid));
 
   // The homepage's rails are deals, best sellers and featured products, so
   // the catalog's newest change is what dates it. Not the homepage sections
@@ -83,7 +106,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     { url: BASE_URL, lastModified: catalogNewest, changeFrequency: "daily", priority: 1 },
     { url: `${BASE_URL}/articles`, lastModified: articlesNewest, changeFrequency: "weekly", priority: 0.6 },
-    ...categories.map((c) => ({
+    // Both were missing entirely. /brands links to every brand page, and
+    // /returns is what Merchant Center checks for before approving a product.
+    { url: `${BASE_URL}/brands`, lastModified: catalogNewest, changeFrequency: "weekly", priority: 0.6 },
+    {
+      url: `${BASE_URL}/returns`,
+      lastModified: RETURNS_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+    ...categories.filter((c) => hasAnything(c.id)).map((c) => ({
       url: `${BASE_URL}/category/${c.slug}`,
       lastModified: categoryLastModified(c.id),
       changeFrequency: "daily" as const,

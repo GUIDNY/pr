@@ -24,8 +24,15 @@ export function organizationSchema() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: SITE_NAME,
+    // The company behind the shop. Google checks the name, phone and address
+    // it finds here against the Business Profile and the Merchant Center
+    // account, and disagreement between them is what breaks that match — so
+    // the trading name and the registered name are both stated rather than
+    // one standing in for the other.
+    legalName: "פ.ר. אלקטרוניקה",
     url: SITE_URL,
     logo: absoluteUrl("/brand/logo.png"),
+    email: "info@prec.co.il",
     description:
       "חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.",
     contactPoint: {
@@ -34,7 +41,12 @@ export function organizationSchema() {
       contactType: "customer service",
       areaServed: "IL",
       availableLanguage: ["he"],
+      email: "info@prec.co.il",
     },
+    // address and sameAs are deliberately absent, not empty. A postal address
+    // has to be the real registered one and the social links have to be real
+    // profiles; a placeholder in either is a lie Google can check. A missing
+    // field costs nothing, a wrong one costs trust.
   };
 }
 

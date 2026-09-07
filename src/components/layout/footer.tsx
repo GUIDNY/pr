@@ -121,6 +121,15 @@ export async function Footer() {
               </Link>
             </li>
             <li>
+              {/* Merchant Center will not approve a single product without a
+                  returns policy it can reach from the site, and it looks for
+                  a link in the footer. The wording here is the wording it is
+                  told to look for. */}
+              <Link href="/returns" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                מדיניות ביטול והחזרות
+              </Link>
+            </li>
+            <li>
               <Link href="/privacy" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 מדיניות פרטיות
               </Link>
