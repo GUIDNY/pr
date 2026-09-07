@@ -28,7 +28,11 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
-  if (!product || !product.isPublished || product.stockQty <= 0 || product.images.length === 0) return {};
+  // The same gate the page renders on, and only that gate. Stock is not part
+  // of it: a sold-out product answers 200 now, and a 200 with no title and no
+  // canonical is indistinguishable from a 404 to anything reading the page —
+  // which is exactly how it looked when this was checked in production.
+  if (!product || !product.isPublished || product.images.length === 0) return {};
   return {
     title: product.title,
     description: product.shortDescription ?? product.description ?? undefined,
