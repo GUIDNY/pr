@@ -18,7 +18,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const { brand } = await getProductsByBrandSlug(slug);
+  const { brand, total } = await getProductsByBrandSlug(slug);
   if (!brand) return {};
   return {
     title: brand.name,
@@ -26,6 +26,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     // The brand's own slug, never the one that was asked for: a page reached
     // through an old address must not declare that old address canonical.
     alternates: { canonical: `/brand/${brand.slug}` },
+    // A brand with nothing on the site is an empty page. It is already left
+    // out of the sitemap, but a page can be found without being offered — an
+    // old link, a menu, a crawler that guessed — and an empty listing indexed
+    // under a brand name is a result that disappoints whoever clicks it. It
+    // says so itself rather than relying on nobody finding it, and starts
+    // being indexable again on its own the moment it has a product.
+    robots: total === 0 ? { index: false, follow: true } : undefined,
   };
 }
 
