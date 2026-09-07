@@ -47,6 +47,11 @@ export const SCHEMA_AVAILABILITY: Partial<Record<StockStatus, string>> = {
 // today, and claiming InStock for it is the mismatch above in reverse.
 export const SCHEMA_AVAILABILITY_FALLBACK = "https://schema.org/LimitedAvailability";
 
+// A product with nothing on the shelf. Used by the product page, which keeps
+// serving a sold-out product at 200 rather than deleting its URL — the feed
+// still leaves it out, because the feed is a claim about what can be shipped.
+export const SCHEMA_OUT_OF_STOCK = "https://schema.org/OutOfStock";
+
 export const SCHEMA_CURRENCY = CURRENCY;
 
 // Google's own caps. An over-long value costs that item its listing, so

@@ -1,6 +1,5 @@
 import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
-import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { SITE_URL as BASE_URL } from "@/lib/site-url";
 import { hasDerivedHashSuffix } from "@/lib/derived-slug";
 import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
@@ -23,8 +22,13 @@ import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
 // to discount wholesale.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [products, categories, allProducts, articles, brands] = await Promise.all([
+    // Not PUBLIC_PRODUCT_WHERE: that requires stock, and a sold-out product
+    // still has a page. Since it answers 200, its URL belongs here — dropping
+    // it is how the URL leaves Google's index and comes back with nothing.
+    // The two content conditions stay, because a product with no photograph
+    // or no publish flag really does 404.
     db.product.findMany({
-      where: PUBLIC_PRODUCT_WHERE,
+      where: { isPublished: true, images: { some: {} } },
       select: { slug: true, updatedAt: true, categoryId: true, brandId: true },
     }),
     db.category.findMany({ select: { id: true, slug: true, parentId: true } }),

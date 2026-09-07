@@ -48,6 +48,7 @@ import { getProductReviewFlag } from "@/lib/queries/admin-inventory";
 import {
   SCHEMA_AVAILABILITY,
   SCHEMA_AVAILABILITY_FALLBACK,
+  SCHEMA_OUT_OF_STOCK,
   SCHEMA_CURRENCY,
   feedDescription,
 } from "@/lib/feeds/google-merchant";
@@ -72,7 +73,20 @@ export async function ProductPageView({
   isAdminViewer: boolean;
 }) {
   const product = await getProductBySlug(slug);
-  if (!product || product.stockQty <= 0) notFound();
+  if (!product) notFound();
+
+  // A product that has sold out keeps its page, and that is a deliberate
+  // reversal. It used to 404, which deletes the URL from Google's index
+  // within weeks and throws away every signal the page had earned — so a
+  // product that came back into stock started again from nothing. 191
+  // products are in that state right now. The page says plainly that it is
+  // out of stock, says the same thing in its structured data, and stays out
+  // of the Merchant Center feed, which is the one place a claim about
+  // availability has to match what can actually be shipped.
+  //
+  // Nothing here decides that on its own: stockQty is the truth, and
+  // stockStatus is a label the sheet writes that can disagree with it.
+  const isSoldOut = product.stockQty <= 0;
 
   // A regular visitor still gets a 404 for anything unpublished, and for
   // anything with no photograph — the two conditions PUBLIC_PRODUCT_WHERE
@@ -167,8 +181,12 @@ export async function ProductPageView({
           priceCurrency: SCHEMA_CURRENCY,
           price: product.price.toFixed(2),
           itemCondition: "https://schema.org/NewCondition",
-          availability:
-            SCHEMA_AVAILABILITY[product.stockStatus as StockStatus] ?? SCHEMA_AVAILABILITY_FALLBACK,
+          // Sold out beats whatever the status label says. Google compares
+          // this against the feed and against the page, and OutOfStock is
+          // the honest answer for a product with nothing on the shelf.
+          availability: isSoldOut
+            ? SCHEMA_OUT_OF_STOCK
+            : (SCHEMA_AVAILABILITY[product.stockStatus as StockStatus] ?? SCHEMA_AVAILABILITY_FALLBACK),
         },
         // Only when there is a real rating behind it. schema.org rejects an
         // aggregateRating with a zero reviewCount, and inventing one is the
@@ -299,13 +317,31 @@ export async function ProductPageView({
           )}
 
           <div className="flex items-center gap-4">
-            <StockBadge status={product.stockStatus as StockStatus} />
+            <StockBadge status={isSoldOut ? "OUT_OF_STOCK" : (product.stockStatus as StockStatus)} />
             <span className="text-muted-foreground flex items-center gap-1 text-sm">
               <Truck className="size-4" /> משלוח תוך {product.deliveryDays} ימים
             </span>
           </div>
 
-          <PurchasePanel productId={product.id} stockStatus={product.stockStatus as StockStatus} maxQuantity={maxQuantity} />
+          {isSoldOut ? (
+            <div className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
+              <p className="text-foreground text-sm font-semibold">המוצר אזל מהמלאי</p>
+              <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
+                לא ניתן להזמין אותו כרגע. הדף נשאר כאן כדי שתוכלו לחזור אליו — ברגע שהמוצר יחזור למלאי הוא יהיה זמין
+                להזמנה שוב. אפשר להתקשר{" "}
+                <a href="tel:04-6639510" className="text-brand hover:underline">
+                  04-6639510
+                </a>{" "}
+                כדי לברר מתי הוא צפוי לחזור, או לראות מוצרים דומים בהמשך העמוד.
+              </p>
+            </div>
+          ) : (
+            <PurchasePanel
+              productId={product.id}
+              stockStatus={product.stockStatus as StockStatus}
+              maxQuantity={maxQuantity}
+            />
+          )}
 
           <div className="flex flex-wrap gap-2">
             {/* On mobile this sat alone as a small, orphaned pill floating
@@ -582,7 +618,9 @@ export async function ProductPageView({
 
       <ProductRail title="מוצרים דומים" products={related} />
 
-      <MobileBuyBar productId={product.id} price={product.price} stockStatus={product.stockStatus as StockStatus} />
+      {!isSoldOut && (
+        <MobileBuyBar productId={product.id} price={product.price} stockStatus={product.stockStatus as StockStatus} />
+      )}
     </div>
   );
 }
