@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { LEGACY_PRODUCT_SLUGS, LEGACY_BRAND_SLUGS } from "@/generated/legacy-slugs";
 
 // The one thing that runs before the cache.
 //
@@ -39,6 +40,21 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/category/") && hasCategoryFilter(request)) {
     return rewriteSegment(request, pathname, "/category/", "/category-filtered");
   }
+
+  // An address something was renamed away from is answered here, before any
+  // cache is consulted, and that placement is the whole point. The lookup
+  // also lives in the page as a fallback, but a page cannot be relied on
+  // alone: /product/[slug] is an ISR route, its `notFound()` is stored per
+  // path, and a 404 stored against a path is served for months while the
+  // redirect the page would now return never reaches anyone. Measured, not
+  // assumed — see lib/generated/legacy-slugs.ts and the commit that added it.
+  //
+  // These were next.config redirects until the catalogue's addresses were
+  // straightened out. Vercel caps a deployment at 1,024 redirect rules and
+  // there are 2,044, so the table moved here, where there is no such cap and
+  // the lookup is one hash probe.
+  const renamed = legacyRedirect(request, pathname);
+  if (renamed) return renamed;
 
   // A brand request that chose a sort goes to the twin that reads it. The
   // bare address falls through to the cached page.
@@ -125,6 +141,31 @@ function hasCategoryFilter(request: NextRequest): boolean {
     if (FILTER_PARAMS.has(key) || key.startsWith("attr_")) return true;
   }
   return false;
+}
+
+/**
+ * Was this address renamed away from? If so, send the visitor to the current
+ * one — in a single hop, because the table maps every old address to the slug
+ * in use now rather than to whatever replaced it at the time.
+ */
+function legacyRedirect(request: NextRequest, pathname: string) {
+  const table = pathname.startsWith("/product/")
+    ? LEGACY_PRODUCT_SLUGS
+    : pathname.startsWith("/brand/")
+      ? LEGACY_BRAND_SLUGS
+      : null;
+  if (!table) return null;
+
+  const prefix = pathname.startsWith("/product/") ? "/product/" : "/brand/";
+  const slug = pathname.slice(prefix.length);
+  if (!slug || slug.includes("/")) return null;
+
+  const current = Object.prototype.hasOwnProperty.call(table, slug) ? table[slug] : undefined;
+  if (!current || current === slug) return null;
+
+  const url = request.nextUrl.clone();
+  url.pathname = `${prefix}${current}`;
+  return NextResponse.redirect(url, 308);
 }
 
 function rewriteSegment(request: NextRequest, pathname: string, prefix: string, destination: string) {

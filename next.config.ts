@@ -1,6 +1,5 @@
 import type { NextConfig } from "next";
 import path from "node:path";
-import { legacySlugRedirects } from "./src/lib/legacy-slug-redirects";
 
 const nextConfig: NextConfig = {
   // The shop moved to buytoday.co.il, and pr-ayam.vercel.app is still live:
@@ -20,6 +19,9 @@ const nextConfig: NextConfig = {
   //
   // Only the bare alias is matched. Preview deployments have their own
   // hostnames (pr-ayam-<hash>.vercel.app) and keep working untouched.
+  // Renamed products and brands are NOT here: there are 2,044 of them and
+  // Vercel caps a deployment at 1,024 rules. They moved to proxy.ts, which
+  // runs at the same point — ahead of every cache — and has no such cap.
   async redirects() {
     return [
       {
@@ -28,12 +30,6 @@ const nextConfig: NextConfig = {
         destination: "https://buytoday.co.il/:path",
         permanent: true,
       },
-      // Every address a product has been renamed away from. Declared here
-      // rather than only inside the page because a redirect that lives in an
-      // ISR route can be outvoted by a 404 already stored for that path —
-      // see lib/legacy-slug-redirects.ts, which is where the reasoning and
-      // the reproduction are written down.
-      ...(await legacySlugRedirects()),
     ];
   },
   turbopack: {

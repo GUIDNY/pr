@@ -28,7 +28,8 @@
     "check:brand-cleanup": "tsx scripts/check-brand-cleanup.ts",
     "fix:brand-unknowns": "tsx scripts/fix-unknown-brands.ts",
     "check:brand-orphans": "tsx scripts/check-brand-orphans.ts",
-    "check:indexnow": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-indexnow.ts"
+    "check:indexnow": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-indexnow.ts",
+    "slugs:generate": "tsx scripts/generate-legacy-slugs.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
