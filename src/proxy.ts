@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
 
 // The one thing that runs before the cache.
 //
@@ -28,7 +29,7 @@ import type { NextRequest } from "next/server";
 // including the ones that were about to be a cache hit.
 const SESSION_COOKIE = "prec_session";
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // A category request that carries a filter, a sort or a page number goes to
@@ -39,10 +40,16 @@ export function proxy(request: NextRequest) {
     return rewriteSegment(request, pathname, "/category/", "/category-filtered");
   }
 
+  // A brand request that chose a sort goes to the twin that reads it. The
+  // bare address falls through to the cached page.
+  if (pathname.startsWith("/brand/") && request.nextUrl.searchParams.has("sort")) {
+    return rewriteSegment(request, pathname, "/brand/", "/brand-sorted");
+  }
+
   // A product request from someone who is actually staff goes to the twin
   // that can show the inline editors. Everyone else — including a signed-in
   // customer — gets the cached page.
-  if (pathname.startsWith("/product/") && looksLikeStaff(request)) {
+  if (pathname.startsWith("/product/") && (await isStaff(request))) {
     return rewriteSegment(request, pathname, "/product/", "/product-admin");
   }
 
@@ -68,36 +75,35 @@ export function proxy(request: NextRequest) {
 const STAFF_ROLES = new Set(["ADMIN", "STAFF"]);
 
 /**
- * Is this request carrying what looks like a live staff session?
+ * Is this request carrying a real, signed staff session?
  *
- * Reads the role out of the session token WITHOUT verifying its signature,
- * which is deliberate and safe: this decides which of two routes renders, and
- * the staff route calls getSession() and verifies properly before it shows an
- * admin anything. A forged "role":"ADMIN" buys a visitor nothing but the
- * uncached copy of a page they can already read.
+ * The signature is verified here, and that is not about secrecy — the staff
+ * route re-checks the session properly before showing an admin anything, so a
+ * forged role reveals nothing. It is about load. The staff route is
+ * `private, no-store` by design, so anyone who could forge a role could put
+ * every request past the CDN and onto the origin at will, which is a way to
+ * take the shop down without ever seeing a page they should not.
  *
- * Presence of the cookie is not enough, and that distinction is the whole
- * point. Every signed-in customer carries one, and routing on presence sent
- * all of them to a route Next serves `private, no-store` — the shop's own
- * account holders would have been the only visitors never getting the fast
- * page. An expired token is treated the same way, since the staff route would
- * only render the public view for it anyway.
+ * Only requests that actually carry the cookie get here, so the ordinary
+ * visitor — and every crawler — pays nothing for it.
  *
- * Anything unreadable means "not staff", so the failure direction is the
- * cached page. An admin whose token this cannot parse still has /admin.
+ * Presence of the cookie is not enough on its own either: every signed-in
+ * customer has one, and routing on presence sent all of them to the uncached
+ * route, making the shop's own account holders the only visitors who never
+ * got the fast page. An expired token is not staff, and jwtVerify rejects it
+ * for us. Anything unreadable means "not staff", so every failure lands on
+ * the cached page — an admin whose token cannot be read still has /admin.
  */
-function looksLikeStaff(request: NextRequest): boolean {
+async function isStaff(request: NextRequest): Promise<boolean> {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (!token) return false;
 
-  const payload = token.split(".")[1];
-  if (!payload) return false;
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) return false;
 
   try {
-    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
-    const claims = JSON.parse(json) as { role?: unknown; exp?: unknown };
-    if (typeof claims.exp === "number" && claims.exp * 1000 < Date.now()) return false;
-    return typeof claims.role === "string" && STAFF_ROLES.has(claims.role);
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+    return typeof payload.role === "string" && STAFF_ROLES.has(payload.role);
   } catch {
     return false;
   }
@@ -133,5 +139,5 @@ function rewriteSegment(request: NextRequest, pathname: string, prefix: string, 
 }
 
 export const config = {
-  matcher: ["/product/:slug", "/category/:slug", "/account/:path*"],
+  matcher: ["/product/:slug", "/category/:slug", "/brand/:slug", "/account/:path*"],
 };

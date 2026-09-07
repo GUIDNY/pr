@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { SITE_URL as BASE_URL } from "@/lib/site-url";
+import { hasDerivedHashSuffix } from "@/lib/derived-slug";
 
 // One catalog this size (products + categories + articles) comfortably
 // fits under the 50k-URL-per-file cap a sitemap.xml is allowed, so this
@@ -89,7 +90,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.7,
     })),
     ...brands
-      .filter((b) => brandNewest.has(b.id))
+      // A brand still on an importer-generated address is left out until it
+      // has a real one. 108 of the 147 are, and offering an address we are
+      // about to redirect is worse than offering nothing: the crawl budget is
+      // spent twice and Google holds both versions for weeks afterwards. This
+      // is a condition, not a wait — each one appears the moment it is named.
+      .filter((b) => brandNewest.has(b.id) && !hasDerivedHashSuffix(b.slug))
       .map((b) => ({
         url: `${BASE_URL}/brand/${b.slug}`,
         lastModified: brandNewest.get(b.id),
