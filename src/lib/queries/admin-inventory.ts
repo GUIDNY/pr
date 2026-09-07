@@ -398,6 +398,13 @@ export async function getUrgentReviewProducts() {
 export async function getProductReviewFlag(productId: string): Promise<"NONE" | "ATTENTION" | "URGENT"> {
   const alert = await db.inventoryAlert.findFirst({
     where: { productId, type: { in: ["MANUAL_ATTENTION", "MANUAL_URGENT"] }, isResolved: false },
+    // A product can hold both flags open at once — 9 of them do — and
+    // findFirst without an order returns whichever row the database reaches
+    // first, so the button could show "attention" for a product that is also
+    // marked urgent. Sorting by type descending puts MANUAL_URGENT ahead of
+    // MANUAL_ATTENTION alphabetically, which is the more serious of the two:
+    // the button should always report the worse state, never the milder one.
+    orderBy: { type: "desc" },
     select: { type: true },
   });
   if (!alert) return "NONE";
