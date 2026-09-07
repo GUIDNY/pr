@@ -298,6 +298,9 @@ const REVIEW_PRODUCT_SELECT = {
   sku: true,
   slug: true,
   stockQty: true,
+  // Read for the one-line fix on the urgent queue, which needs the current
+  // value to start its input from — never rendered as a price to a customer.
+  price: true,
   brand: { select: { name: true } },
   category: { select: { name: true } },
 } as const;

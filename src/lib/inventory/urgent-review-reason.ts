@@ -93,3 +93,18 @@ export function toneForKind(kind: string | null): ReasonTone {
   if (kind && MISLEADS_A_CUSTOMER.has(kind)) return "warning";
   return "muted";
 }
+
+/**
+ * Which single field, if any, actually settles this kind of finding.
+ *
+ * Only the ones where reading the finding leaves a number and nothing else.
+ * A brand clash or a missing model code is a content decision with several
+ * fields behind it, and offering a one-box fix for those would invite a
+ * half-repair that looks finished — those keep sending you to the product
+ * page, which is the right amount of friction for them.
+ */
+export function quickFixFieldForKind(kind: string | null): "price" | "stockQty" | null {
+  if (kind === "price-decision" || kind === "price-error") return "price";
+  if (kind === "phantom-stock") return "stockQty";
+  return null;
+}

@@ -6,8 +6,10 @@ import { formatDateTime } from "@/lib/format";
 import {
   parseUrgentReviewReason,
   toneForKind,
+  quickFixFieldForKind,
   type ReasonTone,
 } from "@/lib/inventory/urgent-review-reason";
+import { UrgentQuickFix } from "@/components/admin/urgent-quick-fix";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "טיפול דחוף | Buy Today Admin" };
@@ -146,6 +148,19 @@ export default async function UrgentReviewInventoryPage() {
                     </span>
                   </p>
                 )}
+
+                {/* The repair, where the repair is one number. Findings that
+                    need more than that get no box here on purpose — see
+                    quickFixFieldForKind. */}
+                <UrgentQuickFix
+                  alertId={item.id}
+                  field={quickFixFieldForKind(reason.kind)}
+                  currentValue={
+                    quickFixFieldForKind(reason.kind) === "price"
+                      ? item.product.price
+                      : item.product.stockQty
+                  }
+                />
               </div>
             </div>
           ))}
