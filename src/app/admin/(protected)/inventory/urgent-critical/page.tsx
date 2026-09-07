@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { AlertTriangle, Package, ExternalLink, Banknote, Wrench } from "lucide-react";
-import { getUrgentReviewProducts } from "@/lib/queries/admin-inventory";
+import { AlertTriangle, ExternalLink, Banknote, Wrench } from "lucide-react";
+import { getUrgentReviewProducts, getBrandOptions } from "@/lib/queries/admin-inventory";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { formatDateTime } from "@/lib/format";
 import {
@@ -10,6 +10,7 @@ import {
   type ReasonTone,
 } from "@/lib/inventory/urgent-review-reason";
 import { UrgentQuickFix } from "@/components/admin/urgent-quick-fix";
+import { ReviewProductThumb } from "@/components/admin/review-product-thumb";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "טיפול דחוף | Buy Today Admin" };
@@ -29,8 +30,20 @@ const CHIP_TONE: Record<ReasonTone, string> = {
   muted: "border-border bg-muted text-muted-foreground",
 };
 
+// What the fix box should start from: the value the finding is about.
+function currentValueFor(
+  field: ReturnType<typeof quickFixFieldForKind>,
+  product: { price: number; stockQty: number; brandId: string; model: string | null },
+): string {
+  if (field === "price") return String(product.price);
+  if (field === "stockQty") return String(product.stockQty);
+  if (field === "brandId") return product.brandId;
+  if (field === "model") return product.model ?? "";
+  return "";
+}
+
 export default async function UrgentReviewInventoryPage() {
-  const items = await getUrgentReviewProducts();
+  const [items, brands] = await Promise.all([getUrgentReviewProducts(), getBrandOptions()]);
 
   const reasons = items.map((item) => ({
     item,
@@ -95,9 +108,11 @@ export default async function UrgentReviewInventoryPage() {
           {reasons.map(({ item, reason }) => (
             <div key={item.id} className="border-destructive/30 bg-card rounded-xl border p-3">
               <div className="flex items-center gap-3">
-                <span className="bg-destructive/10 text-destructive flex size-11 shrink-0 items-center justify-center rounded-lg">
-                  <Package className="size-5" />
-                </span>
+                <ReviewProductThumb
+                  url={item.product.images[0]?.url}
+                  alt={item.product.title}
+                  tone="destructive"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{item.product.title}</p>
                   <p className="text-muted-foreground text-xs">
@@ -155,11 +170,8 @@ export default async function UrgentReviewInventoryPage() {
                 <UrgentQuickFix
                   alertId={item.id}
                   field={quickFixFieldForKind(reason.kind)}
-                  currentValue={
-                    quickFixFieldForKind(reason.kind) === "price"
-                      ? item.product.price
-                      : item.product.stockQty
-                  }
+                  currentValue={currentValueFor(quickFixFieldForKind(reason.kind), item.product)}
+                  brands={brands}
                 />
               </div>
             </div>

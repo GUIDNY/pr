@@ -97,14 +97,26 @@ export function toneForKind(kind: string | null): ReasonTone {
 /**
  * Which single field, if any, actually settles this kind of finding.
  *
- * Only the ones where reading the finding leaves a number and nothing else.
- * A brand clash or a missing model code is a content decision with several
- * fields behind it, and offering a one-box fix for those would invite a
- * half-repair that looks finished — those keep sending you to the product
- * page, which is the right amount of friction for them.
+ * Only the ones whose own `action` text ends in a single value. Four kinds
+ * do: a price to choose, a stock count to set, the right manufacturer to
+ * pick, a model code to correct.
+ *
+ * The rest genuinely have no field. "unverified-spec" asks for a number to be
+ * confirmed with the importer and says the current one stays visible until it
+ * is; "wrong-product-spec" says the repair is already done and only the
+ * verification is left. Both end in "mark it handled", which every card
+ * offers anyway. Giving them an input would invent work the finding does not
+ * ask for.
  */
-export function quickFixFieldForKind(kind: string | null): "price" | "stockQty" | null {
+export function quickFixFieldForKind(
+  kind: string | null,
+): "price" | "stockQty" | "brandId" | "model" | null {
   if (kind === "price-decision" || kind === "price-error") return "price";
   if (kind === "phantom-stock") return "stockQty";
+  // Both findings end the same way in their own words: "לתקן את המותג
+  // בקטלוג" and "לתקן את קוד הדגם". Once the importer has been asked, the
+  // work really is one field.
+  if (kind === "brand-clash") return "brandId";
+  if (kind === "model-code-missing" || kind === "model-code-conflict") return "model";
   return null;
 }

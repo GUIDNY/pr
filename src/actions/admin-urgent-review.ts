@@ -19,6 +19,12 @@ import { submitUrls, productPaths } from "@/lib/indexnow";
  * never a form's worth of fields, and never `enrichmentStatus`, which is what
  * the full form sets to stop the sync rewriting titles and categories. A
  * price correction is not a statement about a product's content.
+ *
+ * Four fields, because four kinds of finding end in one of them: a price, a
+ * stock count, the wrong manufacturer, or a model code. The sync does not
+ * rewrite brand or model on an existing product (see stockOnlyUpdate in
+ * lib/inventory/sync.ts), so those two corrections are permanent — unlike the
+ * stock one, which the next sync reads back from the sheet.
  */
 
 function resolveOnlyThisAlert(alertId: string) {
@@ -38,7 +44,7 @@ function revalidateQueues(slug: string) {
   revalidatePath(`/product/${slug}`);
 }
 
-export type QuickFixField = "price" | "stockQty";
+export type QuickFixField = "price" | "stockQty" | "brandId" | "model";
 
 export async function applyUrgentFixAction(
   alertId: string,
@@ -49,25 +55,46 @@ export async function applyUrgentFixAction(
 
   const alert = await db.inventoryAlert.findUnique({
     where: { id: alertId },
-    select: { id: true, isResolved: true, product: { select: { id: true, slug: true, price: true, stockQty: true } } },
+    select: {
+      id: true,
+      isResolved: true,
+      product: { select: { id: true, slug: true, price: true, stockQty: true, brandId: true, model: true } },
+    },
   });
   if (!alert?.product) return { success: false, error: "ההתראה לא נמצאה" };
   if (alert.isResolved) return { success: false, error: "ההתראה כבר סומנה כטופלה" };
 
-  const value = Number(rawValue);
-  if (!Number.isFinite(value)) return { success: false, error: "ערך לא תקין" };
+  let data: { price: number } | { stockQty: number } | { brandId: string } | { model: string };
+  let before: string | number;
 
-  let data: { price: number } | { stockQty: number };
-  let before: number;
-
-  if (field === "price") {
-    if (value <= 0) return { success: false, error: "מחיר חייב להיות גדול מאפס" };
-    before = alert.product.price;
-    data = { price: value };
+  if (field === "price" || field === "stockQty") {
+    const value = Number(rawValue);
+    if (!Number.isFinite(value)) return { success: false, error: "ערך לא תקין" };
+    if (field === "price") {
+      if (value <= 0) return { success: false, error: "מחיר חייב להיות גדול מאפס" };
+      before = alert.product.price;
+      data = { price: value };
+    } else {
+      if (!Number.isInteger(value) || value < 0) {
+        return { success: false, error: "מלאי חייב להיות מספר שלם, אפס ומעלה" };
+      }
+      before = alert.product.stockQty;
+      data = { stockQty: value };
+    }
+  } else if (field === "brandId") {
+    // Chosen from the real list, never typed: a free-text brand is how a
+    // catalogue ends up with "Bosch", "bosch" and "בוש" as three brands.
+    const brand = await db.brand.findUnique({ where: { id: rawValue }, select: { id: true } });
+    if (!brand) return { success: false, error: "המותג לא נמצא" };
+    if (brand.id === alert.product.brandId) return { success: false, error: "זה כבר המותג של המוצר" };
+    before = alert.product.brandId;
+    data = { brandId: brand.id };
   } else {
-    if (!Number.isInteger(value) || value < 0) return { success: false, error: "מלאי חייב להיות מספר שלם, אפס ומעלה" };
-    before = alert.product.stockQty;
-    data = { stockQty: value };
+    const model = rawValue.trim();
+    if (!model) return { success: false, error: "קוד דגם לא יכול להיות ריק" };
+    if (model.length > 120) return { success: false, error: "קוד דגם ארוך מדי" };
+    before = alert.product.model ?? "";
+    data = { model };
   }
 
   await db.$transaction(async (tx) => {
@@ -83,7 +110,7 @@ export async function applyUrgentFixAction(
     action: "PRODUCT_UPDATED",
     entityType: "Product",
     entityId: alert.product.id,
-    metadata: { via: "urgent-review-quick-fix", alertId, field, before, after: value },
+    metadata: { via: "urgent-review-quick-fix", alertId, field, before, after: Object.values(data)[0] },
   });
 
   revalidateQueues(alert.product.slug);

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { AlertTriangle, Package, ExternalLink } from "lucide-react";
+import { AlertTriangle, ExternalLink } from "lucide-react";
 import { getAttentionItems } from "@/lib/queries/admin-inventory";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { formatDateTime } from "@/lib/format";
+import { ReviewProductThumb } from "@/components/admin/review-product-thumb";
 
 export const metadata = { title: "טיפול | Buy Today Admin" };
 
@@ -79,9 +80,10 @@ export default async function AttentionInventoryPage() {
         <div className="flex flex-col gap-2">
           {items.map((item) => (
             <div key={item.productId} className="border-border bg-card flex items-center gap-3 rounded-xl border p-3">
-              <span className="bg-muted text-muted-foreground flex size-11 shrink-0 items-center justify-center rounded-lg">
-                <Package className="size-5" />
-              </span>
+              {/* Most of this list is waiting for a photo, so a row that
+                  shows one is a row that is here for another reason. That is
+                  the fastest read on the screen. */}
+              <ReviewProductThumb url={item.product.images[0]?.url} alt={item.product.title} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{item.product.title}</p>
                 <p className="text-muted-foreground text-xs">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Check, Loader2, Banknote, Boxes } from "lucide-react";
+import { Check, Loader2, Banknote, Boxes, Tag, Hash } from "lucide-react";
 import { toast } from "sonner";
 import {
   applyUrgentFixAction,
@@ -20,12 +20,14 @@ export function UrgentQuickFix({
   alertId,
   field,
   currentValue,
+  brands,
 }: {
   alertId: string;
   field: QuickFixField | null;
-  currentValue: number;
+  currentValue: string;
+  brands?: { id: string; name: string }[];
 }) {
-  const [value, setValue] = useState(String(currentValue));
+  const [value, setValue] = useState(currentValue);
   const [pending, startTransition] = useTransition();
   const [done, setDone] = useState(false);
 
@@ -49,29 +51,60 @@ export function UrgentQuickFix({
       }
     });
 
-  const isPrice = field === "price";
+  const FIELD_LABEL: Record<QuickFixField, { text: string; icon: typeof Banknote }> = {
+    price: { text: "מחיר חדש", icon: Banknote },
+    stockQty: { text: "מלאי אמיתי", icon: Boxes },
+    brandId: { text: "המותג הנכון", icon: Tag },
+    model: { text: "קוד הדגם הנכון", icon: Hash },
+  };
+  const Icon = field ? FIELD_LABEL[field].icon : Banknote;
 
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
       {field && (
         <>
           <label className="text-muted-foreground flex items-center gap-1.5 text-xs">
-            {isPrice ? <Banknote className="size-3.5" /> : <Boxes className="size-3.5" />}
-            {isPrice ? "מחיר חדש" : "מלאי אמיתי"}
+            <Icon className="size-3.5" />
+            {FIELD_LABEL[field].text}
           </label>
-          <input
-            type="number"
-            inputMode="decimal"
-            min={0}
-            step={isPrice ? "0.01" : "1"}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            disabled={pending}
-            className="border-border bg-background focus:border-brand h-8 w-28 rounded-lg border px-2 text-sm outline-none"
-          />
+          {field === "brandId" ? (
+            <select
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              disabled={pending}
+              className="border-border bg-background focus:border-brand h-8 max-w-56 rounded-lg border px-2 text-sm outline-none"
+            >
+              {(brands ?? []).map((brand) => (
+                <option key={brand.id} value={brand.id}>
+                  {brand.name}
+                </option>
+              ))}
+            </select>
+          ) : field === "model" ? (
+            <input
+              type="text"
+              dir="ltr"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              disabled={pending}
+              placeholder="HBG578ES3"
+              className="border-border bg-background focus:border-brand h-8 w-44 rounded-lg border px-2 text-sm outline-none"
+            />
+          ) : (
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              step={field === "price" ? "0.01" : "1"}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              disabled={pending}
+              className="border-border bg-background focus:border-brand h-8 w-28 rounded-lg border px-2 text-sm outline-none"
+            />
+          )}
           <button
             type="button"
-            disabled={pending || value.trim() === "" || value === String(currentValue)}
+            disabled={pending || value.trim() === "" || value === currentValue}
             onClick={() => run(() => applyUrgentFixAction(alertId, field, value))}
             className="bg-brand text-brand-foreground flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold transition-opacity hover:opacity-90 disabled:opacity-40"
           >

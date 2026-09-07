@@ -301,6 +301,13 @@ const REVIEW_PRODUCT_SELECT = {
   // Read for the one-line fix on the urgent queue, which needs the current
   // value to start its input from — never rendered as a price to a customer.
   price: true,
+  model: true,
+  brandId: true,
+  // The first photo, so both queues can show the product instead of a generic
+  // box. On "טיפול" that is the fastest way to tell the two halves of the list
+  // apart: most of it is waiting for a photo, and the ones that already have
+  // one are there for some other reason entirely.
+  images: { select: { url: true }, orderBy: { sortOrder: "asc" as const }, take: 1 },
   brand: { select: { name: true } },
   category: { select: { name: true } },
 } as const;
@@ -386,6 +393,13 @@ export async function getAttentionItems(): Promise<AttentionItem[]> {
 // The "טיפול דחוף" list: only products an admin explicitly sent there via
 // the button on the product page (setProductReviewFlagAction(..., "URGENT"))
 // — never populated automatically, unlike getAttentionProducts above.
+// Every brand, for the brand picker on the urgent queue. A brand clash is
+// settled by choosing the right one, so the list has to be the real list —
+// typing a name would create brands by typo.
+export async function getBrandOptions() {
+  return db.brand.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
+}
+
 export async function getUrgentReviewProducts() {
   const alerts = await db.inventoryAlert.findMany({
     where: { type: "MANUAL_URGENT", isResolved: false },
