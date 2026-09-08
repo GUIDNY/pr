@@ -23,7 +23,7 @@ import {
   IMPLAUSIBLE_LINE_VALUE,
 } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
-import { usableSlugBase } from "@/lib/slug-base";
+import { asciiSlug, usableSlugBase } from "@/lib/slug-base";
 import { submitUrls, productPaths } from "@/lib/indexnow";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 
@@ -115,21 +115,85 @@ export function getLowStockThreshold(): number {
 // creation — so it is worth spending the row's whole vocabulary on rather
 // than settling early.
 //
-// This used to read `row.model ?? row.brandName ?? row.categorySlug`, which
-// falls through on *null* and not on "the value is there but it is Hebrew".
-// A row with a Hebrew model therefore stopped at that model, got "" out of
-// asciiSlug and landed on the literal word "product" — 249 products are on a
-// product-{hash} URL today because of exactly that. Trying each candidate
-// against the result instead lets the same row reach its category slug, which
-// is Latin by construction ("air-fryers", "fridge-3-door").
-function slugFor(row: NormalizedProductRow, sku: string) {
-  const base =
-    usableSlugBase(row.model) ??
-    usableSlugBase(row.brandName) ??
-    usableSlugBase(row.categorySlug) ??
-    "product";
-  const suffix = createHash("sha1").update(sku).digest("hex").slice(0, 8);
-  return `${base}-${suffix}`;
+/** The disambiguating tail, and the whole of the fallback address. */
+function skuHash(sku: string) {
+  return createHash("sha1").update(sku).digest("hex").slice(0, 8);
+}
+
+/**
+ * The address a row gets when it becomes a product, in the format the catalog
+ * actually uses: brand-category-model.
+ *
+ * This is the derivation, and it is here rather than in a migration script for
+ * the reason CLAUDE.md gives about brand attribution: 1,913 products were
+ * moved onto this format by hand, twice, while this function went on minting
+ * `{model}-{hash}` for every new row. Correcting the rows and not the
+ * derivation is how the same ticket gets filed again — the next sheet would
+ * have started refilling the catalog with the old shape the morning after.
+ *
+ * The old shape is still the fallback, and deliberately so. A brand whose own
+ * slug is still an importer hash (`6a09e0b9b0-6a09e0`) or the literal word
+ * "brand" is waiting on a person to name it, and those 18 brands were left out
+ * of both renames for that reason. Baking one of their hashes into a public
+ * URL would be worse than the old format, because a slug is never rewritten
+ * afterwards — it is in links people have already shared.
+ */
+async function slugFor(
+  row: NormalizedProductRow,
+  sku: string,
+  brandId: string | null,
+): Promise<string> {
+  const legacy = () =>
+    `${
+      usableSlugBase(row.model) ??
+      usableSlugBase(row.brandName) ??
+      usableSlugBase(row.categorySlug) ??
+      "product"
+    }-${skuHash(sku)}`;
+
+  if (!brandId || !row.categorySlug) return legacy();
+  const brand = await db.brand.findUnique({ where: { id: brandId }, select: { slug: true } });
+  const brandSlug = brand?.slug;
+  if (!brandSlug || HASHED_BRAND_SLUG.test(brandSlug) || brandSlug.startsWith("brand-mt")) {
+    return legacy();
+  }
+
+  // Same order the rename used: model, then colour, then the hash. Two rows
+  // sharing a brand, a category and a model usually are the same product
+  // arriving twice, and the hash is what keeps their two pages apart.
+  // A model number is free text and arrives as "R-327FH(S)", "WM TWF100-125"
+  // or "-X1-". asciiSlug handles the first two; the trim is what keeps the
+  // third from becoming a permanent URL with a doubled or dangling dash.
+  const model = tidy(asciiSlug(row.model ?? ""));
+  const base = [brandSlug, row.categorySlug, model].filter(Boolean).join("-");
+  const colour = tidy(asciiSlug(row.color ?? ""));
+  for (const candidate of [base, colour ? `${base}-${colour}` : null, `${base}-${skuHash(sku)}`]) {
+    if (candidate && !(await slugTaken(candidate))) return candidate;
+  }
+  return legacy();
+}
+
+/** A brand still on an importer-generated address, waiting to be named. */
+const HASHED_BRAND_SLUG = /^[0-9a-f]{10}-[0-9a-f]{6}$/;
+
+/** No doubled and no dangling dashes. */
+function tidy(value: string) {
+  return value.replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+
+/**
+ * History counts as taken.
+ *
+ * A slug in ProductSlugHistory is one the proxy redirects away from, so a new
+ * product handed that address would 308 to a different product the moment it
+ * was published — and nothing would report it.
+ */
+async function slugTaken(slug: string): Promise<boolean> {
+  const [product, history] = await Promise.all([
+    db.product.findUnique({ where: { slug }, select: { id: true } }),
+    db.productSlugHistory.findUnique({ where: { slug }, select: { id: true } }),
+  ]);
+  return product !== null || history !== null;
 }
 
 // Kept as a re-export so scripts/backfill-brand-attribution.ts and the
@@ -401,7 +465,7 @@ async function applyOneRow(
     const created = await db.product.create({
       data: {
         ...data,
-        slug: slugFor(row, sku),
+        slug: await slugFor(row, sku, brandId),
         shortDescription: row.color ? `צבע: ${row.color}` : null,
       },
     });
