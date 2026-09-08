@@ -36,6 +36,19 @@ export const metadata: Metadata = {
   },
   description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
+  // Meta's domain verification for buytoday.co.il (business asset
+  // 3678532728963370). It has to be in the HTML the server returns, not
+  // injected by a script or a tag manager, which is why it lives in the
+  // metadata export rather than anywhere on the client.
+  //
+  // In the root layout on purpose, so it is on every page and not only on
+  // the homepage Meta happens to fetch: verification is lost the moment the
+  // tag disappears, and a per-page metadata object that forgot to spread
+  // this one is exactly how it would disappear. The token is not a secret —
+  // it is meant to be readable in the page source by anyone.
+  verification: {
+    other: { "facebook-domain-verification": "nsz5n8vzbwi6zvxmo48qa3gf9znghg" },
+  },
   // The icon set is picked up by convention from src/app: icon.png for the
   // browser tab, apple-icon.png for an iOS home-screen shortcut. Both are
   // generated from public/brand/logo.png, as is the Pelecard payment page's
