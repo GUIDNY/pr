@@ -9,6 +9,7 @@ type CartWithItems = {
     quantity: number;
     product: {
       id: string;
+      sku: string;
       title: string;
       slug: string;
       price: number;
@@ -26,6 +27,10 @@ export type CartSummary = {
   items: {
     id: string;
     productId: string;
+    // See mapProductToCard: the sku is the identifier every external report
+    // keys on, and a cart is where AddToCart, InitiateCheckout and Purchase
+    // all read their content_ids from.
+    sku: string;
     slug: string;
     title: string;
     brandName: string;
@@ -50,6 +55,7 @@ export async function buildCartSummary(cart: CartWithItems): Promise<CartSummary
   const items = cart.items.map((i) => ({
     id: i.id,
     productId: i.product.id,
+    sku: i.product.sku,
     slug: i.product.slug,
     title: i.product.title,
     brandName: i.product.brand.name,

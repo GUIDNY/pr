@@ -16,6 +16,7 @@ import { ProductImagePlaceholder } from "@/components/product/product-image-plac
 import { CheckoutTestPanel } from "@/components/checkout/checkout-test-panel";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
 import { useCartStore } from "@/stores/cart-store";
+import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
 import { createOrderAction } from "@/actions/orders";
 import { saveCheckoutContactAction } from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
@@ -188,6 +189,13 @@ export function CheckoutForm({
 
   return (
     <div className="mx-auto grid max-w-5xl grid-cols-1 gap-8 px-4 py-8 lg:grid-cols-[1fr_360px]">
+      {/* Below the empty-cart branch on purpose: reaching the checkout with
+          nothing in the basket is not the start of one. The store hydrates
+          after mount, and the event fires on the first render that has items. */}
+      <MetaInitiateCheckout
+        value={cart.total}
+        contents={cart.items.map((i) => ({ id: i.sku, quantity: i.quantity }))}
+      />
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-bold">תשלום</h1>
 

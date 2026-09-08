@@ -37,6 +37,7 @@ export const PUBLIC_PRODUCT_WHERE = {
 
 type ProductWithRelations = {
   id: string;
+  sku: string;
   slug: string;
   title: string;
   price: number;
@@ -54,6 +55,7 @@ type ProductWithRelations = {
 export function mapProductToCard(p: ProductWithRelations): ProductCardData {
   return {
     id: p.id,
+    sku: p.sku,
     slug: p.slug,
     title: p.title,
     brandName: p.brand.name,

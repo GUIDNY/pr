@@ -6,6 +6,7 @@ import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/stores/cart-store";
 import { clearPaidOrderCartAction } from "@/actions/orders";
+import { PAYMENT_CAPTURED_EVENT } from "@/components/analytics/meta-events";
 
 /**
  * What the customer sees on top of the confirmation page after coming back
@@ -91,6 +92,19 @@ export function PaymentConfirmation({
       cancelled = true;
       clearTimeout(timer);
     };
+  }, [status, orderNumber]);
+
+  /* This component is the only thing on the page that learns a gateway
+     payment succeeded — the confirmation page rendered before the callback
+     landed and cannot re-render itself. Announcing it rather than reporting
+     it here keeps the payment path free of anything to do with measurement:
+     MetaPurchase listens, and if it is ever removed this fires into nothing.
+     A failed or timed-out payment never reaches this line. */
+  useEffect(() => {
+    if (status !== "CAPTURED") return;
+    window.dispatchEvent(
+      new CustomEvent(PAYMENT_CAPTURED_EVENT, { detail: { orderNumber } }),
+    );
   }, [status, orderNumber]);
 
   // The cart is emptied only once the payment is confirmed, and the server

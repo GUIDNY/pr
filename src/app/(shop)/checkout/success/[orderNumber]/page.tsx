@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { OrderTimeline } from "@/components/order/order-timeline";
 import { getOrderByNumber, getLatestPaymentForOrder } from "@/lib/queries/orders";
 import { PaymentConfirmation } from "@/components/checkout/payment-confirmation";
+import { MetaPurchase } from "@/components/analytics/meta-events";
 import { formatPrice, formatDateTime } from "@/lib/format";
 import type { OrderStatus, DeliveryMethod } from "@/lib/enums";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
@@ -24,6 +25,15 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
+      {/* Only a paid order is a purchase. A gateway order that has not been
+          confirmed yet reports nothing here and waits for the callback that
+          PaymentConfirmation is already polling for — see MetaPurchase. */}
+      <MetaPurchase
+        orderNumber={order.orderNumber}
+        captured={!awaitingGateway || order.paymentStatus === "CAPTURED"}
+        value={order.total}
+        contents={order.items.map((i) => ({ id: i.skuSnap, quantity: i.quantity }))}
+      />
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
         <CheckCircle2 className="text-success size-16" strokeWidth={1.5} />
         <h1 className="text-2xl font-bold">

@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { SessionSummaryProvider } from "@/components/layout/session-summary-provider";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { Clarity } from "@/components/analytics/clarity";
+import { MetaPixel } from "@/components/analytics/meta-pixel";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
@@ -124,6 +125,7 @@ export default function RootLayout({
             <Toaster position="top-center" richColors />
             <GoogleAnalytics />
             <Clarity />
+            <MetaPixel />
           </TooltipProvider>
         </DirectionProvider>
       </body>

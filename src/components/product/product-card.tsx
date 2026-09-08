@@ -11,6 +11,11 @@ import { cn } from "@/lib/utils";
 
 export type ProductCardData = {
   id: string;
+  // The internal cuid identifies the row; the sku is what the product is
+  // called everywhere outside this site — g:id in the Google feed, and
+  // content_ids in the Meta pixel. Carried on the card so a listing can
+  // report what it showed without a second query.
+  sku: string;
   slug: string;
   title: string;
   brandName: string;

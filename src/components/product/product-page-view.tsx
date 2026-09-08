@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/seo/json-ld";
+import { MetaViewContent } from "@/components/analytics/meta-events";
 import { breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
 import { Star, Truck, ShieldCheck, PackageCheck, Pencil } from "lucide-react";
@@ -217,6 +218,13 @@ export async function ProductPageView({
           the article page gets it too — see the component for why it matters. */}
       <JsonLd data={productJsonLd} />
       <JsonLd data={breadcrumbSchema(productTrail)} />
+      {/* Not for staff. The proxy sends anyone signed in with a staff role to
+          /product-admin, and a shop whose own team browses the catalog all day
+          would otherwise teach the ad platform to find more people like its
+          own employees. */}
+      {!isAdminViewer && (
+        <MetaViewContent sku={product.sku} price={product.price} title={product.title} />
+      )}
 
       <Breadcrumb>
         <BreadcrumbList>
