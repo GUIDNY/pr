@@ -58,3 +58,6 @@ skills-lock.json
 
 # gateway credentials handed over out of band — never committed
 pelecard-secrets.txt
+
+# Written by scripts/indexnow-bulk.ts --dry-run for inspection before a real send.
+indexnow-bulk.json
