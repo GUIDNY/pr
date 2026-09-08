@@ -1,5 +1,7 @@
 "use client";
 
+import { useConsent } from "@/lib/consent";
+
 
 /**
  * Microsoft Clarity, or nothing at all.
@@ -16,7 +18,11 @@
  */
 export function Clarity() {
   const id = process.env.NEXT_PUBLIC_CLARITY_ID;
-  if (!id) return null;
+  // Consent first, and consent means BEFORE the script is fetched. An
+  // unanswered banner and a refusal both render nothing at all — see
+  // lib/consent.ts for why "load it and switch it off" is not the same thing.
+  const consent = useConsent();
+  if (!id || consent !== "granted") return null;
 
   // A plain inline script rather than next/script, for the same reason the
   // gtag config is one: with strategy="afterInteractive" Next injects inline

@@ -3,6 +3,7 @@
 import Script from "next/script";
 import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useConsent } from "@/lib/consent";
 
 /**
  * The Meta pixel base code, or nothing at all.
@@ -14,12 +15,10 @@ import { usePathname, useSearchParams } from "next/navigation";
  * platform to bid on people who bought nothing. With no id set, no Facebook
  * script is fetched and no request leaves the browser.
  *
- * A note for whoever switches it on: the cookie banner in
- * components/layout/cookie-notice.tsx is an acknowledgement, not a consent
- * manager — its own comment says so, and says that an advertising script is
- * exactly the case it is the wrong shape for. That is a decision for the shop's
- * owner, not something this file can settle, which is another reason the id
- * lives in an environment variable that a person sets deliberately.
+ * The id being set is necessary and not sufficient. Nothing here renders
+ * until a visitor has actually agreed — see lib/consent.ts, and the banner in
+ * components/layout/cookie-notice.tsx that was rewritten from an
+ * acknowledgement into a real gate for exactly this script.
  *
  * afterInteractive for the same reason as the analytics tag: a measurement
  * script has nothing to do before the page is usable, and the caching work
@@ -28,7 +27,11 @@ import { usePathname, useSearchParams } from "next/navigation";
  */
 export function MetaPixel() {
   const id = process.env.NEXT_PUBLIC_META_PIXEL_ID;
-  if (!id) return null;
+  // Consent first, and consent means BEFORE the script is fetched. An
+  // unanswered banner and a refusal both render nothing at all — see
+  // lib/consent.ts for why "load it and switch it off" is not the same thing.
+  const consent = useConsent();
+  if (!id || consent !== "granted") return null;
 
   return (
     <>

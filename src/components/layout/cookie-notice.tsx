@@ -1,67 +1,47 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Cookie, X } from "lucide-react";
+import { Cookie } from "lucide-react";
+import { setConsent, useIsUndecided } from "@/lib/consent";
 
-/* The site sets two cookies and both are strictly necessary — the signed-in
-   session and the cart id — so there is nothing here to switch off: refusing
-   them means no login and no cart. That is why this is a notice with one
-   acknowledgement, and not a consent manager with per-category toggles. The
-   day an analytics or advertising script is added, this component is the wrong
-   shape for it: that needs real consent, taken BEFORE the script loads, with a
-   refusal that actually blocks it, and it must be as easy to refuse as to
-   accept. Adding a toggle here that governs nothing would be worse than having
-   no banner at all. */
+/* This used to be a notice with one "הבנתי" button, and it said so: the site
+   set two strictly necessary cookies, there was nothing to switch off, and a
+   toggle governing nothing would have been worse than no banner. Its comment
+   also named the day this would stop being true — "the day an analytics or
+   advertising script is added" — and that day is this commit's parent. Google
+   Analytics, Microsoft Clarity and the Meta pixel are all in the layout now.
 
-const STORAGE_KEY = "prec-cookie-notice";
+   So it is a consent gate. What that has to mean, in order:
 
-let snapshot: boolean | null = null;
-const listeners = new Set<() => void>();
+     Nothing third-party loads until someone chooses. Not loaded-then-muted:
+     lib/consent.ts holds the decision and the three components read it before
+     they render a script tag at all.
 
-function readAcknowledged(): boolean {
-  try {
-    return window.localStorage.getItem(STORAGE_KEY) === "1";
-  } catch {
-    // Storage blocked: show the notice rather than assume it was read.
-    return false;
-  }
-}
+     Refusing is exactly as easy as accepting. Two buttons, same size, same
+     row, one click each — and no X in the corner, because a dismissal that
+     quietly counts as a yes is the thing this whole category of banner is
+     notorious for.
 
-function getSnapshot() {
-  snapshot ??= readAcknowledged();
-  return snapshot;
-}
+     The choice can be changed. The footer's privacy-settings link clears it
+     and brings this back, and withdrawing reloads the page so the scripts
+     that were already running are actually gone.
 
-// The server can't know whether this visitor has seen the notice, so it renders
-// nothing and the client fills it in after hydration — same reasoning as the
-// accessibility widget, and no hydration mismatch either way.
-function getServerSnapshot() {
-  return true;
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-function acknowledge() {
-  snapshot = true;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, "1");
-  } catch {
-    // Nothing to persist; the notice simply returns on the next visit.
-  }
-  listeners.forEach((listener) => listener());
-}
+   And the wording is the part that had to change most. The old text told
+   visitors "אין באתר עוגיות פרסום, מעקב או פילוח" — there are no advertising,
+   tracking or profiling cookies on this site. That sentence was true when it
+   was written and would have become a lie the moment the pixel was switched
+   on, which is a worse failure than any of the mechanics above. */
 
 export function CookieNotice() {
-  const acknowledged = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const undecided = useIsUndecided();
   const ref = useRef<HTMLDivElement>(null);
-  // The notice is for visitors. Staff signed into the back office are not
-  // being informed of anything by a bar across the bottom of their work.
+  // Staff signed into the back office are not being asked for consent to be
+  // measured while they work; the tags stay off there, which is what an
+  // undecided state already means.
   const isAdmin = usePathname().startsWith("/admin");
+  const open = undecided && !isAdmin;
 
   /* The banner sits across the bottom of the screen, which on a phone is
      exactly where the chat and accessibility launchers live — and burying the
@@ -70,7 +50,7 @@ export function CookieNotice() {
      the launchers lift by it (globals.css), so nothing is ever covered. */
   useEffect(() => {
     const root = document.documentElement;
-    if (acknowledged || isAdmin || !ref.current) {
+    if (!open || !ref.current) {
       root.removeAttribute("data-cookie-notice");
       root.style.removeProperty("--cookie-notice-h");
       return;
@@ -88,43 +68,46 @@ export function CookieNotice() {
       root.removeAttribute("data-cookie-notice");
       root.style.removeProperty("--cookie-notice-h");
     };
-  }, [acknowledged, isAdmin]);
+  }, [open]);
 
-  const dismiss = useCallback(() => acknowledge(), []);
+  const accept = useCallback(() => setConsent("granted"), []);
+  const decline = useCallback(() => setConsent("denied"), []);
 
-  if (acknowledged || isAdmin) return null;
+  if (!open) return null;
 
   return (
     <div
       ref={ref}
       role="region"
-      aria-label="הודעה על שימוש בעוגיות"
+      aria-label="בחירת הסכמה לעוגיות מדידה ופרסום"
       className="border-border bg-background fixed inset-x-0 bottom-0 z-[55] border-t shadow-[0_-4px_20px_rgb(0_0_0/0.08)]"
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4">
         <Cookie className="text-brand size-6 shrink-0" aria-hidden="true" />
         <p className="text-muted-foreground flex-1 text-xs leading-relaxed sm:text-sm">
-          האתר משתמש בעוגיות הכרחיות בלבד — לשמירת ההתחברות לחשבון ולעגלת הקניות. אין באתר עוגיות פרסום, מעקב או
-          פילוח.{" "}
+          לתפעול האתר אנחנו משתמשים בשתי עוגיות הכרחיות בלבד — ההתחברות לחשבון ועגלת הקניות. בנוסף נשמח למדוד
+          את השימוש באתר ולהתאים פרסום ברשתות של Meta, בעזרת Google Analytics, Microsoft Clarity ו־Meta Pixel.
+          אלה נטענים רק אם תאשרו, ואפשר לשנות את הבחירה בכל רגע.{" "}
           <Link href="/privacy" className="text-brand underline underline-offset-2">
             למדיניות הפרטיות
           </Link>
         </p>
+        {/* Same size, same row, same weight. The refusal is not a faint link
+            beside a big coloured button — that is the pattern this replaces. */}
         <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
-            onClick={dismiss}
-            className="bg-brand text-brand-foreground hover:bg-brand-hover rounded-lg px-5 py-2 text-sm font-medium"
+            onClick={decline}
+            className="bg-muted text-foreground hover:bg-muted/70 border-border min-w-28 rounded-lg border px-5 py-2 text-sm font-medium"
           >
-            הבנתי
+            לא מאשר
           </button>
           <button
             type="button"
-            onClick={dismiss}
-            aria-label="סגירת ההודעה"
-            className="hover:bg-muted text-muted-foreground rounded-lg p-2"
+            onClick={accept}
+            className="bg-brand text-brand-foreground hover:bg-brand-hover border-brand min-w-28 rounded-lg border px-5 py-2 text-sm font-medium"
           >
-            <X className="size-4" aria-hidden="true" />
+            מאשר
           </button>
         </div>
       </div>

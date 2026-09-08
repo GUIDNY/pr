@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Phone, MapPin, ShieldCheck, Truck, CreditCard, Share2 } from "lucide-react";
+import { ConsentSettingsLink } from "@/components/layout/consent-settings-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 
 export async function Footer() {
@@ -138,6 +139,12 @@ export async function Footer() {
               <Link href="/accessibility" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 הצהרת נגישות
               </Link>
+            </li>
+            <li>
+              {/* Next to the privacy policy on purpose: withdrawing consent has
+                  to be findable in the same place someone goes to read what
+                  they agreed to. */}
+              <ConsentSettingsLink />
             </li>
             <li>
               <a href="tel:04-6639510" className="text-primary-foreground/60 hover:text-primary-foreground flex items-center gap-1.5 text-sm">

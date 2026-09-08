@@ -7,10 +7,13 @@
  * currency that is wrong at one of them, and the failure is silent — Meta's
  * Events Manager shows a slightly smaller number, not an error.
  *
- * It no-ops when the pixel was never loaded, which is the normal state in
- * development and in every preview build (see meta-pixel.tsx). Nothing here
- * needs to know whether measurement is switched on.
+ * It sends nothing without consent, and nothing when the pixel was never
+ * loaded — the normal state in development, in every preview build, and for
+ * every visitor who has not agreed (see meta-pixel.tsx and lib/consent.ts).
+ * No call site needs to know about any of that.
  */
+
+import { consentGranted } from "@/lib/consent";
 
 declare global {
   interface Window {
@@ -69,5 +72,9 @@ export function trackMeta(
   eventID?: string,
 ) {
   if (typeof window === "undefined") return;
+  // Belt and braces: without consent the pixel was never loaded, so fbq is
+  // undefined and this would no-op anyway. Checking anyway keeps the rule in
+  // one readable place instead of resting on the absence of a global.
+  if (!consentGranted()) return;
   window.fbq?.("track", name, params, eventID ? { eventID } : undefined);
 }
