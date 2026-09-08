@@ -33,25 +33,22 @@ export function GoogleAnalytics() {
   const consent = useConsent();
   if (!id || consent !== "granted") return null;
 
+  /* Google's two setup lines used to be an inline <script> here, which was
+     right while this component was part of the server's HTML: the parser ran
+     it before gtag/js arrived. It is not part of that HTML any more — consent
+     mounts this component later — and a script element React inserts after
+     hydration does not reliably execute. The Meta pixel failed in exactly this
+     way in production (see meta-pixel.tsx), silently, and this is the same
+     mistake one file over. So the queue is installed from script, during
+     render, before the tag below is created. */
+  installGtag(id);
+
   return (
     <>
       {/*
         The tag file itself is fetched after the page is interactive, so it
         never competes with the page for the network.
-
-        Its two lines of setup are a plain inline script instead, and are in
-        the HTML the server sends. next/script would inject them from the
-        client bundle, which puts them in an order nothing guarantees relative
-        to the file above and makes them impossible to check for from outside.
-        They define a function and push two entries onto an array — there is
-        no network and nothing to wait for — so being in the document costs
-        nothing measurable and is exactly the order Google's own snippet uses.
       */}
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${id}',{send_page_view:false});`,
-        }}
-      />
       <Script
         src={`https://www.googletagmanager.com/gtag/js?id=${id}`}
         strategy="afterInteractive"
@@ -70,6 +67,25 @@ export function GoogleAnalytics() {
       </Suspense>
     </>
   );
+}
+
+/**
+ * dataLayer and gtag, exactly as Google's snippet defines them.
+ *
+ * Idempotent: called on every render of the component and does its work once.
+ * `arguments` rather than rest parameters because gtag.js reads the Arguments
+ * object the snippet pushes, and an array is not the same thing to it.
+ */
+function installGtag(id: string) {
+  if (window.gtag) return;
+  window.dataLayer = window.dataLayer || [];
+  // eslint-disable-next-line prefer-rest-params
+  const gtag = function () { window.dataLayer!.push(arguments); } as (...args: unknown[]) => void;
+  window.gtag = gtag;
+  gtag("js", new Date());
+  // send_page_view:false — every view is sent from PageViews below instead,
+  // because in the App Router a navigation never reloads the document.
+  gtag("config", id, { send_page_view: false });
 }
 
 /**

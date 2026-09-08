@@ -17,7 +17,15 @@ import { consentGranted } from "@/lib/consent";
 
 declare global {
   interface Window {
-    fbq?: ((...args: unknown[]) => void) & { queue?: unknown[]; loaded?: boolean };
+    fbq?: ((...args: unknown[]) => void) & {
+      // Meta's own stub shape. callMethod is what the real library assigns to
+      // itself once fbevents.js has loaded; until then calls go on the queue.
+      callMethod?: (...args: unknown[]) => void;
+      queue?: unknown[];
+      loaded?: boolean;
+      version?: string;
+      push?: unknown;
+    };
     _fbq?: unknown;
   }
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Script from "next/script";
 import { useConsent } from "@/lib/consent";
 
 
@@ -24,17 +25,22 @@ export function Clarity() {
   const consent = useConsent();
   if (!id || consent !== "granted") return null;
 
-  // A plain inline script rather than next/script, for the same reason the
-  // gtag config is one: with strategy="afterInteractive" Next injects inline
-  // code from the client bundle, which leaves nothing in the HTML to check
-  // for from outside and no guaranteed order. Clarity's snippet appends its
-  // own async <script>, so being in the document costs a function call and no
-  // network — the recorder still loads out of band.
+  /* Clarity's published snippet is an inline script whose entire job is to
+     create a queue stub and then append <script src="clarity.ms/tag/{id}">.
+     It used to be inlined here, which worked while this component was part of
+     the server's HTML — but consent mounts it later now, and a script element
+     React inserts after hydration does not reliably execute. The Meta pixel
+     failed exactly that way in production (see meta-pixel.tsx).
+
+     Loading the tag directly is both the fix and simpler: the tag file defines
+     window.clarity itself, so the stub was only ever there to catch calls made
+     in the milliseconds before it arrived, and nothing in this codebase calls
+     clarity at all. */
   return (
-    <script
-      dangerouslySetInnerHTML={{
-        __html: `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","${id}");`,
-      }}
+    <Script
+      id="clarity-tag"
+      src={`https://www.clarity.ms/tag/${id}`}
+      strategy="afterInteractive"
     />
   );
 }
