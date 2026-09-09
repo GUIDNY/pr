@@ -22,6 +22,26 @@ import { saveCheckoutContactAction } from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
 import type { CheckoutInput } from "@/lib/order-schema";
 
+/** Everything an order needs before one can be created from this form. Asked
+    in both directions: to open the card form, and to take it away again. */
+function detailsCompleteFor(f: {
+  fullName: string;
+  email: string;
+  phone: string;
+  deliveryMethod: "DELIVERY" | "PICKUP";
+  city: string;
+  street: string;
+  houseNo: string;
+}): boolean {
+  return (
+    f.fullName.trim().length >= 2 &&
+    /\S+@\S+\.\S+/.test(f.email) &&
+    f.phone.trim().length >= 9 &&
+    (f.deliveryMethod !== "DELIVERY" ||
+      Boolean(f.city.trim() && f.street.trim() && f.houseNo.trim()))
+  );
+}
+
 export function CheckoutForm({
   defaultName,
   defaultEmail,
@@ -99,7 +119,30 @@ export function CheckoutForm({
   });
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
-    setForm((f) => ({ ...f, [key]: value }));
+    setForm((f) => {
+      const next = { ...f, [key]: value };
+      /* AND THE CARD FORM GOES AWAY IF THIS EDIT LEAVES THE ORDER INCOMPLETE.
+         Done here, in the one place a field changes, rather than in an effect
+         watching the result — an effect that calls setState on what it just
+         observed is a render loop waiting to be tripped, and the lint rule
+         that forbids it is right.
+
+         The way in was ordinary: pickup needs no address, so choosing it opened
+         a payment, and switching back to home delivery left that payment on the
+         page against an order with nowhere to deliver it. Payable, too — the
+         card form does not care that the address behind it is blank.
+
+         Following the fields cannot rescue that one. The order was created with
+         no address at all, so there is no address row to write a new one into;
+         it has to be made again. The form goes, and the auto-open brings it
+         back once the details are whole, against an order that has them. */
+      if (payment && !detailsCompleteFor(next)) {
+        setPayment(null);
+        paidOrderId.current = null;
+        autoOpened.current = false;
+      }
+      return next;
+    });
   }
 
   /* Fills the form well enough to pass validation, so the demo lane can be run
@@ -190,11 +233,7 @@ export function CheckoutForm({
     !payment &&
     !stranded &&
     form.paymentMethod === "DEMO_CARD" &&
-    form.fullName.trim().length >= 2 &&
-    /\S+@\S+\.\S+/.test(form.email) &&
-    form.phone.trim().length >= 9 &&
-    (form.deliveryMethod !== "DELIVERY" ||
-      Boolean(form.city.trim() && form.street.trim() && form.houseNo.trim()));
+    detailsCompleteFor(form);
 
   useEffect(() => {
     if (!readyToPay || autoOpened.current) return;
@@ -207,6 +246,8 @@ export function CheckoutForm({
     // the closure each render, and the guard above is what decides when.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readyToPay]);
+
+
 
   /* The order exists and the card form is open, and the fields under it are
      still live. Every change is written through to the order so the two cannot
