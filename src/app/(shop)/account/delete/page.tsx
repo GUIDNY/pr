@@ -56,6 +56,14 @@ export default function DeleteAccountPage() {
           שהחשבון נסגר, ולכן שם, אימייל וטלפון נשמרים על ההזמנות עצמן — כמו בהזמנה שבוצעה ללא
           חשבון.
         </p>
+        {/* Says so because it is what happens: a detached order carries the
+            email it was placed under, and claimGuestOrders in actions/auth.ts
+            hands every ownerless order with a matching email to whoever signs
+            in with it. Promising a clean break and then restoring the history
+            would be the page lying. */}
+        <p className="text-muted-foreground mt-2">
+          אם תירשמו שוב בעתיד עם אותה כתובת אימייל, ההזמנות האלה יחזרו להופיע בחשבון החדש.
+        </p>
       </div>
 
       <DeleteAccountForm />
