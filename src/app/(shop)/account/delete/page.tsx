@@ -26,6 +26,11 @@ export default function DeleteAccountPage() {
     <div className="flex max-w-2xl flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold">מחיקת החשבון</h1>
+        {/* Same reason as the sidebar label: the reviewer landing here has to
+            recognise the page without reading Hebrew. */}
+        <p dir="ltr" className="text-muted-foreground text-sm">
+          Delete account
+        </p>
         <p className="text-muted-foreground mt-1 text-sm">
           הפעולה הזו סופית. אי אפשר לשחזר חשבון שנמחק.
         </p>

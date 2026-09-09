@@ -43,6 +43,7 @@ export function DeleteAccountForm() {
       <Button variant="destructive" onClick={() => setArmed(true)}>
         <Trash2 />
         מחיקת החשבון
+        <span dir="ltr" className="opacity-70">(Delete account)</span>
       </Button>
     );
   }
