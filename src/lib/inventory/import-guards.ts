@@ -172,3 +172,43 @@ export function looksLikeMisplacedQuantity(quantity: number, price: number | nul
 export function looksLikeOffsetStockRow(lines: { quantity: number }[]): boolean {
   return lines.some((line) => Number.isFinite(line.quantity) && !Number.isInteger(line.quantity));
 }
+
+/**
+ * Whether a sheet row's model and a product's model can be the same thing.
+ *
+ * Position — sourceId + sheet + row number — is the first way a row is
+ * matched to the product it made last time, and it is the way that fails
+ * silently. A row inserted or removed above shifts everything under it by
+ * one, and then every product in that block is matched to its neighbour's
+ * row. Nothing about that looks wrong: the row parses, the product updates,
+ * the sync reports success. What actually happened is that 26 live products
+ * took their stock quantity and their whole warehouse breakdown from a
+ * different appliance.
+ *
+ * The sheet carries the answer in its own model column. So a position match
+ * is only trusted when the two models can be read as the same model.
+ *
+ * "Can be read as" and not "are equal", because they are written differently
+ * on purpose and both spellings are right. The sheet abbreviates — "7310IX"
+ * for a product we call "CUISINE-7310IX", "9630SL" for "SJ-9630SL" — and
+ * enrichment fills in the manufacturer's full designation. Punctuation and
+ * case vary freely. Containment after stripping both covers all of that and
+ * still separates STK60GHX from STK70GHX, EP7A6SB95Y from EP7A6QI40Y, and
+ * CH74BVT from MGH90GB, which are the pairs that were actually swapped.
+ *
+ * Either side missing means the sheet is not saying anything about identity,
+ * and silence is not a contradiction: the match stands.
+ */
+export function modelsCanBeTheSame(
+  productModel: string | null | undefined,
+  rowModel: string | null | undefined,
+): boolean {
+  const a = bareModel(productModel);
+  const b = bareModel(rowModel);
+  if (!a || !b) return true;
+  return a.includes(b) || b.includes(a);
+}
+
+function bareModel(value: string | null | undefined): string {
+  return (value ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+}

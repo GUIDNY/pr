@@ -140,12 +140,21 @@ function fallbackTitleFromUnknownColumns(row: ParsedRow, columns: ClassifiedColu
 
 export function normalizeRow(
   sourceKey: string,
-  sheetName: string,
+  rawSheetName: string,
   row: ParsedRow,
   columns: ClassifiedColumn[],
   categoryOverride?: string | null,
   knownBrands: string[] = []
 ): NormalizedProductRow {
+  // The tab name is stored on every product and is half of how a row is
+  // recognised next time (sourceSheet + sourceRowRef, and the row key in
+  // source-row-key.ts). A supplier who retypes a tab name with a leading
+  // space has renamed nothing, but an untrimmed comparison disagrees and
+  // every SKU-less row under that tab comes back as a new product. One tab
+  // in this workbook is stored both ways — "מוצרי תלייה וכבלים" and
+  // " מתקניי תליה וכבלים" — and the products created twice on 19 August
+  // are what that cost.
+  const sheetName = rawSheetName.trim();
   const issues: RowIssue[] = [];
 
   const realSku = firstString(row.values.SKU);
