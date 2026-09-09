@@ -524,26 +524,36 @@ export function CheckoutForm({
             </div>
           ) : (
           <>
-          <RadioGroup
-            value={form.paymentMethod}
-            onValueChange={(v) => update("paymentMethod", v as "DEMO_CARD" | "CASH_ON_DELIVERY")}
-            className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2"
-          >
-            <Label
-              htmlFor="pay-card"
-              className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
-            >
-              <RadioGroupItem value="DEMO_CARD" id="pay-card" />
-              <CreditCard className="size-4" /> כרטיס אשראי
-            </Label>
-            <Label
-              htmlFor="pay-cod"
-              className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
-            >
-              <RadioGroupItem value="CASH_ON_DELIVERY" id="pay-cod" />
-              תשלום במזומן באספקה
-            </Label>
-          </RadioGroup>
+          {/* Card is the only way to pay now. Cash on delivery is gone from
+              the checkout — not from the codebase: CASH_ON_DELIVERY stays a
+              value the order schema accepts and the admin can render, because
+              orders already placed that way still have to open. Deleting the
+              value would break the history rather than close the option.
+
+              Apple Pay and Google Pay are placeholders and behave like it.
+              They are buttons that cannot be pressed, marked בקרוב, and they
+              are here because a payment step that shows one way to pay reads
+              as a shop that only takes one — while the same step showing three
+              with two marked "coming" reads as a shop that is adding them. The
+              cost of that impression is that it has to become true; if these
+              are still here unimplemented in six months they are a promise the
+              checkout keeps making and breaking. */}
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="border-brand bg-brand/5 flex items-center gap-3 rounded-lg border p-3">
+              <CreditCard className="size-4 shrink-0" />
+              <span className="text-sm font-medium">כרטיס אשראי</span>
+            </div>
+            {["Apple Pay", "Google Pay"].map((wallet) => (
+              <div
+                key={wallet}
+                aria-disabled
+                className="border-input text-muted-foreground flex cursor-not-allowed items-center justify-between gap-2 rounded-lg border border-dashed p-3 opacity-60"
+              >
+                <span className="text-sm font-medium">{wallet}</span>
+                <span className="bg-muted rounded-full px-2 py-0.5 text-[10px] font-semibold">בקרוב</span>
+              </div>
+            ))}
+          </div>
 
           {/* With the gateway on, the card is entered on Pelecard's own secure
               page — this site never sees, transmits or stores a card number,
