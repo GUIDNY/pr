@@ -20,6 +20,7 @@ import {
   looksLikeEnergyLabelUrl,
   looksLikeMarketingTitle,
   looksLikeMisplacedQuantity,
+  looksLikeOffsetStockRow,
   IMPLAUSIBLE_LINE_VALUE,
 } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
@@ -335,7 +336,9 @@ async function applyOneRow(
   // the sheet, so the product keeps whatever it already had and the alert
   // says exactly what was rejected. See looksLikeMisplacedQuantity.
   const priceForSanity = resolved ?? existing?.price ?? null;
-  const quantityIsImplausible = looksLikeMisplacedQuantity(rawStock, priceForSanity);
+  const rowColumnsAreShifted = looksLikeOffsetStockRow(row.stockLines);
+  const quantityIsImplausible =
+    looksLikeMisplacedQuantity(rawStock, priceForSanity) || rowColumnsAreShifted;
   const stock = quantityIsImplausible ? (existing?.stockQty ?? 0) : rawStock;
 
   let status = deriveStockStatus(row, stock, hasConflict);
@@ -622,9 +625,11 @@ async function applyOneRow(
       syncRunId,
       sourceSku: sku,
       message:
-        `${row.title}: הגיליון מדווח ${rawStock.toLocaleString("he-IL")} יחידות במחיר ${(priceForSanity ?? 0).toLocaleString("he-IL")} ₪ — ` +
-        `שווי של מעל ${(IMPLAUSIBLE_LINE_VALUE / 1_000_000).toFixed(0)} מיליון ₪ לשורה אחת. ` +
-        `נראה כמו מחיר שהוקלד בעמודת הכמות. הכמות לא עודכנה ונשארה ${stock.toLocaleString("he-IL")} — צריך לבדוק מול הספק.`,
+        `${row.title}: הגיליון מדווח ${rawStock.toLocaleString("he-IL")} יחידות במחיר ${(priceForSanity ?? 0).toLocaleString("he-IL")} ₪. ` +
+        (rowColumnsAreShifted
+          ? "אחת מעמודות המלאי בשורה הזאת מכילה מספר שבור, שאינו יכול להיות כמות — סימן שהעמודות בשורה מוסטות והמספר שנקרא ככמות הוא בעצם מחיר. "
+          : `שווי של מעל ${(IMPLAUSIBLE_LINE_VALUE / 1_000_000).toFixed(0)} מיליון ₪ לשורה אחת. נראה כמו מחיר שהוקלד בעמודת הכמות. `) +
+        `הכמות לא עודכנה ונשארה ${stock.toLocaleString("he-IL")} — צריך לבדוק מול הספק.`,
     });
   }
   if (resolved === null) {

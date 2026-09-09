@@ -155,3 +155,20 @@ export function looksLikeMisplacedQuantity(quantity: number, price: number | nul
   if (!price || !Number.isFinite(price) || price <= 0) return false;
   return quantity * price >= IMPLAUSIBLE_LINE_VALUE;
 }
+
+// The line-value test above judges one number. It cannot see the case where a
+// whole row's columns are shifted, and that case is in this catalog: the tab
+// "גריל גז ומערכות מים" has the colour under "מחיר מינ'", the price under
+// "מוצג", a second price under "תצוגות LUXERY" — read as showroom stock — and
+// a margin ratio under "מלאי LUXRY", read as warehouse stock.
+//
+// A count of 990 at ₪708 is worth ₪700,920, under the million, so the row
+// passes the test above and went live claiming 990 water bars. What gives it
+// away is the neighbour: 0.2570621468926553 in a column that holds units.
+//
+// So this is the second tell, and it needs no threshold at all — a fraction is
+// never a quantity. Seven rows in the catalog have one, all seven from these
+// two tabs, and six of them carry a price where the count belongs.
+export function looksLikeOffsetStockRow(lines: { quantity: number }[]): boolean {
+  return lines.some((line) => Number.isFinite(line.quantity) && !Number.isInteger(line.quantity));
+}

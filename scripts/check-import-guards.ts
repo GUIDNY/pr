@@ -11,6 +11,7 @@ import {
   hasEnergyLabelShape,
   looksLikeStockPhrase,
   looksLikeMisplacedQuantity,
+  looksLikeOffsetStockRow,
 } from "../src/lib/inventory/import-guards";
 
 const LABEL_URLS = [
@@ -218,7 +219,34 @@ for (const [qty, price, why] of ALLOWED) {
   if (looksLikeMisplacedQuantity(qty, price)) fail(`must be allowed — ${why}: ${qty} x ${price}`);
 }
 
+// A whole row whose columns are shifted, which the value test above cannot
+// see: 990 water bars at ₪708 is worth ₪700,920, under the million, and the
+// row went live. The tell is its neighbour — a fraction in a column that holds
+// units.
+const SHIFTED: [number[], string][] = [
+  [[990, 0.2570621468926553], "Sanyo Olympic 1019 — the one that was live at 990"],
+  [[2000, 0.29496402877697836], "Electra RXS390, all four colours"],
+  [[1900, 0.3875968992248062], "Sanyo 1140"],
+  [[0, 0.39], "a shifted row that happens to have landed on zero"],
+];
+for (const [quantities, why] of SHIFTED) {
+  const lines = quantities.map((quantity) => ({ quantity }));
+  if (!looksLikeOffsetStockRow(lines)) fail(`must be refused — ${why}: ${quantities.join(", ")}`);
+}
+
+const STRAIGHT: [number[], string][] = [
+  [[2, 1], "an ordinary two-column row"],
+  [[74], "the largest real quantity in this catalog"],
+  [[0, 0, 0], "nothing anywhere"],
+  [[500, 12, 3], "a cable order across three warehouses"],
+];
+for (const [quantities, why] of STRAIGHT) {
+  const lines = quantities.map((quantity) => ({ quantity }));
+  if (looksLikeOffsetStockRow(lines)) fail(`must be allowed — ${why}: ${quantities.join(", ")}`);
+}
+
 const total =
+  SHIFTED.length + STRAIGHT.length +
   HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
   SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length + REFUSED.length + ALLOWED.length;
 console.log(
@@ -227,6 +255,7 @@ console.log(
     `${MARKETING_TITLES.length} copy titles, ${REAL_TITLES.length} real titles, ${SHAPES.length} shapes, ` +
     `${STOCK_PHRASES.length} stock phrases, ${REAL_MODELS.length} real models, ` +
     `${REFUSED.length} misplaced prices, ${ALLOWED.length} real quantities, ` +
+    `${SHIFTED.length} shifted rows, ${STRAIGHT.length} straight rows, ` +
     `${HTML_CASES.length} html descriptions)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;
