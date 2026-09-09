@@ -66,7 +66,18 @@ const config: CapacitorConfig = {
   },
 
   ios: {
-    contentInset: "never",
+    /* "never" lets the WebView run edge to edge, which puts the shop's sticky
+       header behind the status bar and the Dynamic Island, and drops every
+       bottom-pinned bar under the home indicator — the add-to-cart bar on a
+       product page (mobile-buy-bar.tsx) among them.
+
+       "always" hands the safe area to the scroll view, so the page is inset on
+       both edges and `position: fixed` lands inside it. The alternative was
+       viewport-fit=cover plus env(safe-area-inset-*) across the header, the
+       buy bar, the compare tray and the cookie notice — a better-looking
+       result that changes layout for every Safari visitor too, to fix
+       something only the app has. */
+    contentInset: "always",
     // Leave false. Turning it on restricts the WebView to declared app-bound
     // domains, which would block the Pelecard gateway and any 3-D Secure page
     // the customer's bank redirects the payment iframe to.
