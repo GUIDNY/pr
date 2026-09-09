@@ -13,6 +13,7 @@ import {
   looksLikeMisplacedQuantity,
   looksLikeOffsetStockRow,
 } from "../src/lib/inventory/import-guards";
+import { resolvedPrice } from "../src/lib/inventory/diff-engine";
 
 const LABEL_URLS = [
   "https://www.electra.co.il/media/energy-label-fridge.png",
@@ -245,8 +246,37 @@ for (const [quantities, why] of STRAIGHT) {
   if (looksLikeOffsetStockRow(lines)) fail(`must be allowed — ${why}: ${quantities.join(", ")}`);
 }
 
+// ---------------------------------------------------------------------------
+// The cost floor in resolvedPrice. Every row below is a real one, copied out
+// of the stockBreakdown snapshot the sync persisted for that product.
+// [retail, minSale, manager, cost, expected price, why]
+// ---------------------------------------------------------------------------
+const PRICE_ROWS: [number | null, number | null, number | null, number | null, number | null, string][] = [
+  // The two that were live and orderable at the wrong number.
+  [6200, 690, 6800, 5790, 6200, "Miele H 2467 BP — 690 is an eighth of cost"],
+  [13290, 1400, 11600, 10850, 11600, "LG GR-730BINS — 1,400 against a 10,850 cost"],
+  // Its own sibling on the next rows of the same sheet, which was always
+  // right and has to stay right: lowest-wins still decides among survivors.
+  [5500, 4990, 4890, 4290, 4890, "Miele H 2467 B — manager price is genuinely lowest"],
+  // Selling at or under cost is a real thing a shop does, and the floor must
+  // not touch any of these. All four are in the catalog today.
+  [null, 7400, 6800, 6800, 6800, "Samsung RB35A6222BK — sold at cost"],
+  [null, 14900, 12900, 13900, 12900, "Samsung RF90A9015BK — 1,000 under cost"],
+  [null, 10700, 7900, 8500, 7900, "Samsung RF65A9011SL — 7% under cost"],
+  [null, 150, null, 164, 150, "Hemilton hand mixer — 14 ₪ under cost"],
+  // No cost column on the sheet: nothing to compare against, old behaviour.
+  [3200, 2890, 2790, null, 2790, "a sheet with no עלות column"],
+  // Nothing usable at all.
+  [null, null, null, 5790, null, "no price columns at all"],
+  [500, 400, null, 9000, null, "every candidate below the floor"],
+];
+for (const [retailPrice, minSalePrice, managerPrice, internalCost, expected, why] of PRICE_ROWS) {
+  const { price } = resolvedPrice({ retailPrice, minSalePrice, managerPrice, internalCost });
+  if (price !== expected) fail(`price: expected ${expected} got ${price} — ${why}`);
+}
+
 const total =
-  SHIFTED.length + STRAIGHT.length +
+  PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
   HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
   SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length + REFUSED.length + ALLOWED.length;
 console.log(
@@ -256,6 +286,7 @@ console.log(
     `${STOCK_PHRASES.length} stock phrases, ${REAL_MODELS.length} real models, ` +
     `${REFUSED.length} misplaced prices, ${ALLOWED.length} real quantities, ` +
     `${SHIFTED.length} shifted rows, ${STRAIGHT.length} straight rows, ` +
+    `${PRICE_ROWS.length} price rows, ` +
     `${HTML_CASES.length} html descriptions)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;
