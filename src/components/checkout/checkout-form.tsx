@@ -230,6 +230,7 @@ export function CheckoutForm({
         houseNo: form.houseNo,
         apartment: form.apartment,
         deliveryNotes: form.deliveryNotes,
+        deliveryMethod: form.deliveryMethod,
       }).catch(() => {});
     }, 700);
     return () => clearTimeout(timer);
@@ -244,6 +245,7 @@ export function CheckoutForm({
     form.houseNo,
     form.apartment,
     form.deliveryNotes,
+    form.deliveryMethod,
   ]);
 
   function submit() {
@@ -369,10 +371,6 @@ export function CheckoutForm({
           <h2 className="mb-4 font-semibold">2. משלוח</h2>
           <RadioGroup
             value={form.deliveryMethod}
-            /* The one control that stays locked while a payment is open: it
-               moves the delivery fee, and Pelecard has already been told what
-               the transaction is for. */
-            disabled={!!payment}
             onValueChange={(v) => update("deliveryMethod", v as "DELIVERY" | "PICKUP")}
             className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2"
           >

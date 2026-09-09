@@ -252,11 +252,21 @@ export async function trackOrderAction(orderNumber: string, contact: string) {
  * had the form open before they had touched anything, and then could not
  * correct a street name.
  *
- * So the fields stay live and the order follows them. Nothing here can move
- * the total — the delivery method is the only control on that page that
- * changes what is owed, and it stays disabled while a payment is open, because
- * a Pelecard transaction is opened for an amount and that amount has already
- * been sent.
+ * So the fields stay live and the order follows them, the delivery method
+ * included.
+ *
+ * NOTHING ON THE CHECKOUT PAGE MOVES THE TOTAL, which is worth writing down
+ * because it was assumed otherwise and the assumption cost a bug. The delivery
+ * method looked like the exception and is not: computeDeliveryFee() in
+ * cart-summary.ts takes the discounted subtotal and nothing else, so pickup
+ * and home delivery cost the same. The radio was disabled while a payment was
+ * open to protect an amount that cannot change, and since choosing pickup drops
+ * the address requirement and opens the form immediately, the effect was a
+ * one-way door: pickup could be chosen and never undone.
+ *
+ * If a delivery fee ever does depend on the method, or a coupon field arrives
+ * on this page, this stops being true and the open transaction has to be
+ * reopened rather than followed.
  *
  * Signed-in orders only. A guest's order has no owner to check against, and an
  * order id is not an authorisation to change where a delivery goes.
@@ -272,6 +282,7 @@ export async function updatePendingOrderDetailsAction(
     houseNo?: string;
     apartment?: string;
     deliveryNotes?: string;
+    deliveryMethod?: "DELIVERY" | "PICKUP";
   },
 ) {
   const session = await getSession();
@@ -299,6 +310,7 @@ export async function updatePendingOrderDetailsAction(
       guestEmail: details.email,
       guestPhone: details.phone,
       customerNote: details.deliveryNotes,
+      ...(details.deliveryMethod ? { deliveryMethod: details.deliveryMethod } : {}),
     },
   });
 
