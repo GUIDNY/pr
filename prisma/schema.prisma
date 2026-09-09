@@ -457,6 +457,11 @@ model Order {
   shipStreet         String?
   shipHouseNo        String?
   shipApartment      String?
+  // Set when the account that placed this order closed it. The row then looks
+  // exactly like a guest order — userId null, contact details in the guest
+  // fields — and this is the only thing that tells them apart, so registering
+  // that email again never hands these back. See claimGuestOrders.
+  ownerDeletedAt     DateTime?
   addressId          String?
   address            Address?  @relation(fields: [addressId], references: [id])
   deliveryMethod     String    @default("DELIVERY") // DELIVERY | PICKUP

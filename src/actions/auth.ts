@@ -38,7 +38,17 @@ const registerSchema = z.object({
  */
 async function claimGuestOrders(userId: string, email: string) {
   await db.order.updateMany({
-    where: { userId: null, guestEmail: { equals: email, mode: "insensitive" } },
+    where: {
+      userId: null,
+      guestEmail: { equals: email, mode: "insensitive" },
+      /* Except the orders of an account that was deleted. Deletion detaches
+         them and copies the customer's contact details into the very guest
+         fields this matches on, so without this they would be handed back to
+         whoever registers that address next — most likely the same person,
+         which quietly returns the history they asked us to close the door on,
+         and otherwise a stranger who happens to reuse the address. */
+      ownerDeletedAt: null,
+    },
     data: { userId },
   });
 }
@@ -132,7 +142,14 @@ export async function deleteAccountAction(input: { password: string }) {
   await db.$transaction([
     db.order.updateMany({
       where: { userId: user.id },
-      data: { guestName: user.name, guestEmail: user.email, guestPhone: user.phone },
+      data: {
+        guestName: user.name,
+        guestEmail: user.email,
+        guestPhone: user.phone,
+        // Marks these as detached by a deletion rather than placed as a guest,
+        // so registering this email again never claims them back.
+        ownerDeletedAt: new Date(),
+      },
     }),
     db.user.delete({ where: { id: user.id } }),
   ]);
