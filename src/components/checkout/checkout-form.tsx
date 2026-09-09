@@ -26,6 +26,10 @@ export function CheckoutForm({
   defaultName,
   defaultEmail,
   defaultPhone,
+  defaultCity,
+  defaultStreet,
+  defaultHouseNo,
+  defaultApartment,
   payViaGateway = false,
   isStaff = false,
   canEditWhilePaying = false,
@@ -33,6 +37,12 @@ export function CheckoutForm({
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
+  /** The address already on the account, so a returning customer does not
+      retype one the shop has had since their last order. */
+  defaultCity?: string;
+  defaultStreet?: string;
+  defaultHouseNo?: string;
+  defaultApartment?: string;
   /** True once the Pelecard flow is switched on: the card is then entered on
       Pelecard's own page, and this form never sees a card number. */
   payViaGateway?: boolean;
@@ -77,10 +87,10 @@ export function CheckoutForm({
     email: defaultEmail ?? "",
     phone: defaultPhone ?? "",
     deliveryMethod: "DELIVERY" as "DELIVERY" | "PICKUP",
-    city: "",
-    street: "",
-    houseNo: "",
-    apartment: "",
+    city: defaultCity ?? "",
+    street: defaultStreet ?? "",
+    houseNo: defaultHouseNo ?? "",
+    apartment: defaultApartment ?? "",
     deliveryNotes: "",
     paymentMethod: "DEMO_CARD" as "DEMO_CARD" | "CASH_ON_DELIVERY",
     cardNumber: "",
