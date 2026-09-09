@@ -12,6 +12,7 @@ import {
   type PelecardFeedback,
 } from "@/lib/pelecard/client";
 import { pelecardConfig, callbackSecret } from "@/lib/pelecard/config";
+import { customerHasPaid } from "@/lib/order-signal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -149,7 +150,7 @@ export async function POST(req: Request) {
 
   // 2. Idempotency. Pelecard may deliver the same callback twice, and a retry
   //    must not produce a second payment record or a second status entry.
-  if (order.paymentStatus === "CAPTURED") return NextResponse.json({ ok: true });
+  if (customerHasPaid(order.paymentStatus)) return NextResponse.json({ ok: true });
 
   const fail = async (reason: string, extra?: unknown) => {
     // Pelecard's own verdict, in our logs. `reason` is our summary of why we

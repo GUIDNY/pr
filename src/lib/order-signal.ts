@@ -57,3 +57,30 @@ export const SIGNAL_CHIP: Record<SignalColour, string> = {
   red: "bg-destructive/15 text-destructive",
   grey: "bg-muted text-muted-foreground",
 };
+
+/**
+ * Has this customer paid, as the customer understands the word?
+ *
+ * True for a hold as well as a charge, and the distinction is exactly the
+ * point. Under J5 the gateway accepts the card and freezes the money instead
+ * of taking it, so from the shop's side the sale is not settled — but from
+ * the customer's side nothing is outstanding: they entered a card, it was
+ * accepted, they are done. Every screen that faces them has to agree with
+ * them.
+ *
+ * That is four places, and each was written when CAPTURED was the only way
+ * an order could be paid:
+ *
+ *   the cart, which must empty — otherwise they are looking at the items
+ *   they just bought and place a second order,
+ *   the thank-you page, which must say the order went through,
+ *   the payment page, which must not offer to charge them again,
+ *   and openPelecardPayment, which must not open a second transaction.
+ *
+ * Not for revenue. Held money is not takings and the dashboard is right to
+ * count only CAPTURED — that one asks a different question and keeps its own
+ * answer.
+ */
+export function customerHasPaid(paymentStatus: PaymentStatus | string): boolean {
+  return paymentStatus === "CAPTURED" || paymentStatus === "AUTHORIZED";
+}

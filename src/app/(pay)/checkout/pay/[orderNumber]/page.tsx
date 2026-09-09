@@ -6,6 +6,7 @@ import { openPelecardPayment } from "@/lib/pelecard/open-payment";
 import { formatPrice } from "@/lib/format";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
 import { canManageCatalog } from "@/lib/permissions";
+import { customerHasPaid } from "@/lib/order-signal";
 
 export const metadata = { title: "תשלום מאובטח", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
 
   // An order already paid for has no business opening a second payment, and
   // sending the customer back to the form would invite exactly that.
-  if (order.paymentStatus === "CAPTURED") {
+  if (customerHasPaid(order.paymentStatus)) {
     return <Settled orderNumber={order.orderNumber} />;
   }
 

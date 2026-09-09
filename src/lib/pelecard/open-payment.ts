@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { initPayment, SUPPORTED_CARDS, paymentPageStyle, holdThenCapture } from "./client";
 import { pelecardConfig, pelecardConfigured, paymentLaneFor, toAgorot, siteUrl, callbackSecret } from "./config";
+import { customerHasPaid } from "@/lib/order-signal";
 
 /**
  * Opens a Pelecard payment for an order that already exists, and hands back the
@@ -64,7 +65,7 @@ export async function openPelecardPayment(
 
   const order = await db.order.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, status: 404, error: "order not found" };
-  if (order.paymentStatus === "CAPTURED") return { ok: false, status: 409, error: "already paid" };
+  if (customerHasPaid(order.paymentStatus)) return { ok: false, status: 409, error: "already paid" };
 
   const amountAgorot = toAgorot(order.total);
 

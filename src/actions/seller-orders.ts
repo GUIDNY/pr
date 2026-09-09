@@ -70,11 +70,20 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
        that is the case this refuses — a charge above the hold is not a
        bigger sale, it is a chargeback. The fix is a new payment, not a
        bigger capture. */
-    const captured = await completeDebitByUid({
-      uid: hold.authorizationUid,
-      totalAgorot: Math.round(order.total * 100),
-      heldAgorot: hold.amountAgorot ?? Math.round(hold.amount * 100),
-    });
+    /* A demo hold is settled here and never sent to Pelecard: there is no
+       transaction at the gateway to settle, and asking it to charge one would
+       fail — correctly, but it would leave the demo lane unable to complete
+       the very flow it exists to rehearse. The provider column decides, not
+       the reference string, so nothing typed into a form can route a real
+       payment down this branch. */
+    const captured =
+      hold.provider === "DEMO"
+        ? ({ ok: true } as const)
+        : await completeDebitByUid({
+            uid: hold.authorizationUid,
+            totalAgorot: Math.round(order.total * 100),
+            heldAgorot: hold.amountAgorot ?? Math.round(hold.amount * 100),
+          });
     if (!captured.ok) return { success: false, error: captured.error };
 
     await db.$transaction([

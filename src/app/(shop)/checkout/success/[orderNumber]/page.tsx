@@ -12,6 +12,7 @@ import { MetaPurchase } from "@/components/analytics/meta-events";
 import { formatPrice, formatDateTime } from "@/lib/format";
 import type { OrderStatus, DeliveryMethod } from "@/lib/enums";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
+import { customerHasPaid } from "@/lib/order-signal";
 
 export default async function CheckoutSuccessPage({ params }: { params: Promise<{ orderNumber: string }> }) {
   const { orderNumber } = await params;
@@ -55,14 +56,14 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
           PaymentConfirmation is already polling for — see MetaPurchase. */}
       <MetaPurchase
         orderNumber={order.orderNumber}
-        captured={!awaitingGateway || order.paymentStatus === "CAPTURED"}
+        captured={!awaitingGateway || customerHasPaid(order.paymentStatus)}
         value={order.total}
         contents={order.items.map((i) => ({ id: i.skuSnap, quantity: i.quantity }))}
       />
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
         <CheckCircle2 className="text-success size-16" strokeWidth={1.5} />
         <h1 className="text-2xl font-bold">
-          {awaitingGateway && order.paymentStatus !== "CAPTURED" ? "ההזמנה נשמרה" : "ההזמנה התקבלה בהצלחה!"}
+          {awaitingGateway && !customerHasPaid(order.paymentStatus) ? "ההזמנה נשמרה" : "ההזמנה התקבלה בהצלחה!"}
         </h1>
         <p className="text-muted-foreground">
           מספר הזמנה <span className="text-foreground font-semibold">{order.orderNumber}</span> · בוצעה ב-{formatDateTime(order.createdAt)}
