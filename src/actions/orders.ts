@@ -9,6 +9,7 @@ import { generateOrderNumber } from "@/lib/pricing";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
 import { rememberOrder } from "@/lib/order-receipts";
+import { notifyOrder } from "@/lib/notify";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -193,6 +194,12 @@ export async function createOrderAction(input: CheckoutInput) {
       followUpById: null,
     },
   });
+
+  // The customer is told the order exists as soon as it does, and this is the
+  // one message that goes out without anybody pressing anything. It is also
+  // the only one whose absence a customer notices immediately: a shop that
+  // takes an order and says nothing is a shop they assume lost it.
+  await notifyOrder(order.id, "ORDER_RECEIVED");
 
   return {
     success: true as const,

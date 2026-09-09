@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireBackOffice } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { completeDebitByUid } from "@/lib/pelecard/client";
+import { notifyOrder } from "@/lib/notify";
 
 /**
  * The two buttons on a salesperson's order card.
@@ -106,8 +107,76 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
     metadata: { from: order.status, paymentStatus: order.paymentStatus },
   });
 
+  // After the order has moved, never before, and never inside a transaction
+  // with it. A customer told their payment was approved when the update then
+  // failed is worse than a customer told a minute late.
+  await notifyOrder(order.id, "PAYMENT_APPROVED");
+
   revalidateSellerViews(orderNumber);
   return { success: true, error: null, note };
+}
+
+/**
+ * "יצא למשלוח" — the order leaves the building.
+ *
+ * The courier and the tracking number are typed in rather than fetched,
+ * because no courier here has an account with us yet. When one does, this is
+ * the function that grows a lookup; everything downstream — the customer's
+ * message, the tracking link on their page — already reads these fields and
+ * will not change.
+ *
+ * The link is stored, not built from the number. Every courier publishes a
+ * different address for it and some publish none, and a URL assembled from a
+ * pattern is a 404 in front of a customer who is already wondering where
+ * their fridge is.
+ */
+export async function markShippedAction(
+  orderNumber: string,
+  courier: { name: string; trackingNumber: string; trackingUrl: string },
+): Promise<Result> {
+  const session = await requireBackOffice();
+  const order = await db.order.findUnique({ where: { orderNumber } });
+  if (!order) return { success: false, error: "הזמנה לא נמצאה" };
+
+  if (order.paymentStatus === "AUTHORIZED") {
+    return { success: false, error: "ההזמנה עדיין בדפוזיט. צריך לאשר את התשלום לפני שהיא יוצאת." };
+  }
+  if (order.paymentStatus !== "CAPTURED") {
+    return { success: false, error: "אין תשלום מאושר להזמנה הזאת." };
+  }
+  const name = courier.name.trim();
+  if (!name) return { success: false, error: "צריך לציין חברת שליחויות" };
+
+  await db.order.update({
+    where: { id: order.id },
+    data: {
+      status: "SHIPPED",
+      shippedAt: new Date(),
+      courierName: name,
+      trackingNumber: courier.trackingNumber.trim() || null,
+      trackingUrl: courier.trackingUrl.trim() || null,
+    },
+  });
+  await db.orderStatusHistory.create({
+    data: {
+      orderId: order.id,
+      fromStatus: order.status,
+      toStatus: "SHIPPED",
+      changedById: session.sub,
+      note: `יצא עם ${name}${courier.trackingNumber.trim() ? ` · מעקב ${courier.trackingNumber.trim()}` : ""}`,
+    },
+  });
+  await logAudit({
+    actorId: session.sub,
+    action: "ORDER_SHIPPED",
+    entityType: "Order",
+    entityId: order.id,
+    metadata: { courier: name },
+  });
+
+  await notifyOrder(order.id, "SHIPPED");
+  revalidateSellerViews(orderNumber);
+  return { success: true, error: null };
 }
 
 /**
@@ -130,7 +199,10 @@ export async function closeOrderAction(orderNumber: string): Promise<Result> {
     };
   }
 
-  await db.order.update({ where: { id: order.id }, data: { status: "DELIVERED" } });
+  await db.order.update({
+    where: { id: order.id },
+    data: { status: "DELIVERED", deliveredAt: new Date() },
+  });
   await db.orderStatusHistory.create({
     data: {
       orderId: order.id,
@@ -148,13 +220,13 @@ export async function closeOrderAction(orderNumber: string): Promise<Result> {
     metadata: { from: order.status },
   });
 
+  await notifyOrder(order.id, "DELIVERED");
   revalidateSellerViews(orderNumber);
   return { success: true, error: null };
 }
 
 function revalidateSellerViews(orderNumber: string) {
   revalidatePath("/admin/orders");
-  revalidatePath("/admin/orders/closed");
   revalidatePath(`/admin/orders/${orderNumber}`);
   revalidatePath("/admin");
 }

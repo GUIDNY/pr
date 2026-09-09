@@ -485,14 +485,54 @@ model Order {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // ---------- Delivery, once it has left ----------
+  // Written when the order is marked shipped. trackingUrl is stored rather
+  // than built from the number: every courier has a different address for it
+  // and some have none, and a link built from a pattern is a link that 404s
+  // in front of a customer.
+  courierName    String?
+  trackingNumber String?
+  trackingUrl    String?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+
   items         OrderItem[]
   payments      Payment[]
   statusHistory OrderStatusHistory[]
   notes         OrderNote[]
+  notifications OrderNotification[]
 
   @@index([status])
   @@index([userId])
   complaints         Complaint[]
+}
+
+/// Every message the shop sent a customer about an order, and every one it
+/// tried to send and could not.
+///
+/// A log and not a queue. What it buys is the answer to "did the customer
+/// ever hear about this", which is the first question asked when one rings
+/// up confused — and without a row it can only be guessed at. A failure is
+/// as much worth keeping as a success: a WhatsApp that never went is the
+/// reason the customer is on the phone.
+///
+/// The unique index on (orderId, channel, event) is the thing that stops a
+/// retried action from texting somebody twice. Sending late is a nuisance;
+/// sending twice is what makes people mute a shop.
+model OrderNotification {
+  id        String    @id @default(cuid())
+  orderId   String
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  channel   String // EMAIL | SMS | WHATSAPP
+  event     String // ORDER_RECEIVED | PAYMENT_APPROVED | SHIPPED | DELIVERED
+  recipient String?
+  status    String    @default("QUEUED") // QUEUED | SENT | FAILED | SKIPPED
+  error     String?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([orderId, channel, event])
+  @@index([orderId])
 }
 
 model OrderItem {

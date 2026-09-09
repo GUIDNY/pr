@@ -15,8 +15,10 @@ import {
 import { formatPrice, formatDateTime } from "@/lib/format";
 import { requireBackOffice } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
-import { getSellerOrders } from "@/lib/queries/seller-orders";
-import { SellerOrderCard } from "@/components/admin/seller-order-card";
+import { getSellerOrdersByStage, getSellerStageCounts } from "@/lib/queries/seller-orders";
+import { SellerOrderRow } from "@/components/admin/seller-order-row";
+import { OrderStageTabs } from "@/components/admin/order-stage-tabs";
+import { isStage, STAGE_HINTS } from "@/lib/order-stage";
 
 export const metadata = { title: "הזמנות | Buy Today Admin" };
 
@@ -45,20 +47,27 @@ export default async function AdminOrdersPage({
      differs is what each of them needs to see, so that is what branches. */
   const session = await requireBackOffice();
   if (!canManageCatalog(session.role)) {
-    const orders = await getSellerOrders(false);
+    const sp = await searchParams;
+    const stage = isStage(sp.stage) ? sp.stage : "open";
+    const [orders, counts] = await Promise.all([
+      getSellerOrdersByStage(stage),
+      getSellerStageCounts(),
+    ]);
     return (
       <div className="flex flex-col gap-4">
-        <div>
-          <h1 className="text-xl font-black">הזמנות פתוחות</h1>
-          <p className="text-muted-foreground text-sm">
-            {orders.length === 0 ? "אין הזמנות פתוחות כרגע." : `${orders.length} הזמנות לטיפול`}
+        <OrderStageTabs active={stage} counts={counts} />
+        <p className="text-muted-foreground text-sm">{STAGE_HINTS[stage]}</p>
+        {orders.length === 0 ? (
+          <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">
+            אין כאן הזמנות כרגע.
           </p>
-        </div>
-        <div className="flex flex-col gap-3">
-          {orders.map((order) => (
-            <SellerOrderCard key={order.id} order={order} closed={false} />
-          ))}
-        </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {orders.map((order) => (
+              <SellerOrderRow key={order.id} order={order} />
+            ))}
+          </div>
+        )}
       </div>
     );
   }

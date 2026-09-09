@@ -14,7 +14,6 @@ import {
   Sparkles,
   AlertTriangle,
   CreditCard,
-  Archive,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { logoutAction } from "@/actions/auth";
@@ -33,7 +32,6 @@ import { isBackOffice, canManageCatalog } from "@/lib/permissions";
 const NAV = [
   { href: "/admin", label: "לוח בקרה", icon: LayoutDashboard, exact: true, catalog: true },
   { href: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
-  { href: "/admin/orders/closed", label: "הזמנות סגורות", icon: Archive },
   { href: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart, catalog: true },
   { href: "/admin/complaints", label: "תלונות", icon: AlertTriangle, catalog: true },
   { href: "/admin/products", label: "מוצרים", icon: Package, catalog: true },
