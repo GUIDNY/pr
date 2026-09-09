@@ -92,9 +92,9 @@ export function pelecardEnabled(): boolean {
  *                                    the override that cannot be lost: an
  *                                    account named here never charges a card,
  *                                    whatever else is set.
- *   3. Listed in LIVE_EMAILS      -> gateway, even when the shop is closed.
- *                                    The account used to test against the real
- *                                    terminal before opening to customers.
+ *   3. Listed in LIVE_EMAILS,     -> gateway, even when the shop is closed.
+ *      or in BUILT_IN_LIVE_EMAILS      The account used to test against the real
+ *                                      terminal before opening to customers.
  *   4. Nobody is signed in        -> PELECARD_DEMO_ANONYMOUS pins guests to
  *                                    demo; otherwise the global switch.
  *   5. Everyone else              -> the global switch, PELECARD_ENABLED.
@@ -105,6 +105,26 @@ export function pelecardEnabled(): boolean {
  * gateway. Callers pass the address on the signed cookie or nothing at all.
  */
 export type CheckoutLane = "gateway" | "demo";
+
+/**
+ * The account that pays for real while the shop itself is still closed.
+ *
+ * In code rather than in the environment, which is the opposite of what the
+ * comment above argues for, and the reason is plain: there is no way to write
+ * a Vercel variable from here, and the alternative to this line is the lane
+ * not existing until somebody opens a dashboard.
+ *
+ * It is safe to hard-code precisely because it is not the last word.
+ * PELECARD_DEMO_EMAILS is read BEFORE this list, so putting this same address
+ * there puts it straight back on the demo lane — from the dashboard, with no
+ * deploy and no code change. Clearing any credential does the same thing for
+ * every account at once, since an unconfigured gateway is demo for everyone.
+ *
+ * Note what this account charges: the FULL basket, not the ₪1 of the staff
+ * test button. It is the lane for one deliberate end-to-end run, not for
+ * repeated experiments.
+ */
+const BUILT_IN_LIVE_EMAILS = ["eitan@example.com"];
 
 function emailList(name: string): string[] {
   return (process.env[name] ?? "")
@@ -119,7 +139,7 @@ export function paymentLaneFor(sessionEmail: string | null | undefined): Checkou
   const email = sessionEmail?.trim().toLowerCase();
 
   if (email && emailList("PELECARD_DEMO_EMAILS").includes(email)) return "demo";
-  if (email && emailList("PELECARD_LIVE_EMAILS").includes(email)) return "gateway";
+  if (email && [...BUILT_IN_LIVE_EMAILS, ...emailList("PELECARD_LIVE_EMAILS")].includes(email)) return "gateway";
 
   if (!email && process.env.PELECARD_DEMO_ANONYMOUS?.trim() === "true") return "demo";
 
