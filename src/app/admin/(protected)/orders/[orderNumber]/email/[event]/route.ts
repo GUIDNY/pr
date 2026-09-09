@@ -1,5 +1,6 @@
 import { requireBackOffice } from "@/lib/auth";
 import { previewOrderEmail } from "@/lib/notify";
+import { previewOwnerAlert } from "@/lib/notify/owner-alert";
 import { NOTIFY_EVENTS, type NotifyEvent } from "@/lib/notify/types";
 
 /**
@@ -24,11 +25,17 @@ export async function GET(
   }
 
   const { orderNumber, event } = await params;
-  if (!NOTIFY_EVENTS.includes(event as NotifyEvent)) {
+  /* "owner" is the shop's own new-order alert, which is not a NotifyEvent —
+     see owner-alert.ts for why it is kept out of that list. It is previewable
+     from the same address because the question is the same one. */
+  if (event !== "owner" && !NOTIFY_EVENTS.includes(event as NotifyEvent)) {
     return new Response("unknown event", { status: 404 });
   }
 
-  const html = await previewOrderEmail(orderNumber, event as NotifyEvent);
+  const html =
+    event === "owner"
+      ? await previewOwnerAlert(orderNumber)
+      : await previewOrderEmail(orderNumber, event as NotifyEvent);
   if (!html) return new Response("order not found", { status: 404 });
 
   return new Response(html, {

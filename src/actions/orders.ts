@@ -10,6 +10,7 @@ import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
 import { rememberOrder } from "@/lib/order-receipts";
 import { notifyOrder } from "@/lib/notify";
+import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 import { holdDays } from "@/lib/pelecard/client";
 
 export async function createOrderAction(input: CheckoutInput) {
@@ -219,6 +220,7 @@ export async function createOrderAction(input: CheckoutInput) {
   // the only one whose absence a customer notices immediately: a shop that
   // takes an order and says nothing is a shop they assume lost it.
   await notifyOrder(order.id, "ORDER_RECEIVED");
+  await notifyOwnerOfNewOrder(order.id);
 
   return {
     success: true as const,

@@ -13,6 +13,8 @@ import {
 } from "@/lib/pelecard/client";
 import { pelecardConfig, callbackSecret } from "@/lib/pelecard/config";
 import { customerHasPaid } from "@/lib/order-signal";
+import { notifyOrder } from "@/lib/notify";
+import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -333,6 +335,15 @@ export async function POST(req: Request) {
       },
     }),
   ]);
+
+  /* Both mails go out here rather than at order creation, because on this
+     lane the order exists before the customer has paid: it is created, the
+     customer is sent to the gateway, and plenty of them never come back.
+     Alerting on that would fill the shop's inbox with abandoned carts and
+     tell a customer their order was received when it was not. The card
+     clearing is the moment the order is real. */
+  await notifyOrder(orderId, "ORDER_RECEIVED");
+  await notifyOwnerOfNewOrder(orderId);
 
   return NextResponse.json({ ok: true });
 }
