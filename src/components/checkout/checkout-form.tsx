@@ -548,11 +548,20 @@ export function CheckoutForm({
           {/* With the gateway on, the card is entered on Pelecard's own secure
               page — this site never sees, transmits or stores a card number,
               which is both the PCI requirement and the gateway's own. */}
+          {/* What stands here until the card form can exist, and it says what
+              is actually true now. The old wording promised a click on "בצע
+              הזמנה" and a journey to a secure page; there is no click and
+              nobody goes anywhere, so it described a flow that had been
+              replaced and left the customer waiting for a button.
+
+              It names the thing that is missing, because the alternative is a
+              section that stays blank for a reason only the code knows. */}
           {form.paymentMethod === "DEMO_CARD" && payViaGateway && (
             <p className="text-muted-foreground bg-muted flex items-center gap-2 rounded-md p-3 text-xs leading-relaxed">
               <ShieldCheck className="size-4 shrink-0" />
-              לאחר לחיצה על &quot;בצע הזמנה&quot; תועברו לעמוד תשלום מאובטח של חברת הסליקה להזנת פרטי הכרטיס. פרטי
-              האשראי אינם עוברים דרך האתר ואינם נשמרים בו.
+              {detailsCompleteFor(form)
+                ? "טופס התשלום נפתח כאן..."
+                : "השלימו את הפרטים למעלה וטופס התשלום המאובטח ייפתח כאן. פרטי האשראי מוזנים אצל חברת הסליקה, אינם עוברים דרך האתר ואינם נשמרים בו."}
             </p>
           )}
 
