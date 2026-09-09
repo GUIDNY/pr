@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowRight, Truck, Store, Phone, Mail, AlertTriangle, Check, Loader2,
-  Package, Clock, MessageSquare, CreditCard, Send, Undo2, Trash2, ExternalLink,
+  Package, Clock, MessageSquare, CreditCard, Send, Undo2, Trash2, ExternalLink, Eye,
 } from "lucide-react";
 import type { SellerOrderDetail } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
@@ -287,9 +287,30 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
 
         {/* ---- what the customer was told ---- */}
         <Panel title="עדכונים ללקוח" icon={MessageSquare}>
-          <p className="text-muted-foreground -mt-1 mb-1 text-xs">
-            מייל נשלח לבד. וואטסאפ נפתח אצלך מוכן לשליחה עד שמטא מאשרים את התבניות, ואז יישלח לבד גם הוא.
-          </p>
+          {/* What can send right now. The rows below are a log — each one
+              records what was true at the moment it was sent, and a message
+              that failed last week keeps saying so after the account is
+              connected. Without this line the panel reads as broken long
+              after it is fixed. */}
+          <div className="border-border -mt-1 mb-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-dashed p-2 text-xs">
+            <span className="text-muted-foreground">כרגע:</span>
+            {order.readiness.map((channel) => (
+              <span
+                key={channel.id}
+                title={channel.missing.join(", ")}
+                className={`rounded px-1.5 py-0.5 font-bold ${
+                  channel.configured
+                    ? "bg-success/15 text-success"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {NOTIFY_CHANNEL_LABELS[channel.id]} {channel.configured ? "פעיל" : "לא מחובר"}
+              </span>
+            ))}
+            <span className="text-muted-foreground w-full">
+              וואטסאפ נפתח אצלך מוכן לשליחה עד שמטא מאשרים את התבניות, ואז יישלח לבד גם הוא.
+            </span>
+          </div>
           <ul className="flex flex-col gap-2">
             {order.updates.map((update) => (
               <li
@@ -316,29 +337,42 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
                     </span>
                   ))}
                 </div>
-                {update.due && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <button
-                      type="button"
-                      disabled={pending}
-                      onClick={() => run(() => resendNotificationAction(order.orderNumber, update.event))}
-                      className="border-border hover:bg-muted flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
-                    >
-                      <Mail className="size-3.5" /> שלח מייל
-                    </button>
-                    {update.whatsappHref && (
-                      <a
-                        href={update.whatsappHref}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={() => void logManualWhatsappAction(order.orderNumber, update.event)}
-                        className="bg-success/15 text-success hover:bg-success/25 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold"
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {update.due && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={() => run(() => resendNotificationAction(order.orderNumber, update.event))}
+                        className="border-border hover:bg-muted flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
                       >
-                        <Send className="size-3.5" /> שלח וואטסאפ
-                      </a>
-                    )}
-                  </div>
-                )}
+                        <Mail className="size-3.5" /> שלח מייל
+                      </button>
+                      {update.whatsappHref && (
+                        <a
+                          href={update.whatsappHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => void logManualWhatsappAction(order.orderNumber, update.event)}
+                          className="bg-success/15 text-success hover:bg-success/25 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold"
+                        >
+                          <Send className="size-3.5" /> שלח וואטסאפ
+                        </a>
+                      )}
+                    </>
+                  )}
+                  {/* Also on the messages this order has not reached yet —
+                      seeing what the customer will be sent is the whole
+                      reason to look before pressing anything. */}
+                  <a
+                    href={`/admin/orders/${order.orderNumber}/email/${update.event}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-1 py-1 text-xs font-semibold underline underline-offset-2"
+                  >
+                    <Eye className="size-3.5" /> תצוגה מקדימה
+                  </a>
+                </div>
                 {update.channels.find((c) => c.error) && (
                   <p className="text-muted-foreground mt-1.5 text-xs">
                     {update.channels.find((c) => c.error)?.error}

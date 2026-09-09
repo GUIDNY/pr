@@ -100,6 +100,7 @@ async function sendViaResend(to: string, message: Message): Promise<SendResult> 
         to,
         subject: message.subject,
         text: message.body,
+        ...(message.html ? { html: message.html } : {}),
         ...(replyTo ? { reply_to: replyTo } : {}),
       }),
     });
@@ -130,6 +131,7 @@ async function sendViaGmail(to: string, message: Message): Promise<SendResult> {
       to,
       subject: message.subject,
       text: message.body,
+      ...(message.html ? { html: message.html } : {}),
       ...(env("ORDER_EMAIL_REPLY_TO") ? { replyTo: env("ORDER_EMAIL_REPLY_TO")! } : {}),
     });
     return { ok: true };

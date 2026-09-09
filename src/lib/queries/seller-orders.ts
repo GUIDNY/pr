@@ -7,6 +7,7 @@ import { waHref } from "@/lib/notify/whatsapp-link";
 import { SITE_URL } from "@/lib/site-url";
 import { NOTIFY_EVENTS, type NotifyEvent, type NotifyChannel } from "@/lib/notify/types";
 import { courierTrackingUrl } from "@/lib/couriers";
+import { channelReadiness } from "@/lib/notify";
 
 /**
  * The orders queue as a salesperson needs it.
@@ -58,6 +59,8 @@ export type SellerOrderDetail = SellerOrderSummary & {
     due: boolean;
   }[];
   previousStatus: string | null;
+  /** Which channels can send right now — not what was true when a past message went. */
+  readiness: { id: NotifyChannel; configured: boolean; missing: string[] }[];
   /** Whether this order may be deleted outright, or only cancelled. */
   canDelete: boolean;
 };
@@ -193,6 +196,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
     })),
     updates: buildUpdates(row, summary),
     previousStatus: row.statusHistory[0]?.fromStatus ?? null,
+    readiness: channelReadiness(),
     canDelete: !row.payments.some(
       (p) => p.provider !== "DEMO" && (p.status === "CAPTURED" || p.status === "AUTHORIZED"),
     ),

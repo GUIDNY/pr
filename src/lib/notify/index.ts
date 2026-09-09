@@ -3,10 +3,128 @@ import { db } from "@/lib/db";
 import { SITE_URL } from "@/lib/site-url";
 import { CHANNELS } from "./channels";
 import { messageFor } from "./messages";
-import type { NotifyEvent } from "./types";
+import { renderOrderEmail } from "./email-html";
+import type { Message, NotifyEvent } from "./types";
 
 export * from "./types";
 export { CHANNELS } from "./channels";
+
+const ORDER_SELECT = {
+  id: true,
+  orderNumber: true,
+  createdAt: true,
+  subtotal: true,
+  discountTotal: true,
+  deliveryFee: true,
+  total: true,
+  deliveryMethod: true,
+  shipCity: true,
+  shipStreet: true,
+  shipHouseNo: true,
+  shipApartment: true,
+  courierName: true,
+  trackingNumber: true,
+  trackingUrl: true,
+  guestName: true,
+  guestEmail: true,
+  guestPhone: true,
+  user: { select: { name: true, email: true, phone: true } },
+  items: { select: { titleSnap: true, quantity: true, priceSnap: true } },
+} as const;
+
+type OrderRow = {
+  orderNumber: string;
+  createdAt: Date;
+  subtotal: number;
+  discountTotal: number;
+  deliveryFee: number;
+  total: number;
+  deliveryMethod: string;
+  shipCity: string | null;
+  shipStreet: string | null;
+  shipHouseNo: string | null;
+  shipApartment: string | null;
+  courierName: string | null;
+  trackingNumber: string | null;
+  trackingUrl: string | null;
+  guestName: string | null;
+  user: { name: string } | null;
+  items: { titleSnap: string; quantity: number; priceSnap: number }[];
+};
+
+/**
+ * One order and one event, rendered into everything that will be sent.
+ *
+ * Its own function so that the preview screen renders the identical bytes.
+ * A preview built by a second code path is a preview that eventually shows
+ * something the customer never receives, which is worse than no preview at
+ * all.
+ */
+export function buildMessage(order: OrderRow, event: NotifyEvent): Message {
+  const customerName = order.user?.name ?? order.guestName ?? "לקוח";
+  const toCustomer = order.deliveryMethod === "DELIVERY";
+  const trackUrl = `${SITE_URL}/track-order`;
+
+  const message = messageFor(event, {
+    orderNumber: order.orderNumber,
+    customerName,
+    total: order.total,
+    deliveryToCustomer: toCustomer,
+    courierName: order.courierName,
+    trackingNumber: order.trackingNumber,
+    trackingUrl: order.trackingUrl,
+    trackUrl,
+  });
+
+  /* The same message laid out as a receipt. Built here rather than inside
+     the email channel because a channel's job is to hand something to a
+     provider, not to decide what the shop says. */
+  message.html = renderOrderEmail(event, {
+    orderNumber: order.orderNumber,
+    createdAt: order.createdAt,
+    customerName,
+    subtotal: order.subtotal,
+    discountTotal: order.discountTotal,
+    deliveryFee: order.deliveryFee,
+    total: order.total,
+    deliveryToCustomer: toCustomer,
+    address: shipAddress(order),
+    items: order.items.map((i) => ({ title: i.titleSnap, quantity: i.quantity, price: i.priceSnap })),
+    courierName: order.courierName,
+    trackingNumber: order.trackingNumber,
+    trackingUrl: order.trackingUrl,
+    trackUrl,
+  });
+
+  return message;
+}
+
+/** The email exactly as it would go out, for the preview screen. */
+export async function previewOrderEmail(
+  orderNumber: string,
+  event: NotifyEvent,
+): Promise<string | null> {
+  const order = await db.order.findUnique({ where: { orderNumber }, select: ORDER_SELECT });
+  return order ? (buildMessage(order, event).html ?? null) : null;
+}
+
+/** The four address columns as one line, or nothing when they are all empty. */
+function shipAddress(order: {
+  shipStreet: string | null;
+  shipHouseNo: string | null;
+  shipApartment: string | null;
+  shipCity: string | null;
+}): string | null {
+  const line = [
+    order.shipStreet,
+    order.shipHouseNo,
+    order.shipApartment && `דירה ${order.shipApartment}`,
+    order.shipCity,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return line || null;
+}
 
 /**
  * Tell the customer that something happened to their order, on every channel
@@ -44,35 +162,14 @@ export async function notifyOrder(
 ): Promise<void> {
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: {
-      id: true,
-      orderNumber: true,
-      total: true,
-      deliveryMethod: true,
-      courierName: true,
-      trackingNumber: true,
-      trackingUrl: true,
-      guestName: true,
-      guestEmail: true,
-      guestPhone: true,
-      user: { select: { name: true, email: true, phone: true } },
-    },
+    select: ORDER_SELECT,
   });
   if (!order) return;
 
   const email = order.user?.email ?? order.guestEmail ?? null;
   const phone = order.user?.phone ?? order.guestPhone ?? null;
 
-  const message = messageFor(event, {
-    orderNumber: order.orderNumber,
-    customerName: order.user?.name ?? order.guestName ?? "לקוח",
-    total: order.total,
-    deliveryToCustomer: order.deliveryMethod === "DELIVERY",
-    courierName: order.courierName,
-    trackingNumber: order.trackingNumber,
-    trackingUrl: order.trackingUrl,
-    trackUrl: `${SITE_URL}/track-order`,
-  });
+  const message = buildMessage(order, event);
 
   for (const channel of CHANNELS) {
     const to = channel.id === "EMAIL" ? email : phone;

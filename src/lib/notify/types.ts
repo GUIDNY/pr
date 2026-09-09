@@ -32,8 +32,18 @@ export const NOTIFY_EVENT_LABELS: Record<NotifyEvent, string> = {
 /** One message, already rendered. Channels differ in how they send it, not in what it says. */
 export type Message = {
   subject: string;
-  /** Plain text. SMS and WhatsApp send this as-is; email wraps it. */
+  /** Plain text. SMS and WhatsApp send this as-is; email sends it as the fallback part. */
   body: string;
+  /**
+   * The email version, when there is one.
+   *
+   * Optional rather than required because `body` has to keep working on its
+   * own: a mail sent with only text is plain and correct, and one sent with
+   * only HTML is unreadable in a client that refuses to render it. So the
+   * text part always goes, the HTML rides alongside it, and the channels
+   * that reach a phone ignore this field entirely.
+   */
+  html?: string;
 };
 
 export type SendResult = { ok: true } | { ok: false; error: string };
