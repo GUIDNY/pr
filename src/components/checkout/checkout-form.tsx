@@ -565,6 +565,60 @@ export function CheckoutForm({
             </p>
           )}
 
+          {/* THE SHAPE OF THE FORM THAT IS COMING, AND NOT ONE FIELD OF IT.
+
+              It holds the height so the page does not jump when the real form
+              arrives, and it shows what is arriving. Every box here is a div.
+
+              That is the whole design and it is deliberate. A convincing
+              replica WITH inputs was the other option, and it is the one thing
+              in this flow worth refusing: a card number typed into a box of
+              ours is a card number in this page's memory, in the browser's
+              autofill, and in reach of every extension the customer has
+              installed — which is exactly what the iframe exists to prevent,
+              and what keeps this shop out of SAQ D. A field that looks like it
+              takes a card and does not is also a way to lose one: whatever was
+              typed is gone the moment the real form replaces it.
+
+              So it looks like the form and cannot be typed into, which is the
+              honest half of the idea. */}
+          {form.paymentMethod === "DEMO_CARD" && payViaGateway && !detailsCompleteFor(form) && (
+            <div aria-hidden className="mt-3 flex select-none flex-col gap-3 opacity-40">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {["שם בעל הכרטיס/חברה", "מספר כרטיס"].map((label) => (
+                  <div key={label}>
+                    <span className="mb-1.5 block text-sm font-medium">{label}</span>
+                    <div className="border-input h-8 rounded-lg border" />
+                  </div>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <span className="mb-1.5 block text-sm font-medium">תוקף כרטיס</span>
+                  <div className="flex items-center gap-2">
+                    <div className="border-input h-8 flex-1 rounded-lg border" />
+                    <span className="text-muted-foreground">/</span>
+                    <div className="border-input h-8 flex-1 rounded-lg border" />
+                  </div>
+                </div>
+                <div>
+                  <span className="mb-1.5 block text-sm font-medium">תעודת זהות</span>
+                  <div className="border-input h-8 rounded-lg border" />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <span className="mb-1.5 block text-sm font-medium">קוד אימות כרטיס (CVV)</span>
+                  <div className="border-input h-8 rounded-lg border" />
+                </div>
+              </div>
+              <div className="bg-muted flex items-baseline justify-between rounded-md px-3 py-2">
+                <span className="text-sm font-semibold">סה״כ לתשלום</span>
+                <span className="text-base font-bold tabular-nums">{formatPrice(cart.total)}</span>
+              </div>
+            </div>
+          )}
+
           {/* THE DEMO FORM IS LAID OUT FIELD FOR FIELD LIKE PELECARD'S.
 
               Not decoration. This is the lane the order flow, the delivery flow
@@ -714,8 +768,23 @@ export function CheckoutForm({
             ההזמנה נוצרה וממתינה לתשלום. השלימו את פרטי הכרטיס בטופס המאובטח שבסעיף 3.
           </p>
         ) : (
-          <Button variant="brand" size="lg" className="w-full" disabled={isPending} onClick={submit}>
-            {isPending ? "מבצע הזמנה..." : `בצע הזמנה - ${formatPrice(cart.total)}`}
+          /* On the gateway lane there is nothing left for this button to do —
+             the card form opens on its own once the details are complete — so
+             it stops offering an action it no longer performs and says what is
+             actually being waited for. It is still the submit for the demo and
+             cash lanes, where a press is the whole of it. */
+          <Button
+            variant="brand"
+            size="lg"
+            className="w-full"
+            disabled={isPending || (payViaGateway && !detailsCompleteFor(form))}
+            onClick={submit}
+          >
+            {isPending
+              ? "מבצע הזמנה..."
+              : payViaGateway && !detailsCompleteFor(form)
+                ? "מלאו את הפרטים — התשלום ייפתח מעצמו"
+                : `בצע הזמנה - ${formatPrice(cart.total)}`}
           </Button>
         )}
         {/* חובת היידוע שבסעיף 11 לחוק הגנת הפרטיות — מסירת הפרטים כאן אינה חובה
