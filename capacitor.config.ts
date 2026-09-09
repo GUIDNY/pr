@@ -32,6 +32,7 @@ type CapacitorConfig = {
   appId: string;
   appName: string;
   webDir: string;
+  appendUserAgent?: string;
   server?: {
     url?: string;
     androidScheme?: string;
@@ -49,6 +50,19 @@ const config: CapacitorConfig = {
 
   // Unused while server.url is set, but Capacitor requires the key to exist.
   webDir: "public",
+
+  /* Stamped onto the WebView's user agent so the shop can tell it is being
+     read inside the app. lib/native-app.ts uses it to keep the Meta pixel off
+     in here — Apple counts sending viewed products and purchase amounts to
+     Meta as tracking, and an app that tracks owes every customer an ATT
+     prompt before the first event fires.
+
+     window.Capacitor would answer the same question and is checked first, but
+     the shop is loaded from its live URL rather than bundled, so a bridge that
+     failed to inject would silently switch tracking back on. A user agent
+     travels with the request and cannot fail that way. Changing this string
+     needs a new build; the code that reads it does not. */
+  appendUserAgent: "BuyTodayApp",
 
   server: {
     // Not pr-ayam.vercel.app: next.config.ts 308s that host to buytoday.co.il,
