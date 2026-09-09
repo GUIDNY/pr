@@ -83,11 +83,25 @@ export const emailChannel: Channel = {
 async function sendViaResend(to: string, message: Message): Promise<SendResult> {
   const key = env("RESEND_API_KEY")!;
   const from = env("ORDER_EMAIL_FROM")!;
+  /* Where a reply goes, when the From address is not a mailbox anybody reads.
+     orders@ on a sending domain usually is not one — Resend verifies a domain
+     for sending and that says nothing about receiving — so without this a
+     customer pressing reply is writing into a void, and pressing reply is
+     what a customer does when something is wrong with their order.
+     Unset is fine and means replies go to the From address, which is right
+     once that address is a real mailbox. */
+  const replyTo = env("ORDER_EMAIL_REPLY_TO");
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-      body: JSON.stringify({ from, to, subject: message.subject, text: message.body }),
+      body: JSON.stringify({
+        from,
+        to,
+        subject: message.subject,
+        text: message.body,
+        ...(replyTo ? { reply_to: replyTo } : {}),
+      }),
     });
     if (!res.ok) return { ok: false, error: `${res.status} ${await res.text()}`.slice(0, 300) };
     return { ok: true };
@@ -116,6 +130,7 @@ async function sendViaGmail(to: string, message: Message): Promise<SendResult> {
       to,
       subject: message.subject,
       text: message.body,
+      ...(env("ORDER_EMAIL_REPLY_TO") ? { replyTo: env("ORDER_EMAIL_REPLY_TO")! } : {}),
     });
     return { ok: true };
   } catch (error) {
