@@ -145,6 +145,17 @@ hosts in `blocked-image-hosts.ts` outright. `npm run check:images` guards both r
 
 ## Environment traps, all confirmed the hard way
 
+- **Vercel's Redeploy button republishes the commit that is already live**, not the
+  newest one on `main`. It looks like "fetch the latest and build it" and it is the
+  opposite: a rebuild of the same source. That alone only wastes a build — the cost
+  is the ordering. A Redeploy pressed after a push lands *after* it, and whichever
+  deployment finishes last takes the domain, so the redeploy silently rolls
+  production back to the older code and the change that was just pushed disappears
+  with no error anywhere. It has happened twice: once to a Pelecard stylesheet fix,
+  once to the payment-lane change, and both times the symptom was "the fix isn't
+  live" rather than anything that looked like a rollback. **A push already builds and
+  publishes by itself. There is nothing to press.**
+
 - **Preview builds fail.** Env vars are set for Production only, so `DATABASE_URL` is
   empty in Preview and `/sitemap.xml` — which queries the database at build time —
   takes the build down with `Can't reach database server at 127.0.0.1:5432`.
