@@ -45,20 +45,56 @@ export function displayStockLines(row: StockLineRow): StockLine[] {
   return row.stockLines.filter((l) => l.field !== "SELLABLE_STOCK" && l.quantity > 0);
 }
 
+// A price candidate below this share of the supplier's own ex-VAT cost is
+// not a price. Half, not "below cost": a shop does sell at or under cost —
+// clearance, a display unit, a thin-margin headline model — and the catalog
+// has several of those, all of them within a fifth of cost. Nothing
+// legitimate sits at an eighth of it.
+const COST_FLOOR_RATIO = 0.5;
+
 // The website price is the lowest of whatever resale-price columns the
 // source actually gives — "מחיר מינימום", "מחיר מוצג", "קוד מנכ״ל", however
 // many of these a sheet happens to have. Never the cost/supplier column,
-// never a computed markup — just picking the smallest of the real values
-// present. If none are present, there's no price and the product needs
-// review; that's it.
+// never a computed markup.
+//
+// Lowest-wins is right for a shop and wrong for a typo, and that asymmetry
+// is the whole reason for the floor below. Three columns hold the same
+// price three ways, so two of them agreeing means nothing: one dropped
+// digit in the third is always the minimum, and always wins. That is what
+// put a Miele pyrolytic oven on the site at 690 ₪ — its "מינימום למכירה"
+// cell reads 690 where the row's other two columns say 6,800 and 6,200 —
+// and an LG four-door fridge at 1,400 ₪ beside its own 11,600 and 13,290.
+// Both were live and orderable. Neither looked like an error anywhere: the
+// number is well-formed, the row parses, the product publishes.
+//
+// The sheet carries its own contradiction in the next column over. "עלות
+// ללא מעמ" is what the supplier charges for the unit, and no resale price
+// is a fraction of it. So a candidate under the floor is dropped and the
+// next-cheapest survivor is used; if every candidate fails, the price is
+// null, which the caller already treats as NEEDS_REVIEW and refuses to
+// publish. The rejected values are returned rather than swallowed so the
+// sync can say what it threw away and why.
 export function resolvedPrice(
-  row: Pick<NormalizedProductRow, "retailPrice" | "minSalePrice" | "managerPrice">
-): { price: number | null } {
+  row: Pick<
+    NormalizedProductRow,
+    "retailPrice" | "minSalePrice" | "managerPrice" | "internalCost"
+  >
+): { price: number | null; rejected: number[] } {
   const candidates = [row.retailPrice, row.minSalePrice, row.managerPrice].filter(
     (p): p is number => p !== null
   );
-  if (candidates.length === 0) return { price: null };
-  return { price: Math.min(...candidates) };
+  const floor =
+    row.internalCost !== null && row.internalCost > 0
+      ? row.internalCost * COST_FLOOR_RATIO
+      : null;
+  if (floor === null) {
+    // No cost column on this sheet, so there is nothing to check against and
+    // nothing to reject. Same behaviour as before the floor existed.
+    return { price: candidates.length ? Math.min(...candidates) : null, rejected: [] };
+  }
+  const usable = candidates.filter((p) => p >= floor);
+  const rejected = candidates.filter((p) => p < floor);
+  return { price: usable.length ? Math.min(...usable) : null, rejected };
 }
 
 export function deriveStockStatus(row: NormalizedProductRow, stock: number, hasConflict: boolean): StockStatus {

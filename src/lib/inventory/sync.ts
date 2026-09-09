@@ -327,7 +327,7 @@ async function applyOneRow(
   // now the brand may be created. Reuses whatever findBrandId already found.
   const brandId = existingBrandId ?? (await resolveBrandId(row.brandName));
 
-  const { price: resolved } = resolvedPrice(row);
+  const { price: resolved, rejected: rejectedPrices } = resolvedPrice(row);
 
   // A quantity that is really a price. The supplier typed 9900 into the
   // "בונדד ספק" column of a ₪12,900 fridge whose own notes say it is sold
@@ -641,7 +641,25 @@ async function applyOneRow(
       sourceId,
       syncRunId,
       sourceSku: sku,
-      message: `${row.title}: אין מחיר מינימום במקור — לא פורסם`,
+      message:
+        rejectedPrices.length > 0
+          ? `${row.title}: כל המחירים בשורה נמוכים מחצי מעלות הספק (${(row.internalCost ?? 0).toLocaleString("he-IL")} ₪) — ${rejectedPrices.map((p) => p.toLocaleString("he-IL")).join(", ")} ₪. לא פורסם.`
+          : `${row.title}: אין מחיר מינימום במקור — לא פורסם`,
+    });
+  } else if (rejectedPrices.length > 0) {
+    // The row still has a usable price, so nothing is blocked — but a column
+    // that reads as a fraction of cost is a typo in the sheet, and the shop
+    // wants it corrected there rather than quietly routed around here on
+    // every future sync.
+    currentRowTypes.add("INVALID_PRICE");
+    await upsertAlert({
+      type: "INVALID_PRICE",
+      severity: "WARNING",
+      productId,
+      sourceId,
+      syncRunId,
+      sourceSku: sku,
+      message: `${row.title}: ${rejectedPrices.map((p) => `${p.toLocaleString("he-IL")} ₪`).join(", ")} נמוך מחצי מעלות הספק (${(row.internalCost ?? 0).toLocaleString("he-IL")} ₪) ולא יכול להיות מחיר מכירה. המחיר נלקח מעמודה אחרת (${resolved.toLocaleString("he-IL")} ₪) — כדאי לתקן בגיליון.`,
     });
   }
 
