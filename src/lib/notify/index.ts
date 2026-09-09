@@ -12,7 +12,6 @@ export { CHANNELS } from "./channels";
 const ORDER_SELECT = {
   id: true,
   orderNumber: true,
-  createdAt: true,
   subtotal: true,
   discountTotal: true,
   deliveryFee: true,
@@ -34,7 +33,6 @@ const ORDER_SELECT = {
 
 type OrderRow = {
   orderNumber: string;
-  createdAt: Date;
   subtotal: number;
   discountTotal: number;
   deliveryFee: number;
@@ -81,7 +79,6 @@ export function buildMessage(order: OrderRow, event: NotifyEvent): Message {
      provider, not to decide what the shop says. */
   message.html = renderOrderEmail(event, {
     orderNumber: order.orderNumber,
-    createdAt: order.createdAt,
     customerName,
     subtotal: order.subtotal,
     discountTotal: order.discountTotal,
