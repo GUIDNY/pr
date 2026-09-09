@@ -44,6 +44,11 @@ export function CheckoutForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /* Two fields the demo shows only so it matches Pelecard's form field for
+     field. They are deliberately NOT part of `form`: the checkout schema
+     decides what an order carries, and a skin is not a reason to change it. */
+  const [demoHolderName, setDemoHolderName] = useState("");
+  const [demoIdNumber, setDemoIdNumber] = useState("");
 
   /* Once this is set the order exists and the gateway's form is on the page.
      The checkout does not navigate anywhere to collect a card: step 3 stops
@@ -374,31 +379,98 @@ export function CheckoutForm({
             </p>
           )}
 
+          {/* THE DEMO FORM IS LAID OUT FIELD FOR FIELD LIKE PELECARD'S.
+
+              Not decoration. This is the lane the order flow, the delivery flow
+              and everything downstream get worked on, and a rehearsal on a form
+              that is shaped differently from the real one rehearses the wrong
+              thing — a row that fits here and wraps there is a bug nobody finds
+              until a customer is standing in it.
+
+              So the shape is theirs, read from their DOM: cardholder name on a
+              row of its own, card number beside the expiry pair, identity
+              number beside the CVV, and the amount as a strip under the fields.
+              The captions are their captions.
+
+              What is NOT theirs is the line at the top. The form is a faithful
+              copy and nothing here is charged, and those two facts together are
+              exactly how somebody comes to believe they have paid when they
+              have not. The notice is the part that must never be copied away. */}
           {form.paymentMethod === "DEMO_CARD" && !payViaGateway && (
             <div className="flex flex-col gap-3">
-              <p className="text-muted-foreground bg-muted flex items-center gap-2 rounded-md p-2 text-xs">
+              <p className="border-amber-300 bg-amber-50 text-amber-900 flex items-center gap-2 rounded-md border p-2 text-xs font-medium dark:bg-amber-950/30 dark:text-amber-200">
                 <ShieldCheck className="size-4 shrink-0" />
-                זהו סביבת הדגמה בלבד — לא מבוצע חיוב אמיתי ופרטי הכרטיס אינם נשמרים.
+                מצב הדגמה — הטופס זהה לטופס הסליקה האמיתי, אך לא מבוצע חיוב ופרטי הכרטיס אינם נשמרים.
               </p>
-              <div>
-                <Label className="mb-1.5">מספר כרטיס</Label>
-                <Input
-                  placeholder="4580 0000 0000 0000"
-                  value={form.cardNumber}
-                  onChange={(e) => update("cardNumber", e.target.value)}
-                  inputMode="numeric"
-                />
-                {errors.cardNumber && <p className="text-destructive mt-1 text-xs">{errors.cardNumber}</p>}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="mb-1.5">שם בעל הכרטיס/חברה</Label>
+                  <Input value={demoHolderName} onChange={(e) => setDemoHolderName(e.target.value)} autoComplete="off" />
+                </div>
+                <div>
+                  <Label className="mb-1.5">מספר כרטיס</Label>
+                  <Input
+                    placeholder="4580 0000 0000 0000"
+                    value={form.cardNumber}
+                    onChange={(e) => update("cardNumber", e.target.value)}
+                    inputMode="numeric"
+                    autoComplete="off"
+                  />
+                  {errors.cardNumber && <p className="text-destructive mt-1 text-xs">{errors.cardNumber}</p>}
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
-                  <Label className="mb-1.5">תוקף</Label>
-                  <Input placeholder="MM/YY" value={form.cardExpiry} onChange={(e) => update("cardExpiry", e.target.value)} />
+                  <Label className="mb-1.5">תוקף כרטיס</Label>
+                  {/* Two selects with a slash between them, as on their page —
+                      a free-text MM/YY is a different control with different
+                      mistakes available in it. */}
+                  <div className="flex items-center gap-2">
+                    <select
+                      aria-label="חודש"
+                      className="border-input h-8 flex-1 rounded-lg border bg-transparent px-2.5 text-sm"
+                      value={form.cardExpiry.split("/")[0] ?? ""}
+                      onChange={(e) => update("cardExpiry", `${e.target.value}/${form.cardExpiry.split("/")[1] ?? ""}`)}
+                    >
+                      <option value="">חודש</option>
+                      {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <span className="text-muted-foreground">/</span>
+                    <select
+                      aria-label="שנה"
+                      className="border-input h-8 flex-1 rounded-lg border bg-transparent px-2.5 text-sm"
+                      value={form.cardExpiry.split("/")[1] ?? ""}
+                      onChange={(e) => update("cardExpiry", `${form.cardExpiry.split("/")[0] ?? ""}/${e.target.value}`)}
+                    >
+                      <option value="">שנה</option>
+                      {Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + i)).map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <div>
-                  <Label className="mb-1.5">CVV</Label>
-                  <Input placeholder="123" value={form.cardCvv} onChange={(e) => update("cardCvv", e.target.value)} inputMode="numeric" />
+                  <Label className="mb-1.5">תעודת זהות</Label>
+                  <Input value={demoIdNumber} onChange={(e) => setDemoIdNumber(e.target.value)} inputMode="numeric" autoComplete="off" />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label className="mb-1.5">קוד אימות כרטיס (CVV)</Label>
+                  <Input placeholder="123" value={form.cardCvv} onChange={(e) => update("cardCvv", e.target.value)} inputMode="numeric" autoComplete="off" />
+                </div>
+              </div>
+
+              {/* Their amount strip, in the same place in the form: a tinted
+                  row between the card fields and the button, not a heading. */}
+              <div className="bg-muted flex items-baseline justify-between rounded-md px-3 py-2">
+                <span className="text-sm font-semibold">סה״כ לתשלום</span>
+                <span className="text-base font-bold tabular-nums">{formatPrice(cart.total)}</span>
               </div>
             </div>
           )}
