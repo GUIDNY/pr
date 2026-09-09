@@ -446,6 +446,17 @@ model Order {
   guestName          String?
   guestEmail         String?
   guestPhone         String?
+  // The address this order is going to, held by the order itself — the same
+  // reasoning as titleSnap and priceSnap on OrderItem. `address` below is a row
+  // in the customer's address book: it belongs to an account (Address.userId is
+  // required), so a guest could never have one, and a guest's delivery order was
+  // saved with nowhere to send it. It is also editable and deletable by the
+  // customer long after the order shipped, which is not what an order record of
+  // where it went should be. Written for every DELIVERY order, guest or not.
+  shipCity           String?
+  shipStreet         String?
+  shipHouseNo        String?
+  shipApartment      String?
   addressId          String?
   address            Address?  @relation(fields: [addressId], references: [id])
   deliveryMethod     String    @default("DELIVERY") // DELIVERY | PICKUP

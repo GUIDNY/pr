@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -10,9 +10,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerAction } from "@/actions/auth";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
-  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
+  /* Handed over by the confirmation page, so a guest who just ordered is asked
+     for a password and nothing they have already typed. Only ever prefills
+     fields the customer can see and correct before submitting. */
+  const searchParams = useSearchParams();
+  const [form, setForm] = useState({
+    name: searchParams.get("name") ?? "",
+    email: searchParams.get("email") ?? "",
+    phone: searchParams.get("phone") ?? "",
+    password: "",
+  });
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -87,5 +96,13 @@ export default function RegisterPage() {
         </Link>
       </p>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
   );
 }
