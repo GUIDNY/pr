@@ -2,12 +2,12 @@
 
 import { db } from "@/lib/db";
 import { getCart, getOrCreateCart } from "@/lib/cart";
-import { getSession } from "@/lib/auth";
+import { getSession, getCurrentUser } from "@/lib/auth";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
 import { verifyOrderAccess } from "@/lib/queries/orders";
-import { pelecardEnabled } from "@/lib/pelecard/config";
+import { paymentLaneFor } from "@/lib/pelecard/config";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -58,11 +58,19 @@ export async function createOrderAction(input: CheckoutInput) {
      it paid on the spot because the form said so — stays exactly as it was
      while the flag is off, so nothing changes until it is switched on. */
   const payWithPelecard = data.paymentMethod === "PELECARD";
-  if (payWithPelecard && !pelecardEnabled()) {
-    // The form only sends PELECARD when the server told it the gateway is on.
-    // If that is no longer true, refusing is the only safe answer: the
-    // alternative is an order nobody can pay for, or worse, one marked paid.
-    return { success: false as const, error: "התשלום בכרטיס אינו זמין כרגע. נסו שוב או בחרו תשלום במזומן." };
+  if (payWithPelecard) {
+    /* Asked again here, on the server, about the account on the cookie — not
+       about the email in `data`, which is whatever the shopper typed. The form
+       only sends PELECARD when the page told it the gateway was on for this
+       viewer; re-checking is what makes that a statement about the viewer
+       rather than a field a request can set for itself.
+
+       Refusing is the only safe answer when the two disagree: the alternative
+       is an order nobody can pay for, or worse, one marked paid. */
+    const viewer = await getCurrentUser();
+    if (paymentLaneFor(viewer?.email) !== "gateway") {
+      return { success: false as const, error: "התשלום בכרטיס אינו זמין כרגע. נסו שוב או בחרו תשלום במזומן." };
+    }
   }
   const paymentStatus = payWithPelecard ? "PENDING" : data.paymentMethod === "DEMO_CARD" ? "CAPTURED" : "PENDING";
   const orderStatus = payWithPelecard ? "PAYMENT_PENDING" : data.paymentMethod === "DEMO_CARD" ? "PAID" : "NEW";

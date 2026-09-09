@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { initPayment, SUPPORTED_CARDS, paymentPageStyle } from "./client";
-import { pelecardConfig, pelecardEnabled, pelecardConfigured, toAgorot, siteUrl, callbackSecret } from "./config";
+import { pelecardConfig, pelecardConfigured, paymentLaneFor, toAgorot, siteUrl, callbackSecret } from "./config";
 
 /**
  * Opens a Pelecard payment for an order that already exists, and hands back the
@@ -17,8 +17,13 @@ import { pelecardConfig, pelecardEnabled, pelecardConfigured, toAgorot, siteUrl,
  *
  * Two lanes, and the difference is only which switch has to be on:
  *
- *   "customer" — the storefront. Requires PELECARD_ENABLED, the switch that
- *   says card payment is open to shoppers. Off by default, everywhere.
+ *   "customer" — the storefront. Armed by paymentLaneFor(), which answers the
+ *   question per signed-in account rather than once for the whole shop: the
+ *   global switch is the default, and an account named in PELECARD_DEMO_EMAILS
+ *   or PELECARD_LIVE_EMAILS overrides it in either direction. sessionEmail must
+ *   come from the signed cookie — the address typed into the checkout form is
+ *   whatever the shopper typed, and deciding the lane from it would let anyone
+ *   type their way onto the gateway.
  *
  *   "test" — the merchant's own ₪1 transaction against the live terminal, so
  *   the real payment page can be worked on before customers are sent to it.
@@ -34,9 +39,9 @@ export type PaymentLane = "customer" | "test";
 
 export async function openPelecardPayment(
   orderId: string,
-  { lane = "customer" }: { lane?: PaymentLane } = {},
+  { lane = "customer", sessionEmail }: { lane?: PaymentLane; sessionEmail?: string | null } = {},
 ): Promise<OpenPaymentResult> {
-  const armed = lane === "test" ? pelecardConfigured() : pelecardEnabled();
+  const armed = lane === "test" ? pelecardConfigured() : paymentLaneFor(sessionEmail) === "gateway";
   if (!armed) return { ok: false, status: 503, error: "pelecard disabled" };
 
   /* siteUrl() and callbackSecret() throw as readily as pelecardConfig() does,

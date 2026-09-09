@@ -69,6 +69,64 @@ export function pelecardEnabled(): boolean {
 }
 
 /**
+ * WHO PAYS FOR REAL, AND WHO ONLY SEES THE FORM.
+ *
+ * pelecardEnabled() above is one global answer for the whole shop. That was
+ * enough while the only question was "are customers on the gateway yet", and
+ * it stopped being enough the moment the answer had to differ per account:
+ * one account charging real cards so the round trip can be exercised against
+ * the live terminal, while the admin and the staff's own logins stay on the
+ * demo lane and can be clicked through without spending money.
+ *
+ * THE POLICY IS CONFIGURATION, NOT CODE, and that is deliberate. Which account
+ * charges a real card is a decision that changes, and it is the one decision
+ * where being wrong costs somebody money. Baked into a deploy it takes six
+ * minutes and a build to reverse; in an environment variable it takes one
+ * dashboard field, and it can be reversed at three in the morning by somebody
+ * who does not have the repository open.
+ *
+ * Read in this order, first match wins:
+ *
+ *   1. Not configured at all      -> demo. Nothing can charge.
+ *   2. Listed in DEMO_EMAILS      -> demo, even when the shop is open. This is
+ *                                    the override that cannot be lost: an
+ *                                    account named here never charges a card,
+ *                                    whatever else is set.
+ *   3. Listed in LIVE_EMAILS      -> gateway, even when the shop is closed.
+ *                                    The account used to test against the real
+ *                                    terminal before opening to customers.
+ *   4. Nobody is signed in        -> PELECARD_DEMO_ANONYMOUS pins guests to
+ *                                    demo; otherwise the global switch.
+ *   5. Everyone else              -> the global switch, PELECARD_ENABLED.
+ *
+ * THE EMAIL COMES FROM THE SESSION AND NEVER FROM THE FORM. The checkout asks
+ * a guest for an email and that field is whatever they typed; deciding the
+ * lane from it would mean anyone could type their way onto — or off — the
+ * gateway. Callers pass the address on the signed cookie or nothing at all.
+ */
+export type CheckoutLane = "gateway" | "demo";
+
+function emailList(name: string): string[] {
+  return (process.env[name] ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function paymentLaneFor(sessionEmail: string | null | undefined): CheckoutLane {
+  if (!pelecardConfigured()) return "demo";
+
+  const email = sessionEmail?.trim().toLowerCase();
+
+  if (email && emailList("PELECARD_DEMO_EMAILS").includes(email)) return "demo";
+  if (email && emailList("PELECARD_LIVE_EMAILS").includes(email)) return "gateway";
+
+  if (!email && process.env.PELECARD_DEMO_ANONYMOUS?.trim() === "true") return "demo";
+
+  return pelecardEnabled() ? "gateway" : "demo";
+}
+
+/**
  * Whether a payment COULD be opened: a valid gateway host, the production
  * acknowledgement if that host is production, and credentials.
  *

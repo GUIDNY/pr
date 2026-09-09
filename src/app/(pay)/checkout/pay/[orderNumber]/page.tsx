@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ShieldCheck, Lock, Phone, RotateCcw, SearchX, FlaskConical } from "lucide-react";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/auth";
+import { getSession, getCurrentUser } from "@/lib/auth";
 import { openPelecardPayment } from "@/lib/pelecard/open-payment";
 import { formatPrice } from "@/lib/format";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
@@ -62,7 +62,11 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
     }
   }
 
-  const opened = await openPelecardPayment(order.id, { lane: isTestOrder ? "test" : "customer" });
+  const viewer = await getCurrentUser();
+  const opened = await openPelecardPayment(order.id, {
+    lane: isTestOrder ? "test" : "customer",
+    sessionEmail: viewer?.email,
+  });
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
