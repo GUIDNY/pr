@@ -17,6 +17,32 @@ const registerSchema = z.object({
   password: z.string().min(6, "הסיסמה חייבת להכיל לפחות 6 תווים"),
 });
 
+/**
+ * Hands an account the orders it already placed as a guest.
+ *
+ * Checkout does not require an account, so the usual first order of a customer's
+ * life is a guest order — and it was reaching `Order.userId = null` and staying
+ * there for ever. Registering with the very same address the order was placed
+ * under, minutes later, still produced "עדיין לא ביצעתם הזמנות", and nothing in
+ * the system ever connected the two again.
+ *
+ * The email alone is the proof, which is the same standard the order-tracking
+ * page already applies: `verifyOrderAccess` shows a whole order to anyone who
+ * can name the email or the phone on it. Registration is a stronger claim than
+ * typing an address into a form, and it cannot be used to reach an existing
+ * customer's orders — an email that already has an account cannot be registered
+ * again, and this only ever touches orders with no owner.
+ *
+ * Run on login too, not only on registration: the guest order may have been
+ * placed by someone who already had an account and simply did not sign in.
+ */
+async function claimGuestOrders(userId: string, email: string) {
+  await db.order.updateMany({
+    where: { userId: null, guestEmail: { equals: email, mode: "insensitive" } },
+    data: { userId },
+  });
+}
+
 export async function loginAction(input: { email: string; password: string }) {
   const parsed = loginSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -28,6 +54,7 @@ export async function loginAction(input: { email: string; password: string }) {
   if (!valid) return { success: false, error: "אימייל או סיסמה שגויים" };
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
+  await claimGuestOrders(user.id, user.email);
   return { success: true, error: null, role: user.role };
 }
 
@@ -45,6 +72,7 @@ export async function registerAction(input: { name: string; email: string; phone
   });
 
   await createSession({ sub: user.id, role: "CUSTOMER", name: user.name });
+  await claimGuestOrders(user.id, email);
   return { success: true, error: null };
 }
 

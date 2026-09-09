@@ -8,6 +8,7 @@ import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
+import { rememberOrder } from "@/lib/order-receipts";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -25,8 +26,18 @@ export async function createOrderAction(input: CheckoutInput) {
   const summary = await buildCartSummary(cart);
   const session = await getSession();
 
+  const isDelivery = data.deliveryMethod === "DELIVERY";
+
+  /* The address goes onto the order itself, below, for every delivery order.
+     This block is now only about the customer's ADDRESS BOOK — a saved address
+     an account can reuse next time — which is why it is still the one thing
+     here that a guest does not get: Address rows belong to a user.
+
+     Until the order carried its own copy, this `if (session)` decided whether
+     the address survived at all, and a guest's delivery order reached the back
+     office with nothing under "משלוח עד הבית". */
   let addressId: string | undefined;
-  if (data.deliveryMethod === "DELIVERY") {
+  if (isDelivery) {
     if (session) {
       const address = await db.address.create({
         data: {
@@ -91,6 +102,12 @@ export async function createOrderAction(input: CheckoutInput) {
       guestName: data.fullName,
       guestEmail: data.email,
       guestPhone: data.phone,
+      // Where this order is going, recorded on the order for everyone. A
+      // pickup order has no address to record.
+      shipCity: isDelivery ? data.city : null,
+      shipStreet: isDelivery ? data.street : null,
+      shipHouseNo: isDelivery ? data.houseNo : null,
+      shipApartment: isDelivery ? data.apartment || null : null,
       addressId,
       deliveryMethod: data.deliveryMethod,
       status: orderStatus,
@@ -121,6 +138,11 @@ export async function createOrderAction(input: CheckoutInput) {
   await db.orderStatusHistory.create({
     data: { orderId: order.id, toStatus: orderStatus, note: "הזמנה נוצרה" },
   });
+
+  // What lets the confirmation page tell this buyer from a stranger who typed
+  // an order number. Set before either return below, including the gateway
+  // one — that customer reaches the same page after paying.
+  await rememberOrder(order.orderNumber);
 
   if (!payWithPelecard && paymentStatus === "CAPTURED") {
     const last4 = data.cardNumber ? data.cardNumber.replace(/\s/g, "").slice(-4) : null;

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, MapPin, Package, Phone, Mail, Truck, CreditCard, User as UserIcon } from "lucide-react";
+import { ArrowRight, AlertTriangle, MapPin, Package, Phone, Mail, Truck, CreditCard, User as UserIcon } from "lucide-react";
+import { orderShippingAddress, formatShippingAddress } from "@/lib/order-address";
 import { getAdminOrderDetail, getStaffUsers } from "@/lib/queries/admin-orders";
 import { OrderStatusControl } from "@/components/admin/order-status-control";
 import { OrderAssign } from "@/components/admin/order-assign";
@@ -27,6 +28,7 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
   const customerName = order.user?.name ?? order.guestName ?? "אורח";
   const customerPhone = order.user?.phone ?? order.guestPhone;
   const customerEmail = order.user?.email ?? order.guestEmail;
+  const shipping = orderShippingAddress(order);
 
   return (
     <div className="flex flex-col gap-6">
@@ -168,12 +170,22 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
               <Truck className="size-4" /> משלוח
             </h2>
             <p className="text-sm">{DELIVERY_METHOD_LABELS[order.deliveryMethod as DeliveryMethod]}</p>
-            {order.address && (
+            {shipping ? (
               <p className="text-muted-foreground mt-1 flex items-start gap-1.5 text-sm">
                 <MapPin className="mt-0.5 size-3.5 shrink-0" />
-                {order.address.city}, {order.address.street} {order.address.houseNo}
-                {order.address.apartment ? `, דירה ${order.address.apartment}` : ""}
+                {formatShippingAddress(shipping)}
               </p>
+            ) : (
+              /* A delivery order with no address is not a blank field, it is an
+                 order nobody can ship. It used to render as nothing at all —
+                 "משלוח עד הבית" with empty space under it — which reads as an
+                 order that is fine. Say it out loud instead. */
+              order.deliveryMethod === "DELIVERY" && (
+                <p className="text-destructive border-destructive/30 bg-destructive/5 mt-2 flex items-start gap-1.5 rounded-lg border p-2 text-xs font-medium">
+                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                  אין כתובת למשלוח בהזמנה הזו — צריך ליצור קשר עם הלקוח לפני האספקה.
+                </p>
+              )
             )}
             {order.customerNote && (
               <p className="border-warning/30 bg-warning/10 mt-2 rounded-lg border p-2 text-xs">
