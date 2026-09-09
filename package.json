@@ -31,7 +31,8 @@
     "check:indexnow": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-indexnow.ts",
     "indexnow:bulk": "NODE_OPTIONS=--conditions=react-server tsx scripts/indexnow-bulk.ts",
     "slugs:generate": "tsx scripts/generate-legacy-slugs.ts",
-    "cap:ios": "cap sync ios && cap open ios"
+    "cap:ios": "cap sync ios && cap open ios",
+    "seed:guides": "tsx scripts/seed-buying-guides.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

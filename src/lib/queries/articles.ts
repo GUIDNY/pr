@@ -91,10 +91,31 @@ export async function getArticleBySlug(slug: string) {
 // category, category -> article), not just one. Takes the most recently
 // published match if more than one article ever points at the same
 // category, so this never has to pick among several with no signal.
+//
+// Falls back up the category tree when the exact category has no guide of
+// its own. One dishwasher guide is the right guide for /dishwashers and for
+// all three of fully-integrated, semi-integrated and standard underneath it
+// — the buying advice does not change per leaf — and pinning a copy to each
+// would be four articles competing for the same query and three of them to
+// forget when a price changes. Walks up rather than down because a
+// department's guide generalises to its leaves and a leaf's does not
+// generalise to its siblings.
 export async function getArticleByCategorySlug(categorySlug: string) {
-  return db.article.findFirst({
-    where: { relatedCategorySlug: categorySlug, isPublished: true },
-    orderBy: { publishedAt: "desc" },
-    select: { slug: true, title: true, excerpt: true },
-  });
+  let slug: string | null = categorySlug;
+  // Bounded: a cycle in parentId would otherwise spin here forever, and the
+  // tree is three deep.
+  for (let depth = 0; slug && depth < 5; depth++) {
+    const article = await db.article.findFirst({
+      where: { relatedCategorySlug: slug, isPublished: true },
+      orderBy: { publishedAt: "desc" },
+      select: { slug: true, title: true, excerpt: true },
+    });
+    if (article) return article;
+    const category: { parent: { slug: string } | null } | null = await db.category.findUnique({
+      where: { slug },
+      select: { parent: { select: { slug: true } } },
+    });
+    slug = category?.parent?.slug ?? null;
+  }
+  return null;
 }
