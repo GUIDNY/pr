@@ -23,7 +23,14 @@
 // Run:  npm run indexnow:bulk
 //       npm run indexnow:bulk -- --dry-run     (prints and writes the payload,
 //                                               sends nothing)
-import { writeFileSync } from "fs";
+//       npm run indexnow:bulk -- --sitemap-file urls.txt
+//                                              (one URL per line, for a machine
+//                                               that cannot reach the site but
+//                                               can reach IndexNow — or the
+//                                               reverse, which is how the
+//                                               payload gets built here and
+//                                               sent from somewhere else)
+import { readFileSync, writeFileSync } from "fs";
 import { INDEXNOW_KEY } from "../src/lib/indexnow";
 import { LEGACY_PRODUCT_SLUGS, LEGACY_BRAND_SLUGS } from "../src/generated/legacy-slugs";
 
@@ -34,8 +41,20 @@ const ENDPOINT = "https://api.indexnow.org/IndexNow";
 const BATCH = 10_000;
 
 const dryRun = process.argv.includes("--dry-run");
+const sitemapFile = argValue("--sitemap-file");
+
+function argValue(flag: string): string | null {
+  const i = process.argv.indexOf(flag);
+  return i >= 0 ? (process.argv[i + 1] ?? null) : null;
+}
 
 async function sitemapUrls(): Promise<string[]> {
+  if (sitemapFile) {
+    return readFileSync(sitemapFile, "utf8")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
   const res = await fetch(`${SITE}/sitemap.xml`, { headers: { accept: "application/xml" } });
   if (!res.ok) throw new Error(`sitemap.xml returned ${res.status}`);
   const xml = await res.text();
