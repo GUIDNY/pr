@@ -4,15 +4,20 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowRight, Truck, Store, Phone, Mail, AlertTriangle, Check, Loader2,
-  Package, Clock, MessageSquare, CreditCard, Send,
+  Package, Clock, MessageSquare, CreditCard, Send, Undo2, Trash2, ExternalLink,
 } from "lucide-react";
 import type { SellerOrderDetail } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
 import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/enums";
-import { NOTIFY_CHANNEL_LABELS, NOTIFY_EVENT_LABELS, type NotifyChannel, type NotifyEvent } from "@/lib/notify/types";
+import { NOTIFY_CHANNEL_LABELS, NOTIFY_EVENT_LABELS } from "@/lib/notify/types";
 import { stageOf } from "@/lib/order-stage";
 import { formatPrice, formatDateTime } from "@/lib/format";
-import { approveOrderAction, closeOrderAction, markShippedAction, logManualWhatsappAction } from "@/actions/seller-orders";
+import {
+  approveOrderAction, closeOrderAction, markShippedAction, logManualWhatsappAction,
+  undoLastStatusAction, deleteOrderAction, resendNotificationAction,
+} from "@/actions/seller-orders";
+import { COURIERS } from "@/lib/couriers";
+import { ORDER_STATUS_LABELS as STATUS_LABELS } from "@/lib/enums";
 
 /**
  * One order, everything about it, and the one action it is actually waiting
@@ -35,6 +40,10 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
   const [error, setError] = useState<string | null>(null);
   const [shipOpen, setShipOpen] = useState(false);
   const [courier, setCourier] = useState({ name: "", trackingNumber: "", trackingUrl: "" });
+  /* Deleting is two clicks, and the second one is the one that is armed. Not
+     a confirm() dialog: those are dismissed by muscle memory, and this is the
+     only irreversible button on the page. */
+  const [confirming, setConfirming] = useState<"idle" | "ready">("idle");
 
   const signal = paymentSignal(order.paymentStatus);
   const stage = stageOf(order.status);
@@ -118,6 +127,21 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               className="border-border hover:bg-muted rounded-lg border px-5 py-2.5 text-sm font-bold disabled:opacity-50"
             >
               נמסר ללקוח — סגור
+            </button>
+          )}
+          {/* The way back. Every other button here moves the order forward,
+              and pressing one on the wrong row used to be final — which is
+              the worst shape a mistake can take: instant, silent, and
+              somebody else's to fix. */}
+          {order.previousStatus && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => undoLastStatusAction(order.orderNumber))}
+              className="text-muted-foreground hover:text-foreground hover:bg-muted ms-auto flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-medium disabled:opacity-50"
+            >
+              <Undo2 className="size-4" />
+              בטל — חזור ל{STATUS_LABELS[order.previousStatus as OrderStatus] ?? order.previousStatus}
             </button>
           )}
         </div>
@@ -264,66 +288,101 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
 
         {/* ---- what the customer was told ---- */}
         <Panel title="עדכונים ללקוח" icon={MessageSquare}>
-          {/* Manual until Meta approve the templates. The link opens the
-              message already typed into this person's own WhatsApp — which is
-              why it is allowed at all: the template rule governs a business
-              opening a conversation programmatically, not a human sending
-              from their own number. The wording is the same one the automatic
-              sender will use, so nothing about it changes for the customer
-              when the API takes over. */}
-          {order.manualWhatsapp && (
+          <p className="text-muted-foreground -mt-1 mb-1 text-xs">
+            מייל נשלח לבד. וואטסאפ נפתח אצלך מוכן לשליחה עד שמטא מאשרים את התבניות, ואז יישלח לבד גם הוא.
+          </p>
+          <ul className="flex flex-col gap-2">
+            {order.updates.map((update) => (
+              <li
+                key={update.event}
+                className={`border-border rounded-lg border p-2.5 ${update.due ? "" : "opacity-50"}`}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="flex-1 text-sm font-bold">{NOTIFY_EVENT_LABELS[update.event]}</span>
+                  {update.channels.map((c) => (
+                    <span
+                      key={c.channel}
+                      title={c.error ?? undefined}
+                      className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                        c.status === "SENT"
+                          ? "bg-success/15 text-success"
+                          : c.status === "FAILED"
+                            ? "bg-destructive/15 text-destructive"
+                            : c.status === "SKIPPED"
+                              ? "bg-muted text-muted-foreground"
+                              : "border-border text-muted-foreground border border-dashed"
+                      }`}
+                    >
+                      {NOTIFY_CHANNEL_LABELS[c.channel]}
+                    </span>
+                  ))}
+                </div>
+                {update.due && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => run(() => resendNotificationAction(order.orderNumber, update.event))}
+                      className="border-border hover:bg-muted flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
+                    >
+                      <Mail className="size-3.5" /> שלח מייל
+                    </button>
+                    {update.whatsappHref && (
+                      <a
+                        href={update.whatsappHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={() => void logManualWhatsappAction(order.orderNumber, update.event)}
+                        className="bg-success/15 text-success hover:bg-success/25 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold"
+                      >
+                        <Send className="size-3.5" /> שלח וואטסאפ
+                      </a>
+                    )}
+                  </div>
+                )}
+                {update.channels.find((c) => c.error) && (
+                  <p className="text-muted-foreground mt-1.5 text-xs">
+                    {update.channels.find((c) => c.error)?.error}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+
+        {/* ---- the couriers themselves ---- */}
+        <Panel title="חברות שליחויות" icon={Truck}>
+          {order.courier.trackingUrl && (
             <a
-              href={order.manualWhatsapp.href}
+              href={order.courier.trackingUrl}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => {
-                if (order.manualWhatsapp) {
-                  void logManualWhatsappAction(order.orderNumber, order.manualWhatsapp.event);
-                }
-              }}
-              className={`mb-3 flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold ${
-                order.manualWhatsapp.alreadySent
-                  ? "border-border text-muted-foreground border"
-                  : "bg-success/15 text-success hover:bg-success/25"
-              }`}
+              className="bg-brand/10 text-brand hover:bg-brand/20 mb-2 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold"
             >
-              <Send className="size-4" />
-              {order.manualWhatsapp.alreadySent
-                ? "שלח שוב בוואטסאפ"
-                : `שלח בוואטסאפ: ${NOTIFY_EVENT_LABELS[order.manualWhatsapp.event]}`}
+              <ExternalLink className="size-4" />
+              מעקב אחרי המשלוח של ההזמנה הזאת
             </a>
           )}
-          {!order.manualWhatsapp && order.customerPhone && (
-            <p className="text-muted-foreground mb-3 text-xs">
-              מספר הטלפון של הלקוח לא בפורמט שאפשר לפתוח בוואטסאפ.
-            </p>
-          )}
-          {order.notifications.length === 0 ? (
-            <p className="text-muted-foreground text-sm">עוד לא נשלחו עדכונים.</p>
-          ) : (
-            <ul className="flex flex-col gap-1.5 text-sm">
-              {order.notifications.map((n, i) => (
-                <li key={i} className="flex items-baseline gap-2">
-                  <span
-                    className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold ${
-                      n.status === "SENT"
-                        ? "bg-success/15 text-success"
-                        : n.status === "FAILED"
-                          ? "bg-destructive/15 text-destructive"
-                          : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {NOTIFY_CHANNEL_LABELS[n.channel as NotifyChannel] ?? n.channel}
-                  </span>
-                  <span className="flex-1">
-                    {NOTIFY_EVENT_LABELS[n.event as NotifyEvent] ?? n.event}
-                    {n.error && <span className="text-muted-foreground block text-xs">{n.error}</span>}
-                  </span>
-                  <span className="text-muted-foreground shrink-0 text-xs">{formatDateTime(n.at)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="flex flex-col gap-1">
+            {COURIERS.map((courier) => (
+              <li key={courier.id} className="flex items-center gap-2 text-sm">
+                <a
+                  href={courier.site}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand flex flex-1 items-center gap-1.5"
+                >
+                  <ExternalLink className="size-3.5 shrink-0" />
+                  {courier.name}
+                </a>
+                {courier.phone && (
+                  <a href={`tel:${courier.phone}`} className="text-muted-foreground shrink-0 text-xs">
+                    {courier.phone}
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
         </Panel>
       </div>
 
@@ -342,6 +401,32 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
           ))}
         </ul>
       </Panel>
+
+      {/* ---- the exit for something that should not exist ---- */}
+      <div className="border-border mt-2 rounded-2xl border border-dashed p-4">
+        <p className="text-muted-foreground text-xs">
+          {order.canDelete
+            ? "מחיקה מוחקת את ההזמנה לגמרי ואי אפשר לשחזר. מיועדת להזמנות בדיקה ולטעויות שלא נגבה בהן כסף."
+            : "בהזמנה הזאת נגבה או נתפס כסף אמיתי, ולכן אי אפשר למחוק אותה — זה רישום כספי. אפשר לבטל אותה, והביטול נשמר."}
+        </p>
+        <button
+          type="button"
+          disabled={pending || !order.canDelete || confirming !== "ready"}
+          onClick={() => run(() => deleteOrderAction(order.orderNumber))}
+          className="text-destructive hover:bg-destructive/10 mt-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
+        >
+          <Trash2 className="size-4" /> מחק את ההזמנה לצמיתות
+        </button>
+        {order.canDelete && confirming !== "ready" && (
+          <button
+            type="button"
+            onClick={() => setConfirming("ready")}
+            className="text-muted-foreground hover:text-foreground mt-1 block text-xs underline"
+          >
+            אני רוצה למחוק — פתח את הכפתור
+          </button>
+        )}
+      </div>
     </div>
   );
 }

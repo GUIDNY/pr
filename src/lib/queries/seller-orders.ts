@@ -3,9 +3,10 @@ import { db } from "@/lib/db";
 import type { OrderStatus, PaymentStatus } from "@/lib/enums";
 import { statusesInStage, type OrderStage } from "@/lib/order-stage";
 import { messageFor } from "@/lib/notify/messages";
-import { currentNotifyEvent, waHref } from "@/lib/notify/whatsapp-link";
+import { waHref } from "@/lib/notify/whatsapp-link";
 import { SITE_URL } from "@/lib/site-url";
-import type { NotifyEvent } from "@/lib/notify/types";
+import { NOTIFY_EVENTS, type NotifyEvent, type NotifyChannel } from "@/lib/notify/types";
+import { courierTrackingUrl } from "@/lib/couriers";
 
 /**
  * The orders queue as a salesperson needs it.
@@ -48,8 +49,17 @@ export type SellerOrderDetail = SellerOrderSummary & {
   items: { title: string; sku: string; quantity: number; price: number; inStock: number | null }[];
   history: { at: Date; from: string | null; to: string; note: string | null; by: string | null }[];
   notifications: { channel: string; event: string; status: string; error: string | null; at: Date }[];
-  /** The message this order is due, ready to send by hand. Null with no usable phone number. */
-  manualWhatsapp: { event: NotifyEvent; href: string; alreadySent: boolean } | null;
+  /** One row per message the shop sends, whether or not it has gone yet. */
+  updates: {
+    event: NotifyEvent;
+    channels: { channel: NotifyChannel; status: string; error: string | null; at: Date | null }[];
+    whatsappHref: string | null;
+    /** True once this message is one the order has actually reached. */
+    due: boolean;
+  }[];
+  previousStatus: string | null;
+  /** Whether this order may be deleted outright, or only cancelled. */
+  canDelete: boolean;
 };
 
 const LIST_SELECT = {
@@ -153,7 +163,10 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
     courier: {
       name: row.courierName,
       trackingNumber: row.trackingNumber,
-      trackingUrl: row.trackingUrl,
+      // What was typed in wins; the directory fills in for the couriers whose
+      // tracking address is predictable and whose number was entered without
+      // one.
+      trackingUrl: row.trackingUrl ?? courierTrackingUrl(row.courierName, row.trackingNumber),
     },
     shippedAt: row.shippedAt,
     deliveredAt: row.deliveredAt,
@@ -178,11 +191,24 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
       error: n.error,
       at: n.createdAt,
     })),
-    manualWhatsapp: buildManualWhatsapp(row, summary),
+    updates: buildUpdates(row, summary),
+    previousStatus: row.statusHistory[0]?.fromStatus ?? null,
+    canDelete: !row.payments.some(
+      (p) => p.provider !== "DEMO" && (p.status === "CAPTURED" || p.status === "AUTHORIZED"),
+    ),
   };
 }
 
-function buildManualWhatsapp(
+/**
+ * The four messages, each with what has happened to it on each channel.
+ *
+ * Every event is listed whether or not it has been sent, and that is the
+ * point: a panel that only lists what went out cannot answer "did the
+ * customer ever hear that it shipped", which is the question actually being
+ * asked. `due` marks the ones the order has already reached, so the ones
+ * still ahead of it read as future rather than as failures.
+ */
+function buildUpdates(
   row: {
     status: string;
     orderNumber: string;
@@ -191,31 +217,47 @@ function buildManualWhatsapp(
     courierName: string | null;
     trackingNumber: string | null;
     trackingUrl: string | null;
-    notifications: { channel: string; event: string; status: string }[];
+    notifications: { channel: string; event: string; status: string; error: string | null; createdAt: Date }[];
   },
   summary: SellerOrderSummary,
 ) {
-  const event = currentNotifyEvent(row.status);
-  const message = messageFor(event, {
-    orderNumber: row.orderNumber,
-    customerName: summary.customerName,
-    total: row.total,
-    deliveryToCustomer: row.deliveryMethod === "DELIVERY",
-    courierName: row.courierName,
-    trackingNumber: row.trackingNumber,
-    trackingUrl: row.trackingUrl,
-    trackUrl: `${SITE_URL}/track-order`,
+  const reached = new Set<NotifyEvent>(["ORDER_RECEIVED"]);
+  const stage = row.status;
+  if (["PROCESSING", "AWAITING_SUPPLIER", "SUPPLIER_CONFIRMED", "READY_FOR_DELIVERY", "SHIPPED", "DELIVERED"].includes(stage)) {
+    reached.add("PAYMENT_APPROVED");
+  }
+  if (["SHIPPED", "DELIVERED"].includes(stage)) reached.add("SHIPPED");
+  if (stage === "DELIVERED") reached.add("DELIVERED");
+
+  return NOTIFY_EVENTS.map((event) => {
+    const message = messageFor(event, {
+      orderNumber: row.orderNumber,
+      customerName: summary.customerName,
+      total: row.total,
+      deliveryToCustomer: row.deliveryMethod === "DELIVERY",
+      courierName: row.courierName,
+      trackingNumber: row.trackingNumber,
+      trackingUrl: row.trackingUrl,
+      trackUrl: `${SITE_URL}/track-order`,
+    });
+    const channels = (["EMAIL", "SMS", "WHATSAPP"] as NotifyChannel[]).map((channel) => {
+      const found = row.notifications.find((n) => n.channel === channel && n.event === event);
+      return {
+        channel,
+        status: found?.status ?? "NONE",
+        error: found?.error ?? null,
+        at: found?.createdAt ?? null,
+      };
+    });
+    return {
+      event,
+      channels,
+      whatsappHref: waHref(summary.customerPhone, message.body),
+      due: reached.has(event),
+    };
   });
-  const href = waHref(summary.customerPhone, message.body);
-  if (!href) return null;
-  return {
-    event,
-    href,
-    alreadySent: row.notifications.some(
-      (n) => n.channel === "WHATSAPP" && n.event === event && n.status === "SENT",
-    ),
-  };
 }
+
 
 type ListRow = {
   id: string;

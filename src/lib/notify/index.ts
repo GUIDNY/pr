@@ -27,7 +27,21 @@ export { CHANNELS } from "./channels";
  *   bought SMS did not fail to send an SMS, and colouring those red is how
  *   the one that really failed stops being visible.
  */
-export async function notifyOrder(orderId: string, event: NotifyEvent): Promise<void> {
+export async function notifyOrder(
+  orderId: string,
+  event: NotifyEvent,
+  /**
+   * Send again even though this message already went.
+   *
+   * Only ever set by a person pressing "send again" on the order page. The
+   * automatic senders never pass it, because the duplicate they would produce
+   * is the accidental kind — a retried action, a redelivered callback — and
+   * that is exactly what the unique index exists to stop. A deliberate resend
+   * is a different act: somebody looked at the order, saw the customer never
+   * got it, and decided.
+   */
+  { force = false }: { force?: boolean } = {},
+): Promise<void> {
   const order = await db.order.findUnique({
     where: { id: orderId },
     select: {
@@ -66,12 +80,20 @@ export async function notifyOrder(orderId: string, event: NotifyEvent): Promise<
     // Claim the row before doing anything slow. A duplicate key here is not
     // an error condition, it is the answer: somebody already sent this.
     let claimed;
-    try {
-      claimed = await db.orderNotification.create({
-        data: { orderId: order.id, channel: channel.id, event, recipient: to },
+    if (force) {
+      claimed = await db.orderNotification.upsert({
+        where: { orderId_channel_event: { orderId: order.id, channel: channel.id, event } },
+        create: { orderId: order.id, channel: channel.id, event, recipient: to },
+        update: { recipient: to, status: "QUEUED", error: null, sentAt: null },
       });
-    } catch {
-      continue;
+    } else {
+      try {
+        claimed = await db.orderNotification.create({
+          data: { orderId: order.id, channel: channel.id, event, recipient: to },
+        });
+      } catch {
+        continue;
+      }
     }
 
     if (!to) {

@@ -282,3 +282,151 @@ export async function logManualWhatsappAction(
   revalidateSellerViews(orderNumber);
   return { success: true, error: null };
 }
+
+/**
+ * Put an order back where it was, because the last click was a mistake.
+ *
+ * Every one of the buttons on this page moves an order forward, and until
+ * now none of them moved it back. Pressing "closed" on the wrong row sent it
+ * to a tab with no way out, which is the worst shape a mistake can take:
+ * silent, instant, and requiring someone else to fix.
+ *
+ * The previous status is read from the order's own history rather than
+ * guessed from the current one. "Before this" is a fact the shop already
+ * records, and inferring it — closed came from shipped, probably — is how an
+ * order that went straight from paid to closed lands in a status it was
+ * never in.
+ *
+ * Money is not undone. A capture that has happened has happened, at the
+ * gateway and on the customer's statement, and a button here cannot reach
+ * it; this moves the order's status and says so. Reversing a charge is a
+ * refund, which is a different act with a different button and belongs to
+ * whoever owns the till.
+ */
+export async function undoLastStatusAction(orderNumber: string): Promise<Result> {
+  const session = await requireBackOffice();
+  const order = await db.order.findUnique({
+    where: { orderNumber },
+    select: {
+      id: true,
+      status: true,
+      statusHistory: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+  });
+  if (!order) return { success: false, error: "הזמנה לא נמצאה" };
+
+  const last = order.statusHistory[0];
+  if (!last || !last.fromStatus) {
+    return { success: false, error: "אין שלב קודם לחזור אליו." };
+  }
+  if (last.toStatus !== order.status) {
+    // Something moved the order after the entry we are about to undo. Undoing
+    // now would not reverse the last change, it would reverse an older one and
+    // discard whatever happened since.
+    return { success: false, error: "ההזמנה השתנתה מאז. רענן את הדף ונסה שוב." };
+  }
+
+  await db.order.update({
+    where: { id: order.id },
+    data: {
+      status: last.fromStatus,
+      // Both are the record of a step that is being taken back. Left in
+      // place they would show an order that is "in progress" and also
+      // delivered, and the customer's tracking page reads them.
+      ...(last.toStatus === "DELIVERED" ? { deliveredAt: null } : {}),
+      ...(last.toStatus === "SHIPPED" ? { shippedAt: null } : {}),
+    },
+  });
+  await db.orderStatusHistory.create({
+    data: {
+      orderId: order.id,
+      fromStatus: last.toStatus,
+      toStatus: last.fromStatus,
+      changedById: session.sub,
+      note: "ביטול הפעולה האחרונה",
+    },
+  });
+  await logAudit({
+    actorId: session.sub,
+    action: "ORDER_STATUS_UNDONE",
+    entityType: "Order",
+    entityId: order.id,
+    metadata: { from: last.toStatus, to: last.fromStatus },
+  });
+
+  revalidateSellerViews(orderNumber);
+  return { success: true, error: null };
+}
+
+/**
+ * Delete an order that should never have existed.
+ *
+ * Only one that took no money. An order whose card was charged is a
+ * financial record — the shop's, the customer's and the gateway's — and no
+ * button in a back office gets to make one disappear; the honest end for
+ * those is CANCELLED, which keeps the row and says what happened.
+ *
+ * A demo order is the opposite case and the reason this exists: it is
+ * rehearsal litter, it corresponds to nothing anywhere, and leaving a pile
+ * of it in the queue is how a real order gets missed among the fakes.
+ */
+export async function deleteOrderAction(orderNumber: string): Promise<Result> {
+  const session = await requireBackOffice();
+  const order = await db.order.findUnique({
+    where: { orderNumber },
+    select: {
+      id: true,
+      total: true,
+      paymentStatus: true,
+      payments: { select: { provider: true, status: true } },
+    },
+  });
+  if (!order) return { success: false, error: "הזמנה לא נמצאה" };
+
+  const tookRealMoney = order.payments.some(
+    (p) => p.provider !== "DEMO" && (p.status === "CAPTURED" || p.status === "AUTHORIZED"),
+  );
+  if (tookRealMoney) {
+    return {
+      success: false,
+      error: "אי אפשר למחוק הזמנה שנגבה או נתפס בה כסף אמיתי. אפשר לבטל אותה — הביטול נשמר ברישום.",
+    };
+  }
+
+  // Written before the row goes, because afterwards there is nothing to point
+  // at. Items, payments, notifications and history all cascade with it.
+  await logAudit({
+    actorId: session.sub,
+    action: "ORDER_DELETED",
+    entityType: "Order",
+    entityId: order.id,
+    metadata: { orderNumber, total: order.total, paymentStatus: order.paymentStatus },
+  });
+  await db.order.delete({ where: { id: order.id } });
+
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin");
+  return { success: true, error: null };
+}
+
+/**
+ * Send one message again, on every channel that can carry it.
+ *
+ * The button beside each update on the order page. It exists because the
+ * automatic send is deliberately once-only, and "once" is wrong exactly when
+ * a person can see it did not arrive — a bounced address since corrected, a
+ * channel that was not configured at the time, a customer on the phone
+ * saying they got nothing.
+ */
+export async function resendNotificationAction(
+  orderNumber: string,
+  event: NotifyEvent,
+): Promise<Result> {
+  await requireBackOffice();
+  const order = await db.order.findUnique({ where: { orderNumber }, select: { id: true } });
+  if (!order) return { success: false, error: "הזמנה לא נמצאה" };
+
+  await notifyOrder(order.id, event, { force: true });
+  revalidateSellerViews(orderNumber);
+  return { success: true, error: null };
+}
