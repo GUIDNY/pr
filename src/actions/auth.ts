@@ -118,12 +118,19 @@ const deleteAccountSchema = z.object({
  * same as the account's owner standing there — and this is the one action in
  * the shop with nothing to undo it with.
  *
- * Copying the email has a consequence worth stating: claimGuestOrders above
+ * Copying the email would otherwise undo half of this. claimGuestOrders above
  * gives every ownerless order with a matching email to whoever next signs in
- * with it, so registering again with the same address brings this history
- * back. That is the same person by the same proof the order-tracking page
- * already accepts, so it is left as it is — and the deletion page says it in
- * as many words rather than promising a break it does not make.
+ * with it, and a detached order is ownerless with that email written on it —
+ * so registering again with the same address brought the whole history back.
+ *
+ * It was argued that this is the same person by the same proof the
+ * order-tracking page already accepts, and disclosed on the deletion page
+ * instead of being changed. What that argument misses is the address that
+ * outlives its owner: a work address reassigned, a provider recycling a
+ * mailbox. Whoever registers it next is not the same person, and what they
+ * would receive is somebody's name, phone and delivery address. So the orders
+ * this detaches are stamped with ownerDeletedAt and the claim skips them; the
+ * break is real, and the deletion page now says that instead.
  *
  * Staff and admins are refused. Their accounts own audit trails, order notes
  * and sync history, and the storefront is not where an operator account should
