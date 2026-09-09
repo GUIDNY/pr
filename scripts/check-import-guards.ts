@@ -12,6 +12,7 @@ import {
   looksLikeStockPhrase,
   looksLikeMisplacedQuantity,
   looksLikeOffsetStockRow,
+  modelsCanBeTheSame,
 } from "../src/lib/inventory/import-guards";
 import { resolvedPrice } from "../src/lib/inventory/diff-engine";
 
@@ -247,6 +248,54 @@ for (const [quantities, why] of STRAIGHT) {
 }
 
 // ---------------------------------------------------------------------------
+// modelsCanBeTheSame. Every pair below is a real one: the SAME half are a
+// product and its own sheet row spelled differently, the DIFFERENT half are
+// the swaps that were actually found live in the catalog.
+// ---------------------------------------------------------------------------
+const SAME_MODEL: [string | null, string | null, string][] = [
+  ["CUISINE-7310IX", "7310IX", "the sheet drops the series name"],
+  ["SJ-9630SL", "9630SL", "the sheet drops the brand prefix"],
+  ["DLR393XLEU", "DLR 393XL", "spaces and a region suffix"],
+  ["H 2467 BP", "H2467BP", "the same model, spaced"],
+  ["BT682W", "BT682", "a colour letter only we carry"],
+  ["MWG3434", "MWG3434W", "a colour letter only the sheet carries"],
+  [null, "MGH90GB", "no model on the product — the sheet is not contradicting anything"],
+  ["CH74BVT", null, "no model in the sheet row"],
+  ["CH74BVT", "  ", "a blank model cell"],
+];
+for (const [product, row, why] of SAME_MODEL) {
+  if (!modelsCanBeTheSame(product, row)) fail(`models must match — ${why}: ${product} / ${row}`);
+}
+
+// Refused, and refusing is the safe direction. A rejected position match is
+// not a lost product: it falls through to the SKU lookup and the content row
+// key, both of which still find it. The cost of being too strict is one
+// extra lookup; the cost of being too loose is a product silently taking
+// another product's stock. So an O typed for a zero stays a mismatch rather
+// than being folded away — folding characters to rescue a typo would also
+// fold two models that differ only there.
+const REFUSED_BUT_HARMLESS: [string, string, string][] = [
+  ["PM363I0X", "PM363IOX", "a zero typed as an O in the sheet"],
+];
+for (const [product, row, why] of REFUSED_BUT_HARMLESS) {
+  if (modelsCanBeTheSame(product, row)) fail(`expected a refusal — ${why}: ${product} / ${row}`);
+}
+
+const DIFFERENT_MODEL: [string, string, string][] = [
+  ["CH74BVT", "MGH90GB", "a Candy ceramic hob bound to a Crystal gas hob's row"],
+  ["STK60GHX", "STK70GHX", "60cm bound to the 70cm one row below"],
+  ["EP7A6SB95Y", "EP7A6QI40Y", "two Siemens hobs, one row apart"],
+  ["WF13314GBC", "WF13314WBC", "one letter apart, two washing machines"],
+  ["MER6600BS", "RFN23841B", "an Amcor fridge bound to an Asko row"],
+  ["55QNED80T6B", "65NANO80A6A", "a 55\" TV bound to a 65\" row"],
+  ["I777", "SCHDC30B", "a hybrid hob bound to a domino ceramic"],
+  ["P560CDN", "P540BFN", "the TCL fridge whose price came out at 500 ₪"],
+];
+for (const [product, row, why] of DIFFERENT_MODEL) {
+  if (modelsCanBeTheSame(product, row)) fail(`models must differ — ${why}: ${product} / ${row}`);
+}
+
+// ---------------------------------------------------------------------------
 // The cost floor in resolvedPrice. Every row below is a real one, copied out
 // of the stockBreakdown snapshot the sync persisted for that product.
 // [retail, minSale, manager, cost, expected price, why]
@@ -276,7 +325,7 @@ for (const [retailPrice, minSalePrice, managerPrice, internalCost, expected, why
 }
 
 const total =
-  PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
+  SAME_MODEL.length + DIFFERENT_MODEL.length + REFUSED_BUT_HARMLESS.length + PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
   HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
   SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length + REFUSED.length + ALLOWED.length;
 console.log(
@@ -287,6 +336,8 @@ console.log(
     `${REFUSED.length} misplaced prices, ${ALLOWED.length} real quantities, ` +
     `${SHIFTED.length} shifted rows, ${STRAIGHT.length} straight rows, ` +
     `${PRICE_ROWS.length} price rows, ` +
+    `${SAME_MODEL.length} same models, ${DIFFERENT_MODEL.length} swapped models, ` +
+    `${REFUSED_BUT_HARMLESS.length} harmless refusal, ` +
     `${HTML_CASES.length} html descriptions)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;
