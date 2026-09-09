@@ -17,7 +17,7 @@ import { CheckoutTestPanel } from "@/components/checkout/checkout-test-panel";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
 import { useCartStore } from "@/stores/cart-store";
 import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
-import { createOrderAction } from "@/actions/orders";
+import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/orders";
 import { saveCheckoutContactAction } from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
 import type { CheckoutInput } from "@/lib/order-schema";
@@ -28,6 +28,7 @@ export function CheckoutForm({
   defaultPhone,
   payViaGateway = false,
   isStaff = false,
+  canEditWhilePaying = false,
 }: {
   defaultName?: string;
   defaultEmail?: string;
@@ -38,6 +39,10 @@ export function CheckoutForm({
   /** Staff only, resolved on the server. Shows the test panel — never a
       customer-visible affordance, and the action behind it checks again. */
   isStaff?: boolean;
+  /** Whether the details stay editable after the card form opens. True only
+      for a signed-in order, which is the only kind the sync action will
+      follow — a guest's order has no owner to check an edit against. */
+  canEditWhilePaying?: boolean;
 }) {
   const cart = useCartStore((s) => s.cart);
   const setCart = useCartStore((s) => s.setCart);
@@ -52,6 +57,9 @@ export function CheckoutForm({
   /* Fires once. An auto-open that retries turns one failure into a toast on
      every keystroke, and a failure here is a thing to read, not a loop. */
   const autoOpened = useRef(false);
+  /* The order the open payment was created against, so the sync effect knows
+     what to write to. */
+  const paidOrderId = useRef<string | null>(null);
 
   /* Once this is set the order exists and the gateway's form is on the page.
      The checkout does not navigate anywhere to collect a card: step 3 stops
@@ -138,6 +146,7 @@ export function CheckoutForm({
         setStranded({ orderId, orderNumber, reason: data.error ?? "לא הצלחנו לפתוח את טופס התשלום" });
         return;
       }
+      paidOrderId.current = orderId;
       setPayment({ url: data.redirectUrl, orderNumber });
     } catch {
       setStranded({ orderId, orderNumber, reason: "אין חיבור לשרת התשלומים" });
@@ -188,6 +197,44 @@ export function CheckoutForm({
     // the closure each render, and the guard above is what decides when.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readyToPay]);
+
+  /* The order exists and the card form is open, and the fields under it are
+     still live. Every change is written through to the order so the two cannot
+     disagree — an order shipped to the address the customer replaced would be
+     the worst possible outcome of leaving the fields editable.
+
+     Debounced, because this fires on keystrokes. Not awaited and never
+     surfaced: the customer is looking at a payment form, and a toast about a
+     background save is noise at the exact moment they are typing a card
+     number. If it fails the order keeps the details it was created with, which
+     were correct when it was made. */
+  useEffect(() => {
+    if (!payment || !canEditWhilePaying || !paidOrderId.current) return;
+    const timer = setTimeout(() => {
+      void updatePendingOrderDetailsAction(paidOrderId.current!, {
+        fullName: form.fullName,
+        email: form.email,
+        phone: form.phone,
+        city: form.city,
+        street: form.street,
+        houseNo: form.houseNo,
+        apartment: form.apartment,
+        deliveryNotes: form.deliveryNotes,
+      }).catch(() => {});
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [
+    payment,
+    canEditWhilePaying,
+    form.fullName,
+    form.email,
+    form.phone,
+    form.city,
+    form.street,
+    form.houseNo,
+    form.apartment,
+    form.deliveryNotes,
+  ]);
 
   function submit() {
     setErrors({});
@@ -262,7 +309,14 @@ export function CheckoutForm({
         {/* display:contents, so the two sections keep their place in the column
             while the fieldset does the one thing it is here for: once the order
             exists, the details it was built from are no longer editable. */}
-        <fieldset disabled={!!payment} className="contents">
+        {/* Frozen only for a guest. A signed-in order can be followed as the
+            fields change — see the sync effect above — and freezing it was
+            what put a shopper whose address was already on file in front of an
+            open card form with no way to fix a street name. The one control
+            that stays disabled either way is the delivery method, below: it is
+            the only thing on this page that changes what is owed, and the
+            amount has already been sent to Pelecard. */}
+        <fieldset disabled={!!payment && !canEditWhilePaying} className="contents">
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">1. פרטי התקשרות</h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -305,6 +359,10 @@ export function CheckoutForm({
           <h2 className="mb-4 font-semibold">2. משלוח</h2>
           <RadioGroup
             value={form.deliveryMethod}
+            /* The one control that stays locked while a payment is open: it
+               moves the delivery fee, and Pelecard has already been told what
+               the transaction is for. */
+            disabled={!!payment}
             onValueChange={(v) => update("deliveryMethod", v as "DELIVERY" | "PICKUP")}
             className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2"
           >

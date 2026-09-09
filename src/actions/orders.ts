@@ -240,3 +240,82 @@ export async function trackOrderAction(orderNumber: string, contact: string) {
     },
   };
 }
+
+/**
+ * Keeps a pending order's contact and address in step with the form while its
+ * payment form is already open.
+ *
+ * The card form opens as soon as the checkout has enough to create an order
+ * with, which means the order exists while the customer may still be editing
+ * the details it was made from. Freezing the fields was the first answer and
+ * it was the wrong one: a signed-in shopper whose address is already on file
+ * had the form open before they had touched anything, and then could not
+ * correct a street name.
+ *
+ * So the fields stay live and the order follows them. Nothing here can move
+ * the total — the delivery method is the only control on that page that
+ * changes what is owed, and it stays disabled while a payment is open, because
+ * a Pelecard transaction is opened for an amount and that amount has already
+ * been sent.
+ *
+ * Signed-in orders only. A guest's order has no owner to check against, and an
+ * order id is not an authorisation to change where a delivery goes.
+ */
+export async function updatePendingOrderDetailsAction(
+  orderId: string,
+  details: {
+    fullName: string;
+    email: string;
+    phone: string;
+    city?: string;
+    street?: string;
+    houseNo?: string;
+    apartment?: string;
+    deliveryNotes?: string;
+  },
+) {
+  const session = await getSession();
+  if (!session) return { success: false as const };
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    select: { id: true, userId: true, status: true, paymentStatus: true, addressId: true },
+  });
+
+  /* Three conditions, and each of them is the difference between an edit and
+     something else: the order is this account's, it has not been paid, and it
+     is still in the state the checkout left it in. An order that reached PAID
+     between the keystroke and the save must not be rewritten underneath the
+     receipt. */
+  if (!order || order.userId !== session.sub) return { success: false as const };
+  if (order.status !== "PAYMENT_PENDING" || order.paymentStatus !== "PENDING") {
+    return { success: false as const };
+  }
+
+  await db.order.update({
+    where: { id: order.id },
+    data: {
+      guestName: details.fullName,
+      guestEmail: details.email,
+      guestPhone: details.phone,
+      customerNote: details.deliveryNotes,
+    },
+  });
+
+  if (order.addressId && details.city && details.street && details.houseNo) {
+    await db.address.update({
+      where: { id: order.addressId },
+      data: {
+        fullName: details.fullName,
+        phone: details.phone,
+        city: details.city,
+        street: details.street,
+        houseNo: details.houseNo,
+        apartment: details.apartment,
+        notes: details.deliveryNotes,
+      },
+    });
+  }
+
+  return { success: true as const };
+}

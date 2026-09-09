@@ -19,6 +19,11 @@ export default async function CheckoutPage() {
       // The test lane. Resolved here for the same reason as the switch above:
       // a browser that can see the flag can also set it.
       isStaff={session?.role === "ADMIN" || session?.role === "STAFF"}
+      /* Whether the details can keep being edited after the card form opens.
+         A signed-in order can be followed — updatePendingOrderDetailsAction
+         checks the account owns it — and a guest's cannot, so a guest's fields
+         stay frozen behind an open transaction. */
+      canEditWhilePaying={Boolean(user)}
     />
   );
 }
