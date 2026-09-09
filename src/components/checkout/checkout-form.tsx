@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -49,6 +49,9 @@ export function CheckoutForm({
      decides what an order carries, and a skin is not a reason to change it. */
   const [demoHolderName, setDemoHolderName] = useState("");
   const [demoIdNumber, setDemoIdNumber] = useState("");
+  /* Fires once. An auto-open that retries turns one failure into a toast on
+     every keystroke, and a failure here is a thing to read, not a loop. */
+  const autoOpened = useRef(false);
 
   /* Once this is set the order exists and the gateway's form is on the page.
      The checkout does not navigate anywhere to collect a card: step 3 stops
@@ -140,6 +143,51 @@ export function CheckoutForm({
       setStranded({ orderId, orderNumber, reason: "אין חיבור לשרת התשלומים" });
     }
   }
+
+  /* THE CARD FORM OPENS WITHOUT A CLICK, once the details above it are
+     complete. There is no step being skipped: pressing "בצע הזמנה" only ever
+     created the order and asked Pelecard for a form against it, and both can
+     happen the moment the form has enough to create an order with.
+
+     Two things this must not do, and both are already true rather than newly
+     arranged for:
+
+     A Pelecard transaction is opened FOR AN AMOUNT. If the delivery method
+     changed after it opened, the customer would be paying the old total for a
+     new order. It cannot: the fieldset around sections 1 and 2 is disabled the
+     moment a payment exists, so nothing that feeds the total can move under
+     it.
+
+     And it fires once. Not on every keystroke — the debounce waits for the
+     typing to stop — and never twice, or an abandoned checkout would mint an
+     order per pause.
+
+     What it does cost: someone who fills in an address and walks away now
+     leaves an order in PAYMENT_PENDING where before they left nothing. That is
+     the same state an abandonment after the button always produced, reached
+     earlier; the admin's order list already shows them for what they are. */
+  const readyToPay =
+    payViaGateway &&
+    !payment &&
+    !stranded &&
+    form.paymentMethod === "DEMO_CARD" &&
+    form.fullName.trim().length >= 2 &&
+    /\S+@\S+\.\S+/.test(form.email) &&
+    form.phone.trim().length >= 9 &&
+    (form.deliveryMethod !== "DELIVERY" ||
+      Boolean(form.city.trim() && form.street.trim() && form.houseNo.trim()));
+
+  useEffect(() => {
+    if (!readyToPay || autoOpened.current) return;
+    const timer = setTimeout(() => {
+      autoOpened.current = true;
+      submit();
+    }, 900);
+    return () => clearTimeout(timer);
+    // submit() is stable enough for this: it reads the latest state through
+    // the closure each render, and the guard above is what decides when.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyToPay]);
 
   function submit() {
     setErrors({});
@@ -328,6 +376,28 @@ export function CheckoutForm({
                 </span>
               </p>
               <PaymentFrame src={payment.url} />
+              {/* A way back out. Without it, finishing the address is a one-way
+                  door: the fieldset above locks the moment a payment exists,
+                  which is what stops the total moving under an open
+                  transaction, and with nothing to press there is no way to fix
+                  a typo in a street name.
+
+                  It leaves the order it opened behind, in PAYMENT_PENDING, and
+                  completing again makes a new one. That is deliberate rather
+                  than tidy: the alternative is re-pricing a transaction that
+                  Pelecard has already been told the amount of, and an
+                  abandoned order in the admin list is a smaller problem than a
+                  charge that does not match its order. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPayment(null);
+                  autoOpened.current = false;
+                }}
+                className="text-muted-foreground hover:text-foreground self-start text-xs underline underline-offset-2"
+              >
+                לשנות את פרטי ההזמנה
+              </button>
             </div>
           ) : stranded ? (
             <div className="flex flex-col items-start gap-3">
