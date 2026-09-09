@@ -286,28 +286,104 @@ export function holdThenCapture(): boolean {
 export type CaptureResult = { ok: true } | { ok: false; error: string };
 
 /**
- * Charge a payment that was held (J5) at checkout.
+ * How long a hold is treated as good for.
  *
- * Returns a refusal rather than throwing, and the caller shows it to the
- * person who pressed the button. The one thing this must never do is return
- * ok on a transaction it did not actually charge: everything downstream —
- * the order going to PAID, the day's revenue, the customer's receipt —
- * treats that as money in the account.
+ * Not a fact about this codebase — the real window is set by the card
+ * networks and passed on by Pelecard, and it differs by card and by issuer.
+ * So it is configurable and the default is short. Being wrong in the
+ * cautious direction means chasing an order a few days early; being wrong
+ * the other way means discovering on day 30 that the money was never
+ * collectable and the goods have gone.
  */
-export async function capturePayment(transactionId: string): Promise<CaptureResult> {
-  if (!holdThenCapture()) {
+export function holdDays(): number {
+  const raw = Number(process.env.PELECARD_HOLD_DAYS);
+  return Number.isFinite(raw) && raw > 0 ? raw : 20;
+}
+
+/**
+ * The handle CompleteDebitByUid needs, dug out of Pelecard's reply.
+ *
+ * Their field for it is not in the three endpoints this file already speaks,
+ * so rather than assert one name this tries the plausible ones in order and
+ * returns null when none of them is there. Null is not swallowed: the
+ * callback raises a loud alert naming every key the reply actually contained,
+ * so the first hold in the sandbox tells us the field name instead of us
+ * guessing it. And nothing is lost either way — the whole reply is kept in
+ * Payment.rawResponse, so a hold taken before we knew the name can still be
+ * captured once we do.
+ */
+export function authorizationUidFrom(feedback: PelecardFeedback): string | null {
+  const rd = feedback.ResultData ?? {};
+  const candidates = ["Uid", "UID", "uid", "DebitUid", "TransactionUid", "UniqueKey", "UserKey"];
+  for (const key of candidates) {
+    const value = rd[key];
+    if (typeof value === "string" && value.trim() !== "") return value.trim();
+    if (typeof value === "number") return String(value);
+  }
+  return null;
+}
+
+/**
+ * Turn a held authorisation into an actual charge.
+ *
+ * The one rule that is not ours to bend: **the completing charge can never
+ * exceed what was held.** The hold is the customer's agreement to a number,
+ * and a bigger charge is not a bigger sale, it is a chargeback. Checked here
+ * as well as at the call site, because this is the function that talks to the
+ * money and a guard that lives only in the UI is a guard that a second UI
+ * will not have.
+ *
+ * If the total could rise between the hold and the charge — an added item, a
+ * delivery fee — the hold has to be taken for the higher figure up front.
+ * There is no way to grow one afterwards.
+ */
+export async function completeDebitByUid(p: {
+  uid: string;
+  totalAgorot: number;
+  heldAgorot: number;
+}): Promise<CaptureResult> {
+  if (!Number.isInteger(p.totalAgorot) || p.totalAgorot <= 0) {
+    return { ok: false, error: "סכום גבייה לא תקין" };
+  }
+  if (p.totalAgorot > p.heldAgorot) {
+    return {
+      ok: false,
+      error: `אי אפשר לגבות ${(p.totalAgorot / 100).toLocaleString("he-IL")} ₪ מתפיסה של ${(p.heldAgorot / 100).toLocaleString("he-IL")} ₪. גבייה משלימה לא יכולה להיות גבוהה מהסכום שנתפס.`,
+    };
+  }
+
+  const path = process.env.PELECARD_COMPLETE_DEBIT_PATH;
+  if (!path) {
     return {
       ok: false,
       error:
-        "גבייה מדפוזיט לא מופעלת. צריך להגדיר את הטרמינל בפלאקארד ל-J5 ולהוסיף את קריאת הגבייה שלהם.",
+        "נתיב הגבייה של פלאקארד לא מוגדר. צריך להגדיר PELECARD_COMPLETE_DEBIT_PATH לפי Hotels API Technical Guide (CompleteDebitByUid).",
     };
   }
-  // Deliberately unreachable while the switch above is off. When Pelecard
-  // supply the endpoint it goes here, and the shape is already right: post()
-  // adds terminal/user/password, and the only new thing is the path and
-  // whatever they call the transaction field.
-  return {
-    ok: false,
-    error: `אין עדיין קריאת גבייה מול פלאקארד לעסקה ${transactionId}. צריך את שם ה-API שלהם.`,
-  };
+
+  try {
+    const result = await post<Record<string, unknown>>(path, {
+      ...pelecardCredentials(),
+      Uid: p.uid,
+      TotalX100: String(p.totalAgorot),
+    });
+    /* Their success code is "000" everywhere else in this integration, and a
+       reply that does not say so is not treated as a charge. Anything
+       ambiguous fails closed: the caller leaves the hold open and a person
+       looks at it, which is recoverable. Reporting a charge that did not
+       happen is not. */
+    const code = String(result.StatusCode ?? result.PelecardStatusCode ?? "");
+    if (code === "000") return { ok: true };
+    return {
+      ok: false,
+      error: `פלאקארד החזירו ${code || "תשובה לא מזוהה"}${result.ErrorMessage ? ` — ${result.ErrorMessage}` : ""}`,
+    };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "שגיאה בגבייה" };
+  }
+}
+
+function pelecardCredentials() {
+  const { terminal, user, password } = pelecardConfig();
+  return { terminal, user, password };
 }

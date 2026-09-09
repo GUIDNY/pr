@@ -7,6 +7,8 @@ import {
   normalizeFeedback,
   CLEARERS,
   holdThenCapture,
+  holdDays,
+  authorizationUidFrom,
   type PelecardFeedback,
 } from "@/lib/pelecard/client";
 import { pelecardConfig, callbackSecret } from "@/lib/pelecard/config";
@@ -277,12 +279,41 @@ export async function POST(req: Request) {
   const settled = held ? "AUTHORIZED" : "CAPTURED";
   const orderStatus = held ? "NEW" : "PAID";
 
+  /* A hold we cannot name is a hold we cannot collect: CompleteDebitByUid
+     takes a uid and nothing else identifies the authorisation to Pelecard.
+     The money would sit frozen on the customer's card until it lapsed, and
+     nothing in the ordinary flow would ever say so — the order looks
+     perfectly normal, orange light and all.
+
+     So it is recorded and, when it is missing, shouted about with every key
+     the reply actually carried. That listing is deliberate: their field name
+     for this is not in the three endpoints this integration already speaks,
+     so the first hold in the sandbox is what tells us what to look for. */
+  const authorizationUid = held ? authorizationUidFrom(feedback) : null;
+  const holdExpiresAt = held ? new Date(Date.now() + holdDays() * 86_400_000) : null;
+  if (held && !authorizationUid) {
+    await db.inventoryAlert.create({
+      data: {
+        type: "MANUAL_URGENT",
+        severity: "CRITICAL",
+        sourceSku: order.orderNumber,
+        message:
+          `הזמנה ${order.orderNumber}: נתפסה מסגרת בכרטיס אבל לא נמצא מזהה תפיסה (UID) בתשובה של פלאקארד, ` +
+          `ולכן אי אפשר לגבות אותה מהממשק. השדות שחזרו: ${Object.keys(feedback.ResultData ?? {}).join(", ") || "אין"}. ` +
+          `צריך לזהות את שם השדה הנכון מול Hotels API Technical Guide ולהשלים את הגבייה ידנית מול פלאקארד.`,
+      },
+    });
+  }
+
   await db.$transaction([
     db.payment.update({
       where: { id: payment.id },
       data: {
         status: settled,
         environment,
+        ...(held
+          ? { authorizationUid, authorizedAt: new Date(), holdExpiresAt }
+          : { capturedAt: new Date() }),
         ...paymentColumns(feedback, details),
         reference: feedback.PelecardTransactionNumber ?? feedback.PelecardTransactionId ?? null,
         rawResponse: { feedback, rawBody, validation, details } as object,

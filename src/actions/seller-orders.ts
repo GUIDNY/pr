@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireBackOffice } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
-import { capturePayment } from "@/lib/pelecard/client";
+import { completeDebitByUid } from "@/lib/pelecard/client";
 
 /**
  * The two buttons on a salesperson's order card.
@@ -41,7 +41,7 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
   const session = await requireBackOffice();
   const order = await db.order.findUnique({
     where: { orderNumber },
-    include: { payments: { orderBy: { createdAt: "desc" }, take: 1 } },
+    include: { payments: { orderBy: { createdAt: "desc" } } },
   });
   if (!order) return { success: false, error: "הזמנה לא נמצאה" };
 
@@ -55,21 +55,31 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
   let note = "אושר לטיפול";
 
   if (order.paymentStatus === "AUTHORIZED") {
-    const reference = order.payments[0]?.reference;
-    if (!reference) {
-      return { success: false, error: "אין אסמכתת עסקה לגבייה. צריך לבדוק מול פלאקארד." };
+    const hold = order.payments.find((p) => p.status === "AUTHORIZED");
+    if (!hold?.authorizationUid) {
+      return {
+        success: false,
+        error: "אין מזהה תפיסה (UID) לגבייה. צריך לבדוק את התפיסה מול פלאקארד לפני שגובים.",
+      };
     }
-    const captured = await capturePayment(reference);
+    /* The order's total is what we are collecting and the hold is the
+       ceiling. They are the same number in the ordinary case; they differ
+       exactly when somebody edited the order after the card was held, and
+       that is the case this refuses — a charge above the hold is not a
+       bigger sale, it is a chargeback. The fix is a new payment, not a
+       bigger capture. */
+    const captured = await completeDebitByUid({
+      uid: hold.authorizationUid,
+      totalAgorot: Math.round(order.total * 100),
+      heldAgorot: hold.amountAgorot ?? Math.round(hold.amount * 100),
+    });
     if (!captured.ok) return { success: false, error: captured.error };
 
     await db.$transaction([
-      db.order.update({
-        where: { id: order.id },
-        data: { paymentStatus: "CAPTURED" },
-      }),
-      db.payment.updateMany({
-        where: { orderId: order.id, status: "AUTHORIZED" },
-        data: { status: "CAPTURED" },
+      db.order.update({ where: { id: order.id }, data: { paymentStatus: "CAPTURED" } }),
+      db.payment.update({
+        where: { id: hold.id },
+        data: { status: "CAPTURED", capturedAt: new Date() },
       }),
     ]);
     note = "הדפוזיט נגבה ואושר לטיפול";

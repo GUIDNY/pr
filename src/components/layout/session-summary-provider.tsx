@@ -8,9 +8,10 @@ type SessionSummary = {
   name: string | null;
   favoriteIds: string[];
   cart: CartSummary;
+  backOffice: string | null;
 };
 
-type Loaded = { name: string | null; favoriteIds: Set<string> };
+type Loaded = { name: string | null; favoriteIds: Set<string>; backOffice: string | null };
 
 const SessionSummaryContext = createContext<Loaded | null>(null);
 
@@ -46,7 +47,11 @@ export function SessionSummaryProvider({ children }: { children: React.ReactNode
       .then((r) => (r.ok ? (r.json() as Promise<SessionSummary>) : null))
       .then((summary) => {
         if (!summary || cancelled) return;
-        setLoaded({ name: summary.name, favoriteIds: new Set(summary.favoriteIds) });
+        setLoaded({
+          name: summary.name,
+          favoriteIds: new Set(summary.favoriteIds),
+          backOffice: summary.backOffice ?? null,
+        });
         if (summary.cart) hydrateCart(summary.cart);
       })
       .catch(() => {
@@ -69,4 +74,9 @@ export function useAccountName(): string | null {
 /** True once the visitor's list has arrived and contains this product. */
 export function useIsFavorite(productId: string): boolean {
   return useContext(SessionSummaryContext)?.favoriteIds.has(productId) ?? false;
+}
+
+/** The path to this visitor's back office, or null if they have none. */
+export function useBackOfficeHome(): string | null {
+  return useContext(SessionSummaryContext)?.backOffice ?? null;
 }

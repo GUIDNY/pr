@@ -542,8 +542,25 @@ model Payment {
   rawResponse           Json? // the full exchange, for the day something is disputed
   updatedAt             DateTime? @updatedAt
 
+  // ---------- J5: money held, not yet taken ----------
+  // The handle Pelecard's CompleteDebitByUid needs to turn this hold into a
+  // charge. Without it the hold cannot be collected at all — the money sits
+  // frozen on the customer's card until it lapses — so a hold that arrives
+  // without one raises an alert rather than being filed quietly.
+  authorizationUid String?
+  authorizedAt     DateTime?
+  capturedAt       DateTime?
+  // A hold is not open-ended. What the window actually is comes from the
+  // card networks via Pelecard, not from us, so it is stored per payment
+  // rather than assumed: PELECARD_HOLD_DAYS sets it and the default is
+  // conservative on purpose — expiring early costs a phone call, expiring
+  // late costs the sale.
+  holdExpiresAt    DateTime?
+
   @@index([pelecardTransactionId])
   @@index([orderId])
+  @@index([authorizationUid])
+  @@index([status, holdExpiresAt])
 }
 
 model OrderStatusHistory {

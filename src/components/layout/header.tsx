@@ -6,6 +6,7 @@ import { MegaMenu } from "@/components/layout/mega-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { CartTrigger } from "@/components/cart/cart-trigger";
 import { AccountLabel } from "@/components/layout/account-label";
+import { BackOfficeLink } from "@/components/layout/back-office-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 
 export async function Header() {
@@ -38,6 +39,8 @@ export async function Header() {
             <a href="tel:04-6639510" className="hover:text-brand flex items-center gap-1">
               <Phone className="size-3.5" /> 04-6639510
             </a>
+            {/* Staff only, and empty for everyone else — see BackOfficeLink. */}
+            <BackOfficeLink />
           </div>
         </div>
       </div>
