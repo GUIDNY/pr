@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { CreditCard, Home, ShieldCheck, Truck, Store, Lock, RotateCcw } from "lucide-react";
+import { CreditCard, Home, ShieldCheck, Truck, Store, Lock, RotateCcw, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -468,6 +468,49 @@ export function CheckoutForm({
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">3. תשלום</h2>
 
+          {/* Card is the only way to pay now. Cash on delivery is gone from
+              the checkout — not from the codebase: CASH_ON_DELIVERY stays a
+              value the order schema accepts and the admin can render, because
+              orders already placed that way still have to open. Deleting the
+              value would break the history rather than close the option.
+
+              THE MARKS ARE NOT DRAWN HERE, and that is not laziness. Apple's
+              guidelines require their own supplied Apple Pay artwork and forbid
+              a redrawn or modified one; Google publishes its buttons the same
+              way. A hand-traced Apple logo on a live shop is a trademark
+              problem for the sake of a placeholder, so these carry a wallet
+              glyph and the name until the integration brings the official
+              assets with it.
+
+              Apple Pay and Google Pay are placeholders and behave like it.
+              They are buttons that cannot be pressed, marked בקרוב, and they
+              are here because a payment step that shows one way to pay reads
+              as a shop that only takes one — while the same step showing three
+              with two marked "coming" reads as a shop that is adding them. The
+              cost of that impression is that it has to become true; if these
+              are still here unimplemented in six months they are a promise the
+              checkout keeps making and breaking. */}
+          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="border-brand bg-brand/5 flex items-center gap-3 rounded-lg border p-3">
+              <CreditCard className="size-4 shrink-0" />
+              <span className="text-sm font-medium">כרטיס אשראי</span>
+            </div>
+            {["Apple Pay", "Google Pay"].map((wallet) => (
+              <div
+                key={wallet}
+                aria-disabled
+                className="border-input text-muted-foreground flex cursor-not-allowed items-center justify-between gap-2 rounded-lg border border-dashed p-3 opacity-70"
+              >
+                <span className="flex items-center gap-2">
+                  <Wallet className="size-4 shrink-0" />
+                  <span className="text-sm font-medium tracking-tight">{wallet}</span>
+                </span>
+                <span className="bg-muted rounded-full px-2 py-0.5 text-[10px] font-semibold">בקרוב</span>
+              </div>
+            ))}
+          </div>
+
+
           {payment ? (
             <div className="flex flex-col gap-3">
               {/* One line, and the order number does not break out of it: it
@@ -524,37 +567,6 @@ export function CheckoutForm({
             </div>
           ) : (
           <>
-          {/* Card is the only way to pay now. Cash on delivery is gone from
-              the checkout — not from the codebase: CASH_ON_DELIVERY stays a
-              value the order schema accepts and the admin can render, because
-              orders already placed that way still have to open. Deleting the
-              value would break the history rather than close the option.
-
-              Apple Pay and Google Pay are placeholders and behave like it.
-              They are buttons that cannot be pressed, marked בקרוב, and they
-              are here because a payment step that shows one way to pay reads
-              as a shop that only takes one — while the same step showing three
-              with two marked "coming" reads as a shop that is adding them. The
-              cost of that impression is that it has to become true; if these
-              are still here unimplemented in six months they are a promise the
-              checkout keeps making and breaking. */}
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="border-brand bg-brand/5 flex items-center gap-3 rounded-lg border p-3">
-              <CreditCard className="size-4 shrink-0" />
-              <span className="text-sm font-medium">כרטיס אשראי</span>
-            </div>
-            {["Apple Pay", "Google Pay"].map((wallet) => (
-              <div
-                key={wallet}
-                aria-disabled
-                className="border-input text-muted-foreground flex cursor-not-allowed items-center justify-between gap-2 rounded-lg border border-dashed p-3 opacity-60"
-              >
-                <span className="text-sm font-medium">{wallet}</span>
-                <span className="bg-muted rounded-full px-2 py-0.5 text-[10px] font-semibold">בקרוב</span>
-              </div>
-            ))}
-          </div>
-
           {/* With the gateway on, the card is entered on Pelecard's own secure
               page — this site never sees, transmits or stores a card number,
               which is both the PCI requirement and the gateway's own. */}
