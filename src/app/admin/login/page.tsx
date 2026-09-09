@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "@/actions/auth";
+import { isBackOffice } from "@/lib/permissions";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function AdminLoginPage() {
         setError(result.error ?? "שגיאה בהתחברות");
         return;
       }
-      if (result.role !== "ADMIN" && result.role !== "STAFF") {
+      if (!isBackOffice(result.role)) {
         setError("אין לך הרשאת גישה לממשק הניהול");
         return;
       }

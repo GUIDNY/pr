@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "@/actions/auth";
+import { isBackOffice, backOfficeHome } from "@/lib/permissions";
 
 function LoginForm() {
   const router = useRouter();
@@ -29,7 +30,7 @@ function LoginForm() {
         return;
       }
       toast.success("התחברת בהצלחה");
-      router.push(result.role === "ADMIN" || result.role === "STAFF" ? "/admin" : redirectTo);
+      router.push(isBackOffice(result.role) ? backOfficeHome(result.role) : redirectTo);
       router.refresh();
     });
   }

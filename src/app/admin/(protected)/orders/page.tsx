@@ -13,6 +13,10 @@ import {
   type PaymentStatus,
 } from "@/lib/enums";
 import { formatPrice, formatDateTime } from "@/lib/format";
+import { requireBackOffice } from "@/lib/auth";
+import { canManageCatalog } from "@/lib/permissions";
+import { getSellerOrders } from "@/lib/queries/seller-orders";
+import { SellerOrderCard } from "@/components/admin/seller-order-card";
 
 export const metadata = { title: "הזמנות | Buy Today Admin" };
 
@@ -34,6 +38,31 @@ export default async function AdminOrdersPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  /* Two different pages behind one address, and the address is the reason.
+     A salesperson and a manager both mean "the orders" when they say it, and
+     giving the seller /admin/seller-orders would put a second URL for the
+     same thing into every link, bookmark and revalidatePath in the app. What
+     differs is what each of them needs to see, so that is what branches. */
+  const session = await requireBackOffice();
+  if (!canManageCatalog(session.role)) {
+    const orders = await getSellerOrders(false);
+    return (
+      <div className="flex flex-col gap-4">
+        <div>
+          <h1 className="text-xl font-black">הזמנות פתוחות</h1>
+          <p className="text-muted-foreground text-sm">
+            {orders.length === 0 ? "אין הזמנות פתוחות כרגע." : `${orders.length} הזמנות לטיפול`}
+          </p>
+        </div>
+        <div className="flex flex-col gap-3">
+          {orders.map((order) => (
+            <SellerOrderCard key={order.id} order={order} closed={false} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   const sp = await searchParams;
   const page = Number(sp.page) || 1;
   const status = (sp.status as OrderStatus) ?? "ALL";

@@ -4,6 +4,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { db } from "@/lib/db";
 import type { UserRole } from "@/lib/enums";
 import { hashPassword, verifyPassword } from "@/lib/auth-seed-helpers";
+import { canManageCatalog, isBackOffice } from "@/lib/permissions";
 
 export { hashPassword, verifyPassword };
 
@@ -93,9 +94,23 @@ export async function getCurrentUser() {
   return db.user.findUnique({ where: { id: session.sub } });
 }
 
+/**
+ * The catalog and everything attached to it. NOT the gate for orders — a
+ * seller must fail this one and pass requireBackOffice below, which is the
+ * whole point of having two.
+ */
 export async function requireAdmin() {
   const session = await getSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "STAFF")) {
+  if (!session || !canManageCatalog(session.role)) {
+    throw new Error("UNAUTHORIZED");
+  }
+  return session;
+}
+
+/** Anyone who works in the back office, including a seller. */
+export async function requireBackOffice() {
+  const session = await getSession();
+  if (!session || !isBackOffice(session.role)) {
     throw new Error("UNAUTHORIZED");
   }
   return session;

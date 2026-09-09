@@ -8,6 +8,7 @@ import { generateOrderNumber } from "@/lib/pricing";
 import { pelecardConfig, siteUrl, callbackSecret, TEST_ORDER_SHEKELS } from "@/lib/pelecard/config";
 import { openPelecardPayment } from "@/lib/pelecard/open-payment";
 import { PELECARD_PROD_BASE, PELECARD_TEST_BASE } from "@/lib/pelecard/gateway";
+import { canManageCatalog } from "@/lib/permissions";
 
 /**
  * The merchant's own way into the real payment page.
@@ -28,7 +29,7 @@ import { PELECARD_PROD_BASE, PELECARD_TEST_BASE } from "@/lib/pelecard/gateway";
  */
 export async function createTestPaymentOrderAction() {
   const session = await getSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "STAFF")) {
+  if (!session || !canManageCatalog(session.role)) {
     return { success: false as const, error: "אין הרשאה" };
   }
 

@@ -6,6 +6,7 @@ import {
   getTransaction,
   normalizeFeedback,
   CLEARERS,
+  holdThenCapture,
   type PelecardFeedback,
 } from "@/lib/pelecard/client";
 import { pelecardConfig, callbackSecret } from "@/lib/pelecard/config";
@@ -173,7 +174,7 @@ export async function POST(req: Request) {
     const movesToFailed = order.status === "PAYMENT_PENDING" || order.status === "NEW";
     const details = feedback.ResultData ?? {};
 
-    await db.$transaction([
+  await db.$transaction([
       db.payment.update({
         where: { id: payment.id },
         data: {
@@ -266,11 +267,21 @@ export async function POST(req: Request) {
 
   // 7. Paid. Status, payment record and history in one transaction — a
   //    half-written payment is worse than none.
+  /* A J5 authorisation is not a payment. The gateway reports both the same
+     way — an approved transaction — and the only thing that separates them is
+     what we asked it for, so this has to come from our own switch and never
+     from the feedback. Backwards, it marks held money as collected: the order
+     ships, the day's revenue counts it, and nobody ever presses the button
+     that actually takes it. */
+  const held = holdThenCapture();
+  const settled = held ? "AUTHORIZED" : "CAPTURED";
+  const orderStatus = held ? "NEW" : "PAID";
+
   await db.$transaction([
     db.payment.update({
       where: { id: payment.id },
       data: {
-        status: "CAPTURED",
+        status: settled,
         environment,
         ...paymentColumns(feedback, details),
         reference: feedback.PelecardTransactionNumber ?? feedback.PelecardTransactionId ?? null,
@@ -279,14 +290,14 @@ export async function POST(req: Request) {
     }),
     db.order.update({
       where: { id: orderId },
-      data: { paymentStatus: "CAPTURED", paymentMethod: "PELECARD", status: "PAID" },
+      data: { paymentStatus: settled, paymentMethod: "PELECARD", status: orderStatus },
     }),
     db.orderStatusHistory.create({
       data: {
         orderId,
         fromStatus: order.status,
-        toStatus: "PAID",
-        note: `תשלום פלאקארד (${environment}) · אסמכתה ${feedback.PelecardTransactionId ?? "—"} · אישור ${feedback.ApprovalNo ?? "—"}`,
+        toStatus: orderStatus,
+        note: `${held ? "דפוזיט" : "תשלום"} פלאקארד (${environment}) · אסמכתה ${feedback.PelecardTransactionId ?? "—"} · אישור ${feedback.ApprovalNo ?? "—"}`,
       },
     }),
   ]);

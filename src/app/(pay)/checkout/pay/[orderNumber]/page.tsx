@@ -5,6 +5,7 @@ import { getSession, getCurrentUser } from "@/lib/auth";
 import { openPelecardPayment } from "@/lib/pelecard/open-payment";
 import { formatPrice } from "@/lib/format";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
+import { canManageCatalog } from "@/lib/permissions";
 
 export const metadata = { title: "תשלום מאובטח", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -57,7 +58,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
   const isTestOrder = /^(TEST|LIVETEST)-/.test(order.orderNumber);
   if (isTestOrder) {
     const session = await getSession();
-    if (session?.role !== "ADMIN" && session?.role !== "STAFF") {
+    if (!canManageCatalog(session?.role)) {
       return <OrderNotFound orderNumber={orderNumber} />;
     }
   }

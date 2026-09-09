@@ -14,36 +14,51 @@ import {
   Sparkles,
   AlertTriangle,
   CreditCard,
+  Archive,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { logoutAction } from "@/actions/auth";
 import { isPelecardSandbox } from "@/lib/pelecard/config";
+import { isBackOffice, canManageCatalog } from "@/lib/permissions";
 
+/**
+ * `catalog: true` means the link belongs to running the shop rather than to
+ * getting an order out, and a seller is not shown it.
+ *
+ * Hiding a link is presentation and nothing more — every one of these routes
+ * checks the session itself, because a nav that omits a link is not a lock.
+ * What the omission buys is that the back office a seller opens is the job
+ * they were given, with nothing in it to wander into.
+ */
 const NAV = [
-  { href: "/admin", label: "לוח בקרה", icon: LayoutDashboard, exact: true },
+  { href: "/admin", label: "לוח בקרה", icon: LayoutDashboard, exact: true, catalog: true },
   { href: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
-  { href: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart },
-  { href: "/admin/complaints", label: "תלונות", icon: AlertTriangle },
-  { href: "/admin/products", label: "מוצרים", icon: Package },
-  { href: "/admin/inventory", label: "בקרת מלאי", icon: Boxes },
-  { href: "/admin/promotions", label: "מבצעים", icon: TagIcon },
-  { href: "/admin/suppliers", label: "ספקים", icon: Truck },
-  { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle },
-  { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles },
+  { href: "/admin/orders/closed", label: "הזמנות סגורות", icon: Archive },
+  { href: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart, catalog: true },
+  { href: "/admin/complaints", label: "תלונות", icon: AlertTriangle, catalog: true },
+  { href: "/admin/products", label: "מוצרים", icon: Package, catalog: true },
+  { href: "/admin/inventory", label: "בקרת מלאי", icon: Boxes, catalog: true },
+  { href: "/admin/promotions", label: "מבצעים", icon: TagIcon, catalog: true },
+  { href: "/admin/suppliers", label: "ספקים", icon: Truck, catalog: true },
+  { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle, catalog: true },
+  { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles, catalog: true },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
-  if (!session || (session.role !== "ADMIN" && session.role !== "STAFF")) {
+  if (!session || !isBackOffice(session.role)) {
     redirect("/admin/login");
   }
 
   /* The sandbox console is listed only where it exists: outside the test
      gateway the page itself 404s, and a dead link in the sidebar is how
      someone concludes the back office is broken. */
-  const nav = isPelecardSandbox()
-    ? [...NAV, { href: "/admin/pelecard-test", label: "בדיקות סליקה (סנדבוקס)", icon: CreditCard }]
-    : NAV;
+  const full = canManageCatalog(session.role);
+  const visible = full ? NAV : NAV.filter((item) => !item.catalog);
+  const nav =
+    full && isPelecardSandbox()
+      ? [...visible, { href: "/admin/pelecard-test", label: "בדיקות סליקה (סנדבוקס)", icon: CreditCard }]
+      : visible;
 
   return (
     <div dir="rtl" className="bg-secondary/30 flex min-h-svh">
@@ -54,7 +69,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span>Today</span>
           </span>
           <span className="bg-primary-foreground/10 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
-            Admin
+            {full ? "Admin" : "מכירות"}
           </span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">

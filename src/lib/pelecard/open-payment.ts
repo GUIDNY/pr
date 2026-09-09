@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { initPayment, SUPPORTED_CARDS, paymentPageStyle } from "./client";
+import { initPayment, SUPPORTED_CARDS, paymentPageStyle, holdThenCapture } from "./client";
 import { pelecardConfig, pelecardConfigured, paymentLaneFor, toAgorot, siteUrl, callbackSecret } from "./config";
 
 /**
@@ -82,7 +82,11 @@ export async function openPelecardPayment(
   let result;
   try {
     result = await initPayment({
-      ActionType: "J4", // straight charge
+      // J4 charges now; J5 holds the amount on the card and leaves the
+      // charge to a person pressing "אשר תשלום" in the back office. The
+      // switch is off until the terminal and the capture call both exist —
+      // see holdThenCapture.
+      ActionType: holdThenCapture() ? "J5" : "J4",
       Currency: "1", // ILS
       Total: String(amountAgorot),
       FreeTotal: "False",

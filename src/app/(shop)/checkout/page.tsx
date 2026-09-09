@@ -2,6 +2,7 @@ import { CheckoutForm } from "@/components/checkout/checkout-form";
 import { getCurrentUser, getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paymentLaneFor } from "@/lib/pelecard/config";
+import { canManageCatalog } from "@/lib/permissions";
 
 export const metadata = { title: "תשלום" };
 
@@ -39,7 +40,7 @@ export default async function CheckoutPage() {
       payViaGateway={paymentLaneFor(user?.email) === "gateway"}
       // The test lane. Resolved here for the same reason as the switch above:
       // a browser that can see the flag can also set it.
-      isStaff={session?.role === "ADMIN" || session?.role === "STAFF"}
+      isStaff={canManageCatalog(session?.role)}
       /* Whether the details can keep being edited after the card form opens.
          A signed-in order can be followed — updatePendingOrderDetailsAction
          checks the account owns it — and a guest's cannot, so a guest's fields

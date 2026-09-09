@@ -258,3 +258,56 @@ export const PELECARD_STATUS_MESSAGES: Record<string, string> = {
 /** 301 is a timeout, not a decline: the charge may have gone through, so a
     retry is how a customer gets billed twice. */
 export const NO_RETRY_STATUS_CODES = ["301"];
+
+/**
+ * Whether checkout should hold the money instead of taking it.
+ *
+ * Off, and off is not a placeholder — it is the only setting that is safe
+ * until two things outside this repository are true:
+ *
+ *   The terminal at Pelecard is configured to accept J5. Sending J5 to a
+ *   terminal set up for J4 does not hold anything; it fails, and it fails at
+ *   the moment a customer is trying to pay.
+ *
+ *   Pelecard have told us the name of their capture call. This file knows
+ *   three of their endpoints — init, ValidateByUniqueKey, GetTransaction —
+ *   and none of them takes a held transaction and charges it. Guessing an
+ *   endpoint that moves money is not a thing to do from a comment.
+ *
+ * Until both are true, a held payment could be taken but never captured,
+ * which is worse than not holding at all: the customer's money is frozen and
+ * the shop cannot collect it. So the switch stays off and capturePayment
+ * refuses rather than pretending.
+ */
+export function holdThenCapture(): boolean {
+  return process.env.PELECARD_HOLD_THEN_CAPTURE === "1";
+}
+
+export type CaptureResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Charge a payment that was held (J5) at checkout.
+ *
+ * Returns a refusal rather than throwing, and the caller shows it to the
+ * person who pressed the button. The one thing this must never do is return
+ * ok on a transaction it did not actually charge: everything downstream —
+ * the order going to PAID, the day's revenue, the customer's receipt —
+ * treats that as money in the account.
+ */
+export async function capturePayment(transactionId: string): Promise<CaptureResult> {
+  if (!holdThenCapture()) {
+    return {
+      ok: false,
+      error:
+        "גבייה מדפוזיט לא מופעלת. צריך להגדיר את הטרמינל בפלאקארד ל-J5 ולהוסיף את קריאת הגבייה שלהם.",
+    };
+  }
+  // Deliberately unreachable while the switch above is off. When Pelecard
+  // supply the endpoint it goes here, and the shape is already right: post()
+  // adds terminal/user/password, and the only new thing is the path and
+  // whatever they call the transaction field.
+  return {
+    ok: false,
+    error: `אין עדיין קריאת גבייה מול פלאקארד לעסקה ${transactionId}. צריך את שם ה-API שלהם.`,
+  };
+}
