@@ -17,7 +17,6 @@ import {
   undoLastStatusAction, deleteOrderAction, resendNotificationAction,
 } from "@/actions/seller-orders";
 import { COURIERS } from "@/lib/couriers";
-import { ORDER_STATUS_LABELS as STATUS_LABELS } from "@/lib/enums";
 
 /**
  * One order, everything about it, and the one action it is actually waiting
@@ -141,7 +140,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               className="text-muted-foreground hover:text-foreground hover:bg-muted ms-auto flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-medium disabled:opacity-50"
             >
               <Undo2 className="size-4" />
-              בטל — חזור ל{STATUS_LABELS[order.previousStatus as OrderStatus] ?? order.previousStatus}
+              בטל — חזור ל{ORDER_STATUS_LABELS[order.previousStatus as OrderStatus] ?? order.previousStatus}
             </button>
           )}
         </div>
