@@ -67,11 +67,10 @@ export async function getSession(): Promise<SessionPayload | null> {
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  let sub: string, role: UserRole, name: string;
+  let sub: string, name: string;
   try {
     const { payload } = await jwtVerify(token, secretKey());
     sub = payload.sub as string;
-    role = payload.role as UserRole;
     name = payload.name as string;
   } catch {
     return null;
@@ -82,10 +81,18 @@ export async function getSession(): Promise<SessionPayload | null> {
   // valid sessions for a user id that's gone, which then fails downstream
   // wherever the id is used as a foreign key (e.g. creating a cart). Treat
   // that the same as no session rather than letting it 500 later.
-  const user = await db.user.findUnique({ where: { id: sub }, select: { id: true } });
+  //
+  // The role comes from that row and not from the token, and the round trip
+  // was already being paid for. A token is a claim about the moment it was
+  // signed: promote someone and nothing happens until they think to sign out
+  // and in again, which is a confusing first hour. Revoke someone and it is
+  // worse — the browser keeps the access it was granted for as long as the
+  // token lives, and revoking is exactly the case where "eventually" is not
+  // an acceptable answer.
+  const user = await db.user.findUnique({ where: { id: sub }, select: { id: true, role: true } });
   if (!user) return null;
 
-  return { sub, role, name };
+  return { sub, role: user.role as UserRole, name };
 }
 
 export async function getCurrentUser() {
