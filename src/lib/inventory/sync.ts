@@ -21,6 +21,7 @@ import {
   looksLikeMarketingTitle,
   looksLikeMisplacedQuantity,
   looksLikeOffsetStockRow,
+  modelsCanBeTheSame,
   IMPLAUSIBLE_LINE_VALUE,
 } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
@@ -55,6 +56,16 @@ export async function findExistingProduct(
   sourceId: string,
   row: NormalizedProductRow,
   brandId: string | null,
+  /**
+   * Every tab name this workbook has in the run being applied.
+   *
+   * Only used to answer one question: has the tab this product came from
+   * disappeared? Omitted (in a dry run, or a test calling this directly)
+   * the rename fallback below is skipped rather than guessed at — a match
+   * that assumes a tab is gone when it is merely unknown would merge two
+   * live tabs, which is the failure this whole function exists to avoid.
+   */
+  sheetsInRun?: Set<string>,
 ) {
   const positionMatch = await db.product.findFirst({
     where: { sourceId, sourceSheet: row.sheetName, sourceRowRef: row.rowIndex },
@@ -65,11 +76,28 @@ export async function findExistingProduct(
       !row.skuIsSynthetic &&
       !positionMatch.isTemporarySku &&
       positionMatch.sku !== row.sku;
-    if (!positionMatchIsStaleIdentity) return positionMatch;
+    // And the row's own model column has to agree that this is the same
+    // product — see modelsCanBeTheSame. A shifted block of rows matches every
+    // product in it to its neighbour, and the only thing that notices is the
+    // model the sheet prints beside the stock we are about to copy.
+    const positionMatchContradictsTheRow = !modelsCanBeTheSame(
+      positionMatch.model,
+      row.model,
+    );
+    if (!positionMatchIsStaleIdentity && !positionMatchContradictsTheRow) {
+      return positionMatch;
+    }
   }
 
   if (!row.skuIsSynthetic) {
-    return db.product.findUnique({ where: { sku: row.sku } });
+    const bySku = await db.product.findUnique({ where: { sku: row.sku } });
+    if (bySku) return bySku;
+    // No product carries this SKU, and the position did not match either.
+    // Before creating one: the supplier filling a SKU into a row that never
+    // had one is not a new product, and if the tab was renamed in the same
+    // export then neither the position nor the SKU can say so. The rename
+    // fallback can.
+    return renamedSheetMatch(sourceId, row, brandId, sheetsInRun);
   }
 
   // A row with no SKU, whose position has moved. What identifies it is what
@@ -94,7 +122,7 @@ export async function findExistingProduct(
   // to create the brand up front, which is what filled the table with junk.
   if (!brandId) return null;
 
-  return db.product.findFirst({
+  const legacyMatch = await db.product.findFirst({
     where: {
       sourceId,
       isTemporarySku: true,
@@ -104,6 +132,64 @@ export async function findExistingProduct(
       title: row.title,
     },
   });
+  if (legacyMatch) return legacyMatch;
+
+  return renamedSheetMatch(sourceId, row, brandId, sheetsInRun);
+}
+
+/**
+ * The product this row made last time, when the tab it was under has been
+ * renamed.
+ *
+ * A rename is invisible to every other match in this file, and it takes the
+ * whole tab with it. Position is sourceSheet + sourceRowRef, so it fails.
+ * The row key deliberately includes the sheet name — that is what keeps the
+ * same model listed under two tabs as two products — so it fails too, and
+ * fails for every SKU-less row in the tab at once. The result is a second
+ * copy of everything that tab holds, which is what happened on 19 August
+ * when "מוצרי תלייה וכבלים" came back as " מתקניי תליה וכבלים": 57 pairs
+ * of products with identical titles and two different hash slugs.
+ *
+ * What makes this safe is the last condition rather than the first three.
+ * A product only qualifies if the tab it came from is absent from this
+ * workbook — so a model genuinely listed under two live tabs can never be
+ * collapsed into one, because both of those tabs are present. The candidate
+ * must also still be on a temporary SKU: a product with a real SKU of its
+ * own is found by SKU or not at all, and must not be claimed by a lookalike
+ * row somewhere else.
+ *
+ * Brand, model and title together, exactly — the same triple the legacy
+ * fallback above uses. It is a weak identity for an edited product, which
+ * is precisely why it runs last and only for a tab that has vanished.
+ */
+async function renamedSheetMatch(
+  sourceId: string,
+  row: NormalizedProductRow,
+  brandId: string | null,
+  sheetsInRun?: Set<string>,
+) {
+  if (!sheetsInRun || !brandId || !row.model || !row.title) return null;
+  const candidates = await db.product.findMany({
+    where: {
+      sourceId,
+      isTemporarySku: true,
+      brandId,
+      model: row.model,
+      title: row.title,
+      sourceSheet: { not: row.sheetName },
+    },
+    select: { id: true, sourceSheet: true },
+  });
+  const orphaned = candidates.filter(
+    (c) => c.sourceSheet !== null && !sheetsInRun.has(c.sourceSheet),
+  );
+  // Two orphans matching one row is not a rename anybody can resolve from
+  // here — it needs a person to say which is which. Creating nothing is
+  // wrong too, but it is the reversible half: the row comes in as a new
+  // product and the duplicate is visible, rather than stock being merged
+  // into whichever row happened to sort first.
+  if (orphaned.length !== 1) return null;
+  return db.product.findUnique({ where: { id: orphaned[0].id } });
 }
 
 export function getLowStockThreshold(): number {
@@ -281,6 +367,7 @@ async function applyOneRow(
   conflictSkus: Set<string>,
   threshold: number,
   result: ApplyResult,
+  sheetsInRun: Set<string>,
 ): Promise<{ productId: string; types: Set<string> } | null> {
   const hasConflict = conflictSkus.has(row.sku);
 
@@ -292,7 +379,7 @@ async function applyOneRow(
   // temp-SKU'd rows, plain SKU lookup otherwise — see findExistingProduct
   // for why this order matters (handles the temp -> real SKU upgrade case
   // without creating a duplicate).
-  const existing = await findExistingProduct(sourceId, row, existingBrandId);
+  const existing = await findExistingProduct(sourceId, row, existingBrandId, sheetsInRun);
   const rawStock = totalStock(row);
 
   // Zero stock, never seen before: don't pull it into the system at all —
@@ -710,6 +797,10 @@ export async function applyRowsForSource(
   conflictSkus: Set<string>,
 ): Promise<ApplyResult> {
   const threshold = getLowStockThreshold();
+  // Every tab this workbook has this run. A product whose sourceSheet is
+  // not in here came from a tab that no longer exists — see
+  // renamedSheetMatch.
+  const sheetsInRun = new Set(rows.map((r) => r.sheetName));
   const result: ApplyResult = {
     productsAdded: 0,
     productsUpdated: 0,
@@ -731,6 +822,7 @@ export async function applyRowsForSource(
         conflictSkus,
         threshold,
         result,
+        sheetsInRun,
       );
       if (outcome)
         finalIssueTypesByProduct.set(outcome.productId, outcome.types);
