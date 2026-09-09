@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { createSession, clearSession, hashPassword, verifyPassword } from "@/lib/auth";
+import { getSession, createSession, clearSession, hashPassword, verifyPassword } from "@/lib/auth";
 
 const loginSchema = z.object({
   email: z.email("כתובת אימייל לא תקינה"),
@@ -51,4 +51,64 @@ export async function registerAction(input: { name: string; email: string; phone
 export async function logoutAction() {
   await clearSession();
   redirect("/");
+}
+
+const deleteAccountSchema = z.object({
+  password: z.string().min(1, "יש להזין את הסיסמה כדי לאשר"),
+});
+
+/**
+ * Closes a customer's own account, for good.
+ *
+ * App Store guideline 5.1.1(v) requires an app that lets someone create an
+ * account to let them delete it from inside the app, and it has to be a real
+ * deletion rather than a flag that hides the row. So this deletes the User,
+ * and the schema does the rest: addresses, the cart and favourites are
+ * `onDelete: Cascade` and go with it, while orders, reviews, support requests
+ * and complaints hold an optional userId and are simply detached.
+ *
+ * WHAT SURVIVES, AND WHY IT HAS TO. An order is a sales record, and the shop
+ * is required to keep those for years after the account behind them is gone —
+ * so before the row disappears the customer's name, email and phone are copied
+ * onto their orders, into the three guest fields that already exist for orders
+ * placed without an account. Detaching without that copy would leave an
+ * invoice belonging to nobody. The page that offers this says so in as many
+ * words: what goes, and what stays.
+ *
+ * The password is asked for again. The session cookie only proves the browser
+ * was logged in at some point, which on a shared or borrowed phone is not the
+ * same as the account's owner standing there — and this is the one action in
+ * the shop with nothing to undo it with.
+ *
+ * Staff and admins are refused. Their accounts own audit trails, order notes
+ * and sync history, and the storefront is not where an operator account should
+ * be closable in one click by whoever is holding the phone.
+ */
+export async function deleteAccountAction(input: { password: string }) {
+  const parsed = deleteAccountSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
+
+  const session = await getSession();
+  if (!session) return { success: false, error: "יש להתחבר מחדש כדי למחוק את החשבון" };
+
+  const user = await db.user.findUnique({ where: { id: session.sub } });
+  if (!user) return { success: false, error: "החשבון לא נמצא" };
+
+  if (user.role !== "CUSTOMER") {
+    return { success: false, error: "חשבונות צוות נמחקים מהניהול, לא מהאזור האישי" };
+  }
+
+  const valid = await verifyPassword(parsed.data.password, user.passwordHash);
+  if (!valid) return { success: false, error: "הסיסמה שגויה" };
+
+  await db.$transaction([
+    db.order.updateMany({
+      where: { userId: user.id },
+      data: { guestName: user.name, guestEmail: user.email, guestPhone: user.phone },
+    }),
+    db.user.delete({ where: { id: user.id } }),
+  ]);
+
+  await clearSession();
+  return { success: true, error: null };
 }

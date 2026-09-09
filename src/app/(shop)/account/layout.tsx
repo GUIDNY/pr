@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Package, MapPin, Heart, LogOut } from "lucide-react";
+import { LayoutDashboard, Package, MapPin, Heart, LogOut, Trash2 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { logoutAction } from "@/actions/auth";
 
@@ -37,6 +37,16 @@ export default async function AccountLayout({ children }: { children: React.Reac
                 {item.label}
               </Link>
             ))}
+            {/* App Store guideline 5.1.1(v): an account that can be created
+                in the app has to be deletable in the app, and a reviewer looks
+                for it here rather than in a help page. */}
+            <Link
+              href="/account/delete"
+              className="hover:bg-muted text-muted-foreground flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
+            >
+              <Trash2 className="size-4" />
+              מחיקת החשבון
+            </Link>
             <form action={logoutAction}>
               <button
                 type="submit"
