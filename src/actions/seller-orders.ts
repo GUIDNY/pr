@@ -6,6 +6,7 @@ import { requireBackOffice } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { completeDebitByUid } from "@/lib/pelecard/client";
 import { notifyOrder } from "@/lib/notify";
+import type { NotifyEvent } from "@/lib/notify/types";
 
 /**
  * The two buttons on a salesperson's order card.
@@ -229,4 +230,46 @@ function revalidateSellerViews(orderNumber: string) {
   revalidatePath("/admin/orders");
   revalidatePath(`/admin/orders/${orderNumber}`);
   revalidatePath("/admin");
+}
+
+/**
+ * Write down that somebody sent the WhatsApp by hand.
+ *
+ * Recorded in the same table as the automatic ones, and that is the point:
+ * the order page's "what has the customer been told" list has to be true
+ * regardless of who did the telling, and once Meta approves the templates
+ * the unique index on (order, channel, event) means the automatic sender
+ * finds this row and does not send it again.
+ *
+ * Best-effort by design. It is called after the link has already opened, so
+ * a failure here must not look to the salesperson like the message did not
+ * go — it did, in their own WhatsApp, and this is only the note about it.
+ */
+export async function logManualWhatsappAction(
+  orderNumber: string,
+  event: NotifyEvent,
+): Promise<Result> {
+  const session = await requireBackOffice();
+  const order = await db.order.findUnique({
+    where: { orderNumber },
+    select: { id: true, guestPhone: true, user: { select: { phone: true } } },
+  });
+  if (!order) return { success: false, error: "הזמנה לא נמצאה" };
+
+  await db.orderNotification.upsert({
+    where: { orderId_channel_event: { orderId: order.id, channel: "WHATSAPP", event } },
+    create: {
+      orderId: order.id,
+      channel: "WHATSAPP",
+      event,
+      recipient: order.user?.phone ?? order.guestPhone,
+      status: "SENT",
+      sentAt: new Date(),
+      error: `נשלח ידנית · ${session.name}`,
+    },
+    update: { status: "SENT", sentAt: new Date(), error: `נשלח ידנית · ${session.name}` },
+  });
+
+  revalidateSellerViews(orderNumber);
+  return { success: true, error: null };
 }

@@ -2,6 +2,10 @@ import "server-only";
 import { db } from "@/lib/db";
 import type { OrderStatus, PaymentStatus } from "@/lib/enums";
 import { statusesInStage, type OrderStage } from "@/lib/order-stage";
+import { messageFor } from "@/lib/notify/messages";
+import { currentNotifyEvent, waHref } from "@/lib/notify/whatsapp-link";
+import { SITE_URL } from "@/lib/site-url";
+import type { NotifyEvent } from "@/lib/notify/types";
 
 /**
  * The orders queue as a salesperson needs it.
@@ -44,6 +48,8 @@ export type SellerOrderDetail = SellerOrderSummary & {
   items: { title: string; sku: string; quantity: number; price: number; inStock: number | null }[];
   history: { at: Date; from: string | null; to: string; note: string | null; by: string | null }[];
   notifications: { channel: string; event: string; status: string; error: string | null; at: Date }[];
+  /** The message this order is due, ready to send by hand. Null with no usable phone number. */
+  manualWhatsapp: { event: NotifyEvent; href: string; alreadySent: boolean } | null;
 };
 
 const LIST_SELECT = {
@@ -172,6 +178,42 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
       error: n.error,
       at: n.createdAt,
     })),
+    manualWhatsapp: buildManualWhatsapp(row, summary),
+  };
+}
+
+function buildManualWhatsapp(
+  row: {
+    status: string;
+    orderNumber: string;
+    total: number;
+    deliveryMethod: string;
+    courierName: string | null;
+    trackingNumber: string | null;
+    trackingUrl: string | null;
+    notifications: { channel: string; event: string; status: string }[];
+  },
+  summary: SellerOrderSummary,
+) {
+  const event = currentNotifyEvent(row.status);
+  const message = messageFor(event, {
+    orderNumber: row.orderNumber,
+    customerName: summary.customerName,
+    total: row.total,
+    deliveryToCustomer: row.deliveryMethod === "DELIVERY",
+    courierName: row.courierName,
+    trackingNumber: row.trackingNumber,
+    trackingUrl: row.trackingUrl,
+    trackUrl: `${SITE_URL}/track-order`,
+  });
+  const href = waHref(summary.customerPhone, message.body);
+  if (!href) return null;
+  return {
+    event,
+    href,
+    alreadySent: row.notifications.some(
+      (n) => n.channel === "WHATSAPP" && n.event === event && n.status === "SENT",
+    ),
   };
 }
 

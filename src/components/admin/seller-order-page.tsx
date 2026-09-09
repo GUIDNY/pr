@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowRight, Truck, Store, Phone, Mail, AlertTriangle, Check, Loader2,
-  Package, Clock, MessageSquare, CreditCard,
+  Package, Clock, MessageSquare, CreditCard, Send,
 } from "lucide-react";
 import type { SellerOrderDetail } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
@@ -12,7 +12,7 @@ import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/enums";
 import { NOTIFY_CHANNEL_LABELS, NOTIFY_EVENT_LABELS, type NotifyChannel, type NotifyEvent } from "@/lib/notify/types";
 import { stageOf } from "@/lib/order-stage";
 import { formatPrice, formatDateTime } from "@/lib/format";
-import { approveOrderAction, closeOrderAction, markShippedAction } from "@/actions/seller-orders";
+import { approveOrderAction, closeOrderAction, markShippedAction, logManualWhatsappAction } from "@/actions/seller-orders";
 
 /**
  * One order, everything about it, and the one action it is actually waiting
@@ -264,6 +264,40 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
 
         {/* ---- what the customer was told ---- */}
         <Panel title="עדכונים ללקוח" icon={MessageSquare}>
+          {/* Manual until Meta approve the templates. The link opens the
+              message already typed into this person's own WhatsApp — which is
+              why it is allowed at all: the template rule governs a business
+              opening a conversation programmatically, not a human sending
+              from their own number. The wording is the same one the automatic
+              sender will use, so nothing about it changes for the customer
+              when the API takes over. */}
+          {order.manualWhatsapp && (
+            <a
+              href={order.manualWhatsapp.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                if (order.manualWhatsapp) {
+                  void logManualWhatsappAction(order.orderNumber, order.manualWhatsapp.event);
+                }
+              }}
+              className={`mb-3 flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold ${
+                order.manualWhatsapp.alreadySent
+                  ? "border-border text-muted-foreground border"
+                  : "bg-success/15 text-success hover:bg-success/25"
+              }`}
+            >
+              <Send className="size-4" />
+              {order.manualWhatsapp.alreadySent
+                ? "שלח שוב בוואטסאפ"
+                : `שלח בוואטסאפ: ${NOTIFY_EVENT_LABELS[order.manualWhatsapp.event]}`}
+            </a>
+          )}
+          {!order.manualWhatsapp && order.customerPhone && (
+            <p className="text-muted-foreground mb-3 text-xs">
+              מספר הטלפון של הלקוח לא בפורמט שאפשר לפתוח בוואטסאפ.
+            </p>
+          )}
           {order.notifications.length === 0 ? (
             <p className="text-muted-foreground text-sm">עוד לא נשלחו עדכונים.</p>
           ) : (
