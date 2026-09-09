@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAdmin, requireBackOffice } from "@/lib/auth";
+import { requireBackOffice } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { orderStatusSchema } from "@/lib/enums";
