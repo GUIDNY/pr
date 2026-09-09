@@ -14,6 +14,7 @@
  */
 
 import { consentGranted } from "@/lib/consent";
+import { isNativeApp } from "@/lib/native-app";
 
 declare global {
   interface Window {
@@ -84,5 +85,10 @@ export function trackMeta(
   // undefined and this would no-op anyway. Checking anyway keeps the rule in
   // one readable place instead of resting on the absence of a global.
   if (!consentGranted()) return;
+  // Same again for the app, where MetaPixel never mounts. The guard belongs
+  // here as well as there because this is what the App Store declaration
+  // promises, and a promise that holds only as long as nobody adds a call
+  // site is not one worth making.
+  if (isNativeApp()) return;
   window.fbq?.("track", name, params, eventID ? { eventID } : undefined);
 }

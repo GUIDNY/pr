@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useConsent } from "@/lib/consent";
+import { useIsNativeApp } from "@/lib/native-app";
 
 /**
  * The Meta pixel, or nothing at all.
@@ -35,7 +36,13 @@ import { useConsent } from "@/lib/consent";
 export function MetaPixel() {
   const id = process.env.NEXT_PUBLIC_META_PIXEL_ID;
   const consent = useConsent();
-  if (!id || consent !== "granted") return null;
+  /* Not in the app, at any consent. Sending a customer's viewed products,
+     searches and purchase amounts to Meta is what Apple calls tracking, and an
+     app that does it owes every customer an App Tracking Transparency prompt
+     before the first event. Keeping the pixel to the web keeps the app's
+     privacy label a plain no — see lib/native-app.ts. */
+  const inApp = useIsNativeApp();
+  if (!id || consent !== "granted" || inApp) return null;
 
   // During render, before the <Script> below is even created, and not from an
   // effect: fbevents.js reads window.fbq the moment it executes, and a cached

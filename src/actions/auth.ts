@@ -118,6 +118,13 @@ const deleteAccountSchema = z.object({
  * same as the account's owner standing there — and this is the one action in
  * the shop with nothing to undo it with.
  *
+ * Copying the email has a consequence worth stating: claimGuestOrders above
+ * gives every ownerless order with a matching email to whoever next signs in
+ * with it, so registering again with the same address brings this history
+ * back. That is the same person by the same proof the order-tracking page
+ * already accepts, so it is left as it is — and the deletion page says it in
+ * as many words rather than promising a break it does not make.
+ *
  * Staff and admins are refused. Their accounts own audit trails, order notes
  * and sync history, and the storefront is not where an operator account should
  * be closable in one click by whoever is holding the phone.
