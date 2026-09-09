@@ -30,7 +30,9 @@
     "check:brand-orphans": "tsx scripts/check-brand-orphans.ts",
     "check:indexnow": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-indexnow.ts",
     "indexnow:bulk": "NODE_OPTIONS=--conditions=react-server tsx scripts/indexnow-bulk.ts",
-    "slugs:generate": "tsx scripts/generate-legacy-slugs.ts"
+    "slugs:generate": "tsx scripts/generate-legacy-slugs.ts",
+    "cap:ios": "cap sync ios && cap open ios",
+    "seed:guides": "tsx scripts/seed-buying-guides.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -64,6 +66,9 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1",
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
