@@ -64,9 +64,29 @@ export function pelecardConfig(): PelecardConfig {
  * page against the live terminal while the shop kept taking orders the old way
  * — which is impossible if the only thing that arms the gateway also opens it
  * to every visitor.
+ *
+ * IT DEFAULTS TO ON, and it did not always. Opt-in was right while the shop was
+ * being built: nothing was configured, nobody was buying, and the cost of
+ * forgetting to set it was zero. The shop is open now, and the same default
+ * means a checkout that quietly shows a demo form to paying customers — which
+ * costs a sale every time and looks like nothing is wrong.
+ *
+ * So the kill switch stays and its polarity flips: PELECARD_ENABLED=false turns
+ * card payment off for the whole shop, in one dashboard field, with no deploy.
+ * That is the direction that needs to be one field, because it is the one
+ * somebody reaches for at three in the morning.
+ *
+ * Nothing else about the safety design changes. Reaching the production gateway
+ * still needs PELECARD_ALLOW_PRODUCTION=I_UNDERSTAND, credentials are still
+ * required, and an unconfigured gateway is still demo for everyone — this
+ * cannot arm anything on its own.
  */
 export function pelecardEnabled(): boolean {
-  return process.env.PELECARD_ENABLED?.trim() === "true";
+  /* Case-insensitive, and that is not tidiness. This is the one comparison in
+     the file where a near miss fails OPEN: somebody typing FALSE to stop card
+     payments would have stopped nothing, and believed otherwise. A switch that
+     turns things off has to accept every spelling of off. */
+  return process.env.PELECARD_ENABLED?.trim().toLowerCase() !== "false";
 }
 
 /**

@@ -56,43 +56,47 @@ const staff = { email: "staff@prec.co.il", role: "STAFF" };
 const seller = { email: "seller@prec.co.il", role: "SELLER" };
 const eitan = { email: "eitan@example.com", role: "CUSTOMER" };
 
-console.log("\nThe shop is open (PELECARD_ENABLED=true)");
-env({ PELECARD_ENABLED: "true" });
+console.log("\nThe shop is open — the default, with nothing set");
+env({});
 is("a customer pays for real", paymentLaneFor(customer), "gateway");
 is("a guest pays for real", paymentLaneFor(null), "gateway");
 is("the admin does not", paymentLaneFor(admin), "demo");
 is("staff do not", paymentLaneFor(staff), "demo");
 is("a seller does not", paymentLaneFor(seller), "demo");
 
-console.log("\nThe shop is closed (the default)");
-env({});
+console.log("\nThe kill switch (PELECARD_ENABLED=false) closes it again");
+env({ PELECARD_ENABLED: "false" });
 is("a customer sees the demo form", paymentLaneFor(customer), "demo");
 is("a guest sees the demo form", paymentLaneFor(null), "demo");
 is("the built-in live account still pays for real", paymentLaneFor(eitan), "gateway");
+env({ PELECARD_ENABLED: "  FALSE  " });
+is("every spelling of off counts as off", paymentLaneFor(customer), "demo");
+env({ PELECARD_ENABLED: "true" });
+is("and anything else leaves it open", paymentLaneFor(customer), "gateway");
 
 console.log("\nThe dashboard can always pull an account back");
-env({ PELECARD_ENABLED: "true", PELECARD_DEMO_EMAILS: "shopper@example.com, eitan@example.com" });
+env({ PELECARD_DEMO_EMAILS: "shopper@example.com, eitan@example.com" });
 is("DEMO_EMAILS outranks the open shop", paymentLaneFor(customer), "demo");
 is("DEMO_EMAILS outranks the built-in live list", paymentLaneFor(eitan), "demo");
 
 console.log("\nAnd it can push one forward");
-env({ PELECARD_LIVE_EMAILS: "shopper@example.com" });
+env({ PELECARD_ENABLED: "false", PELECARD_LIVE_EMAILS: "shopper@example.com" });
 is("LIVE_EMAILS opens the gateway with the shop closed", paymentLaneFor(customer), "gateway");
 is("matching is case- and space-insensitive", paymentLaneFor({ email: "  SHOPPER@Example.com " }), "gateway");
 
 console.log("\nA back-office role wins over the live list");
-env({ PELECARD_ENABLED: "true", PELECARD_LIVE_EMAILS: "admin@prec.co.il" });
+env({ PELECARD_LIVE_EMAILS: "admin@prec.co.il" });
 is("an admin named on the live list still rehearses", paymentLaneFor(admin), "demo");
 
 console.log("\nA guest follows the shop switch and nothing else");
-env({ PELECARD_ENABLED: "true" });
-is("open shop, guest pays for real", paymentLaneFor(null), "gateway");
-is("...even with the lists full", paymentLaneFor(undefined), "gateway");
 env({});
+is("open shop, guest pays for real", paymentLaneFor(null), "gateway");
+is("...and so does an unnamed viewer", paymentLaneFor(undefined), "gateway");
+env({ PELECARD_ENABLED: "false" });
 is("closed shop, guest sees the demo form", paymentLaneFor(null), "demo");
 
 console.log("\nNo credentials, no charges");
-env({ PELECARD_ENABLED: "true", PELECARD_LIVE_EMAILS: "shopper@example.com" });
+env({ PELECARD_LIVE_EMAILS: "shopper@example.com" });
 delete process.env.PELECARD_PASSWORD;
 is("an unconfigured gateway is demo for everyone", paymentLaneFor(customer), "demo");
 is("including the built-in live account", paymentLaneFor(eitan), "demo");
