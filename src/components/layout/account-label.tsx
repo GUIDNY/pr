@@ -3,32 +3,39 @@
 import { useAccountName } from "@/components/layout/session-summary-provider";
 
 /**
- * The signed-in visitor's first name, in a slot whose width never changes.
+ * The signed-in visitor's first name, when there is one.
  *
  * The header cannot know who is looking — that is what makes every page in
  * the shop cacheable — so this starts empty and fills in once
- * /api/session-summary answers. Two deliberate choices keep that from being
- * visible as a flicker:
+ * /api/session-summary answers.
  *
- * - It never says "התחברות" first. Replacing one word with another is what
- *   would flicker; going from a plain account icon to an icon with a name
- *   beside it does not read as a correction, because nothing was corrected.
- * - The slot holds its width whether or not it has text in it, so the icons
- *   either side of it never move. Reserved space is the whole reason there
- *   is no layout shift to measure.
+ * It used to hold a fixed 4.5rem slot open whether or not a name ever
+ * arrived, to keep the icons either side from moving when one did. That
+ * bought a real thing at a price paid by the wrong people: almost everyone
+ * who visits a shop is not signed in, so almost everyone was looking at 72
+ * pixels of nothing wedged between the account icon and the cart, with the
+ * icon shoved off the centre of its own button. It read as broken, which is
+ * the opposite of what reserved space is for.
  *
- * Anonymous visitors — nearly all traffic — simply keep the icon, which is
- * what a person expects an account button to look like anyway.
+ * So the slot is gone. What it prevented — a small reflow when the name
+ * lands — now happens only to signed-in visitors, once, in their own
+ * browser, and moves the account button by the width of a first name. What
+ * it caused was visible to every visitor on every page.
+ *
+ * The cap is wider than it was, too: 4.5rem truncated most Hebrew first
+ * names, so the feature that justified the empty space did not really work
+ * when it fired.
  */
 export function AccountLabel() {
   const name = useAccountName();
   const first = name?.trim().split(" ")[0] ?? "";
 
+  // Nothing rather than an empty span: the button lays its children out with
+  // a gap, and a zero-width child still gets one.
+  if (!first) return null;
+
   return (
-    <span
-      aria-hidden={!first}
-      className="inline-block w-[4.5rem] truncate text-start align-middle text-sm font-medium"
-    >
+    <span className="hidden max-w-28 truncate align-middle text-sm font-medium sm:inline-block">
       {first}
     </span>
   );
