@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, MapPin, Phone, Tag, Truck, User } from "lucide-react";
+import { Headset, Heart, MapPin, Phone, Tag, Truck, User } from "lucide-react";
 import { SearchBar } from "@/components/layout/search-bar";
 import { MegaMenu } from "@/components/layout/mega-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -19,15 +19,26 @@ export async function Header() {
 
   return (
     <header className="bg-background sticky top-0 z-30 border-b">
+      {/* The utility strip is navigation, so everything in it goes
+          somewhere. It used to open with "משלוח עד הבית בכל הארץ", which is
+          a promise and not a destination — and the same promise is made
+          again, with its detail, in the trust band on the homepage. A claim
+          repeated twice is believed less than a claim made once, and a claim
+          sitting in a row of links is a link that disappoints.
+
+          "סניפים" was worse: styled exactly like the links beside it, with
+          an icon, and it was a bare <span>. It looked clickable for as long
+          as it has existed and did nothing. It now goes to the branches
+          page, which is where somebody clicking it wanted to be. */}
       <div className="text-muted-foreground bg-secondary/60 hidden justify-center border-b py-1.5 text-xs md:flex">
         <div className="flex w-full max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1">
-              <Truck className="size-3.5" /> משלוח עד הבית בכל הארץ
-            </span>
-            <span className="flex items-center gap-1">
+            <Link href="/page/branches" className="hover:text-brand flex items-center gap-1">
               <MapPin className="size-3.5" /> סניפים
-            </span>
+            </Link>
+            <Link href="/contact" className="hover:text-brand flex items-center gap-1">
+              <Headset className="size-3.5" /> שירות לקוחות
+            </Link>
           </div>
           <div className="flex items-center gap-4">
             <Link href="/deals" className="hover:text-brand flex items-center gap-1">
@@ -44,6 +55,16 @@ export async function Header() {
           </div>
         </div>
       </div>
+
+      {/* The strip above is desktop-only, so on a phone the shop's number
+          was not in the header at all — it was three taps away, inside the
+          menu drawer. On the device that can actually dial it. */}
+      <a
+        href="tel:04-6639510"
+        className="text-muted-foreground bg-secondary/60 flex items-center justify-center gap-1.5 border-b py-1.5 text-xs font-semibold md:hidden"
+      >
+        <Phone className="size-3.5" /> 04-6639510
+      </a>
 
       {/* Mobile is a three-track grid so the logo sits dead centre of the
           header. The side tracks are 1fr each rather than auto: with auto they
