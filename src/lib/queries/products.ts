@@ -81,6 +81,31 @@ export async function getFeaturedProducts(take = 8) {
   return rows.map(mapProductToCard);
 }
 
+/**
+ * The most recently added products.
+ *
+ * Stands where a bestsellers rail used to. That rail was querying
+ * isBestSeller, and the flag is set on none of the 2,000 products in the
+ * catalogue — so "הנמכרים ביותר" has been rendering nothing at all, on a
+ * homepage that reserved a whole section for it. Nor could it be filled
+ * from real sales: the Order table holds two test orders.
+ *
+ * A shop with no sales history and no reviews cannot say what is popular,
+ * and this is the honest thing it can say instead — these arrived, they are
+ * in stock, here they are. When somebody starts flagging bestsellers, or
+ * when there are enough real orders to rank by, that rail is a better
+ * answer and this one gives way to it.
+ */
+export async function getNewestProducts(take = 8) {
+  const rows = await db.product.findMany({
+    where: PUBLIC_PRODUCT_WHERE,
+    include: cardInclude,
+    take,
+    orderBy: { createdAt: "desc" },
+  });
+  return rows.map(mapProductToCard);
+}
+
 export async function getBestSellers(take = 8) {
   const rows = await db.product.findMany({
     where: { ...PUBLIC_PRODUCT_WHERE, isBestSeller: true },

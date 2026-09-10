@@ -6,7 +6,7 @@ import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
 import { FinderTeaser } from "@/components/home/finder-teaser";
-import { getDeals, getBestSellers, getProductsByIds } from "@/lib/queries/products";
+import { getDeals, getNewestProducts, getProductsByIds } from "@/lib/queries/products";
 import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
 import { getCategoryTilesWithImages, getDepartmentBoard } from "@/lib/queries/categories";
 import type { Metadata } from "next";
@@ -32,12 +32,12 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 export const revalidate = 300;
 
 export default async function HomePage() {
-  const [hero, whyPrec, deals, bestSellers, brands, categoryTiles, board, alfredWidget] =
+  const [hero, whyPrec, deals, newest, brands, categoryTiles, board, alfredWidget] =
     await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
       getDeals(8),
-      getBestSellers(8),
+      getNewestProducts(8),
       getFeaturedBrands(),
       getCategoryTilesWithImages(),
       getDepartmentBoard(),
@@ -79,10 +79,12 @@ export default async function HomePage() {
              shop and underestimate what it carries. */}
       <DepartmentBoard departments={board.departments} total={board.total} />
 
-      {/* 3. What people actually buy here — the shop has no reviews and no
-             ratings, so what sells is the only honest social proof it can
-             offer, and it is a real one. */}
-      <ProductRail title="הנמכרים ביותר" subtitle="המוצרים שנקנים אצלנו הכי הרבה" products={bestSellers} />
+      {/* 3. Real products, early, so the page shows goods and prices before
+             it asks for anything. Not "bestsellers": that rail queried a
+             flag set on none of the 2,000 products and had been rendering
+             nothing, and there are two orders in the database to rank by.
+             A shop with no sales history cannot say what is popular. */}
+      <ProductRail title="חדש בקטלוג" subtitle="הגיעו אלינו לאחרונה" products={newest} />
 
       {/* 4. The catalogue by category, in photographs. */}
       <CategoryGrid tiles={categoryTiles} />
