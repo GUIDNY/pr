@@ -76,6 +76,11 @@ export function useIsFavorite(productId: string): boolean {
   return useContext(SessionSummaryContext)?.favoriteIds.has(productId) ?? false;
 }
 
+/** How many products this visitor has saved. Zero until the list arrives. */
+export function useFavoriteCount(): number {
+  return useContext(SessionSummaryContext)?.favoriteIds.size ?? 0;
+}
+
 /** The path to this visitor's back office, or null if they have none. */
 export function useBackOfficeHome(): string | null {
   return useContext(SessionSummaryContext)?.backOffice ?? null;
