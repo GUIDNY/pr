@@ -6,7 +6,7 @@ import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
 import { FinderTeaser } from "@/components/home/finder-teaser";
-import { getDeals, getNewestProducts, getProductsByIds } from "@/lib/queries/products";
+import { getDeals, getNewestProducts, getHeroProduct, getProductsByIds } from "@/lib/queries/products";
 import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
 import { getCategoryTilesWithImages, getDepartmentBoard } from "@/lib/queries/categories";
 import type { Metadata } from "next";
@@ -32,7 +32,7 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 export const revalidate = 300;
 
 export default async function HomePage() {
-  const [hero, whyPrec, deals, newest, brands, categoryTiles, board, alfredWidget] =
+  const [hero, whyPrec, deals, newest, brands, categoryTiles, board, showcase, alfredWidget] =
     await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
@@ -41,6 +41,7 @@ export default async function HomePage() {
       getFeaturedBrands(),
       getCategoryTilesWithImages(),
       getDepartmentBoard(),
+      getHeroProduct(),
       getHomepageSection("alfred-widget"),
     ]);
 
@@ -70,6 +71,7 @@ export default async function HomePage() {
       <ShopHero
         productCount={board.total}
         departmentCount={board.departments.length}
+        showcase={showcase}
         ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
         ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
       />
@@ -84,12 +86,14 @@ export default async function HomePage() {
              flag set on none of the 2,000 products and had been rendering
              nothing, and there are two orders in the database to rank by.
              A shop with no sales history cannot say what is popular. */}
-      <ProductRail title="חדש בקטלוג" subtitle="הגיעו אלינו לאחרונה" products={newest} />
+      <div className="bg-secondary/40 border-border border-y">
+        <ProductRail eyebrow="מהמדפים" title="חדש בקטלוג" subtitle="הגיעו אלינו לאחרונה" products={newest} />
+      </div>
 
       {/* 4. The catalogue by category, in photographs. */}
       <CategoryGrid tiles={categoryTiles} />
 
-      <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" />
+      <ProductRail eyebrow="מבצעים" title="במחיר מיוחד" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" />
 
       {/* 5. Help choosing, once there is something to choose between. */}
       <AlfredHelper picks={alfredPicks} />

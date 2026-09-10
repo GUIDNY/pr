@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { SectionHeading } from "@/components/home/section-heading";
 import type { DepartmentTile } from "@/lib/queries/categories";
 
 /**
@@ -28,20 +28,14 @@ export function DepartmentBoard({ departments, total }: { departments: Departmen
   if (departments.length === 0) return null;
 
   return (
-    <section id="departments" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-10">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3 sm:mb-6">
-        <div>
-          <h2 className="text-xl font-bold sm:text-2xl">כל המחלקות</h2>
-          <p className="text-muted-foreground mt-1 text-sm">
-            <span className="font-semibold tabular-nums">{total.toLocaleString("he-IL")}</span> מוצרים
-            במלאי עכשיו. המספרים מתעדכנים מהמלאי עצמו.
-          </p>
-        </div>
-        <Link href="/brands" className="text-brand text-sm font-semibold hover:underline">
-          לפי מותג
-          <ArrowLeft className="mr-1 inline size-3.5" />
-        </Link>
-      </div>
+    <section id="departments" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-12 sm:py-14">
+      <SectionHeading
+        eyebrow="הקטלוג"
+        title="כל המחלקות"
+        subtitle={`${total.toLocaleString("he-IL")} מוצרים במלאי עכשיו — המספרים נקראים מהמלאי עצמו, לא מרשימה שמישהו מתחזק.`}
+        href="/brands"
+        linkLabel="לפי מותג"
+      />
 
       {/* One-pixel gaps over a bordered container: the departments read as
           one object with divisions rather than as a dozen floating cards,

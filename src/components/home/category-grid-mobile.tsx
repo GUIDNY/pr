@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { CategoryTile } from "@/lib/queries/categories";
+import { SectionHeading } from "@/components/home/section-heading";
 
 // Every category that actually has real, in-stock products, each tile
 // using that category's own real top product photo (object-contain, not
@@ -13,8 +14,8 @@ export function CategoryGrid({ tiles }: { tiles: CategoryTile[] }) {
   if (tiles.length === 0) return null;
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-6 sm:py-10">
-      <h2 className="mb-4 text-xl font-bold sm:mb-6 sm:text-2xl">כל הקטגוריות</h2>
+    <section className="mx-auto max-w-7xl px-4 py-12 sm:py-14">
+      <SectionHeading eyebrow="לפי סוג מוצר" title="כל הקטגוריות" />
       {/* Desktop deliberately denser/smaller than mobile — 6 then 9 columns
           instead of 4 then 6, closer to a compact icon-grid than big
           tiles. Mobile's own 3-column size is untouched. */}

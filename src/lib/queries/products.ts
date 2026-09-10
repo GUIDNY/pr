@@ -382,3 +382,27 @@ export async function searchProducts(query: string, take = 8) {
   });
   return rows.map(mapProductToCard);
 }
+
+/**
+ * One real appliance for the homepage to open with.
+ *
+ * A hero that is only a gradient and a headline asks a visitor to take the
+ * shop's word for it. A hero with a ₪14,900 four-door fridge in it, priced,
+ * in stock, says the same thing and shows it — and for a shop whose weight
+ * is in large appliances, that photograph is the fastest way to communicate
+ * what kind of shop this is.
+ *
+ * The most expensive thing on the site, which is deliberate and not vanity.
+ * It self-heals: nothing to configure, nothing to remember to change, and
+ * when it sells out the next one steps up. It is also, reliably, a large
+ * appliance — the ₪40 emergency lights can never win this query — which is
+ * the property that matters.
+ */
+export async function getHeroProduct() {
+  const row = await db.product.findFirst({
+    where: PUBLIC_PRODUCT_WHERE,
+    include: cardInclude,
+    orderBy: { price: "desc" },
+  });
+  return row ? mapProductToCard(row) : null;
+}
