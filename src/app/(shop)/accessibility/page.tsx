@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BUSINESS_ADDRESS } from "@/lib/business";
 
 /* הצהרת נגישות לפי תקנה 35 לתקנות שוויון זכויות לאנשים עם מוגבלות (התאמות
    נגישות לשירות), תשע"ג-2013. הצהרה שאינה כוללת את רמת הנגישות, התקן שלפיו
@@ -136,6 +137,7 @@ export default function AccessibilityPage() {
                 service@prec.co.il
               </a>
             </li>
+            <li>כתובת: {BUSINESS_ADDRESS}</li>
             <li>
               טופס מקוון:{" "}
               <Link href="/contact" className="text-brand hover:underline">

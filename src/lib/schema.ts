@@ -1,4 +1,5 @@
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
+import { BUSINESS } from "@/lib/business";
 
 // Schema.org builders shared by the pages that emit structured data.
 //
@@ -6,10 +7,10 @@ import { SITE_URL, absoluteUrl } from "@/lib/site-url";
 // left out, never filled with something plausible. Google penalises invented
 // structured data, and the same rule already governs product specs here.
 
-export const SITE_NAME = "Buy Today";
+export const SITE_NAME = BUSINESS.name;
 
 /** The shop's phone number, as it appears in the header, footer and mobile nav. */
-const PHONE_E164 = "+972-4-6639510";
+const PHONE_E164 = BUSINESS.phoneE164;
 
 /**
  * Who the shop is. One per site, on the homepage.
@@ -29,7 +30,7 @@ export function organizationSchema() {
     // account, and disagreement between them is what breaks that match — so
     // the trading name and the registered name are both stated rather than
     // one standing in for the other.
-    legalName: "פ.ר. אלקטרוניקה",
+    legalName: BUSINESS.legalName,
     url: SITE_URL,
     logo: absoluteUrl("/brand/logo.png"),
     email: "info@prec.co.il",
@@ -43,10 +44,21 @@ export function organizationSchema() {
       availableLanguage: ["he"],
       email: "info@prec.co.il",
     },
-    // address and sameAs are deliberately absent, not empty. A postal address
-    // has to be the real registered one and the social links have to be real
-    // profiles; a placeholder in either is a lie Google can check. A missing
-    // field costs nothing, a wrong one costs trust.
+    // The shop's real street address, which is what lets Google tie this site
+    // to the Business Profile and the Merchant Center account rather than
+    // treating them as three unrelated things. No postalCode: it is not known
+    // here, and the rule at the top of this file holds — a field with nothing
+    // real behind it is left out rather than filled with something plausible.
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: BUSINESS.street,
+      addressLocality: BUSINESS.city,
+      addressCountry: BUSINESS.country,
+    },
+    // sameAs is still deliberately absent. The only social link in the footer
+    // points at Facebook's own homepage — a placeholder nobody filled in —
+    // and declaring that as the shop's profile is worse than declaring
+    // nothing.
   };
 }
 

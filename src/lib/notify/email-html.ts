@@ -1,6 +1,7 @@
 import type { NotifyEvent } from "./types";
 import { formatPrice } from "@/lib/format";
 import { SITE_URL } from "@/lib/site-url";
+import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 
 /**
  * The order email, as HTML.
@@ -214,7 +215,7 @@ export function renderOrderEmail(event: NotifyEvent, order: OrderForEmail): stri
             </a>
           </td>
           <td align="left" style="text-align:left;font-family:${FONT};font-size:13px;color:${MUTED};">
-            <a href="tel:046639510" style="color:${MUTED};text-decoration:none;">04-6639510</a>
+            <a href="${BUSINESS.phoneHref}" style="color:${MUTED};text-decoration:none;">${BUSINESS.phone}</a>
           </td>
         </tr></table>
       </td></tr>
@@ -263,7 +264,7 @@ ${
       <tr><td style="padding:20px 30px 30px;">
         <div style="font-family:${FONT};font-size:13px;color:${MUTED};line-height:1.75;text-align:center;">
           שאלה על ההזמנה? אפשר להשיב למייל הזה או להתקשר
-          <a href="tel:046639510" style="color:${BRAND};text-decoration:none;font-weight:700;">04-6639510</a>
+          <a href="${BUSINESS.phoneHref}" style="color:${BRAND};text-decoration:none;font-weight:700;">${BUSINESS.phone}</a>
         </div>
       </td></tr>
 
@@ -272,7 +273,9 @@ ${
           <td align="right" style="text-align:right;font-family:${FONT};font-size:13px;font-weight:700;color:#ffffff;">
             <a href="${esc(SITE_URL)}" style="color:#ffffff;text-decoration:none;">buytoday.co.il</a>
           </td>
-          <td align="left" style="text-align:left;font-family:${FONT};font-size:12px;color:rgba(255,255,255,0.65);">A&amp;I Electronics</td>
+          <td align="left" style="text-align:left;font-family:${FONT};font-size:12px;color:rgba(255,255,255,0.65);">
+            <a href="${esc(BUSINESS_MAP_URL)}" style="color:rgba(255,255,255,0.65);text-decoration:none;">${esc(BUSINESS_ADDRESS)}</a>
+          </td>
         </tr></table>
       </td></tr>
     </table>
