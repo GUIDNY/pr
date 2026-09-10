@@ -88,12 +88,12 @@ export async function Header() {
           <Link
             href="/account"
             aria-label="החשבון שלי"
-            className="hover:bg-muted flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-2 transition-colors sm:h-10 sm:min-w-0 sm:justify-start sm:px-3"
+            className="hover:bg-muted flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-2 transition-colors sm:h-10 sm:px-3"
           >
             <User className="size-5" />
-            <span className="hidden sm:inline">
-              <AccountLabel />
-            </span>
+            {/* Renders nothing at all when nobody is signed in, so the button
+                closes up around the icon instead of holding a gap open. */}
+            <AccountLabel />
           </Link>
           <CartTrigger />
         </div>
