@@ -151,3 +151,66 @@ export async function getCategoryTilesWithImages(): Promise<CategoryTile[]> {
 
   return tiles.filter((t): t is CategoryTile => t !== null);
 }
+
+export type DepartmentTile = {
+  slug: string;
+  name: string;
+  /** Live, in-stock, photographed products under this department. */
+  count: number;
+  /** A few of its own sub-categories, so the name is not the only clue. */
+  leaves: string[];
+};
+
+export type DepartmentBoard = { departments: DepartmentTile[]; total: number };
+
+/**
+ * Every department the shop actually stocks, with the size of each.
+ *
+ * Baymard's homepage research has a finding this is built for: shoppers who
+ * meet a narrow slice of product types on a homepage misjudge what kind of
+ * shop it is and underestimate its range, and the fix is to show a broad
+ * spread of the range rather than a curated few. This shop sells 1,300-odd
+ * appliances across twelve departments and its homepage was showing a
+ * category strip and some tiles — a visitor could not tell from it whether
+ * this was a fridge shop or a kettle shop.
+ *
+ * The counts are the point and they are read live, so a department cannot
+ * advertise stock it does not have. The same predicate as everything else
+ * customer-facing: published, in stock, has a photograph.
+ */
+export async function getDepartmentBoard(): Promise<DepartmentBoard> {
+  const departments = await db.category.findMany({
+    where: { parentId: null },
+    select: {
+      slug: true,
+      name: true,
+      sortOrder: true,
+      _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } },
+      children: {
+        where: { products: { some: PUBLIC_PRODUCT_WHERE } },
+        select: {
+          name: true,
+          _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } },
+        },
+      },
+    },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const tiles = departments
+    .map((d) => {
+      // Products hang off leaf categories, not departments — but a handful
+      // sit directly on a department, so both are counted.
+      const count = d._count.products + d.children.reduce((sum, c) => sum + c._count.products, 0);
+      const leaves = [...d.children]
+        .sort((a, b) => b._count.products - a._count.products)
+        .slice(0, 3)
+        .map((c) => c.name);
+      return { slug: d.slug, name: d.name, count, leaves };
+    })
+    // A department with nothing in it is a link to an empty page.
+    .filter((d) => d.count > 0)
+    .sort((a, b) => b.count - a.count);
+
+  return { departments: tiles, total: tiles.reduce((sum, d) => sum + d.count, 0) };
+}
