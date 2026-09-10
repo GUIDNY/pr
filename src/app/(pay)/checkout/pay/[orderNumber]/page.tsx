@@ -67,7 +67,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
   const viewer = await getCurrentUser();
   const opened = await openPelecardPayment(order.id, {
     lane: isTestOrder ? "test" : "customer",
-    sessionEmail: viewer?.email,
+    viewer,
   });
 
   return (

@@ -82,7 +82,7 @@ export async function createOrderAction(input: CheckoutInput) {
        Refusing is the only safe answer when the two disagree: the alternative
        is an order nobody can pay for, or worse, one marked paid. */
     const viewer = await getCurrentUser();
-    if (paymentLaneFor(viewer?.email) !== "gateway") {
+    if (paymentLaneFor(viewer) !== "gateway") {
       return { success: false as const, error: "התשלום בכרטיס אינו זמין כרגע. נסו שוב או בחרו תשלום במזומן." };
     }
   }

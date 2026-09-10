@@ -1,5 +1,6 @@
 import "server-only";
 import { resolveGateway, isSandboxGateway, isLiveTestConsoleEnabled, isPaymentConsoleAvailable } from "./gateway";
+import { isBackOffice } from "@/lib/permissions";
 
 /* Pelecard has no separate test credentials: the same terminal/user/password
    work against both environments, and the ONLY thing deciding whether a card
@@ -92,19 +93,30 @@ export function pelecardEnabled(): boolean {
  *                                    the override that cannot be lost: an
  *                                    account named here never charges a card,
  *                                    whatever else is set.
- *   3. Listed in LIVE_EMAILS,     -> gateway, even when the shop is closed.
+ *   3. A back-office role         -> demo. The shop's own staff walk the order
+ *                                    flow all day; none of those runs is meant
+ *                                    to move money. See below.
+ *   4. Listed in LIVE_EMAILS,     -> gateway, even when the shop is closed.
  *      or in BUILT_IN_LIVE_EMAILS      The account used to test against the real
  *                                      terminal before opening to customers.
- *   4. Nobody is signed in        -> PELECARD_DEMO_ANONYMOUS pins guests to
+ *   5. Nobody is signed in        -> PELECARD_DEMO_ANONYMOUS pins guests to
  *                                    demo; otherwise the global switch.
- *   5. Everyone else              -> the global switch, PELECARD_ENABLED.
+ *   6. Everyone else              -> the global switch, PELECARD_ENABLED.
  *
- * THE EMAIL COMES FROM THE SESSION AND NEVER FROM THE FORM. The checkout asks
+ * THE VIEWER COMES FROM THE SESSION AND NEVER FROM THE FORM. The checkout asks
  * a guest for an email and that field is whatever they typed; deciding the
  * lane from it would mean anyone could type their way onto — or off — the
- * gateway. Callers pass the address on the signed cookie or nothing at all.
+ * gateway. Callers pass the account on the signed cookie or nothing at all.
+ *
+ * It takes the viewer rather than the address for the sake of rule 3, and the
+ * shape is the point: a second optional argument would have gone on compiling
+ * everywhere it was left out, and the place it was left out is the place an
+ * admin gets charged. Nothing here can be called with half a viewer.
  */
 export type CheckoutLane = "gateway" | "demo";
+
+/** As much of the signed-in account as the lane depends on. */
+export type CheckoutViewer = { email?: string | null; role?: string | null };
 
 /**
  * The account that pays for real while the shop itself is still closed.
@@ -133,12 +145,26 @@ function emailList(name: string): string[] {
     .filter(Boolean);
 }
 
-export function paymentLaneFor(sessionEmail: string | null | undefined): CheckoutLane {
+export function paymentLaneFor(viewer: CheckoutViewer | null | undefined): CheckoutLane {
   if (!pelecardConfigured()) return "demo";
 
-  const email = sessionEmail?.trim().toLowerCase();
+  const email = viewer?.email?.trim().toLowerCase();
 
   if (email && emailList("PELECARD_DEMO_EMAILS").includes(email)) return "demo";
+
+  /* The shop's own people, on the demo lane for as long as they hold the role.
+     Not a list of addresses: a list would have to be edited every time someone
+     is hired, and the failure mode of forgetting is a real card charged for a
+     rehearsal. The role is already the thing the rest of the back office is
+     decided by, and it is on the signed cookie, so it costs nothing to ask.
+
+     Above the live list on purpose. An address in both is somebody who was put
+     on the gateway once and then given a back-office role, and the safe answer
+     to that contradiction is the one that does not spend money. To put a staff
+     account on the real gateway, take the role away from it or use an account
+     that never had one. */
+  if (isBackOffice(viewer?.role)) return "demo";
+
   if (email && [...BUILT_IN_LIVE_EMAILS, ...emailList("PELECARD_LIVE_EMAILS")].includes(email)) return "gateway";
 
   if (!email && process.env.PELECARD_DEMO_ANONYMOUS?.trim() === "true") return "demo";

@@ -37,7 +37,7 @@ export default async function CheckoutPage() {
       // it, because anything the browser can see it can also change. The
       // address comes from getCurrentUser() — the account on the signed cookie
       // — and never from the email field on the form itself.
-      payViaGateway={paymentLaneFor(user?.email) === "gateway"}
+      payViaGateway={paymentLaneFor({ email: user?.email, role: session?.role }) === "gateway"}
       // The test lane. Resolved here for the same reason as the switch above:
       // a browser that can see the flag can also set it.
       isStaff={canManageCatalog(session?.role)}

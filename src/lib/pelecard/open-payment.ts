@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { initPayment, SUPPORTED_CARDS, paymentPageStyle, holdThenCapture } from "./client";
 import { pelecardConfig, pelecardConfigured, paymentLaneFor, toAgorot, siteUrl, callbackSecret } from "./config";
+import type { CheckoutViewer } from "./config";
 import { customerHasPaid } from "@/lib/order-signal";
 
 /**
@@ -20,11 +21,11 @@ import { customerHasPaid } from "@/lib/order-signal";
  *
  *   "customer" — the storefront. Armed by paymentLaneFor(), which answers the
  *   question per signed-in account rather than once for the whole shop: the
- *   global switch is the default, and an account named in PELECARD_DEMO_EMAILS
- *   or PELECARD_LIVE_EMAILS overrides it in either direction. sessionEmail must
- *   come from the signed cookie — the address typed into the checkout form is
- *   whatever the shopper typed, and deciding the lane from it would let anyone
- *   type their way onto the gateway.
+ *   global switch is the default, a back-office role is always demo, and an
+ *   account named in PELECARD_DEMO_EMAILS or PELECARD_LIVE_EMAILS overrides it
+ *   in either direction. The viewer must come from the signed cookie — the
+ *   address typed into the checkout form is whatever the shopper typed, and
+ *   deciding the lane from it would let anyone type their way onto the gateway.
  *
  *   "test" — the merchant's own ₪1 transaction against the live terminal, so
  *   the real payment page can be worked on before customers are sent to it.
@@ -40,9 +41,9 @@ export type PaymentLane = "customer" | "test";
 
 export async function openPelecardPayment(
   orderId: string,
-  { lane = "customer", sessionEmail }: { lane?: PaymentLane; sessionEmail?: string | null } = {},
+  { lane = "customer", viewer }: { lane?: PaymentLane; viewer?: CheckoutViewer | null } = {},
 ): Promise<OpenPaymentResult> {
-  const armed = lane === "test" ? pelecardConfigured() : paymentLaneFor(sessionEmail) === "gateway";
+  const armed = lane === "test" ? pelecardConfigured() : paymentLaneFor(viewer) === "gateway";
   if (!armed) return { ok: false, status: 503, error: "pelecard disabled" };
 
   /* siteUrl() and callbackSecret() throw as readily as pelecardConfig() does,
