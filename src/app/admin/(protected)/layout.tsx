@@ -48,15 +48,24 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     redirect("/admin/login");
   }
 
-  /* The sandbox console is listed only where it exists: outside the test
-     gateway the page itself 404s, and a dead link in the sidebar is how
-     someone concludes the back office is broken. */
+  /* The payments page used to be listed only against the test gateway, because
+     outside it the page 404'd and a dead link in the sidebar is how someone
+     concludes the back office is broken. It no longer 404s: it answers "why is
+     checkout showing the demo form", which is a question that only ever gets
+     asked on the live site. So it is listed everywhere, and the label says what
+     it is rather than which gateway it happens to be pointed at. */
   const full = canManageCatalog(session.role);
   const visible = full ? NAV : NAV.filter((item) => !item.catalog);
-  const nav =
-    full && isPelecardSandbox()
-      ? [...visible, { href: "/admin/pelecard-test", label: "בדיקות סליקה (סנדבוקס)", icon: CreditCard }]
-      : visible;
+  const nav = full
+    ? [
+        ...visible,
+        {
+          href: "/admin/pelecard-test",
+          label: isPelecardSandbox() ? "סליקה (סנדבוקס)" : "סליקה",
+          icon: CreditCard,
+        },
+      ]
+    : visible;
 
   return (
     <div dir="rtl" className="bg-secondary/30 flex min-h-svh">

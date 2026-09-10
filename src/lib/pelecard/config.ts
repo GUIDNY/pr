@@ -276,3 +276,74 @@ export function callbackSecret(): string {
   if (!secret) throw new Error("PELECARD_CALLBACK_SECRET is not set");
   return secret;
 }
+
+/**
+ * WHY IS CHECKOUT SHOWING THE DEMO FORM?
+ *
+ * There was no way to find out. The lane is decided by six environment
+ * variables and a role, all of them invisible from inside the running site, and
+ * the only symptom of any one being wrong is a demo form — which looks
+ * identical whether it is deliberate or an accident. Answering the question
+ * meant opening the Vercel dashboard, or guessing, and guessing is what it got.
+ *
+ * So this reports the state of every input, and the payment console page shows
+ * it. NAMES AND YES/NO ONLY. Never a terminal, a user, a password or a secret:
+ * this renders in a browser, and a page that prints a credential to help you
+ * debug is a page that leaks it into a screenshot.
+ *
+ * PELECARD_ENABLED is the one whose raw shape matters, because "unset" and
+ * "false" mean different things now and look the same from a distance, so it is
+ * reported as one of three states rather than a boolean.
+ */
+export type PelecardDiagnosis = {
+  gateway: { ok: true; host: string; isSandbox: boolean } | { ok: false; error: string };
+  credentials: { terminal: boolean; user: boolean; password: boolean };
+  callbackSecret: boolean;
+  siteUrl: string | null;
+  killSwitch: "unset" | "off" | "on";
+  configured: boolean;
+  sellsToCustomers: boolean;
+  guestLane: CheckoutLane;
+  /** The single sentence that names what to change, or says nothing is wrong. */
+  blocker: string | null;
+};
+
+export function diagnosePelecard(): PelecardDiagnosis {
+  const resolved = resolveGateway();
+  const raw = process.env.PELECARD_ENABLED?.trim().toLowerCase();
+  const killSwitch = raw === undefined || raw === "" ? "unset" : raw === "false" ? "off" : "on";
+
+  const credentials = {
+    terminal: Boolean(process.env.PELECARD_TERMINAL?.trim()),
+    user: Boolean(process.env.PELECARD_USER?.trim()),
+    password: Boolean(process.env.PELECARD_PASSWORD?.trim()),
+  };
+
+  const configured = pelecardConfigured();
+  const guestLane = paymentLaneFor(null);
+
+  /* One blocker, the first one that stops a guest paying, because a list of
+     five things to check is how the real one gets skipped. */
+  let blocker: string | null = null;
+  if (!resolved.ok) blocker = resolved.error;
+  else if (!credentials.terminal) blocker = "PELECARD_TERMINAL is not set";
+  else if (!credentials.user) blocker = "PELECARD_USER is not set";
+  else if (!credentials.password) blocker = "PELECARD_PASSWORD is not set";
+  else if (killSwitch === "off") blocker = 'PELECARD_ENABLED is set to "false" — remove it, or set it to true';
+  else if (!process.env.PELECARD_CALLBACK_SECRET) blocker = "PELECARD_CALLBACK_SECRET is not set";
+  else if (!process.env.NEXT_PUBLIC_SITE_URL?.trim()) blocker = "NEXT_PUBLIC_SITE_URL is not set";
+
+  return {
+    gateway: resolved.ok
+      ? { ok: true, host: resolved.gateway.baseUrl, isSandbox: resolved.gateway.isSandbox }
+      : { ok: false, error: resolved.error },
+    credentials,
+    callbackSecret: Boolean(process.env.PELECARD_CALLBACK_SECRET),
+    siteUrl: process.env.NEXT_PUBLIC_SITE_URL?.trim() || null,
+    killSwitch,
+    configured,
+    sellsToCustomers: pelecardEnabled(),
+    guestLane,
+    blocker,
+  };
+}

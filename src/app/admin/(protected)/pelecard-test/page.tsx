@@ -1,12 +1,12 @@
-import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import {
   isPelecardConsoleAvailable,
   isPelecardLiveTest,
   pelecardConfig,
-  pelecardEnabled,
+  diagnosePelecard,
   LIVE_TEST_MAX_SHEKELS,
 } from "@/lib/pelecard/config";
+import { PelecardStatus } from "@/components/admin/pelecard-status";
 import { PelecardTestConsole } from "@/components/admin/pelecard-test-console";
 import { formatPrice, formatDateTime } from "@/lib/format";
 
@@ -23,7 +23,21 @@ export const dynamic = "force-dynamic";
  * it is not hidden or disabled: it does not exist.
  */
 export default async function PelecardTestPage() {
-  if (!isPelecardConsoleAvailable()) notFound();
+  /* The page always exists now, and that is the change. It used to 404 whenever
+     the console was unavailable — which on the live site is always, by design —
+     so the one screen that could say why checkout was in demo mode was the one
+     screen production could never show. The console below is still gated; the
+     status above it is not. */
+  const diagnosis = diagnosePelecard();
+  const consoleAvailable = isPelecardConsoleAvailable();
+
+  if (!consoleAvailable) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PelecardStatus diagnosis={diagnosis} />
+      </div>
+    );
+  }
 
   const config = pelecardConfig();
   const liveTest = isPelecardLiveTest();
@@ -36,6 +50,7 @@ export default async function PelecardTestPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <PelecardStatus diagnosis={diagnosis} />
       <div
         className={
           liveTest
@@ -56,9 +71,6 @@ export default async function PelecardTestPage() {
         )}
         <p className="mt-1 font-mono text-sm" dir="ltr">
           {config.baseUrl}
-        </p>
-        <p className="text-muted-foreground mt-1 text-sm">
-          מצב הסליקה באתר: {pelecardEnabled() ? "מופעל (PELECARD_ENABLED=true)" : "כבוי — הקופה עדיין בזרימת ההדגמה"}
         </p>
       </div>
 
