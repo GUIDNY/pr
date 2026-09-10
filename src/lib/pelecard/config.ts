@@ -99,9 +99,10 @@ export function pelecardEnabled(): boolean {
  *   4. Listed in LIVE_EMAILS,     -> gateway, even when the shop is closed.
  *      or in BUILT_IN_LIVE_EMAILS      The account used to test against the real
  *                                      terminal before opening to customers.
- *   5. Nobody is signed in        -> PELECARD_DEMO_ANONYMOUS pins guests to
- *                                    demo; otherwise the global switch.
- *   6. Everyone else              -> the global switch, PELECARD_ENABLED.
+ *   5. Everyone else, guests     -> the global switch, PELECARD_ENABLED. A
+ *      included                        guest has no account to name in a list
+ *                                      and no role to hold, so the shop being
+ *                                      open is the whole answer for them.
  *
  * THE VIEWER COMES FROM THE SESSION AND NEVER FROM THE FORM. The checkout asks
  * a guest for an email and that field is whatever they typed; deciding the
@@ -167,8 +168,11 @@ export function paymentLaneFor(viewer: CheckoutViewer | null | undefined): Check
 
   if (email && [...BUILT_IN_LIVE_EMAILS, ...emailList("PELECARD_LIVE_EMAILS")].includes(email)) return "gateway";
 
-  if (!email && process.env.PELECARD_DEMO_ANONYMOUS?.trim() === "true") return "demo";
-
+  /* A guest follows the shop switch, and there is deliberately no way to say
+     otherwise. There used to be one — PELECARD_DEMO_ANONYMOUS — and it was a
+     trap: most customers check out without an account, so with it set the shop
+     was open and taking no card payments at all, and the only symptom was a
+     demo form nobody signed in ever saw. */
   return pelecardEnabled() ? "gateway" : "demo";
 }
 

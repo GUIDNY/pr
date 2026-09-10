@@ -42,7 +42,6 @@ function env(vars: Record<string, string | undefined>) {
     "PELECARD_ENABLED",
     "PELECARD_DEMO_EMAILS",
     "PELECARD_LIVE_EMAILS",
-    "PELECARD_DEMO_ANONYMOUS",
   ]) {
     delete process.env[key];
   }
@@ -85,10 +84,12 @@ console.log("\nA back-office role wins over the live list");
 env({ PELECARD_ENABLED: "true", PELECARD_LIVE_EMAILS: "admin@prec.co.il" });
 is("an admin named on the live list still rehearses", paymentLaneFor(admin), "demo");
 
-console.log("\nGuests");
-env({ PELECARD_ENABLED: "true", PELECARD_DEMO_ANONYMOUS: "true" });
-is("DEMO_ANONYMOUS pins them to the demo form", paymentLaneFor(null), "demo");
-is("and leaves signed-in customers alone", paymentLaneFor(customer), "gateway");
+console.log("\nA guest follows the shop switch and nothing else");
+env({ PELECARD_ENABLED: "true" });
+is("open shop, guest pays for real", paymentLaneFor(null), "gateway");
+is("...even with the lists full", paymentLaneFor(undefined), "gateway");
+env({});
+is("closed shop, guest sees the demo form", paymentLaneFor(null), "demo");
 
 console.log("\nNo credentials, no charges");
 env({ PELECARD_ENABLED: "true", PELECARD_LIVE_EMAILS: "shopper@example.com" });
