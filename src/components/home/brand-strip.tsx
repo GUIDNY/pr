@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 
-type FeaturedBrand = { name: string; slug: string; logoUrl: string };
+type FeaturedBrand = { name: string; slug: string; logoUrl: string | null };
 
 // Duplicated once so the CSS marquee can loop seamlessly: the animation
 // scrolls exactly one copy's width, then jumps back unnoticed since the
@@ -24,7 +24,18 @@ export function BrandStrip({ brands }: { brands: FeaturedBrand[] }) {
               className="flex h-16 w-32 shrink-0 items-center justify-center opacity-70 grayscale transition hover:opacity-100 hover:grayscale-0"
               title={b.name}
             >
-              <Image src={b.logoUrl} alt={b.name} width={120} height={48} className="h-auto max-h-12 w-auto max-w-28 object-contain" />
+              {b.logoUrl ? (
+                <Image src={b.logoUrl} alt={b.name} width={120} height={48} className="h-auto max-h-12 w-auto max-w-28 object-contain" />
+              ) : (
+                /* No logo file, so the name in our own type — never an
+                   approximation of the manufacturer's mark. A drawn
+                   lookalike of a trademark is worse than plain text, and
+                   plain text is what a shop that has not been given the
+                   asset honestly has. */
+                <span className="text-foreground/80 max-w-28 text-center text-base font-bold tracking-tight">
+                  {b.name}
+                </span>
+              )}
             </Link>
           ))}
         </div>
