@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Truck, Headset } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { SearchBar } from "@/components/layout/search-bar";
 import { Button } from "@/components/ui/button";
 
@@ -96,24 +96,16 @@ export function AlfredSection({
             <SearchBar size="hero" showIntro={false} />
           </div>
 
-          {/* The three trust badges that used to sit under Hero's CTA
-              buttons — centered under the search bar, which means matching
-              its `max-w-xl` container and centering inside that. Without
-              the cap they stretch the full column while the search bar
-              stops at max-w-xl, so at lg: (where the column switches to
-              items-start) the row reads as visibly off-centre against the
-              bar it belongs to. */}
-          <div className="mt-1 flex w-full max-w-xl flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm">
-            <span className="flex items-center gap-2">
-              <Truck className="text-brand size-4" /> משלוח עד הבית
-            </span>
-            <span className="flex items-center gap-2">
-              <ShieldCheck className="text-brand size-4" /> אחריות יבואן רשמי
-            </span>
-            <span className="flex items-center gap-2">
-              <Headset className="text-brand size-4" /> שירות לקוחות זמין
-            </span>
-          </div>
+          {/* The three trust badges that used to sit here are gone.
+              משלוח עד הבית, אחריות יבואן רשמי and שירות לקוחות זמין were
+              three of the four promises the trust band further down this
+              same page already makes — and makes properly, with a sentence
+              of detail under each. Said twice on one screen, once as a bare
+              chip and once as a real claim, the chip is what the reader
+              discounts, and it takes the band's version down with it.
+
+              The band keeps them. This is the hero, and what belongs under
+              a search bar is the search, not a summary of the footer. */}
         </div>
       </div>
 
