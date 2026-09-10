@@ -50,17 +50,30 @@ export const metadata: Metadata = {
   verification: {
     other: { "facebook-domain-verification": "nsz5n8vzbwi6zvxmo48qa3gf9znghg" },
   },
-  // The icon set is picked up by convention from src/app: icon.png for the
-  // browser tab, apple-icon.png for an iOS home-screen shortcut. Both are
-  // generated from public/brand/logo.png, as is the Pelecard payment page's
-  // mark. apple-icon is deliberately opaque and square — iOS applies its own
+  // The icon set is picked up by convention from src/app: favicon.ico and
+  // icon/icon1/icon2.png for the browser tab and for crawlers,
+  // apple-icon.png for an iOS home-screen shortcut. All are generated from
+  // public/brand/logo.png, as is the Pelecard payment page's mark.
+  // apple-icon is deliberately opaque and square — iOS applies its own
   // corner mask, and a transparent corner handed to it renders black.
   //
-  // That master is 512px because images are served unoptimized (see
+  // favicon.ico is not redundant with the PNGs, which is what it looked like
+  // and why it was missing. Google's favicon crawler is a separate fetcher
+  // from Googlebot, and when it cannot use the declared icons it falls back
+  // to /favicon.ico at the site root — with nothing there it keeps whatever
+  // it last managed to fetch, which for months was the A&I mark from before
+  // the rename. That is why search results kept showing the old logo while
+  // the site had been rebranded. It is one file holding 16, 32, 48 and 96.
+  //
+  // The PNGs are 96, 192 and 512 because that crawler also wants a square
+  // whose side is a multiple of 48, and the single 512 that used to be the
+  // whole set is not one.
+  //
+  // The master is 512px because images are served unoptimized (see
   // next.config.ts), so whatever sits at /brand/logo.png is what a phone
   // downloads to draw a 40px header logo — there is no resizing step to hide
   // an oversized source behind. 512 is the largest thing derived from it
-  // (icon.png), so it is as small as it can be without losing a derivative.
+  // (icon2.png), so it is as small as it can be without losing a derivative.
   // The 1800px artwork as delivered is in git history, added in d81d86b.
   openGraph: {
     type: "website",
