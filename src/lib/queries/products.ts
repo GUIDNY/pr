@@ -386,23 +386,47 @@ export async function searchProducts(query: string, take = 8) {
 /**
  * One real appliance for the homepage to open with.
  *
- * A hero that is only a gradient and a headline asks a visitor to take the
- * shop's word for it. A hero with a ₪14,900 four-door fridge in it, priced,
- * in stock, says the same thing and shows it — and for a shop whose weight
- * is in large appliances, that photograph is the fastest way to communicate
- * what kind of shop this is.
+ * Curated by SKU, and the first version of this was not — it took the most
+ * expensive live product, on the reasoning that price guarantees a large
+ * appliance. It does, and that turned out not to be the property that
+ * matters. What it picked was a ₪31,000 Bertazzoni integrated column fridge
+ * marked Panel Ready: an appliance which by definition has no finished
+ * front, because the buyer fits their own cabinet door to it. And its
+ * photograph sits behind a Cloudflare challenge that answers 403 to
+ * anything that is not a browser.
  *
- * The most expensive thing on the site, which is deliberate and not vanity.
- * It self-heals: nothing to configure, nothing to remember to change, and
- * when it sells out the next one steps up. It is also, reliably, a large
- * appliance — the ₪40 emergency lights can never win this query — which is
- * the property that matters.
+ * Neither is visible to a query. "Most expensive" cannot know whether a
+ * product photographs well or whether its host will serve the image, and a
+ * fallback that can quietly choose a broken picture for the first thing a
+ * visitor sees is worse than having no picture there at all.
+ *
+ * So: a short list, in order, of products whose photographs were opened and
+ * checked. The first one still live wins, which is what makes it survive a
+ * sell-out without anybody watching. When none is available the hero simply
+ * renders without the card — it is built to.
+ *
+ * Deliberately not isFeatured. That flag drives the "מומלצים" rail and
+ * currently sits on a ₪249 kettle, which is a perfectly good thing to
+ * feature and not the thing to open an appliance shop with. To change what
+ * is here, change this list.
  */
+const HERO_SHOWCASE_SKUS = [
+  "0546", // Samsung Bespoke, 4 doors, black glass — images.samsung.com
+  "200100", // Samsung Neo QLED 100" — images.samsung.com
+  "0721", // Miele WWK360 washing machine — miele.co.il
+  "200052", // LG OLED evo G5 65" — lg.com
+  "0474", // Bertazzoni built-in combi oven — prec.co.il (ours)
+];
+
 export async function getHeroProduct() {
-  const row = await db.product.findFirst({
-    where: PUBLIC_PRODUCT_WHERE,
+  const rows = await db.product.findMany({
+    where: { sku: { in: HERO_SHOWCASE_SKUS }, ...PUBLIC_PRODUCT_WHERE },
     include: cardInclude,
-    orderBy: { price: "desc" },
   });
-  return row ? mapProductToCard(row) : null;
+  const bySku = new Map(rows.map((r) => [r.sku, r]));
+  for (const sku of HERO_SHOWCASE_SKUS) {
+    const row = bySku.get(sku);
+    if (row) return mapProductToCard(row);
+  }
+  return null;
 }
