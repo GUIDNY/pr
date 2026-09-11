@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useConsent } from "@/lib/consent";
+import { redactSensitiveParams } from "@/lib/analytics/redact";
 
 declare global {
   interface Window {
@@ -108,7 +109,11 @@ function PageViews({ id }: { id: string }) {
 
   useEffect(() => {
     const query = searchParams.toString();
-    const path = query ? `${pathname}?${query}` : pathname;
+    /* Redacted before it is sent, never after. The confirmation page hands
+       the register page a guest's own name, address and telephone number in
+       the query string, and a page view carries the URL — so without this the
+       tag reports a customer's details as the name of a page. */
+    const path = redactSensitiveParams(query ? `${pathname}?${query}` : pathname);
     // React may run an effect twice in development, and a replaced search
     // param can re-run it with an unchanged URL. Neither is a page view.
     if (lastSent.current === path) return;
@@ -117,7 +122,7 @@ function PageViews({ id }: { id: string }) {
     window.gtag?.("event", "page_view", {
       send_to: id,
       page_path: path,
-      page_location: window.location.href,
+      page_location: redactSensitiveParams(window.location.href),
       page_title: document.title,
     });
   }, [id, pathname, searchParams]);
