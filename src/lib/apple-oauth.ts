@@ -1,5 +1,5 @@
 import "server-only";
-import { SignJWT, importPKCS8 } from "jose";
+import { SignJWT, importPKCS8, jwtVerify, createRemoteJWKSet } from "jose";
 import { SITE_URL } from "@/lib/site-url";
 
 /**
@@ -39,6 +39,17 @@ export const APPLE_CALLBACK_PATH = "/api/auth/apple/callback";
 function env(name: string): string | null {
   const value = process.env[name]?.trim();
   return value ? value : null;
+}
+
+/**
+ * The app's bundle id, which is the audience Apple puts in an identity token
+ * issued to the native sign-in sheet — where the web flow's Services ID is
+ * the audience instead. Required rather than defaulted: an audience check
+ * that falls back to a guess is not a check, and the feature staying off
+ * until somebody sets this is the safe way to be wrong.
+ */
+export function appleNativeConfigured(): boolean {
+  return env("APPLE_APP_BUNDLE_ID") !== null;
 }
 
 /** All four present. The button is hidden until they are. */
@@ -221,4 +232,59 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/* Apple's public keys, fetched once and cached by jose, which also re-fetches
+   when a token arrives signed by a kid it has not seen — which is what makes
+   key rotation a non-event rather than an outage. */
+const APPLE_JWKS = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
+
+/**
+ * The person behind an identity token that came from the native sign-in sheet.
+ *
+ * THIS ONE IS VERIFIED, and the difference from exchangeCodeForProfile above
+ * is the whole reason it exists. That token arrives in the body of a direct
+ * server-to-server POST to Apple, over TLS, authenticated by a secret only
+ * this server can mint — nothing in between could have written it, so reading
+ * it is enough. This token arrives from a phone. Reading it the same way would
+ * mean anybody who can type a JSON body can sign in as anybody, since the
+ * email is a claim inside a string the caller supplies.
+ *
+ * So: Apple's signature against their published keys, `iss` theirs, `aud` this
+ * app's bundle id and not the web flow's Services ID, and expiry enforced by
+ * jose. The nonce is compared by the caller, which is the only party that
+ * knows what it asked for.
+ */
+export async function verifyAppleIdentityToken(token: string): Promise<AppleExchange> {
+  const audience = env("APPLE_APP_BUNDLE_ID");
+  if (!audience) return { ok: false, detail: "APPLE_APP_BUNDLE_ID is not set" };
+
+  let claims: Record<string, unknown>;
+  try {
+    const verified = await jwtVerify(token, APPLE_JWKS, {
+      issuer: "https://appleid.apple.com",
+      audience,
+    });
+    claims = verified.payload as Record<string, unknown>;
+  } catch (error) {
+    // Expiry, a bad signature and a wrong audience all land here, and the
+    // caller must not be told which: the difference is only useful to
+    // somebody probing.
+    return { ok: false, detail: `identity token rejected: ${(error as Error).message}` };
+  }
+
+  const email = typeof claims.email === "string" ? claims.email.toLowerCase() : null;
+  const sub = typeof claims.sub === "string" ? claims.sub : null;
+  if (!email || !sub) return { ok: false, detail: "identity token missing email or sub" };
+
+  return {
+    ok: true,
+    profile: {
+      email,
+      sub,
+      emailVerified: claims.email_verified === true || claims.email_verified === "true",
+      isPrivateRelay: claims.is_private_email === true || claims.is_private_email === "true",
+      nonce: typeof claims.nonce === "string" ? claims.nonce : null,
+    },
+  };
 }
