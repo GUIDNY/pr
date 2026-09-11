@@ -67,6 +67,15 @@ export function LoginForm({ googleEnabled, appleEnabled }: { googleEnabled: bool
      plugin and App Links, not a login page change. */
   const inApp = useIsNativeApp();
   const showGoogle = googleEnabled && !inApp;
+  /* Apple is hidden in the app for a narrower reason, and only until the next
+     build. Its flow leaves for appleid.apple.com and form_posts back, and the
+     build currently under review does not list that host in allowNavigation —
+     so the whole exchange is handed to Safari and the session cookie is set in
+     a browser the app cannot see, exactly as Google's was. The host is listed
+     in capacitor.config.ts now, which fixes it, but a config change only
+     reaches a device through a new build while this file reaches it on the
+     next page load. Flip this back once a build carrying that config ships. */
+  const showApple = appleEnabled && !inApp;
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/account";
@@ -108,11 +117,11 @@ export function LoginForm({ googleEnabled, appleEnabled }: { googleEnabled: bool
           </p>
         </div>
 
-        {(showGoogle || appleEnabled) && (
+        {(showGoogle || showApple) && (
           <>
             <div className="flex flex-col gap-2.5">
               {showGoogle && <GoogleButton />}
-              {appleEnabled && <AppleButton />}
+              {showApple && <AppleButton />}
             </div>
             {/* A real separator rather than the word "or" floating between
                 two stacks — the rule is what tells you these are two ways to

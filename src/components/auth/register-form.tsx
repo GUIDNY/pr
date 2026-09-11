@@ -28,6 +28,15 @@ export function RegisterForm({ googleEnabled, appleEnabled }: { googleEnabled: b
      plugin and App Links, not a login page change. */
   const inApp = useIsNativeApp();
   const showGoogle = googleEnabled && !inApp;
+  /* Apple is hidden in the app for a narrower reason, and only until the next
+     build. Its flow leaves for appleid.apple.com and form_posts back, and the
+     build currently under review does not list that host in allowNavigation —
+     so the whole exchange is handed to Safari and the session cookie is set in
+     a browser the app cannot see, exactly as Google's was. The host is listed
+     in capacitor.config.ts now, which fixes it, but a config change only
+     reaches a device through a new build while this file reaches it on the
+     next page load. Flip this back once a build carrying that config ships. */
+  const showApple = appleEnabled && !inApp;
   const router = useRouter();
   /* Handed over by the confirmation page, so a guest who just ordered is asked
      for a password and nothing they have already typed. Only ever prefills
@@ -66,11 +75,11 @@ export function RegisterForm({ googleEnabled, appleEnabled }: { googleEnabled: b
         <h1 className="text-2xl font-bold">יצירת חשבון</h1>
       </div>
 
-      {(showGoogle || appleEnabled) && (
+      {(showGoogle || showApple) && (
         <>
           <div className="flex flex-col gap-2.5">
             {showGoogle && <GoogleButton />}
-            {appleEnabled && <AppleButton />}
+            {showApple && <AppleButton />}
           </div>
           <div className="my-5 flex items-center gap-3">
             <span className="bg-border h-px flex-1" />
