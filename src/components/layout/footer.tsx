@@ -1,9 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Phone, MapPin, ShieldCheck, Truck, CreditCard, Share2 } from "lucide-react";
+import { Phone, MapPin, ShieldCheck, Truck, CreditCard, Share2, MessageCircle } from "lucide-react";
 import { ConsentSettingsLink } from "@/components/layout/consent-settings-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
-import { BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
+import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 
 export async function Footer() {
   const departments = (await getNavigableCategoryTree()).slice(0, 6);
@@ -148,8 +148,20 @@ export async function Footer() {
               <ConsentSettingsLink />
             </li>
             <li>
-              <a href="tel:04-6639510" className="text-primary-foreground/60 hover:text-primary-foreground flex items-center gap-1.5 text-sm">
-                <Phone className="size-3.5" /> 04-6639510
+              <a href={BUSINESS.phoneHref} className="text-primary-foreground/60 hover:text-primary-foreground flex items-center gap-1.5 text-sm">
+                <Phone className="size-3.5" /> {BUSINESS.phone}
+              </a>
+            </li>
+            <li>
+              {/* A separate line, because it is a separate number answered in
+                  a separate place. */}
+              <a
+                href={BUSINESS.whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-foreground/60 hover:text-primary-foreground flex items-center gap-1.5 text-sm"
+              >
+                <MessageCircle className="size-3.5" /> {BUSINESS.whatsapp}
               </a>
             </li>
           </ul>

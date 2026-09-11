@@ -9,6 +9,7 @@ import { AccountButton } from "@/components/layout/account-button";
 import { FavoritesLink } from "@/components/layout/favorites-link";
 import { BackOfficeLink } from "@/components/layout/back-office-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
+import { BUSINESS } from "@/lib/business";
 
 export async function Header() {
   // Deliberately no visitor lookup here. This header is on every page in the
@@ -37,8 +38,8 @@ export async function Header() {
             <Link href="/track-order" className="hover:text-brand flex items-center gap-1">
               <Truck className="size-3.5" /> מעקב הזמנה
             </Link>
-            <a href="tel:04-6639510" className="hover:text-brand flex items-center gap-1">
-              <Phone className="size-3.5" /> 04-6639510
+            <a href={BUSINESS.phoneHref} className="hover:text-brand flex items-center gap-1">
+              <Phone className="size-3.5" /> {BUSINESS.phone}
             </a>
             {/* Staff only, and empty for everyone else — see BackOfficeLink. */}
             <BackOfficeLink />

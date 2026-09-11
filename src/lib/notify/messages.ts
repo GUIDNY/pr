@@ -1,5 +1,6 @@
 import type { Message, NotifyEvent } from "./types";
 import { formatPrice } from "@/lib/format";
+import { BUSINESS } from "@/lib/business";
 
 export type OrderForMessage = {
   orderNumber: string;
@@ -71,7 +72,7 @@ export function messageFor(event: NotifyEvent, order: OrderForMessage): Message 
         subject: `ההזמנה הגיעה · ${order.orderNumber}`,
         body:
           `היי ${name}, הזמנה ${order.orderNumber} נמסרה. תודה שקנית אצלנו!\n` +
-          `אם משהו לא בסדר — פשוט השב להודעה הזאת או התקשר 04-6639510.`,
+          `אם משהו לא בסדר — פשוט השב להודעה הזאת או התקשר ${BUSINESS.phone}.`,
       };
   }
 }

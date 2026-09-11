@@ -13,6 +13,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import type { NavigableDepartment } from "@/lib/queries/categories";
 import { BackOfficeLink } from "@/components/layout/back-office-link";
+import { BUSINESS } from "@/lib/business";
 
 export function MobileNav({ departments }: { departments: NavigableDepartment[] }) {
   const [open, setOpen] = useState(false);
@@ -84,8 +85,8 @@ export function MobileNav({ departments }: { departments: NavigableDepartment[] 
                 </Link>
               </li>
               <li>
-                <a href="tel:04-6639510" className="flex items-center gap-2">
-                  <Phone className="size-4" /> 04-6639510
+                <a href={BUSINESS.phoneHref} className="flex items-center gap-2">
+                  <Phone className="size-4" /> {BUSINESS.phone}
                 </a>
               </li>
             </ul>
