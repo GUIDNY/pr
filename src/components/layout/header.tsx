@@ -33,7 +33,7 @@ export async function Header() {
               <ShieldCheck className="text-brand size-3.5" /> אחריות יבואן רשמי
             </span>
             <span className="flex items-center gap-1">
-              <Truck className="text-brand size-3.5" /> משלוח עד הבית בכל הארץ
+              <Truck className="text-brand size-3.5" /> משלוח עד הבית<span className="hidden sm:inline"> בכל הארץ</span>
             </span>
             <Link href="/page/branches" className="hover:text-primary-foreground hidden items-center gap-1 md:flex">
               <MapPin className="size-3.5" /> חנות בחדרה

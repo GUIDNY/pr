@@ -163,17 +163,20 @@ export function ShopHero({
   );
 }
 
-/* Three real deals: one large, two small. The point is not the layout but
-   what it puts on the first screen — photographs of things that are in
-   stock, with the price and what it was, which is the shortest possible
-   proof that this is a shop and not a brochure. */
+/* Three real deals. On a phone, three compact rows — photo beside the
+   price — so the whole trio costs one screen-height at most; from sm: up,
+   three tiles in a row; from lg: one large tile and two small ones beside
+   the copy. The point is not the layout but what it puts on the first
+   screen: photographs of things that are in stock, with the price and what
+   it was, which is the shortest possible proof that this is a shop and
+   not a brochure. */
 function Showcase({ products }: { products: ProductCardData[] }) {
   const [lead, ...rest] = products;
   return (
-    <div className="grid grid-cols-3 gap-3 sm:gap-4 lg:grid-cols-2 lg:grid-rows-2">
-      <ShowcaseCard product={lead} lead className="col-span-3 sm:col-span-1 lg:col-span-1 lg:row-span-2" />
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-2 lg:grid-rows-2">
+      <ShowcaseCard product={lead} lead className="lg:row-span-2" />
       {rest.map((p) => (
-        <ShowcaseCard key={p.id} product={p} className="col-span-3 sm:col-span-1" />
+        <ShowcaseCard key={p.id} product={p} />
       ))}
     </div>
   );
@@ -193,15 +196,17 @@ function ShowcaseCard({
     <Link
       href={`/product/${product.slug}`}
       className={cn(
-        "group border-border/80 bg-card hover:border-brand/40 flex gap-3 overflow-hidden rounded-2xl border p-3 shadow-sm transition-all hover:shadow-md",
-        lead ? "flex-col" : "flex-row items-center sm:flex-col sm:items-stretch",
+        "group border-border/80 bg-card hover:border-brand/40 flex flex-row items-center gap-3 overflow-hidden rounded-2xl border p-3 shadow-sm transition-all hover:shadow-md sm:flex-col sm:items-stretch",
         className
       )}
     >
       <div
         className={cn(
-          "relative shrink-0 overflow-hidden rounded-xl bg-white",
-          lead ? "aspect-[4/3] w-full" : "size-24 sm:aspect-square sm:size-auto sm:w-full"
+          "relative size-24 shrink-0 overflow-hidden rounded-xl bg-white sm:aspect-square sm:size-auto sm:w-full",
+          // The large tile fills whatever height the two beside it add up
+          // to, rather than fixing an aspect ratio and leaving a blank
+          // strip under the photo.
+          lead && "lg:aspect-auto lg:min-h-64 lg:flex-1"
         )}
       >
         {product.imageUrl && (
@@ -209,7 +214,7 @@ function ShowcaseCard({
             src={product.imageUrl}
             alt={product.title}
             fill
-            sizes={lead ? "(min-width: 1024px) 30vw, 90vw" : "(min-width: 1024px) 15vw, 40vw"}
+            sizes={lead ? "(min-width: 1024px) 30vw, (min-width: 640px) 30vw, 96px" : "(min-width: 640px) 15vw, 96px"}
             className="object-contain p-2 transition-transform duration-300 group-hover:scale-105"
             referrerPolicy="no-referrer"
             priority={lead}
@@ -223,9 +228,11 @@ function ShowcaseCard({
       </div>
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="text-muted-foreground text-xs font-semibold">{product.brandName}</span>
-        <span className={cn("line-clamp-2 font-medium", lead ? "text-base" : "text-sm")}>{product.title}</span>
+        <span className={cn("line-clamp-2 font-medium", lead ? "text-sm lg:text-base" : "text-sm")}>{product.title}</span>
         <span className="mt-1 flex flex-wrap items-baseline gap-x-2">
-          <span className={cn("font-bold tabular-nums", lead ? "text-2xl" : "text-lg")}>{formatPrice(product.price)}</span>
+          <span className={cn("font-bold tabular-nums", lead ? "text-lg lg:text-2xl" : "text-lg")}>
+            {formatPrice(product.price)}
+          </span>
           {product.compareAtPrice && product.compareAtPrice > product.price && (
             <span className="text-muted-foreground text-xs tabular-nums line-through">
               {formatPrice(product.compareAtPrice)}
