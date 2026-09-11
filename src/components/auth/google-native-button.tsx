@@ -66,7 +66,20 @@ export function GoogleNativeButton() {
   async function signIn() {
     setError(null);
     const plugin = socialPlugin();
-    const iOSClientId = process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID;
+    /* Trimmed, and that is not tidiness.
+     *
+     * The server decides whether to render this button by reading the same
+     * variable through a trim, so a value that arrived with a trailing
+     * newline — what a paste into a dashboard field leaves behind — reads as
+     * configured there and is a different string here. Google derives its
+     * callback scheme by reversing this around the dots, so one invisible
+     * character produces a scheme the app never registered, and the SDK
+     * answers that by raising an NSException: a native crash on the button
+     * press rather than a sign-in that fails.
+     *
+     * That is not hypothetical. It is what this cost a TestFlight round to
+     * find, and the asymmetry between the two reads is what hid it. */
+    const iOSClientId = process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
     if (!plugin || !iOSClientId) {
       setError("ההתחברות עם Google אינה זמינה כאן");
       return;
