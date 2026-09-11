@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { CATEGORY_TREE } from "@/lib/category-tree";
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
+import { BUSINESS, BUSINESS_ADDRESS } from "@/lib/business";
 
 // What an answer engine reads to work out what this site is before deciding
 // whether to cite it. Same intent as robots.txt, different audience: robots
@@ -60,7 +61,7 @@ ${guides}
 
 - [אודותינו](${absoluteUrl("/page/about")})
 - [סניפים](${absoluteUrl("/page/branches")})
-- [יצירת קשר](${absoluteUrl("/contact")}): טלפון 04-6639510
+- [יצירת קשר](${absoluteUrl("/contact")}): טלפון ${BUSINESS.phone}, ${BUSINESS_ADDRESS}
 - [תקנון האתר](${absoluteUrl("/page/terms")})
 - [מדיניות ביטולים והחזרות](${absoluteUrl("/page/returns")})
 - [מדיניות פרטיות](${absoluteUrl("/page/privacy")})

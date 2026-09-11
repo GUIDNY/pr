@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitSupportRequestAction } from "@/actions/support";
+import { BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", phone: "", email: "", message: "" });
@@ -62,8 +63,15 @@ export default function ContactPage() {
               <MapPin className="size-4" />
             </span>
             <div>
-              <p className="font-medium">סניפים</p>
-              <p className="text-muted-foreground text-sm">לרשימת הסניפים המלאה בעמוד הסניפים</p>
+              <p className="font-medium">כתובת</p>
+              <a
+                href={BUSINESS_MAP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground text-sm hover:underline"
+              >
+                {BUSINESS_ADDRESS}
+              </a>
             </div>
           </div>
         </div>

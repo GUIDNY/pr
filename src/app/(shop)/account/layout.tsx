@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Package, MapPin, Heart, LogOut, Trash2 } from "lucide-react";
+import { LayoutDashboard, Package, MapPin, Heart, Trash2 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { logoutAction } from "@/actions/auth";
+import { LogoutButton } from "@/components/layout/logout-button";
 
 const NAV = [
   { href: "/account", label: "סקירה כללית", icon: LayoutDashboard },
@@ -60,15 +60,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
                 </span>
               </span>
             </Link>
-            <form action={logoutAction}>
-              <button
-                type="submit"
-                className="hover:bg-muted text-destructive flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
-              >
-                <LogOut className="size-4" />
-                התנתקות
-              </button>
-            </form>
+<LogoutButton className="hover:bg-muted text-destructive flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-60" />
           </nav>
         </aside>
         <div>{children}</div>

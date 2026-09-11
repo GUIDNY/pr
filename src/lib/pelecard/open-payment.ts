@@ -1,7 +1,9 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { initPayment, SUPPORTED_CARDS, paymentPageStyle } from "./client";
+import { initPayment, SUPPORTED_CARDS, paymentPageStyle, holdThenCapture } from "./client";
 import { pelecardConfig, pelecardConfigured, paymentLaneFor, toAgorot, siteUrl, callbackSecret } from "./config";
+import type { CheckoutViewer } from "./config";
+import { customerHasPaid } from "@/lib/order-signal";
 
 /**
  * Opens a Pelecard payment for an order that already exists, and hands back the
@@ -19,11 +21,11 @@ import { pelecardConfig, pelecardConfigured, paymentLaneFor, toAgorot, siteUrl, 
  *
  *   "customer" — the storefront. Armed by paymentLaneFor(), which answers the
  *   question per signed-in account rather than once for the whole shop: the
- *   global switch is the default, and an account named in PELECARD_DEMO_EMAILS
- *   or PELECARD_LIVE_EMAILS overrides it in either direction. sessionEmail must
- *   come from the signed cookie — the address typed into the checkout form is
- *   whatever the shopper typed, and deciding the lane from it would let anyone
- *   type their way onto the gateway.
+ *   global switch is the default, a back-office role is always demo, and an
+ *   account named in PELECARD_DEMO_EMAILS or PELECARD_LIVE_EMAILS overrides it
+ *   in either direction. The viewer must come from the signed cookie — the
+ *   address typed into the checkout form is whatever the shopper typed, and
+ *   deciding the lane from it would let anyone type their way onto the gateway.
  *
  *   "test" — the merchant's own ₪1 transaction against the live terminal, so
  *   the real payment page can be worked on before customers are sent to it.
@@ -39,9 +41,9 @@ export type PaymentLane = "customer" | "test";
 
 export async function openPelecardPayment(
   orderId: string,
-  { lane = "customer", sessionEmail }: { lane?: PaymentLane; sessionEmail?: string | null } = {},
+  { lane = "customer", viewer }: { lane?: PaymentLane; viewer?: CheckoutViewer | null } = {},
 ): Promise<OpenPaymentResult> {
-  const armed = lane === "test" ? pelecardConfigured() : paymentLaneFor(sessionEmail) === "gateway";
+  const armed = lane === "test" ? pelecardConfigured() : paymentLaneFor(viewer) === "gateway";
   if (!armed) return { ok: false, status: 503, error: "pelecard disabled" };
 
   /* siteUrl() and callbackSecret() throw as readily as pelecardConfig() does,
@@ -64,7 +66,7 @@ export async function openPelecardPayment(
 
   const order = await db.order.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, status: 404, error: "order not found" };
-  if (order.paymentStatus === "CAPTURED") return { ok: false, status: 409, error: "already paid" };
+  if (customerHasPaid(order.paymentStatus)) return { ok: false, status: 409, error: "already paid" };
 
   const amountAgorot = toAgorot(order.total);
 
@@ -82,7 +84,11 @@ export async function openPelecardPayment(
   let result;
   try {
     result = await initPayment({
-      ActionType: "J4", // straight charge
+      // J4 charges now; J5 holds the amount on the card and leaves the
+      // charge to a person pressing "אשר תשלום" in the back office. The
+      // switch is off until the terminal and the capture call both exist —
+      // see holdThenCapture.
+      ActionType: holdThenCapture() ? "J5" : "J4",
       Currency: "1", // ILS
       Total: String(amountAgorot),
       FreeTotal: "False",

@@ -20,7 +20,7 @@ export async function POST(req: Request) {
      rather than taken from the request body — a browser that could name the
      address could name one on the live list. */
   const viewer = await getCurrentUser();
-  const result = await openPelecardPayment(body.orderId, { sessionEmail: viewer?.email });
+  const result = await openPelecardPayment(body.orderId, { viewer });
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
   return NextResponse.json({ redirectUrl: result.redirectUrl, orderId: result.orderId });

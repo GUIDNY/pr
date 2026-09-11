@@ -1,11 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, MapPin, Phone, Tag, Truck, User } from "lucide-react";
+import { MapPin, Phone, Tag, Truck } from "lucide-react";
 import { SearchBar } from "@/components/layout/search-bar";
 import { MegaMenu } from "@/components/layout/mega-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { CartTrigger } from "@/components/cart/cart-trigger";
-import { AccountLabel } from "@/components/layout/account-label";
+import { AccountButton } from "@/components/layout/account-button";
+import { FavoritesLink } from "@/components/layout/favorites-link";
+import { BackOfficeLink } from "@/components/layout/back-office-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 
 export async function Header() {
@@ -13,7 +15,7 @@ export async function Header() {
   // shop, and identifying the visitor made every one of those pages
   // uncacheable — a server cannot prepare a page in advance for someone it
   // has to recognise first. Googlebot, which always arrives cold, paid 2.4
-  // seconds for a greeting. AccountLabel fills it in from the browser.
+  // seconds for a greeting. AccountButton fills it in from the browser.
   const departments = await getNavigableCategoryTree();
 
   return (
@@ -38,6 +40,8 @@ export async function Header() {
             <a href="tel:04-6639510" className="hover:text-brand flex items-center gap-1">
               <Phone className="size-3.5" /> 04-6639510
             </a>
+            {/* Staff only, and empty for everyone else — see BackOfficeLink. */}
+            <BackOfficeLink />
           </div>
         </div>
       </div>
@@ -75,23 +79,9 @@ export async function Header() {
         </div>
 
         <div className="flex items-center gap-1 justify-self-end sm:justify-self-auto">
-          <Link
-            href="/account/favorites"
-            aria-label="מועדפים"
-            className="hover:bg-muted hidden size-10 items-center justify-center rounded-full transition-colors sm:flex"
-          >
-            <Heart className="size-5" />
-          </Link>
-          <Link
-            href="/account"
-            aria-label="החשבון שלי"
-            className="hover:bg-muted flex h-11 min-w-11 items-center justify-center gap-2 rounded-full px-2 transition-colors sm:h-10 sm:min-w-0 sm:justify-start sm:px-3"
-          >
-            <User className="size-5" />
-            <span className="hidden sm:inline">
-              <AccountLabel />
-            </span>
-          </Link>
+          <FavoritesLink />
+          {/* Looks different signed in and signed out — see AccountButton. */}
+          <AccountButton />
           <CartTrigger />
         </div>
       </div>

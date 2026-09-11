@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
+import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
 
 export type NavigableCategory = { slug: string; name: string };
 export type NavigableDepartment = NavigableCategory & { children: NavigableCategory[] };
@@ -35,53 +36,53 @@ export async function getNavigableCategoryTree(): Promise<NavigableDepartment[]>
 
 export type CategoryTile = { slug: string; name: string; imageUrl: string };
 
-// Picking "top by isBestSeller/ratingCount" turned out to occasionally
-// surface a genuinely miscategorized product ahead of the category's real
-// ones — confirmed by hand, viewing every tile: an insect zapper ranked
-// above real fans under "מאווררים", a smart bidet seat under "ברזי מים", an
-// induction cooktop under "כיריים גז", a waffle iron under "טוסטר אובן",
-// and a busy feature-callout graphic (not a clean product photo) for
-// "מתקני תליה". Each override below points at a real, correctly-matching
-// product's own photo from the same category instead — not a stand-in
-// image, just a better real pick than the automatic ranking made.
-const CATEGORY_IMAGE_OVERRIDES: Record<string, string> = {
-  מאווררים: "https://www.saynet.co.il/pub/media/catalog/product/cache/0d96ac4c7badd86c445845e53d49c758/7/3/73179-2848-base1.jpg",
-  // A visually consistent grid was requested next — first tried "make it
-  // all black," landed on "make it all white" instead. Every category
-  // below got its real white-colored product verified by eye first (a
-  // couple of "white" search matches turned out to be a wrong product
-  // type — a plain pop-up toaster instead of a toaster oven, same failure
-  // mode as before). Categories with no real white option in stock, or
-  // that were already white/light by default, aren't listed here at all.
-  "מדיח כלים": "https://www.soferavi.co.il/wp-content/uploads/LDW-V60146W.jpg",
-  "תנור בנוי": "https://www.soferavi.co.il/wp-content/uploads/HBG7741W1.jpg",
-  "כיריים גז": "https://d3m9l0v76dty0.cloudfront.net/system/photos/14139045/large/ed19d332b77721d83b8b4edbdf0bff84.jpg",
-  "מתקני תליה": "https://superpharmstorage.blob.core.windows.net/hybris/products/desktop/large/1637837810213.jpg",
-  "קומקומים ומיחמים": "https://www.prec.co.il/images/itempics/K15ORAW_31082023113531.jpg",
-  "מכונות אספרסו וקפה": "https://dam.delonghi.com/1200x1200/assets/336348",
-  // These 4 had no white product anywhere in our own catalog, so — as
-  // explicitly asked — sourced from elsewhere on the web instead: a real
-  // white JBL speaker, a real white Beko combi range, a real white
-  // radiator heater and a real white kitchen tap (not the smart/digital
-  // kind our own catalog one is, but the same product category).
-  רמקולים: "https://www.ivory.co.il/files/catalog/org/1747745977r77FH.webp",
-  "תנור משולב": "https://www.soferavi.co.il/wp-content/uploads/1-13-768x768.png",
-  "תנורי חימום": "https://www.t-p-y.co.il/wp-content/uploads/2020/09/21628_EL-5009_250.jpg",
-  "ברזי מים": "https://batico.co.il/wp-content/uploads/2023/01/1025MW.jpg",
-  // The last two holdouts — took more digging (most retailer/brand sites
-  // for these two block scraping outright) but both are real: a genuine
-  // white toaster oven (Sauter, a brand this catalog already carries) and
-  // Yamaha's own official product photo of their white micro stereo
-  // system, sourced directly from yamaha.com.
-  "טוסטר אובן": "https://www.netoneto.co.il/media/catalog/product/cache/daa6aaa83292c1567ab529c491ecca69/t/o/to2335-1_2.jpg",
-  "רסיברים ומגברים": "https://de.yamaha.com/de/files/B7D81434FC3643FBB58F5803DB4470F1_12073_tcm118-1637232.jpg",
-  // TVs are inherently black-bezeled in our own catalog and in virtually
-  // every mainstream product photo (Samsung's white "Frame" bezel is only
-  // ever pictured as a separate snap-on accessory, never as a complete
-  // photographed TV) — this is a real, complete white-bodied smart TV
-  // (KIVI 32F750NW) with its screen genuinely visible, sourced from the
-  // manufacturer's own store.
-  "מסכי טלוויזיה": "https://kivismart.com/storage/app/media/phpthump/cache/storage/app/uploads/public/636/21f/ba7/63621fba75fd6124736508-594x594-a64.jpg",
+/**
+ * The category grid's images, and why none of them is a URL any more.
+ *
+ * This used to be a map of category name to an image address, and most of
+ * those addresses pointed at other Israeli retailers' servers — soferavi,
+ * saynet, netoneto, ivory, superpharm, batico. Four of them are on the very
+ * list in blocked-image-hosts.ts that exists to keep exactly those hosts out
+ * of the catalog, so the rule the sync enforces on every product image was
+ * being broken on the homepage, where it is most visible.
+ *
+ * It was not malice, it was drift: the tiles were asked to look consistent
+ * ("make them all white"), our own catalog had no white product for some
+ * categories, and the nearest real photo of the right thing was on somebody
+ * else's site. The cost is not hypothetical — those are competitors serving
+ * the images on our front page, they can change or withdraw them at any
+ * moment, and every one of them is a hotlink we have no right to.
+ *
+ * So an override is now a SKU in our own catalog instead. It cannot point
+ * off-site, its image follows the product if the photo is ever replaced, and
+ * the fallback below covers it going out of stock.
+ *
+ * Only the categories whose automatic pick is genuinely the wrong thing are
+ * listed. The ones that were overridden purely to be white are gone: the
+ * automatic pick was already a correct photo of the right product, and a
+ * consistent palette is not worth a hotlink.
+ */
+const CATEGORY_IMAGE_PICKS: Record<string, string> = {
+  // Ranked top by isBestSeller/ratingCount and genuinely miscategorised: an
+  // insect zapper sits above every real fan. This is the same Westinghouse
+  // Talia (73179) the old override showed, taken from the brand importer's
+  // site via our own product instead of from saynet's.
+  מאווררים: "490043",
+  // The old pick was a contact grill, not a toaster oven. Same Sauter
+  // TO-2335 the override pointed at on netoneto — ours, and still white.
+  "טוסטר אובן": "722335",
+  // A milk frother ranked above every coffee machine.
+  "מכונות אספרסו וקפה": "778702",
+  // The automatic pick is a feature-callout graphic rather than a photo of
+  // the mount itself.
+  "מתקני תליה": "270006",
+  // These three are corrections of kind, not of type: an integrated
+  // dishwasher standing in for the freestanding category, a soundbar for
+  // bookshelf speakers, a black glass hob where the category reads better
+  // in white. All three replacements are our own products.
+  "מדיח כלים": "143021",
+  רמקולים: "500301",
+  "כיריים גז": "0351",
 };
 
 // טאבונים has exactly one real product, and that product's only photo is
@@ -90,11 +91,21 @@ const CATEGORY_IMAGE_OVERRIDES: Record<string, string> = {
 // dropped rather than shown with a wrong image.
 const CATEGORY_EXCLUDED = new Set(["טאבונים"]);
 
-// Real per-category photos, not artwork — the tile image is literally that
-// category's own top real product's own photo, fetched fresh each call, so
-// it's never stale or made up. A category with zero in-stock products has
-// no real photo to show and no real page worth linking to, so it's
-// dropped rather than shown with a placeholder.
+/**
+ * Real per-category photos, and never a placeholder.
+ *
+ * The tile is that category's own product's own photo, read fresh on each
+ * call, so it cannot go stale or be invented. A category with nothing in
+ * stock has no real photo to show and no page worth linking to, so it is
+ * dropped rather than filled in.
+ *
+ * Candidates are taken several deep and the first one on an allowed host
+ * wins. That is not belt-and-braces: sarig.com and cdn.shopify.com are on
+ * the blocked list and still sit on ~180 product images that predate it, so
+ * "the top product in this category" can land on one at any time. Filtering
+ * here means the homepage cannot serve a competitor's image even by
+ * accident.
+ */
 export async function getCategoryTilesWithImages(): Promise<CategoryTile[]> {
   const categories = await db.category.findMany({
     where: { parentId: { not: null } },
@@ -111,15 +122,29 @@ export async function getCategoryTilesWithImages(): Promise<CategoryTile[]> {
 
   const tiles = await Promise.all(
     populated.map(async (c): Promise<CategoryTile | null> => {
-      if (CATEGORY_IMAGE_OVERRIDES[c.name]) {
-        return { slug: c.slug, name: c.name, imageUrl: CATEGORY_IMAGE_OVERRIDES[c.name] };
+      const picked = CATEGORY_IMAGE_PICKS[c.name];
+      if (picked) {
+        const override = await db.product.findFirst({
+          where: { sku: picked, ...PUBLIC_PRODUCT_WHERE },
+          select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
+        });
+        const url = override?.images[0]?.url;
+        // A sold-out or de-listed override falls through to the automatic
+        // pick rather than blanking the tile. The wrong-but-real photo the
+        // override was correcting is better than a hole in the grid.
+        if (url && !isBlockedImageHost(url)) return { slug: c.slug, name: c.name, imageUrl: url };
       }
-      const product = await db.product.findFirst({
+
+      const products = await db.product.findMany({
         where: { categoryId: c.id, ...PUBLIC_PRODUCT_WHERE },
         orderBy: [{ isBestSeller: "desc" }, { ratingCount: "desc" }],
+        take: 8,
         select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
       });
-      const imageUrl = product?.images[0]?.url;
+      const imageUrl = products
+        .map((p) => p.images[0]?.url)
+        .find((url): url is string => Boolean(url) && !isBlockedImageHost(url!));
+
       return imageUrl ? { slug: c.slug, name: c.name, imageUrl } : null;
     })
   );

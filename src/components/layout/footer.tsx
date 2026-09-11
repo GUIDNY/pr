@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Phone, MapPin, ShieldCheck, Truck, CreditCard, Share2 } from "lucide-react";
 import { ConsentSettingsLink } from "@/components/layout/consent-settings-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
+import { BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 
 export async function Footer() {
   const departments = (await getNavigableCategoryTree()).slice(0, 6);
@@ -158,9 +159,17 @@ export async function Footer() {
       <div className="border-primary-foreground/10 border-t px-4 py-4">
         <div className="text-primary-foreground/50 mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-xs sm:flex-row">
           <span>© {new Date().getFullYear()} Buy Today. כל הזכויות שמורות.</span>
-          <span className="flex items-center gap-1">
-            <MapPin className="size-3" /> ישראל
-          </span>
+          {/* Was "ישראל", which is not an address — it told a visitor
+              wondering whether this is a real shop with a real counter
+              exactly nothing. */}
+          <a
+            href={BUSINESS_MAP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-primary-foreground flex items-center gap-1"
+          >
+            <MapPin className="size-3" /> {BUSINESS_ADDRESS}
+          </a>
         </div>
       </div>
     </footer>

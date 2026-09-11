@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { getCart } from "@/lib/cart";
 import { buildCartSummary } from "@/lib/cart-summary";
+import { isBackOffice, backOfficeHome } from "@/lib/permissions";
 
 // Everything the browser needs to personalise a page it was served from a
 // cache, in one request.
@@ -35,6 +36,11 @@ export async function GET() {
   return NextResponse.json(
     {
       name: session?.name ?? null,
+      // Where this visitor's back office is, or null for the ~everyone who
+      // has not got one. A path rather than the role: the header only ever
+      // wants somewhere to link to, and a role name in a public JSON body is
+      // a detail about staffing that the shop has no reason to publish.
+      backOffice: session && isBackOffice(session.role) ? backOfficeHome(session.role) : null,
       favoriteIds: favorites.map((f) => f.productId),
       cart: await buildCartSummary(cart),
     },

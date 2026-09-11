@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import type { NavigableDepartment } from "@/lib/queries/categories";
+import { BackOfficeLink } from "@/components/layout/back-office-link";
 
 export function MobileNav({ departments }: { departments: NavigableDepartment[] }) {
   const [open, setOpen] = useState(false);
@@ -60,6 +61,12 @@ export function MobileNav({ departments }: { departments: NavigableDepartment[] 
           </Accordion>
 
           <div className="border-t px-5 py-4">
+            {/* On a phone the top utility bar is hidden entirely, so without
+                this a salesperson on their phone has no way in at all — and a
+                phone is where an order actually gets handled. */}
+            <div onClick={() => setOpen(false)} className="mb-3 empty:mb-0">
+              <BackOfficeLink />
+            </div>
             <ul className="flex flex-col gap-3 text-sm">
               <li>
                 <Link href="/deals" onClick={() => setOpen(false)} className="flex items-center gap-2">

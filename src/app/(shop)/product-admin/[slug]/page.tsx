@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ProductPageView } from "@/components/product/product-page-view";
 import { getSession } from "@/lib/auth";
+import { canManageCatalog } from "@/lib/permissions";
 
 // The same product page, for someone who is signed in.
 //
@@ -23,7 +24,7 @@ export const metadata: Metadata = { robots: { index: false, follow: false } };
 export default async function ProductAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const session = await getSession();
-  const isAdminViewer = session?.role === "ADMIN" || session?.role === "STAFF";
+  const isAdminViewer = canManageCatalog(session?.role);
 
   // A signed-in customer, or anyone holding a cookie that is no longer a
   // valid session, is rewritten here too — the proxy can only see that a

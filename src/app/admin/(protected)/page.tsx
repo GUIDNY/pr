@@ -6,10 +6,19 @@ import { getAbandonedCartsSummary } from "@/lib/queries/abandoned-carts";
 import { RevenueChart } from "@/components/admin/revenue-chart";
 import { formatPrice, formatDate, formatDateTime } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type OrderStatus } from "@/lib/enums";
+import { redirect } from "next/navigation";
+import { getSession } from "@/lib/auth";
+import { canManageCatalog } from "@/lib/permissions";
 
 export const metadata = { title: "לוח בקרה | Buy Today Admin" };
 
 export default async function AdminDashboardPage() {
+  /* The dashboard is takings, stock alerts and the day's revenue — a page
+     built to answer questions a salesperson was not given. They land on the
+     queue instead. */
+  const session = await getSession();
+  if (!canManageCatalog(session?.role)) redirect("/admin/orders");
+
   const [stats, inventory, abandoned] = await Promise.all([
     getDashboardStats(),
     getInventorySummary(),
