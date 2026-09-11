@@ -7,7 +7,6 @@ import {
   ShoppingCart,
   Tag as TagIcon,
   Truck,
-  LogOut,
   ExternalLink,
   Boxes,
   MessageCircle,
@@ -16,7 +15,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { logoutAction } from "@/actions/auth";
+import { LogoutButton } from "@/components/layout/logout-button";
 import { isPelecardSandbox } from "@/lib/pelecard/config";
 import { isBackOffice, canManageCatalog } from "@/lib/permissions";
 
@@ -99,14 +98,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           >
             <ExternalLink className="size-4" /> צפייה באתר
           </Link>
-          <form action={logoutAction}>
-            <button
-              type="submit"
-              className="hover:bg-primary-foreground/10 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium"
-            >
-              <LogOut className="size-4" /> התנתקות
-            </button>
-          </form>
+<LogoutButton className="hover:bg-primary-foreground/10 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium disabled:opacity-60" />
         </div>
       </aside>
 
