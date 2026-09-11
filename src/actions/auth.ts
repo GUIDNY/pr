@@ -1,7 +1,6 @@
 "use server";
 
 import { z } from "zod";
-import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getSession, createSession, clearSession, hashPassword, verifyPassword } from "@/lib/auth";
 
@@ -86,9 +85,17 @@ export async function registerAction(input: { name: string; email: string; phone
   return { success: true, error: null };
 }
 
+/**
+ * Clears the session, and deliberately does not redirect.
+ *
+ * It used to end with redirect("/"), which is a client-side navigation — so
+ * the React tree survived it and the header kept the name, the cart badge
+ * and the filled hearts it had already fetched. LogoutButton sends the
+ * browser to "/" itself, as a real page load, which is the only way to be
+ * sure nothing of the last session is still on screen.
+ */
 export async function logoutAction() {
   await clearSession();
-  redirect("/");
 }
 
 const deleteAccountSchema = z.object({
