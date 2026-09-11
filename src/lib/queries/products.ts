@@ -91,6 +91,22 @@ export async function getBestSellers(take = 8) {
   return rows.map(mapProductToCard);
 }
 
+/**
+ * How big the shop is, as a fact the homepage can state.
+ *
+ * The public predicate, so the number is exactly what a visitor can browse
+ * — not the 2,000 rows in the table, most of which are invisible for want of
+ * a photo or stock. Brands are counted the same way: a brand with nothing
+ * live is not a brand the shop carries today.
+ */
+export async function getCatalogSize() {
+  const [products, brands] = await Promise.all([
+    db.product.count({ where: PUBLIC_PRODUCT_WHERE }),
+    db.brand.count({ where: { isActive: true, products: { some: PUBLIC_PRODUCT_WHERE } } }),
+  ]);
+  return { products, brands };
+}
+
 export async function getDeals(take = 8) {
   const rows = await db.product.findMany({
     where: { ...PUBLIC_PRODUCT_WHERE, compareAtPrice: { not: null } },

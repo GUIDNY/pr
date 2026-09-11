@@ -124,7 +124,7 @@ export function SearchBar({
             )}
             {/* Desktop: the exact original gradient-pill input, untouched
                 — just hidden below sm: in favor of the mobile version. */}
-            <div className="hidden sm:block from-brand via-brand/60 rounded-full bg-gradient-to-l to-purple-400 p-[1.5px] shadow-lg shadow-black/10">
+            <div className="from-brand to-brand/40 hidden rounded-full bg-gradient-to-l p-[1.5px] shadow-lg shadow-black/10 sm:block">
               <div className="bg-background/95 flex items-center rounded-full backdrop-blur-sm">
                 <Sparkles className="text-brand pointer-events-none ms-4 size-5 shrink-0" />
               <input

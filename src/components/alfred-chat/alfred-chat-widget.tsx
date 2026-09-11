@@ -18,10 +18,10 @@ const GREETING: Message = {
 };
 
 export function AlfredChatWidget() {
-  // The home page already opens on Alfred — his section is the hero, with
-  // his search bar in it — and a floating avatar competing for attention
-  // on top of that was exactly the kind of mobile clutter this redesign
-  // pass is removing. Every other mobile page keeps the launcher exactly
+  // The home page's hero already carries Alfred's search bar with his
+  // face beside it, and a floating avatar competing for attention on top
+  // of that was exactly the kind of mobile clutter this redesign pass is
+  // removing. Every other mobile page keeps the launcher exactly
   // as before; desktop is untouched everywhere, including the home page.
   const pathname = usePathname();
   const isHome = pathname === "/";

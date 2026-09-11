@@ -1,11 +1,11 @@
-import { AlfredSection } from "@/components/home/alfred-section";
+import { ShopHero } from "@/components/home/shop-hero";
 import { CategoryExplorer } from "@/components/home/category-explorer";
 import { CategoryGrid } from "@/components/home/category-grid-mobile";
 import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
 import { FinderTeaser } from "@/components/home/finder-teaser";
-import { getDeals, getBestSellers, getFeaturedProducts, getProductsByIds } from "@/lib/queries/products";
+import { getDeals, getBestSellers, getFeaturedProducts, getProductsByIds, getCatalogSize } from "@/lib/queries/products";
 import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
 import { getCategoryTilesWithImages } from "@/lib/queries/categories";
 import type { Metadata } from "next";
@@ -31,16 +31,17 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 export const revalidate = 300;
 
 export default async function HomePage() {
-  const [hero, whyPrec, deals, bestSellers, featured, brands, categoryTiles, alfredWidget] =
+  const [hero, whyPrec, deals, bestSellers, featured, brands, categoryTiles, alfredWidget, catalog] =
     await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
-      getDeals(8),
+      getDeals(11),
       getBestSellers(8),
       getFeaturedProducts(4),
       getFeaturedBrands(),
       getCategoryTilesWithImages(),
       getHomepageSection("alfred-widget"),
+      getCatalogSize(),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
@@ -54,22 +55,25 @@ export default async function HomePage() {
     <>
       <JsonLd data={organizationSchema()} />
       <JsonLd data={webSiteSchema()} />
-      {/* One hero, then products. The page used to open with two navy
-          blocks — Alfred's section, then a second hero carrying another
-          search bar, the same two CTA buttons and a chat panel — with the
-          category marquee wedged between them, so the first product card
-          sat about 1,400px down on a desktop. Alfred's section already
-          holds the h1, the search bar, the CTAs and the trust badges; the
-          rest was repetition, and it is gone. The same order on every
-          breakpoint: no per-viewport reshuffling to keep in step. */}
-      <AlfredSection
-        heroTitle={hero?.title ?? ""}
-        heroSubtitle={hero?.subtitle ?? ""}
+      {/* One screen that says "a real shop": warranty, delivery, a street
+          address, the size of the catalogue and three real deals with real
+          prices — see ShopHero. The brand strip follows immediately, because
+          Bosch, Samsung and LG on the first scroll say "legitimate" faster
+          than any sentence about it. Then products. Same order at every
+          width: no per-viewport reshuffling to keep in step. */}
+      <ShopHero
+        title={hero?.title || "מוצרי חשמל מיבואן רשמי, במחיר טוב"}
+        subtitle={hero?.subtitle || "משלוח עד הבית, אחריות יבואן רשמי ושירות לקוחות אמיתי"}
         ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
         ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
+        showcase={deals}
+        productCount={catalog.products}
+        brandCount={catalog.brands}
       />
 
-      <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" />
+      <BrandStrip brands={brands} />
+
+      <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals.slice(3)} viewAllHref="/deals" />
 
       <CategoryExplorer />
 
@@ -86,8 +90,6 @@ export default async function HomePage() {
       {featured.length > 0 && (
         <ProductRail title="מומלצים במיוחד" products={featured} />
       )}
-
-      <BrandStrip brands={brands} />
 
       {whyPrec && (
         <WhyPrec

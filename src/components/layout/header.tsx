@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, Phone, Tag, Truck } from "lucide-react";
+import { MapPin, Phone, ShieldCheck, Tag, Truck } from "lucide-react";
+import { BUSINESS } from "@/lib/business";
 import { SearchBar } from "@/components/layout/search-bar";
 import { MegaMenu } from "@/components/layout/mega-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -20,25 +21,33 @@ export async function Header() {
 
   return (
     <header className="bg-background sticky top-0 z-30 border-b">
-      <div className="text-muted-foreground bg-secondary/60 hidden justify-center border-b py-1.5 text-xs md:flex">
-        <div className="flex w-full max-w-7xl items-center justify-between px-4">
+      {/* Navy, and on every width. The strip used to be a grey line that
+          phones never saw, and a phone is where most visitors decide in a
+          second whether this is a real shop: the importer warranty, delivery
+          and a phone number are that second's worth of evidence, so they are
+          the first thing on the screen at every size. */}
+      <div className="bg-primary text-primary-foreground/85 flex justify-center py-1.5 text-xs">
+        <div className="flex w-full max-w-7xl items-center justify-center gap-4 px-4 md:justify-between">
           <div className="flex items-center gap-4">
             <span className="flex items-center gap-1">
-              <Truck className="size-3.5" /> משלוח עד הבית בכל הארץ
+              <ShieldCheck className="text-brand size-3.5" /> אחריות יבואן רשמי
             </span>
             <span className="flex items-center gap-1">
-              <MapPin className="size-3.5" /> סניפים
+              <Truck className="text-brand size-3.5" /> משלוח עד הבית בכל הארץ
             </span>
+            <Link href="/page/branches" className="hover:text-primary-foreground hidden items-center gap-1 md:flex">
+              <MapPin className="size-3.5" /> חנות בחדרה
+            </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/deals" className="hover:text-brand flex items-center gap-1">
+            <Link href="/deals" className="hover:text-primary-foreground hidden items-center gap-1 md:flex">
               <Tag className="size-3.5" /> מבצעים
             </Link>
-            <Link href="/track-order" className="hover:text-brand flex items-center gap-1">
+            <Link href="/track-order" className="hover:text-primary-foreground hidden items-center gap-1 md:flex">
               <Truck className="size-3.5" /> מעקב הזמנה
             </Link>
-            <a href="tel:04-6639510" className="hover:text-brand flex items-center gap-1">
-              <Phone className="size-3.5" /> 04-6639510
+            <a href={BUSINESS.phoneHref} className="hover:text-primary-foreground flex items-center gap-1 font-medium">
+              <Phone className="size-3.5" /> {BUSINESS.phone}
             </a>
             {/* Staff only, and empty for everyone else — see BackOfficeLink. */}
             <BackOfficeLink />
@@ -56,13 +65,15 @@ export async function Header() {
       <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-2 sm:flex sm:py-3">
         <MobileNav departments={departments} />
 
-        {/* The tile alone — it already contains the wordmark, so setting
-            type beside it repeated the name. Sized up a little from the
-            lockup version now that it carries the identity on its own. */}
+        {/* The tile carries the wordmark, but at 44px it is a mark, not a
+            name. From sm: up the name and what the shop is sit beside it in
+            readable type — a visitor who has never heard of Buy Today should
+            not have to squint at a tile to learn that this is an appliance
+            importer. On a phone the tile stands alone, centred. */}
         <Link
           href="/"
           aria-label="Buy Today — לדף הבית"
-          className="flex shrink-0 items-center justify-self-center sm:justify-self-auto"
+          className="flex shrink-0 items-center gap-2.5 justify-self-center sm:justify-self-auto"
         >
           <Image
             src="/brand/logo.png"
@@ -72,6 +83,10 @@ export async function Header() {
             priority
             className="size-10 shrink-0 rounded-[22%] sm:size-11"
           />
+          <span className="hidden flex-col leading-none sm:flex">
+            <span className="text-lg font-black tracking-tight">Buy Today</span>
+            <span className="text-muted-foreground mt-1 text-[11px] font-medium">מוצרי חשמל · יבואן רשמי</span>
+          </span>
         </Link>
 
         <div className="hidden flex-1 sm:block">
