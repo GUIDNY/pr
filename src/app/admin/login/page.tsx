@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ export default function AdminLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -50,26 +51,54 @@ export default function AdminLoginPage() {
           <p className="text-muted-foreground mt-1 text-sm">כניסה לממשק הניהול</p>
         </div>
 
-        <form onSubmit={submit} className="flex flex-col gap-3">
+        <form onSubmit={submit} className="flex flex-col gap-4">
           <div>
             <Label htmlFor="email" className="mb-1.5">אימייל</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
+            <Input
+              id="email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              dir="ltr"
+              className="h-11 text-start"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoFocus
+            />
           </div>
           <div>
             <Label htmlFor="password" className="mb-1.5">סיסמה</Label>
-            <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                dir="ltr"
+                className="h-11 pe-11 text-start"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "הסתרת הסיסמה" : "הצגת הסיסמה"}
+                className="text-muted-foreground hover:text-foreground absolute end-0 top-0 flex h-11 w-11 items-center justify-center"
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
           </div>
           {error && <p className="text-destructive text-sm">{error}</p>}
-          <Button type="submit" variant="brand" size="lg" disabled={isPending} className="mt-2">
-            {isPending ? "מתחבר..." : "כניסה"}
+          <Button type="submit" variant="brand" size="lg" disabled={isPending} className="mt-2 h-12 text-base font-bold">
+            {isPending ? "מתחבר…" : "כניסה"}
           </Button>
         </form>
 
-        <div className="bg-muted mt-6 rounded-lg p-3 text-xs">
-          <p className="mb-1 font-semibold">גישת הדגמה:</p>
-          <p>admin@prec.co.il / admin123</p>
-          <p>staff@prec.co.il / staff123</p>
-        </div>
+        {/* A block here used to print admin@prec.co.il / admin123 and the
+            staff pair beside it. On a page anybody can open, that is not a
+            demo aid — it is the back office's password, published. */}
       </div>
     </div>
   );
