@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { RegisterForm } from "@/components/auth/register-form";
 import { googleOAuthConfigured } from "@/lib/google-oauth";
+import { appleOAuthConfigured } from "@/lib/apple-oauth";
 
 /* Rendered per request, not baked at build time.
  *
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 export default function RegisterPage() {
   return (
     <Suspense>
-      <RegisterForm googleEnabled={googleOAuthConfigured()} />
+      <RegisterForm googleEnabled={googleOAuthConfigured()} appleEnabled={appleOAuthConfigured()} />
     </Suspense>
   );
 }

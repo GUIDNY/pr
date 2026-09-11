@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { GoogleButton } from "@/components/auth/google-button";
+import { AppleButton } from "@/components/auth/apple-button";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerAction } from "@/actions/auth";
 
-export function RegisterForm({ googleEnabled }: { googleEnabled: boolean }) {
+export function RegisterForm({ googleEnabled, appleEnabled }: { googleEnabled: boolean; appleEnabled: boolean }) {
   const router = useRouter();
   /* Handed over by the confirmation page, so a guest who just ordered is asked
      for a password and nothing they have already typed. Only ever prefills
@@ -50,9 +51,12 @@ export function RegisterForm({ googleEnabled }: { googleEnabled: boolean }) {
         <h1 className="text-2xl font-bold">יצירת חשבון</h1>
       </div>
 
-      {googleEnabled && (
+      {(googleEnabled || appleEnabled) && (
         <>
-          <GoogleButton />
+          <div className="flex flex-col gap-2.5">
+            {googleEnabled && <GoogleButton />}
+            {appleEnabled && <AppleButton />}
+          </div>
           <div className="my-5 flex items-center gap-3">
             <span className="bg-border h-px flex-1" />
             <span className="text-muted-foreground text-xs font-medium">או עם סיסמה</span>

@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff, Phone } from "lucide-react";
 import { GoogleButton } from "@/components/auth/google-button";
+import { AppleButton } from "@/components/auth/apple-button";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,16 +15,23 @@ import { loginAction } from "@/actions/auth";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
 import { BUSINESS } from "@/lib/business";
 
-/* What the Google routes can bounce back with. Each says what happened and
-   what to do about it — "שגיאה" on its own leaves somebody pressing the same
-   button again. */
-const GOOGLE_ERRORS: Record<string, string> = {
+/* What the social sign-in routes can bounce back with. Each says what
+   happened and what to do about it — "שגיאה" on its own leaves somebody
+   pressing the same button again. */
+const SOCIAL_ERRORS: Record<string, string> = {
   google_unavailable: "התחברות עם Google עדיין לא זמינה כאן.",
   google_cancelled: "ההתחברות עם Google בוטלה.",
   google_state: "ההתחברות עם Google פגה. אפשר לנסות שוב.",
   google_code: "ההתחברות עם Google לא הושלמה. אפשר לנסות שוב.",
   google_exchange: "לא הצלחנו לאמת את החשבון מול Google. אפשר לנסות שוב או להתחבר עם סיסמה.",
   google_unverified: "כתובת המייל בחשבון ה-Google הזה לא אומתה על ידי Google, ולכן אי אפשר להתחבר איתה.",
+  apple_unavailable: "התחברות עם Apple עדיין לא זמינה כאן.",
+  apple_cancelled: "ההתחברות עם Apple בוטלה.",
+  apple_state: "ההתחברות עם Apple פגה. אפשר לנסות שוב.",
+  apple_code: "ההתחברות עם Apple לא הושלמה. אפשר לנסות שוב.",
+  apple_nonce: "ההתחברות עם Apple לא אומתה. אפשר לנסות שוב.",
+  apple_exchange: "לא הצלחנו לאמת את החשבון מול Apple. אפשר לנסות שוב או להתחבר עם סיסמה.",
+  apple_unverified: "כתובת המייל בחשבון ה-Apple הזה לא אומתה, ולכן אי אפשר להתחבר איתה.",
 };
 
 /**
@@ -43,14 +51,14 @@ const GOOGLE_ERRORS: Record<string, string> = {
  * phone stays underneath it anyway, because a reset that goes to an address
  * somebody has lost access to helps nobody.
  */
-export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
+export function LoginForm({ googleEnabled, appleEnabled }: { googleEnabled: boolean; appleEnabled: boolean }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/account";
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState<string | null>(GOOGLE_ERRORS[searchParams.get("error") ?? ""] ?? null);
+  const [error, setError] = useState<string | null>(SOCIAL_ERRORS[searchParams.get("error") ?? ""] ?? null);
   const [isPending, startTransition] = useTransition();
 
   function submit(e: React.FormEvent) {
@@ -85,9 +93,12 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
           </p>
         </div>
 
-        {googleEnabled && (
+        {(googleEnabled || appleEnabled) && (
           <>
-            <GoogleButton />
+            <div className="flex flex-col gap-2.5">
+              {googleEnabled && <GoogleButton />}
+              {appleEnabled && <AppleButton />}
+            </div>
             {/* A real separator rather than the word "or" floating between
                 two stacks — the rule is what tells you these are two ways to
                 do one thing, not two steps. */}
