@@ -69,7 +69,14 @@ export default function AdminLoginPage() {
           </div>
           <div>
             <Label htmlFor="password" className="mb-1.5">סיסמה</Label>
-            <div className="relative">
+            {/* dir on the wrapper, not only on the input, and that is the
+                whole bug that was here: `pe-11` on an input marked ltr
+                reserves space on its right, while `end-0` on a button inside
+                an rtl parent puts it on the left. Padding one side, button
+                the other, so the eye sat on top of the password. Both sit in
+                the same direction now, which is also where a reveal control
+                belongs on a latin field — the trailing end. */}
+            <div dir="ltr" className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
