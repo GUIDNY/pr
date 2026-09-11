@@ -82,30 +82,38 @@ export function CookieNotice() {
       aria-label="בחירת הסכמה לעוגיות מדידה ופרסום"
       className="border-border bg-background fixed inset-x-0 bottom-0 z-[55] border-t shadow-[0_-4px_20px_rgb(0_0_0/0.08)]"
     >
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:gap-4">
-        <Cookie className="text-brand size-6 shrink-0" aria-hidden="true" />
-        <p className="text-muted-foreground flex-1 text-xs leading-relaxed sm:text-sm">
-          לתפעול האתר אנחנו משתמשים בשתי עוגיות הכרחיות בלבד — ההתחברות לחשבון ועגלת הקניות. בנוסף נשמח למדוד
-          את השימוש באתר ולהתאים פרסום ברשתות של Meta, בעזרת Google Analytics, Microsoft Clarity ו־Meta Pixel.
-          אלה נטענים רק אם תאשרו, ואפשר לשנות את הבחירה בכל רגע.{" "}
+      {/* One row, not a paragraph. The previous version ran three lines on
+          a desktop and five on a phone, and sat over the product page's buy
+          bar and the bottom of every listing until someone dealt with it.
+          Everything that has to be said is still said — what is strictly
+          necessary, which third parties would be loaded, that nothing loads
+          until it is allowed, and that the choice can be changed — in two
+          sentences instead of four. */}
+      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:flex-nowrap">
+        <Cookie className="text-brand hidden size-5 shrink-0 sm:block" aria-hidden="true" />
+        <p className="text-muted-foreground min-w-0 flex-1 text-xs leading-snug sm:text-sm">
+          לתפעול האתר יש רק שתי עוגיות הכרחיות (התחברות ועגלה). מדידת שימוש ופרסום דרך Google Analytics,
+          Microsoft Clarity ו־Meta Pixel נטענים רק אם תאשרו, ואפשר לשנות את הבחירה בכל רגע.{" "}
           <Link href="/privacy" className="text-brand underline underline-offset-2">
             למדיניות הפרטיות
           </Link>
         </p>
         {/* Same size, same row, same weight. The refusal is not a faint link
-            beside a big coloured button — that is the pattern this replaces. */}
-        <div className="flex shrink-0 items-center gap-2">
+            beside a big coloured button — that is the pattern this replaces.
+            Below sm: the pair takes its own full-width row under the text,
+            each button half of it, so both stay a full-size touch target. */}
+        <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
           <button
             type="button"
             onClick={decline}
-            className="bg-muted text-foreground hover:bg-muted/70 border-border min-w-28 rounded-lg border px-5 py-2 text-sm font-medium"
+            className="bg-muted text-foreground hover:bg-muted/70 border-border flex-1 rounded-lg border px-4 py-1.5 text-sm font-medium sm:min-w-24 sm:flex-none"
           >
             לא מאשר
           </button>
           <button
             type="button"
             onClick={accept}
-            className="bg-brand text-brand-foreground hover:bg-brand-hover border-brand min-w-28 rounded-lg border px-5 py-2 text-sm font-medium"
+            className="bg-brand text-brand-foreground hover:bg-brand-hover border-brand flex-1 rounded-lg border px-4 py-1.5 text-sm font-medium sm:min-w-24 sm:flex-none"
           >
             מאשר
           </button>

@@ -1,4 +1,3 @@
-import { Hero } from "@/components/home/hero";
 import { AlfredSection } from "@/components/home/alfred-section";
 import { CategoryExplorer } from "@/components/home/category-explorer";
 import { CategoryGrid } from "@/components/home/category-grid-mobile";
@@ -44,78 +43,43 @@ export default async function HomePage() {
       getHomepageSection("alfred-widget"),
     ]);
 
-  // Admin-curated at /admin/homepage-alfred (payload.productIds); falls
-  // back to today's first 3 deals so the widget never sits empty before an
-  // admin has configured it.
+  // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
+  // an ordinary product rail further down the page, not as a chat panel in
+  // a second hero: when nobody has picked anything the rail simply does not
+  // render, rather than borrowing today's deals and showing them twice.
   const alfredWidgetIds = (alfredWidget?.payload as { productIds?: string[] } | undefined)?.productIds ?? [];
-  const alfredPicks = alfredWidgetIds.length > 0 ? await getProductsByIds(alfredWidgetIds) : deals.slice(0, 3);
+  const alfredPicks = alfredWidgetIds.length > 0 ? await getProductsByIds(alfredWidgetIds) : [];
 
   return (
     <>
       <JsonLd data={organizationSchema()} />
       <JsonLd data={webSiteSchema()} />
-      {/* Mobile-only reorder: Alfred's panel first, then top categories,
-          then hot deals, then the Hero (title/CTA/benefits) — everything
-          below this block keeps its normal document order untouched.
-          `flex flex-col` only applies (and `order` only has any effect)
-          below sm: — at sm: and up this reverts to `sm:block`, i.e. plain
-          stacking in the original DOM order, so desktop is unaffected. */}
-      <div className="flex flex-col sm:block">
-        {/* Desktop order swapped: AlfredSection (the real hero content now
-            — h1, CTA buttons, trust badges) leads, then CategoryExplorer,
-            then the search-spotlight Hero, then deals. Each block keeps its
-            own `order-N` class, which only does anything below sm:, so
-            mobile's order (unchanged: Alfred, Explorer, deals, then the
-            category grid in Hero's old slot) is untouched by this DOM
-            reshuffle — only desktop's plain top-to-bottom stacking order,
-            which follows DOM order, actually changes. */}
-        <div className="order-1">
-          <AlfredSection
-            heroTitle={hero?.title ?? ""}
-            heroSubtitle={hero?.subtitle ?? ""}
-            ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
-            ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
-          />
-        </div>
+      {/* One hero, then products. The page used to open with two navy
+          blocks — Alfred's section, then a second hero carrying another
+          search bar, the same two CTA buttons and a chat panel — with the
+          category marquee wedged between them, so the first product card
+          sat about 1,400px down on a desktop. Alfred's section already
+          holds the h1, the search bar, the CTAs and the trust badges; the
+          rest was repetition, and it is gone. The same order on every
+          breakpoint: no per-viewport reshuffling to keep in step. */}
+      <AlfredSection
+        heroTitle={hero?.title ?? ""}
+        heroSubtitle={hero?.subtitle ?? ""}
+        ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
+        ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
+      />
 
-        <div className="order-2">
-          <CategoryExplorer />
-        </div>
+      <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" />
 
-        <div className="order-4">
-          {/* Mobile: the full real-category grid instead of the Hero.
-              Desktop: the Hero, exactly as it always rendered here — kept
-              in the DOM either way (not deleted), just one or the other is
-              visually hidden per breakpoint. */}
-          <div className="sm:hidden">
-            <CategoryGrid tiles={categoryTiles} />
-          </div>
-          <div className="hidden sm:block">
-            {hero && (
-              <Hero
-                ctaLabel={(hero.payload as { ctaLabel: string }).ctaLabel}
-                ctaHref={(hero.payload as { ctaHref: string }).ctaHref}
-                showcaseProducts={deals}
-                alfredPicks={alfredPicks}
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="order-3">
-          <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" />
-        </div>
-      </div>
+      <CategoryExplorer />
 
       <FinderTeaser />
 
-      {/* Desktop only — directly below the finder teaser ("לא בטוחים מה
-          לבחור?") now, before the product rails. The mobile copy of this
-          same grid lives up in the Hero slot above, so it isn't repeated
-          here below sm:. */}
-      <div className="hidden sm:block">
-        <CategoryGrid tiles={categoryTiles} />
-      </div>
+      <CategoryGrid tiles={categoryTiles} />
+
+      {alfredPicks.length > 0 && (
+        <ProductRail title="אלפרד ממליץ" subtitle="הבחירות של העוזר החכם שלנו להיום" products={alfredPicks} />
+      )}
 
       <ProductRail title="הנמכרים ביותר" products={bestSellers} />
 
