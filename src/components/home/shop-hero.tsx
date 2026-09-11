@@ -202,7 +202,7 @@ function ShowcaseCard({
     >
       <div
         className={cn(
-          "relative size-24 shrink-0 overflow-hidden rounded-xl bg-white sm:aspect-square sm:size-auto sm:w-full",
+          "relative size-24 shrink-0 overflow-hidden rounded-xl bg-white sm:aspect-square sm:size-auto sm:w-full lg:aspect-[4/3]",
           // The large tile fills whatever height the two beside it add up
           // to, rather than fixing an aspect ratio and leaving a blank
           // strip under the photo.
