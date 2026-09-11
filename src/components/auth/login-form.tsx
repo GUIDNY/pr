@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { Eye, EyeOff, Phone } from "lucide-react";
+import { useIsNativeApp } from "@/lib/native-app";
 import { GoogleButton } from "@/components/auth/google-button";
 import { AppleButton } from "@/components/auth/apple-button";
 import { toast } from "sonner";
@@ -52,6 +53,20 @@ const SOCIAL_ERRORS: Record<string, string> = {
  * somebody has lost access to helps nobody.
  */
 export function LoginForm({ googleEnabled, appleEnabled }: { googleEnabled: boolean; appleEnabled: boolean }) {
+  /* Google refuses OAuth from an embedded WebView — their documented
+     "disallowed_useragent" policy — and a top-level navigation to
+     accounts.google.com leaves the app for Safari, where the session cookie
+     lands in the wrong browser: the customer signs in and returns to an app
+     that still shows them signed out. Confirmed on a TestFlight build.
+
+     So the button is not offered in the app at all. Email, phone and Apple
+     all work there, and a missing option beats one that cannot work.
+
+     Nothing changes in a browser. Fixing it properly means opening the flow
+     in the system browser and returning through a Universal Link — a native
+     plugin and App Links, not a login page change. */
+  const inApp = useIsNativeApp();
+  const showGoogle = googleEnabled && !inApp;
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/account";
@@ -93,10 +108,10 @@ export function LoginForm({ googleEnabled, appleEnabled }: { googleEnabled: bool
           </p>
         </div>
 
-        {(googleEnabled || appleEnabled) && (
+        {(showGoogle || appleEnabled) && (
           <>
             <div className="flex flex-col gap-2.5">
-              {googleEnabled && <GoogleButton />}
+              {showGoogle && <GoogleButton />}
               {appleEnabled && <AppleButton />}
             </div>
             {/* A real separator rather than the word "or" floating between
