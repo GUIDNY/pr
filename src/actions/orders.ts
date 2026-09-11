@@ -8,7 +8,7 @@ import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
-import { rememberOrder } from "@/lib/order-receipts";
+import { rememberOrder, browserPlacedOrder } from "@/lib/order-receipts";
 import { notifyOrder } from "@/lib/notify";
 import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 import { holdDays } from "@/lib/pelecard/client";
@@ -344,19 +344,33 @@ export async function updatePendingOrderDetailsAction(
   },
 ) {
   const session = await getSession();
-  if (!session) return { success: false as const };
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: { id: true, userId: true, status: true, paymentStatus: true, addressId: true },
+    select: { id: true, orderNumber: true, userId: true, status: true, paymentStatus: true, addressId: true },
   });
+  if (!order) return { success: false as const };
 
-  /* Three conditions, and each of them is the difference between an edit and
-     something else: the order is this account's, it has not been paid, and it
-     is still in the state the checkout left it in. An order that reached PAID
-     between the keystroke and the save must not be rewritten underneath the
-     receipt. */
-  if (!order || order.userId !== session.sub) return { success: false as const };
+  /* WHOSE ORDER THIS IS, and a guest's counts.
+     It used to require a signed-in owner, so a guest who noticed a typo in
+     their own address while the card form was open could do nothing about it —
+     the fields were frozen and the only way out was to abandon the order. Most
+     customers here check out without an account, so that was most customers.
+
+     A guest proves it the way the confirmation page already makes them prove
+     it: the receipt this browser got when it placed the order. And the order id
+     itself is the real barrier — it is a cuid, it is never in a URL, and the
+     only browser that has ever been told it is the one that created the order.
+     An order number can be guessed; this cannot. */
+  const ownedBySession = Boolean(session) && order.userId === session!.sub;
+  const placedByThisBrowser = await browserPlacedOrder(order.orderNumber);
+  if (!ownedBySession && !placedByThisBrowser) return { success: false as const };
+
+  /* And whoever is asking, only an unpaid order in the state checkout left it
+     in may be rewritten. An order that reached PAID between the keystroke and
+     the save must not be changed underneath the receipt — at that point the
+     address is what was charged for, and correcting it is the shop's job, not
+     a form's. */
   if (order.status !== "PAYMENT_PENDING" || order.paymentStatus !== "PENDING") {
     return { success: false as const };
   }

@@ -41,11 +41,14 @@ export default async function CheckoutPage() {
       // The test lane. Resolved here for the same reason as the switch above:
       // a browser that can see the flag can also set it.
       isStaff={canManageCatalog(session?.role)}
-      /* Whether the details can keep being edited after the card form opens.
-         A signed-in order can be followed — updatePendingOrderDetailsAction
-         checks the account owns it — and a guest's cannot, so a guest's fields
-         stay frozen behind an open transaction. */
-      canEditWhilePaying={Boolean(user)}
+      /* The details stay editable after the card form opens, for everyone.
+         They were frozen for guests, because the sync action would only follow
+         an order with a signed-in owner — which meant a guest who spotted a
+         typo in their own address with the card form open could do nothing
+         about it but abandon the order. Most people here check out without an
+         account, so that was most people. The action now accepts a guest who
+         holds this browser's receipt for the order. */
+      canEditWhilePaying
     />
   );
 }

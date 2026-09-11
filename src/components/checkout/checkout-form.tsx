@@ -69,9 +69,11 @@ export function CheckoutForm({
   /** Staff only, resolved on the server. Shows the test panel — never a
       customer-visible affordance, and the action behind it checks again. */
   isStaff?: boolean;
-  /** Whether the details stay editable after the card form opens. True only
-      for a signed-in order, which is the only kind the sync action will
-      follow — a guest's order has no owner to check an edit against. */
+  /** Whether the details stay editable after the card form opens — true for
+      everyone, guests included, because a typo spotted with the card form
+      open is exactly when someone needs to fix one. The sync action decides
+      whether an edit is allowed to land; this only decides whether the fields
+      accept typing. */
   canEditWhilePaying?: boolean;
 }) {
   const cart = useCartStore((s) => s.cart);
