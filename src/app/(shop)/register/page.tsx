@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { RegisterForm } from "@/components/auth/register-form";
-import { googleOAuthConfigured } from "@/lib/google-oauth";
+import { googleOAuthConfigured, googleNativeConfigured } from "@/lib/google-oauth";
 import { appleOAuthConfigured, appleNativeConfigured } from "@/lib/apple-oauth";
 
 /* Rendered per request, not baked at build time.
@@ -25,6 +25,7 @@ export default function RegisterPage() {
         googleEnabled={googleOAuthConfigured()}
         appleEnabled={appleOAuthConfigured()}
         appleNativeEnabled={appleNativeConfigured()}
+        googleNativeEnabled={googleNativeConfigured()}
       />
     </Suspense>
   );

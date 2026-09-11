@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/login-form";
-import { googleOAuthConfigured } from "@/lib/google-oauth";
+import { googleOAuthConfigured, googleNativeConfigured } from "@/lib/google-oauth";
 import { appleOAuthConfigured, appleNativeConfigured } from "@/lib/apple-oauth";
 
 /* Rendered per request, not baked at build time.
@@ -32,6 +32,7 @@ export default function LoginPage() {
         googleEnabled={googleOAuthConfigured()}
         appleEnabled={appleOAuthConfigured()}
         appleNativeEnabled={appleNativeConfigured()}
+        googleNativeEnabled={googleNativeConfigured()}
       />
     </Suspense>
   );

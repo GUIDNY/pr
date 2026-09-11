@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useIsNativeApp } from "@/lib/native-app";
 import { GoogleButton } from "@/components/auth/google-button";
 import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
+import { GoogleNativeButton, useGoogleNativeAvailable } from "@/components/auth/google-native-button";
 import { AppleButton } from "@/components/auth/apple-button";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -14,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerAction } from "@/actions/auth";
 
-export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled }: { googleEnabled: boolean; appleEnabled: boolean; appleNativeEnabled: boolean }) {
+export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, googleNativeEnabled }: { googleEnabled: boolean; appleEnabled: boolean; appleNativeEnabled: boolean; googleNativeEnabled: boolean }) {
   /* Google refuses OAuth from an embedded WebView — their documented
      "disallowed_useragent" policy — and a top-level navigation to
      accounts.google.com leaves the app for Safari, where the session cookie
@@ -45,6 +46,10 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled }
      ones built since it was added. */
   const appleNativeReady = useAppleNativeAvailable();
   const showAppleNative = appleNativeEnabled && inApp && appleNativeReady;
+  /* Google's is the same arrangement: the web keeps its redirect, the app gets
+     the sheet, and the button appears only where a build can honour it. */
+  const googleNativeReady = useGoogleNativeAvailable();
+  const showGoogleNative = googleNativeEnabled && inApp && googleNativeReady;
   const router = useRouter();
   /* Handed over by the confirmation page, so a guest who just ordered is asked
      for a password and nothing they have already typed. Only ever prefills
@@ -83,11 +88,12 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled }
         <h1 className="text-2xl font-bold">יצירת חשבון</h1>
       </div>
 
-      {(showGoogle || showApple || showAppleNative) && (
+      {(showGoogle || showApple || showAppleNative || showGoogleNative) && (
         <>
           <div className="flex flex-col gap-2.5">
             {showGoogle && <GoogleButton />}
             {showApple && <AppleButton />}
+              {showGoogleNative && <GoogleNativeButton />}
               {showAppleNative && <AppleNativeButton />}
           </div>
           <div className="my-5 flex items-center gap-3">

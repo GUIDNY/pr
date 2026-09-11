@@ -43,7 +43,22 @@ function clientSecret(): string | null {
  * an audience check that falls back to a guess is not a check.
  */
 export function googleNativeConfigured(): boolean {
-  return (process.env.GOOGLE_IOS_CLIENT_ID?.trim() ?? "") !== "";
+  return iosClientId() !== null;
+}
+
+/**
+ * NEXT_PUBLIC_ on purpose, and read here as well as in the browser.
+ *
+ * The page needs it to initialise the native sheet, so it has to reach the
+ * client either way; an OAuth client id is a public identifier by design and
+ * nothing is protected by hiding it. One variable for both sides beats two
+ * that can drift apart — and two that disagree would fail as a signature that
+ * verifies against the wrong audience, which reads like a broken login rather
+ * than like a typo in a dashboard.
+ */
+function iosClientId(): string | null {
+  const value = process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
+  return value ? value : null;
 }
 
 export function googleOAuthConfigured(): boolean {
@@ -173,7 +188,7 @@ const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth
  * two for no reason anybody can act on.
  */
 export async function verifyGoogleIdToken(token: string): Promise<GoogleProfile | null> {
-  const audience = process.env.GOOGLE_IOS_CLIENT_ID?.trim();
+  const audience = iosClientId();
   if (!audience) return null;
 
   let claims: Record<string, unknown>;

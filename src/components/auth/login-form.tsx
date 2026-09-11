@@ -8,6 +8,7 @@ import { Eye, EyeOff, Phone } from "lucide-react";
 import { useIsNativeApp } from "@/lib/native-app";
 import { GoogleButton } from "@/components/auth/google-button";
 import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
+import { GoogleNativeButton, useGoogleNativeAvailable } from "@/components/auth/google-native-button";
 import { AppleButton } from "@/components/auth/apple-button";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ const SOCIAL_ERRORS: Record<string, string> = {
  * phone stays underneath it anyway, because a reset that goes to an address
  * somebody has lost access to helps nobody.
  */
-export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled }: { googleEnabled: boolean; appleEnabled: boolean; appleNativeEnabled: boolean }) {
+export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, googleNativeEnabled }: { googleEnabled: boolean; appleEnabled: boolean; appleNativeEnabled: boolean; googleNativeEnabled: boolean }) {
   /* Google refuses OAuth from an embedded WebView — their documented
      "disallowed_useragent" policy — and a top-level navigation to
      accounts.google.com leaves the app for Safari, where the session cookie
@@ -84,6 +85,10 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled }: {
      ones built since it was added. */
   const appleNativeReady = useAppleNativeAvailable();
   const showAppleNative = appleNativeEnabled && inApp && appleNativeReady;
+  /* Google's is the same arrangement: the web keeps its redirect, the app gets
+     the sheet, and the button appears only where a build can honour it. */
+  const googleNativeReady = useGoogleNativeAvailable();
+  const showGoogleNative = googleNativeEnabled && inApp && googleNativeReady;
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/account";
@@ -125,11 +130,12 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled }: {
           </p>
         </div>
 
-        {(showGoogle || showApple || showAppleNative) && (
+        {(showGoogle || showApple || showAppleNative || showGoogleNative) && (
           <>
             <div className="flex flex-col gap-2.5">
               {showGoogle && <GoogleButton />}
               {showApple && <AppleButton />}
+              {showGoogleNative && <GoogleNativeButton />}
               {showAppleNative && <AppleNativeButton />}
             </div>
             {/* A real separator rather than the word "or" floating between
