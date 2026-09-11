@@ -56,16 +56,38 @@ export function appleRedirectUri(): string {
 }
 
 /**
- * The .p8 as Apple issued it.
+ * The .p8, rebuilt into the shape a PEM parser will accept.
  *
- * Pasted whole into Vercel it arrives with real newlines; pasted through a
- * shell or a CI variable it often arrives with literal backslash-n instead.
- * Both are accepted because both are what people actually end up with, and
- * the failure mode of getting it wrong is an "invalid_client" that names
- * nothing.
+ * A private key travels badly. Between the file Apple issues once and the
+ * value this function reads there is a clipboard, a browser text field, a
+ * dashboard and sometimes a shell, and each of them has its own opinion
+ * about line breaks. What arrives is the right key material in the wrong
+ * wrapper: newlines turned into literal backslash-n, or into spaces, or
+ * removed altogether so the whole thing is one long line.
+ *
+ * Accepting only the pristine form was the first version of this, and it
+ * failed in production on the first real attempt with `"pkcs8" must be
+ * PKCS#8 formatted string` — a message that sounds like the key is wrong
+ * when the key was fine and only its whitespace was not.
+ *
+ * So the base64 is taken out of whatever arrived and a correct PEM is built
+ * around it. That is reformatting, not repair: a key that is genuinely the
+ * wrong key, or truncated, still fails here, and should.
  */
 function privateKeyPem(): string {
-  return env("APPLE_PRIVATE_KEY")!.replace(/\\n/g, "\n");
+  const raw = env("APPLE_PRIVATE_KEY")!.replace(/\\n/g, "\n").trim();
+
+  // Everything that is not the payload: the header, the footer, and every
+  // kind of whitespace somebody's clipboard left behind.
+  const body = raw
+    .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----/g, "")
+    .replace(/-----END [A-Z ]*PRIVATE KEY-----/g, "")
+    .replace(/\s+/g, "");
+
+  // PEM wants its base64 in lines of 64. Some parsers tolerate one long
+  // line; not all of them do, and this is not the place to find out which.
+  const wrapped = body.match(/.{1,64}/g)?.join("\n") ?? body;
+  return `-----BEGIN PRIVATE KEY-----\n${wrapped}\n-----END PRIVATE KEY-----\n`;
 }
 
 async function clientSecret(): Promise<string> {
