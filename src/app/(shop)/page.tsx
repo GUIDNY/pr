@@ -1,11 +1,19 @@
 import { ShopHero } from "@/components/home/shop-hero";
-import { CategoryExplorer } from "@/components/home/category-explorer";
+import { DepartmentChips } from "@/components/home/department-chips";
 import { CategoryGrid } from "@/components/home/category-grid-mobile";
 import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
 import { FinderTeaser } from "@/components/home/finder-teaser";
-import { getDeals, getBestSellers, getFeaturedProducts, getProductsByIds, getCatalogSize } from "@/lib/queries/products";
+import {
+  getDeals,
+  getBestSellers,
+  getFeaturedProducts,
+  getProductsByIds,
+  getCatalogSize,
+  getNewArrivals,
+  getDepartmentShowcases,
+} from "@/lib/queries/products";
 import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
 import { getCategoryTilesWithImages } from "@/lib/queries/categories";
 import type { Metadata } from "next";
@@ -31,7 +39,7 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 export const revalidate = 300;
 
 export default async function HomePage() {
-  const [hero, whyPrec, deals, bestSellers, featured, brands, categoryTiles, alfredWidget, catalog] =
+  const [hero, whyPrec, deals, bestSellers, featured, brands, categoryTiles, alfredWidget, catalog, newArrivals, showcases] =
     await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
@@ -42,25 +50,45 @@ export default async function HomePage() {
       getCategoryTilesWithImages(),
       getHomepageSection("alfred-widget"),
       getCatalogSize(),
+      getNewArrivals(8),
+      getDepartmentShowcases({ departments: 6, perDepartment: 4 }),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
-  // an ordinary product rail further down the page, not as a chat panel in
-  // a second hero: when nobody has picked anything the rail simply does not
-  // render, rather than borrowing today's deals and showing them twice.
+  // an ordinary product rail, not as a chat panel in a second hero: when
+  // nobody has picked anything the rail simply does not render, rather
+  // than borrowing today's deals and showing them twice.
   const alfredWidgetIds = (alfredWidget?.payload as { productIds?: string[] } | undefined)?.productIds ?? [];
   const alfredPicks = alfredWidgetIds.length > 0 ? await getProductsByIds(alfredWidgetIds) : [];
+
+  // The hero shows the first three deals; the rail gets the rest, and
+  // stays off the page when there is no rest.
+  const moreDeals = deals.slice(3);
+  const [firstShowcases, laterShowcases] = [showcases.slice(0, 2), showcases.slice(2)];
 
   return (
     <>
       <JsonLd data={organizationSchema()} />
       <JsonLd data={webSiteSchema()} />
-      {/* One screen that says "a real shop": warranty, delivery, a street
-          address, the size of the catalogue and three real deals with real
-          prices — see ShopHero. The brand strip follows immediately, because
-          Bosch, Samsung and LG on the first scroll say "legitimate" faster
-          than any sentence about it. Then products. Same order at every
-          width: no per-viewport reshuffling to keep in step. */}
+      {/* The page, top to bottom, and why in this order.
+
+          The first screen has one job: to read as a real appliance shop
+          within a second — warranty, delivery, a street address, the size
+          of the catalogue and three real deals with real prices (ShopHero).
+          Then the breadth of what is sold, twice over: every department as
+          a chip, and the manufacturers as marks, because shoppers misjudge
+          what a shop sells from a narrow front page and Bosch, Samsung and
+          LG say "legitimate" faster than any sentence about it.
+
+          Then products, a department at a time — fridges, ovens,
+          televisions — each row a sample of real stock with a link to the
+          whole department. Not "best sellers": nothing is flagged as one
+          and there is no sales history to rank by, so that rail rendered
+          empty. Alfred's finder sits between the rows as a convenience
+          rather than a headline, and the page closes on the shop itself:
+          address, phone, the registered company.
+
+          Same order at every width; nothing rotates on its own. */}
       <ShopHero
         title={hero?.title || "מוצרי חשמל מיבואן רשמי, במחיר טוב"}
         subtitle={hero?.subtitle || "משלוח עד הבית, אחריות יבואן רשמי ושירות לקוחות אמיתי"}
@@ -71,25 +99,60 @@ export default async function HomePage() {
         brandCount={catalog.brands}
       />
 
+      <DepartmentChips />
+
       <BrandStrip brands={brands} />
 
-      <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals.slice(3)} viewAllHref="/deals" />
+      {moreDeals.length > 0 && (
+        <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={moreDeals} viewAllHref="/deals" />
+      )}
 
-      <CategoryExplorer />
+      {firstShowcases.map((d) => (
+        <ProductRail
+          key={d.slug}
+          title={d.name}
+          subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
+          products={d.products}
+          viewAllHref={`/category/${d.slug}`}
+          viewAllLabel={`לכל ${d.name}`}
+        />
+      ))}
+
+      <CategoryGrid tiles={categoryTiles} />
+
+      {laterShowcases.slice(0, 2).map((d) => (
+        <ProductRail
+          key={d.slug}
+          title={d.name}
+          subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
+          products={d.products}
+          viewAllHref={`/category/${d.slug}`}
+          viewAllLabel={`לכל ${d.name}`}
+        />
+      ))}
 
       <FinderTeaser />
 
-      <CategoryGrid tiles={categoryTiles} />
+      {laterShowcases.slice(2).map((d) => (
+        <ProductRail
+          key={d.slug}
+          title={d.name}
+          subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
+          products={d.products}
+          viewAllHref={`/category/${d.slug}`}
+          viewAllLabel={`לכל ${d.name}`}
+        />
+      ))}
+
+      <ProductRail title="חדש בקטלוג" subtitle="הגיעו אלינו לאחרונה" products={newArrivals} />
 
       {alfredPicks.length > 0 && (
         <ProductRail title="אלפרד ממליץ" subtitle="הבחירות של העוזר החכם שלנו להיום" products={alfredPicks} />
       )}
 
-      <ProductRail title="הנמכרים ביותר" products={bestSellers} />
+      {bestSellers.length > 0 && <ProductRail title="הנמכרים ביותר" products={bestSellers} />}
 
-      {featured.length > 0 && (
-        <ProductRail title="מומלצים במיוחד" products={featured} />
-      )}
+      {featured.length > 0 && <ProductRail title="מומלצים במיוחד" products={featured} />}
 
       {whyPrec && (
         <WhyPrec

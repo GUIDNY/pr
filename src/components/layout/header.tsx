@@ -89,8 +89,11 @@ export async function Header() {
           </span>
         </Link>
 
+        {/* A bold, brand-edged field rather than a hairline one: the
+            search box is the thing a visitor with a model number in hand
+            looks for first, and it should be found without looking. */}
         <div className="hidden flex-1 sm:block">
-          <SearchBar />
+          <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-11 border-2 shadow-sm" />
         </div>
 
         <div className="flex items-center gap-1 justify-self-end sm:justify-self-auto">
@@ -102,7 +105,7 @@ export async function Header() {
       </div>
 
       <div className="px-4 pb-2.5 sm:hidden">
-        <SearchBar inputClassName="h-11 rounded-2xl" />
+        <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-11 rounded-2xl border-2 shadow-sm" />
       </div>
 
       <MegaMenu departments={departments} />

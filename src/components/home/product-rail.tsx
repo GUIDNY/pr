@@ -7,12 +7,14 @@ export function ProductRail({
   subtitle,
   products,
   viewAllHref,
+  viewAllLabel = "לכל המוצרים",
   favoriteIds = [],
 }: {
   title: string;
   subtitle?: string;
   products: ProductCardData[];
   viewAllHref?: string;
+  viewAllLabel?: string;
   favoriteIds?: string[];
 }) {
   if (products.length === 0) return null;
@@ -26,7 +28,7 @@ export function ProductRail({
         </div>
         {viewAllHref && (
           <Link href={viewAllHref} className="text-brand flex shrink-0 items-center gap-1 text-sm font-medium hover:underline">
-            לכל המוצרים
+            {viewAllLabel}
             <ArrowLeft className="size-3.5" />
           </Link>
         )}
