@@ -1,4 +1,5 @@
 import "server-only";
+import { jwtVerify, createRemoteJWKSet } from "jose";
 import { SITE_URL } from "@/lib/site-url";
 
 /**
@@ -32,6 +33,19 @@ function clientSecret(): string | null {
 }
 
 /** Both halves present. The button is hidden until they are. */
+/**
+ * The iOS OAuth client id, which is the audience Google puts in an id_token
+ * issued to the native sign-in sheet — where the web client id is the
+ * audience instead. The two are different credentials for the same project,
+ * and a token minted for one is not valid for the other.
+ *
+ * Required rather than defaulted, for the same reason as Apple's bundle id:
+ * an audience check that falls back to a guess is not a check.
+ */
+export function googleNativeConfigured(): boolean {
+  return (process.env.GOOGLE_IOS_CLIENT_ID?.trim() ?? "") !== "";
+}
+
 export function googleOAuthConfigured(): boolean {
   return clientId() !== null && clientSecret() !== null;
 }
@@ -133,4 +147,56 @@ function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/* Google's public keys, cached by jose, re-fetched when a token arrives
+   signed by a kid it has not seen — so key rotation is a non-event. */
+const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
+
+/**
+ * The person behind an id_token that came from the native sign-in sheet.
+ *
+ * THIS ONE IS VERIFIED, and the contrast with exchangeCodeForProfile above is
+ * the point. That token is the body of a direct server-to-server POST to
+ * Google, over TLS, authenticated with the client secret, so reading it is
+ * enough — and its own comment warns that a token arriving any other way
+ * would have to be verified properly. This is that other way. It comes from a
+ * phone, where the email is a claim inside a string the caller supplies, so
+ * anything less than a signature check would let anybody sign in as anybody.
+ *
+ * `aud` is the iOS client id and not the web one. Google issues a separate
+ * credential per platform, and accepting either would mean accepting a token
+ * minted for a different app.
+ *
+ * Both issuer spellings are allowed because Google uses both, and has for
+ * years — a token signed by the same keys is rejected by the stricter of the
+ * two for no reason anybody can act on.
+ */
+export async function verifyGoogleIdToken(token: string): Promise<GoogleProfile | null> {
+  const audience = process.env.GOOGLE_IOS_CLIENT_ID?.trim();
+  if (!audience) return null;
+
+  let claims: Record<string, unknown>;
+  try {
+    const verified = await jwtVerify(token, GOOGLE_JWKS, {
+      issuer: ["https://accounts.google.com", "accounts.google.com"],
+      audience,
+    });
+    claims = verified.payload as Record<string, unknown>;
+  } catch {
+    // Expiry, a bad signature and a wrong audience all land here, and the
+    // caller is told none of them apart.
+    return null;
+  }
+
+  const email = typeof claims.email === "string" ? claims.email.toLowerCase() : null;
+  const sub = typeof claims.sub === "string" ? claims.sub : null;
+  if (!email || !sub) return null;
+
+  return {
+    email,
+    sub,
+    name: typeof claims.name === "string" && claims.name.trim() ? claims.name.trim() : email.split("@")[0],
+    emailVerified: claims.email_verified === true || claims.email_verified === "true",
+  };
 }
