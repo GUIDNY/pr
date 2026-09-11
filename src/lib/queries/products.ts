@@ -112,8 +112,6 @@ export type DepartmentShowcase = {
   name: string;
   slug: string;
   count: number;
-  /** The cheapest live product in the department, for "החל מ־". */
-  minPrice: number | null;
   products: ProductCardData[];
 };
 
@@ -153,27 +151,17 @@ export async function getDepartmentShowcases({
 
   return Promise.all(
     picked.map(async (d) => {
-      const where = { ...PUBLIC_PRODUCT_WHERE, categoryId: { in: d.categoryIds } };
-      const [rows, cheapest] = await Promise.all([
-        db.product.findMany({
-          where,
-          include: cardInclude,
-          take: perDepartment,
-          // Enriched products first — "ENRICHED" sorts ahead of the other
-          // two values ascending — since those are the ones with a written
-          // description and checked specs behind the card; then the newest.
-          // A stable, honest order that needs no sales history to exist.
-          orderBy: [{ enrichmentStatus: "asc" }, { createdAt: "desc" }],
-        }),
-        db.product.aggregate({ where: { ...where, price: { gt: 0 } }, _min: { price: true } }),
-      ]);
-      return {
-        name: d.name,
-        slug: d.slug,
-        count: d.count,
-        minPrice: cheapest._min.price ?? null,
-        products: rows.map(mapProductToCard),
-      };
+      const rows = await db.product.findMany({
+        where: { ...PUBLIC_PRODUCT_WHERE, categoryId: { in: d.categoryIds } },
+        include: cardInclude,
+        take: perDepartment,
+        // Enriched products first — "ENRICHED" sorts ahead of the other
+        // two values ascending — since those are the ones with a written
+        // description and checked specs behind the card; then the newest.
+        // A stable, honest order that needs no sales history to exist.
+        orderBy: [{ enrichmentStatus: "asc" }, { createdAt: "desc" }],
+      });
+      return { name: d.name, slug: d.slug, count: d.count, products: rows.map(mapProductToCard) };
     }),
   );
 }

@@ -101,6 +101,7 @@ export default async function HomePage() {
         ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
         ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
         departments={heroDepartments}
+        categoryTiles={categoryTiles}
         productCount={catalog.products}
         brandCount={catalog.brands}
       />

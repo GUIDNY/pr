@@ -3,10 +3,21 @@ import Link from "next/link";
 import { ArrowLeft, CreditCard, MapPin, ShieldCheck, Store, Truck } from "lucide-react";
 import { SearchBar } from "@/components/layout/search-bar";
 import { Button } from "@/components/ui/button";
-import { formatPrice } from "@/lib/format";
 import { BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 import type { DepartmentShowcase } from "@/lib/queries/products";
+import type { CategoryTile } from "@/lib/queries/categories";
 import { cn } from "@/lib/utils";
+
+/** The sub-category whose photograph stands for the whole department. */
+const HERO_TILE_CATEGORY: Record<string, string> = {
+  refrigeration: "fridge-4-door",
+  "tv-multimedia": "tvs",
+  laundry: "washing-machines",
+  "ovens-cooktops": "built-in-oven",
+  dishwashers: "dishwasher-standard",
+  "small-kitchen-appliances": "coffee-machines",
+  "air-conditioning": "split-ac",
+};
 
 /**
  * The first screen, built to answer one question in about a second: is
@@ -27,6 +38,7 @@ export function ShopHero({
   ctaLabel,
   ctaHref,
   departments,
+  categoryTiles,
   productCount,
   brandCount,
 }: {
@@ -34,15 +46,24 @@ export function ShopHero({
   subtitle: string;
   ctaLabel?: string;
   ctaHref?: string;
-  // The biggest departments, each with a real product photo and the price
-  // its range starts at. Four make a grid; fewer and the hero goes single
-  // column rather than showing a lopsided one.
+  // The departments to show, in order, each with its live product count.
+  // Four make a grid; fewer and the hero goes single column rather than
+  // showing a lopsided one.
   departments: DepartmentShowcase[];
+  // The sub-category sampler's tiles, whose photographs were chosen to
+  // look like the thing — a fridge tile shows a fridge — so the hero
+  // borrows the picture of each department's defining sub-category rather
+  // than whichever product happened to be enriched most recently.
+  categoryTiles: CategoryTile[];
   productCount: number;
   brandCount: number;
 }) {
   const tiles = departments
-    .map((d) => ({ ...d, imageUrl: d.products.find((p) => p.imageUrl)?.imageUrl ?? null }))
+    .map((d) => {
+      const preferred = HERO_TILE_CATEGORY[d.slug];
+      const fromSampler = preferred ? categoryTiles.find((t) => t.slug === preferred)?.imageUrl : undefined;
+      return { ...d, imageUrl: fromSampler ?? d.products.find((p) => p.imageUrl)?.imageUrl ?? null };
+    })
     .filter((d) => d.imageUrl)
     .slice(0, 4);
   const showTiles = tiles.length === 4;
@@ -167,7 +188,7 @@ export function ShopHero({
    product from it, the department's name, and the price its range starts
    at. Equal on purpose — three deal cards of different heights, with a
    kettle adrift in the tallest, looked like a collage nobody finished.
-   Four squares that each say "we sell fridges, from ₪2,300" say what the
+   Four squares that each say "we sell fridges, 240 of them" say what the
    shop is and where to start, and every one of them is a door. */
 function DepartmentTiles({
   tiles,
@@ -198,9 +219,10 @@ function DepartmentTiles({
           <div className="mt-3 flex items-end justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate text-sm font-bold sm:text-base">{d.name}</p>
-              {d.minPrice !== null && (
-                <p className="text-muted-foreground text-xs tabular-nums">החל מ־{formatPrice(d.minPrice)}</p>
-              )}
+              {/* The count, not "from ₪150": the cheapest thing in a
+                  department is a wall mount or a mini-fridge, and a
+                  television "from ₪150" reads as a mistake. */}
+              <p className="text-muted-foreground text-xs tabular-nums">{d.count.toLocaleString("he-IL")} מוצרים במלאי</p>
             </div>
             <span className="bg-brand/10 text-brand group-hover:bg-brand group-hover:text-brand-foreground flex size-8 shrink-0 items-center justify-center rounded-full transition-colors">
               <ArrowLeft className="size-4" />
