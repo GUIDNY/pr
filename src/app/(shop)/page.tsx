@@ -43,7 +43,7 @@ export default async function HomePage() {
     await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
-      getDeals(11),
+      getDeals(8),
       getBestSellers(8),
       getFeaturedProducts(4),
       getFeaturedBrands(),
@@ -51,7 +51,7 @@ export default async function HomePage() {
       getHomepageSection("alfred-widget"),
       getCatalogSize(),
       getNewArrivals(8),
-      getDepartmentShowcases({ departments: 6, perDepartment: 4 }),
+      getDepartmentShowcases({ departments: 8, perDepartment: 4 }),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
@@ -61,9 +61,14 @@ export default async function HomePage() {
   const alfredWidgetIds = (alfredWidget?.payload as { productIds?: string[] } | undefined)?.productIds ?? [];
   const alfredPicks = alfredWidgetIds.length > 0 ? await getProductsByIds(alfredWidgetIds) : [];
 
-  // The hero shows the first three deals; the rail gets the rest, and
-  // stays off the page when there is no rest.
-  const moreDeals = deals.slice(3);
+  // The hero's four tiles: the departments a visitor most expects an
+  // appliance shop to have, in that order, when they are live — otherwise
+  // the biggest ones. The rails below still run biggest-first.
+  const HERO_ORDER = ["refrigeration", "tv-multimedia", "laundry", "ovens-cooktops"];
+  const heroDepartments = [
+    ...HERO_ORDER.map((slug) => showcases.find((d) => d.slug === slug)).filter((d) => d !== undefined),
+    ...showcases.filter((d) => !HERO_ORDER.includes(d.slug)),
+  ];
   const [firstShowcases, laterShowcases] = [showcases.slice(0, 2), showcases.slice(2)];
 
   return (
@@ -74,7 +79,8 @@ export default async function HomePage() {
 
           The first screen has one job: to read as a real appliance shop
           within a second — warranty, delivery, a street address, the size
-          of the catalogue and three real deals with real prices (ShopHero).
+          of the catalogue and four department tiles with real product
+          photographs and starting prices (ShopHero).
           Then the breadth of what is sold, twice over: every department as
           a chip, and the manufacturers as marks, because shoppers misjudge
           what a shop sells from a narrow front page and Bosch, Samsung and
@@ -94,7 +100,7 @@ export default async function HomePage() {
         subtitle={hero?.subtitle || "משלוח עד הבית, אחריות יבואן רשמי ושירות לקוחות אמיתי"}
         ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
         ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
-        showcase={deals}
+        departments={heroDepartments}
         productCount={catalog.products}
         brandCount={catalog.brands}
       />
@@ -103,9 +109,7 @@ export default async function HomePage() {
 
       <BrandStrip brands={brands} />
 
-      {moreDeals.length > 0 && (
-        <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={moreDeals} viewAllHref="/deals" />
-      )}
+      <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" />
 
       {firstShowcases.map((d) => (
         <ProductRail

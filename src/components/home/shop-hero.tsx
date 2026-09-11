@@ -3,9 +3,9 @@ import Link from "next/link";
 import { ArrowLeft, CreditCard, MapPin, ShieldCheck, Store, Truck } from "lucide-react";
 import { SearchBar } from "@/components/layout/search-bar";
 import { Button } from "@/components/ui/button";
-import { formatPrice, discountPercent } from "@/lib/format";
+import { formatPrice } from "@/lib/format";
 import { BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
-import type { ProductCardData } from "@/components/product/product-card";
+import type { DepartmentShowcase } from "@/lib/queries/products";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,7 +26,7 @@ export function ShopHero({
   subtitle,
   ctaLabel,
   ctaHref,
-  showcase,
+  departments,
   productCount,
   brandCount,
 }: {
@@ -34,13 +34,18 @@ export function ShopHero({
   subtitle: string;
   ctaLabel?: string;
   ctaHref?: string;
-  // Real, in-stock deals, up to three. The card's data type so the hero
-  // can never show a product a listing would not.
-  showcase: ProductCardData[];
+  // The biggest departments, each with a real product photo and the price
+  // its range starts at. Four make a grid; fewer and the hero goes single
+  // column rather than showing a lopsided one.
+  departments: DepartmentShowcase[];
   productCount: number;
   brandCount: number;
 }) {
-  const products = showcase.slice(0, 3);
+  const tiles = departments
+    .map((d) => ({ ...d, imageUrl: d.products.find((p) => p.imageUrl)?.imageUrl ?? null }))
+    .filter((d) => d.imageUrl)
+    .slice(0, 4);
+  const showTiles = tiles.length === 4;
   // Rounded down to the hundred so the number is true on every visit
   // between two syncs: "1,300+" stays right while the count drifts
   // between 1,300 and 1,399.
@@ -53,19 +58,14 @@ export function ShopHero({
   ];
 
   return (
-    <section className="bg-secondary relative overflow-hidden border-b">
-      <div
-        aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 45% 60% at 92% 0%, oklch(0.658 0.209 39.1 / 0.12), transparent), radial-gradient(ellipse 40% 55% at 4% 100%, oklch(0.32 0.1 264 / 0.09), transparent)",
-        }}
-      />
+    // A flat, warm off-white. The orange glow that used to sit in the
+    // corner read as a smudge next to the product photographs; the
+    // colour on this screen should be the products' own.
+    <section className="bg-secondary border-b">
       <div
         className={cn(
-          "relative mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 py-8 sm:py-12 lg:items-center lg:gap-12 lg:py-16",
-          products.length > 0 && "lg:grid-cols-[1.15fr_1fr]"
+          "mx-auto grid max-w-7xl grid-cols-1 gap-8 px-4 py-8 sm:py-12 lg:items-center lg:gap-12 lg:py-14",
+          showTiles && "lg:grid-cols-[1.1fr_1fr]"
         )}
       >
         <div className="flex flex-col gap-5">
@@ -157,89 +157,57 @@ export function ShopHero({
           </dl>
         </div>
 
-        {products.length > 0 && <Showcase products={products} />}
+        {showTiles && <DepartmentTiles tiles={tiles} />}
       </div>
     </section>
   );
 }
 
-/* Three real deals. On a phone, three compact rows — photo beside the
-   price — so the whole trio costs one screen-height at most; from sm: up,
-   three tiles in a row; from lg: one large tile and two small ones beside
-   the copy. The point is not the layout but what it puts on the first
-   screen: photographs of things that are in stock, with the price and what
-   it was, which is the shortest possible proof that this is a shop and
-   not a brochure. */
-function Showcase({ products }: { products: ProductCardData[] }) {
-  const [lead, ...rest] = products;
+/* Four equal tiles, one per major department: a photograph of a real
+   product from it, the department's name, and the price its range starts
+   at. Equal on purpose — three deal cards of different heights, with a
+   kettle adrift in the tallest, looked like a collage nobody finished.
+   Four squares that each say "we sell fridges, from ₪2,300" say what the
+   shop is and where to start, and every one of them is a door. */
+function DepartmentTiles({
+  tiles,
+}: {
+  tiles: (DepartmentShowcase & { imageUrl: string | null })[];
+}) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-2 lg:grid-rows-2">
-      <ShowcaseCard product={lead} lead className="lg:row-span-2" />
-      {rest.map((p) => (
-        <ShowcaseCard key={p.id} product={p} />
+    <div className="grid grid-cols-2 gap-3 sm:gap-4">
+      {tiles.map((d) => (
+        <Link
+          key={d.slug}
+          href={`/category/${d.slug}`}
+          className="group border-border/80 bg-card hover:border-brand/50 flex flex-col overflow-hidden rounded-2xl border p-3 shadow-sm transition-all hover:shadow-md sm:p-4"
+        >
+          <div className="relative aspect-[5/4] w-full overflow-hidden rounded-xl bg-white">
+            {d.imageUrl && (
+              <Image
+                src={d.imageUrl}
+                alt=""
+                fill
+                sizes="(min-width: 1024px) 22vw, 45vw"
+                className="object-contain p-3 transition-transform duration-300 group-hover:scale-105"
+                referrerPolicy="no-referrer"
+                priority
+              />
+            )}
+          </div>
+          <div className="mt-3 flex items-end justify-between gap-2">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold sm:text-base">{d.name}</p>
+              {d.minPrice !== null && (
+                <p className="text-muted-foreground text-xs tabular-nums">החל מ־{formatPrice(d.minPrice)}</p>
+              )}
+            </div>
+            <span className="bg-brand/10 text-brand group-hover:bg-brand group-hover:text-brand-foreground flex size-8 shrink-0 items-center justify-center rounded-full transition-colors">
+              <ArrowLeft className="size-4" />
+            </span>
+          </div>
+        </Link>
       ))}
     </div>
-  );
-}
-
-function ShowcaseCard({
-  product,
-  lead = false,
-  className,
-}: {
-  product: ProductCardData;
-  lead?: boolean;
-  className?: string;
-}) {
-  const pct = discountPercent(product.price, product.compareAtPrice ?? undefined);
-  return (
-    <Link
-      href={`/product/${product.slug}`}
-      className={cn(
-        "group border-border/80 bg-card hover:border-brand/40 flex flex-row items-center gap-3 overflow-hidden rounded-2xl border p-3 shadow-sm transition-all hover:shadow-md sm:flex-col sm:items-stretch",
-        className
-      )}
-    >
-      <div
-        className={cn(
-          "relative size-24 shrink-0 overflow-hidden rounded-xl bg-white sm:aspect-square sm:size-auto sm:w-full lg:aspect-[4/3]",
-          // The large tile fills whatever height the two beside it add up
-          // to, rather than fixing an aspect ratio and leaving a blank
-          // strip under the photo.
-          lead && "lg:aspect-auto lg:min-h-64 lg:flex-1"
-        )}
-      >
-        {product.imageUrl && (
-          <Image
-            src={product.imageUrl}
-            alt={product.title}
-            fill
-            sizes={lead ? "(min-width: 1024px) 30vw, (min-width: 640px) 30vw, 96px" : "(min-width: 640px) 15vw, 96px"}
-            className="object-contain p-2 transition-transform duration-300 group-hover:scale-105"
-            referrerPolicy="no-referrer"
-            priority={lead}
-          />
-        )}
-        {pct && (
-          <span className="bg-brand text-brand-foreground absolute top-2 start-2 rounded-md px-1.5 py-0.5 text-xs font-bold tabular-nums">
-            {pct}%-
-          </span>
-        )}
-      </div>
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-muted-foreground text-xs font-semibold">{product.brandName}</span>
-        <span className={cn("line-clamp-2 font-medium", lead ? "text-sm lg:text-base" : "text-sm")}>{product.title}</span>
-        <span className="mt-1 flex flex-wrap items-baseline gap-x-2">
-          <span className={cn("font-bold tabular-nums", lead ? "text-lg lg:text-2xl" : "text-lg")}>
-            {formatPrice(product.price)}
-          </span>
-          {product.compareAtPrice && product.compareAtPrice > product.price && (
-            <span className="text-muted-foreground text-xs tabular-nums line-through">
-              {formatPrice(product.compareAtPrice)}
-            </span>
-          )}
-        </span>
-      </div>
-    </Link>
   );
 }
