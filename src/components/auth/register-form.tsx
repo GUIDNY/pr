@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useIsNativeApp } from "@/lib/native-app";
 import { GoogleButton } from "@/components/auth/google-button";
-import { AppleNativeButton } from "@/components/auth/apple-native-button";
+import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
 import { AppleButton } from "@/components/auth/apple-button";
 import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -40,7 +40,11 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled }
   /* The app gets the native sheet, the web keeps the redirect. Same provider,
      two buttons, because only one of them can work in each place. */
   const showApple = appleEnabled && !inApp;
-  const showAppleNative = appleNativeEnabled && inApp;
+  /* And only when the running build carries the plugin. Being in the app is
+     not enough: this page reaches every install at once, the plugin only the
+     ones built since it was added. */
+  const appleNativeReady = useAppleNativeAvailable();
+  const showAppleNative = appleNativeEnabled && inApp && appleNativeReady;
   const router = useRouter();
   /* Handed over by the confirmation page, so a guest who just ordered is asked
      for a password and nothing they have already typed. Only ever prefills

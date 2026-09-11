@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 
 /**
@@ -45,6 +45,28 @@ function applePlugin(): ApplePlugin | null {
     .Capacitor?.Plugins;
   const plugin = plugins?.SignInWithApple;
   return plugin ? (plugin as ApplePlugin) : null;
+}
+
+/* Nothing ever changes this within a session: the plugin is registered before
+   the first page loads, or the build does not contain it. */
+function subscribe() {
+  return () => {};
+}
+
+/**
+ * Whether this build can actually run the sheet.
+ *
+ * Being inside the app is not the same question, and treating it as the same
+ * put a dead button in front of a reviewer: the button's visibility ships with
+ * the web page and reaches every install immediately, while the plugin only
+ * arrives in a build made after it was installed. Every TestFlight copy older
+ * than that would have shown the button and answered "not available here".
+ *
+ * Asking the bridge instead makes it self-correcting — the button appears the
+ * moment a build that can honour it is running, and never before.
+ */
+export function useAppleNativeAvailable(): boolean {
+  return useSyncExternalStore(subscribe, () => applePlugin() !== null, () => false);
 }
 
 export function AppleNativeButton() {

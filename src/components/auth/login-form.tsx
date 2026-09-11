@@ -7,7 +7,7 @@ import Image from "next/image";
 import { Eye, EyeOff, Phone } from "lucide-react";
 import { useIsNativeApp } from "@/lib/native-app";
 import { GoogleButton } from "@/components/auth/google-button";
-import { AppleNativeButton } from "@/components/auth/apple-native-button";
+import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
 import { AppleButton } from "@/components/auth/apple-button";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -79,7 +79,11 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled }: {
   /* The app gets the native sheet, the web keeps the redirect. Same provider,
      two buttons, because only one of them can work in each place. */
   const showApple = appleEnabled && !inApp;
-  const showAppleNative = appleNativeEnabled && inApp;
+  /* And only when the running build carries the plugin. Being in the app is
+     not enough: this page reaches every install at once, the plugin only the
+     ones built since it was added. */
+  const appleNativeReady = useAppleNativeAvailable();
+  const showAppleNative = appleNativeEnabled && inApp && appleNativeReady;
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/account";
