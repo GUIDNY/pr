@@ -20,7 +20,7 @@ export function ProductRail({
   if (products.length === 0) return null;
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-8">
+    <section className="mx-auto max-w-7xl px-4 py-7">
       <div className="mb-5 flex items-end justify-between">
         <div>
           <h2 className="text-xl font-bold sm:text-2xl">{title}</h2>
@@ -33,9 +33,19 @@ export function ProductRail({
           </Link>
         )}
       </div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {/* One row that scrolls sideways, snapping card by card: five
+          across on a wide screen, a little over two on a phone so the cut
+          card says there is more. The grid it replaces wrapped to a second
+          row and turned every rail into a wall; a row keeps each
+          department to one glance and the page to a scroll. */}
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:thin] sm:gap-4">
         {products.map((p) => (
-          <ProductCard key={p.id} product={p} isFavorite={favoriteIds.includes(p.id)} />
+          <ProductCard
+            key={p.id}
+            product={p}
+            isFavorite={favoriteIds.includes(p.id)}
+            className="w-[calc(50%-6px)] shrink-0 snap-start sm:w-[calc(33.333%-11px)] lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
+          />
         ))}
       </div>
     </section>

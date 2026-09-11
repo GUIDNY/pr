@@ -1,10 +1,9 @@
-import { ShopHero } from "@/components/home/shop-hero";
-import { DepartmentChips } from "@/components/home/department-chips";
+import { HeroBand } from "@/components/home/hero-band";
+import { UspBar } from "@/components/home/usp-bar";
 import { CategoryGrid } from "@/components/home/category-grid-mobile";
 import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
-import { FinderTeaser } from "@/components/home/finder-teaser";
 import {
   getDeals,
   getBestSellers,
@@ -15,7 +14,7 @@ import {
   getDepartmentShowcases,
 } from "@/lib/queries/products";
 import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
-import { getCategoryTilesWithImages } from "@/lib/queries/categories";
+import { getCategoryTilesWithImages, getDepartmentCounts } from "@/lib/queries/categories";
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/seo/json-ld";
 import { organizationSchema, webSiteSchema } from "@/lib/schema";
@@ -39,8 +38,20 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 export const revalidate = 300;
 
 export default async function HomePage() {
-  const [hero, whyPrec, deals, bestSellers, featured, brands, categoryTiles, alfredWidget, catalog, newArrivals, showcases] =
-    await Promise.all([
+  const [
+    hero,
+    whyPrec,
+    deals,
+    bestSellers,
+    featured,
+    brands,
+    categoryTiles,
+    alfredWidget,
+    catalog,
+    newArrivals,
+    showcases,
+    departmentCounts,
+  ] = await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
       getDeals(8),
@@ -51,7 +62,8 @@ export default async function HomePage() {
       getHomepageSection("alfred-widget"),
       getCatalogSize(),
       getNewArrivals(8),
-      getDepartmentShowcases({ departments: 8, perDepartment: 4 }),
+      getDepartmentShowcases({ departments: 8, perDepartment: 6 }),
+      getDepartmentCounts(),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
@@ -61,14 +73,10 @@ export default async function HomePage() {
   const alfredWidgetIds = (alfredWidget?.payload as { productIds?: string[] } | undefined)?.productIds ?? [];
   const alfredPicks = alfredWidgetIds.length > 0 ? await getProductsByIds(alfredWidgetIds) : [];
 
-  // The hero's four tiles: the departments a visitor most expects an
-  // appliance shop to have, in that order, when they are live — otherwise
-  // the biggest ones. The rails below still run biggest-first.
-  const HERO_ORDER = ["refrigeration", "tv-multimedia", "laundry", "ovens-cooktops"];
-  const heroDepartments = [
-    ...HERO_ORDER.map((slug) => showcases.find((d) => d.slug === slug)).filter((d) => d !== undefined),
-    ...showcases.filter((d) => !HERO_ORDER.includes(d.slug)),
-  ];
+  // The banner's picture: the four-door fridge tile's photograph, which
+  // the sampler chose to look like the thing; failing that, a television.
+  const feature =
+    categoryTiles.find((t) => t.slug === "fridge-4-door") ?? categoryTiles.find((t) => t.slug === "tvs") ?? null;
   const [firstShowcases, laterShowcases] = [showcases.slice(0, 2), showcases.slice(2)];
 
   return (
@@ -77,36 +85,38 @@ export default async function HomePage() {
       <JsonLd data={webSiteSchema()} />
       {/* The page, top to bottom, and why in this order.
 
-          The first screen has one job: to read as a real appliance shop
-          within a second — warranty, delivery, a street address, the size
-          of the catalogue and four department tiles with real product
-          photographs and starting prices (ShopHero).
-          Then the breadth of what is sold, twice over: every department as
-          a chip, and the manufacturers as marks, because shoppers misjudge
-          what a shop sells from a narrow front page and Bosch, Samsung and
-          LG say "legitimate" faster than any sentence about it.
+          The first screen is laid out like a shop, not a landing page: the
+          department menu down one side with a live count beside each
+          line, the banner beside it with the facts a doubtful visitor
+          checks (importer warranty, catalogue size, a street in Hadera),
+          Alfred's search bar, and a real product on a card; then two
+          tiles — today's deals and the finder. A row of the same facts
+          with icons, and the manufacturers' marks, follow before the first
+          product, because Bosch, Samsung and LG say "legitimate" faster
+          than any sentence about it.
 
           Then products, a department at a time — fridges, ovens,
-          televisions — each row a sample of real stock with a link to the
-          whole department. Not "best sellers": nothing is flagged as one
-          and there is no sales history to rank by, so that rail rendered
-          empty. Alfred's finder sits between the rows as a convenience
-          rather than a headline, and the page closes on the shop itself:
+          televisions — each a row of real stock with prices and a link to
+          the whole department, biggest first. Not "best sellers": nothing
+          is flagged as one and there is no sales history to rank by, so
+          that rail rendered empty. The page closes on the shop itself:
           address, phone, the registered company.
 
           Same order at every width; nothing rotates on its own. */}
-      <ShopHero
+      <HeroBand
         title={hero?.title || "מוצרי חשמל מיבואן רשמי, במחיר טוב"}
         subtitle={hero?.subtitle || "משלוח עד הבית, אחריות יבואן רשמי ושירות לקוחות אמיתי"}
         ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
         ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
-        departments={heroDepartments}
-        categoryTiles={categoryTiles}
+        departments={departmentCounts}
+        featureImage={feature?.imageUrl ?? null}
+        featureLabel={feature?.name ?? null}
+        deals={deals}
         productCount={catalog.products}
         brandCount={catalog.brands}
       />
 
-      <DepartmentChips />
+      <UspBar />
 
       <BrandStrip brands={brands} />
 
@@ -125,20 +135,7 @@ export default async function HomePage() {
 
       <CategoryGrid tiles={categoryTiles} />
 
-      {laterShowcases.slice(0, 2).map((d) => (
-        <ProductRail
-          key={d.slug}
-          title={d.name}
-          subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
-          products={d.products}
-          viewAllHref={`/category/${d.slug}`}
-          viewAllLabel={`לכל ${d.name}`}
-        />
-      ))}
-
-      <FinderTeaser />
-
-      {laterShowcases.slice(2).map((d) => (
+      {laterShowcases.map((d) => (
         <ProductRail
           key={d.slug}
           title={d.name}

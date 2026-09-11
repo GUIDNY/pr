@@ -35,22 +35,19 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 /**
- * Every department, in one row, directly under the hero.
- *
- * Replaces a marquee of stock photographs of kitchens that scrolled by on
- * its own. Two findings behind the change: shoppers underestimate what a
- * shop sells unless its front page shows the breadth of it, and a strip
- * that moves on its own is the one homepage element users reliably fail to
- * use. This one holds still, names each department in words, and gives a
- * phone a row it can flick through.
+ * Every department as a chip in one scrollable row — the phone's version
+ * of the vertical department menu that sits beside the banner on a
+ * desktop (DepartmentMenu). Holds still, names each department in words,
+ * and is the first thing under the header, so the breadth of the shop is
+ * read before anything else.
  */
 export async function DepartmentChips() {
   const departments = await getNavigableCategoryTree();
   if (departments.length === 0) return null;
 
   return (
-    <nav aria-label="מחלקות" className="border-border border-b">
-      <ul className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] sm:flex-wrap sm:justify-center sm:py-4 [&::-webkit-scrollbar]:hidden">
+    <nav aria-label="מחלקות" className="-mx-4 mb-3">
+      <ul className="flex gap-2 overflow-x-auto px-4 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {departments.map((dept) => {
           const Icon = ICONS[DEPARTMENT_ICON_MAP[dept.slug]] ?? Package;
           return (
