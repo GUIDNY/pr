@@ -12,7 +12,7 @@ import { isBackOffice } from "@/lib/permissions";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +22,7 @@ export default function AdminLoginPage() {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await loginAction({ email, password });
+      const result = await loginAction({ identifier, password });
       if (!result.success) {
         setError(result.error ?? "שגיאה בהתחברות");
         return;
@@ -53,16 +53,15 @@ export default function AdminLoginPage() {
 
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="email" className="mb-1.5">אימייל</Label>
+            <Label htmlFor="identifier" className="mb-1.5">אימייל או טלפון</Label>
             <Input
-              id="email"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
+              id="identifier"
+              type="text"
+              autoComplete="username"
               dir="ltr"
               className="h-11 text-start"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
               autoFocus
             />

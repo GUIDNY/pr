@@ -3,9 +3,12 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession, createSession, clearSession, hashPassword, verifyPassword } from "@/lib/auth";
+import { looksLikePhone, normalizeIsraeliPhone } from "@/lib/phone";
 
+/* One field, two kinds of answer. It cannot be z.email() any more, so the
+   shape of what was typed is worked out below instead of rejected here. */
 const loginSchema = z.object({
-  email: z.email("כתובת אימייל לא תקינה"),
+  identifier: z.string().trim().min(1, "יש להזין אימייל או טלפון"),
   password: z.string().min(1, "יש להזין סיסמה"),
 });
 
@@ -52,15 +55,52 @@ async function claimGuestOrders(userId: string, email: string) {
   });
 }
 
-export async function loginAction(input: { email: string; password: string }) {
+/**
+ * Signing in with an email address or a phone number.
+ *
+ * The field used to accept an address only, which is not how people here
+ * identify themselves — the first thing typed into it on the live site was a
+ * mobile number. The column was already there and already filled; nothing
+ * was looking at it.
+ *
+ * Phone is the awkward half, and the awkwardness is real rather than
+ * theoretical: User.phone is not unique, and on this database one number
+ * already sits on two accounts. So the phone path refuses whenever it
+ * matches more than one, and says to use the email instead. Picking "the
+ * first" would mean a number shared by two people signs one of them into
+ * the other's account, and which one depends on row order.
+ *
+ * Both failures answer with the same sentence. An error that distinguishes
+ * "no such account" from "wrong password" tells anybody who asks which
+ * addresses and numbers are registered here.
+ */
+export async function loginAction(input: { identifier: string; password: string }) {
   const parsed = loginSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
-  const user = await db.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
-  if (!user) return { success: false, error: "אימייל או סיסמה שגויים" };
+  const { identifier, password } = parsed.data;
+  const WRONG = { success: false as const, error: "הפרטים שהוזנו אינם נכונים" };
 
-  const valid = await verifyPassword(parsed.data.password, user.passwordHash);
-  if (!valid) return { success: false, error: "אימייל או סיסמה שגויים" };
+  let user;
+  if (looksLikePhone(identifier)) {
+    const phone = normalizeIsraeliPhone(identifier);
+    if (!phone) return WRONG;
+    const matches = await db.user.findMany({ where: { phone }, take: 2 });
+    if (matches.length > 1) {
+      return {
+        success: false as const,
+        error: "מספר הטלפון הזה רשום על יותר מחשבון אחד. אפשר להתחבר עם כתובת המייל.",
+      };
+    }
+    user = matches[0];
+  } else {
+    user = await db.user.findUnique({ where: { email: identifier.toLowerCase() } });
+  }
+
+  if (!user) return WRONG;
+
+  const valid = await verifyPassword(password, user.passwordHash);
+  if (!valid) return WRONG;
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
   await claimGuestOrders(user.id, user.email);
@@ -77,7 +117,15 @@ export async function registerAction(input: { name: string; email: string; phone
 
   const passwordHash = await hashPassword(parsed.data.password);
   const user = await db.user.create({
-    data: { name: parsed.data.name, email, phone: parsed.data.phone, passwordHash, role: "CUSTOMER" },
+    /* Stored in the canonical form so that signing in with the same number
+       written differently still finds this row. */
+    data: {
+      name: parsed.data.name,
+      email,
+      phone: normalizeIsraeliPhone(parsed.data.phone) ?? parsed.data.phone,
+      passwordHash,
+      role: "CUSTOMER",
+    },
   });
 
   await createSession({ sub: user.id, role: "CUSTOMER", name: user.name });

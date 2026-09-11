@@ -35,7 +35,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/account";
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +45,7 @@ function LoginForm() {
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const result = await loginAction({ email, password });
+      const result = await loginAction({ identifier, password });
       if (!result.success) {
         setError(result.error ?? "שגיאה בהתחברות");
         return;
@@ -69,24 +69,26 @@ function LoginForm() {
           />
           <h1 className="text-2xl font-black tracking-tight">התחברות לחשבון</h1>
           <p className="text-muted-foreground mt-1.5 text-sm">
-            כדי לראות את ההזמנות, הכתובות והמוצרים ששמרתם
+אפשר להתחבר עם כתובת המייל או עם מספר הטלפון
           </p>
         </div>
 
         <form onSubmit={submit} className="flex flex-col gap-4">
           <div>
-            <Label htmlFor="email" className="mb-1.5">
-              אימייל
+            <Label htmlFor="identifier" className="mb-1.5">
+              אימייל או טלפון
             </Label>
+            {/* type="text", not "email": the browser would reject a phone
+                number before the form was ever submitted. */}
             <Input
-              id="email"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
+              id="identifier"
+              type="text"
+              autoComplete="username"
               dir="ltr"
               className="h-11 text-start"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com או 050-0000000"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
               required
               autoFocus
             />
