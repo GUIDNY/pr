@@ -18,12 +18,11 @@ const GREETING: Message = {
 };
 
 export function AlfredChatWidget() {
-  // The home page already gives Alfred two prominent touchpoints of its
-  // own (the hero search panel and the dedicated Alfred section below it)
-  // — a third floating avatar competing for attention on top of those was
-  // exactly the kind of mobile clutter this redesign pass is removing.
-  // Every other mobile page keeps the launcher exactly as before; desktop
-  // is untouched everywhere, including the home page.
+  // The home page's hero already carries Alfred's search bar with his
+  // face beside it, and a floating avatar competing for attention on top
+  // of that was exactly the kind of mobile clutter this redesign pass is
+  // removing. Every other mobile page keeps the launcher exactly
+  // as before; desktop is untouched everywhere, including the home page.
   const pathname = usePathname();
   const isHome = pathname === "/";
   // Alfred sells to customers. In the back office he is a face floating over

@@ -11,15 +11,20 @@ import type { CategoryTile } from "@/lib/queries/categories";
 // hand-corrected miscategorized ones).
 export function CategoryGrid({ tiles }: { tiles: CategoryTile[] }) {
   if (tiles.length === 0) return null;
+  // Two rows on a desktop, six on a phone. The full list ran to five
+  // desktop rows of tiles between the visitor and the first product rail;
+  // the department row above and the mega menu already reach every
+  // category, so this is a sampler, not the index.
+  const shown = tiles.slice(0, 18);
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-6 sm:py-10">
-      <h2 className="mb-4 text-xl font-bold sm:mb-6 sm:text-2xl">כל הקטגוריות</h2>
+      <h2 className="mb-4 text-xl font-bold sm:mb-6 sm:text-2xl">קנייה לפי קטגוריה</h2>
       {/* Desktop deliberately denser/smaller than mobile — 6 then 9 columns
           instead of 4 then 6, closer to a compact icon-grid than big
           tiles. Mobile's own 3-column size is untouched. */}
       <div className="grid grid-cols-3 gap-x-2 gap-y-5 sm:grid-cols-6 sm:gap-x-3 sm:gap-y-6 lg:grid-cols-9">
-        {tiles.map((tile) => (
+        {shown.map((tile) => (
           <Link
             key={tile.slug}
             href={`/category/${tile.slug}`}

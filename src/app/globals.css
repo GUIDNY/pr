@@ -219,26 +219,6 @@
   animation: appliance-shadow 1.1s ease-in-out infinite;
 }
 
-@keyframes brand-marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(50%); }
-}
-
-.animate-brand-marquee {
-  animation: brand-marquee 28s linear infinite;
-}
-
-@keyframes category-marquee {
-  from { transform: translateX(0); }
-  to { transform: translateX(50%); }
-}
-
-.animate-category-marquee {
-  /* Wider tiles than the brand strip, so a slower duration keeps the
-     visual scroll speed (px/s) comparable rather than feeling rushed. */
-  animation: category-marquee 45s linear infinite;
-}
-
 /* ---------------------------------------------------------------------------
    תפריט נגישות — the visual side of AccessibilityWidget.
 
