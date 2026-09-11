@@ -40,6 +40,11 @@ type CapacitorConfig = {
     allowNavigation?: string[];
   };
   ios?: { contentInset?: string; limitsNavigationsToAppBoundDomains?: boolean };
+  plugins?: {
+    SocialLogin?: {
+      providers?: { google?: boolean; apple?: boolean; facebook?: boolean; twitter?: boolean };
+    };
+  };
 };
 
 const config: CapacitorConfig = {
@@ -89,6 +94,28 @@ const config: CapacitorConfig = {
       "gateway20.pelecard.biz",
       "appleid.apple.com",
     ],
+  },
+
+  /* @capgo/capacitor-social-login ships every provider it supports unless told
+     otherwise, and its default includes Facebook — which links Meta's iOS SDK
+     into the binary. This app's App Store privacy answer states in as many
+     words that it contains no Meta SDK and does no tracking, and that has to
+     stay true of the thing Apple actually receives, not only of the code we
+     wrote. `false` here compiles the provider out rather than merely leaving
+     it unused.
+     
+     Google is the only one this plugin is installed for. Apple's sheet comes
+     from @capacitor-community/apple-sign-in, and Twitter is not offered
+     anywhere in the shop. */
+  plugins: {
+    SocialLogin: {
+      providers: {
+        google: true,
+        apple: false,
+        facebook: false,
+        twitter: false,
+      },
+    },
   },
 
   ios: {
