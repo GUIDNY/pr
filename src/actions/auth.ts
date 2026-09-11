@@ -1,12 +1,15 @@
 "use server";
 
 import { z } from "zod";
-import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getSession, createSession, clearSession, hashPassword, verifyPassword } from "@/lib/auth";
+import { looksLikePhone, normalizeIsraeliPhone } from "@/lib/phone";
+import { consumeResetToken, requestPasswordReset } from "@/lib/password-reset";
 
+/* One field, two kinds of answer. It cannot be z.email() any more, so the
+   shape of what was typed is worked out below instead of rejected here. */
 const loginSchema = z.object({
-  email: z.email("כתובת אימייל לא תקינה"),
+  identifier: z.string().trim().min(1, "יש להזין אימייל או טלפון"),
   password: z.string().min(1, "יש להזין סיסמה"),
 });
 
@@ -38,20 +41,67 @@ const registerSchema = z.object({
  */
 async function claimGuestOrders(userId: string, email: string) {
   await db.order.updateMany({
-    where: { userId: null, guestEmail: { equals: email, mode: "insensitive" } },
+    where: {
+      userId: null,
+      guestEmail: { equals: email, mode: "insensitive" },
+      /* Except the orders of an account that was deleted. Deletion detaches
+         them and copies the customer's contact details into the very guest
+         fields this matches on, so without this they would be handed back to
+         whoever registers that address next — most likely the same person,
+         which quietly returns the history they asked us to close the door on,
+         and otherwise a stranger who happens to reuse the address. */
+      ownerDeletedAt: null,
+    },
     data: { userId },
   });
 }
 
-export async function loginAction(input: { email: string; password: string }) {
+/**
+ * Signing in with an email address or a phone number.
+ *
+ * The field used to accept an address only, which is not how people here
+ * identify themselves — the first thing typed into it on the live site was a
+ * mobile number. The column was already there and already filled; nothing
+ * was looking at it.
+ *
+ * Phone is the awkward half, and the awkwardness is real rather than
+ * theoretical: User.phone is not unique, and on this database one number
+ * already sits on two accounts. So the phone path refuses whenever it
+ * matches more than one, and says to use the email instead. Picking "the
+ * first" would mean a number shared by two people signs one of them into
+ * the other's account, and which one depends on row order.
+ *
+ * Both failures answer with the same sentence. An error that distinguishes
+ * "no such account" from "wrong password" tells anybody who asks which
+ * addresses and numbers are registered here.
+ */
+export async function loginAction(input: { identifier: string; password: string }) {
   const parsed = loginSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
-  const user = await db.user.findUnique({ where: { email: parsed.data.email.toLowerCase() } });
-  if (!user) return { success: false, error: "אימייל או סיסמה שגויים" };
+  const { identifier, password } = parsed.data;
+  const WRONG = { success: false as const, error: "הפרטים שהוזנו אינם נכונים" };
 
-  const valid = await verifyPassword(parsed.data.password, user.passwordHash);
-  if (!valid) return { success: false, error: "אימייל או סיסמה שגויים" };
+  let user;
+  if (looksLikePhone(identifier)) {
+    const phone = normalizeIsraeliPhone(identifier);
+    if (!phone) return WRONG;
+    const matches = await db.user.findMany({ where: { phone }, take: 2 });
+    if (matches.length > 1) {
+      return {
+        success: false as const,
+        error: "מספר הטלפון הזה רשום על יותר מחשבון אחד. אפשר להתחבר עם כתובת המייל.",
+      };
+    }
+    user = matches[0];
+  } else {
+    user = await db.user.findUnique({ where: { email: identifier.toLowerCase() } });
+  }
+
+  if (!user) return WRONG;
+
+  const valid = await verifyPassword(password, user.passwordHash);
+  if (!valid) return WRONG;
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
   await claimGuestOrders(user.id, user.email);
@@ -68,7 +118,15 @@ export async function registerAction(input: { name: string; email: string; phone
 
   const passwordHash = await hashPassword(parsed.data.password);
   const user = await db.user.create({
-    data: { name: parsed.data.name, email, phone: parsed.data.phone, passwordHash, role: "CUSTOMER" },
+    /* Stored in the canonical form so that signing in with the same number
+       written differently still finds this row. */
+    data: {
+      name: parsed.data.name,
+      email,
+      phone: normalizeIsraeliPhone(parsed.data.phone) ?? parsed.data.phone,
+      passwordHash,
+      role: "CUSTOMER",
+    },
   });
 
   await createSession({ sub: user.id, role: "CUSTOMER", name: user.name });
@@ -76,9 +134,132 @@ export async function registerAction(input: { name: string; email: string; phone
   return { success: true, error: null };
 }
 
+const setPasswordSchema = z.object({
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(6, "הסיסמה חייבת להכיל לפחות 6 תווים"),
+});
+
+/**
+ * Choosing a password, or replacing one.
+ *
+ * Two jobs behind one form, and which one it does is decided by the account
+ * rather than by what the form sent:
+ *
+ *   An account that has a password must prove the current one. Otherwise
+ *   anybody who finds a signed-in browser unattended takes the account for
+ *   good — changing the password is how you lock the owner out of their own
+ *   order history.
+ *
+ *   An account created through Google has no password to prove. Demanding
+ *   one would be asking for something that does not exist, and the random
+ *   bytes standing in for it cannot be typed. Being signed in is the proof
+ *   here, and it is the same proof Google just gave.
+ *
+ * The distinction comes from User.hasPassword and never from whether the
+ * form filled the field in — a client that simply omits currentPassword must
+ * not be able to skip the check.
+ */
+export async function setPasswordAction(input: { currentPassword?: string; newPassword: string }) {
+  const session = await getSession();
+  if (!session) return { success: false, error: "צריך להתחבר מחדש" };
+
+  const parsed = setPasswordSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
+
+  const user = await db.user.findUnique({ where: { id: session.sub } });
+  if (!user) return { success: false, error: "צריך להתחבר מחדש" };
+
+  if (user.hasPassword) {
+    const current = parsed.data.currentPassword ?? "";
+    if (!current) return { success: false, error: "יש להזין את הסיסמה הנוכחית" };
+    const valid = await verifyPassword(current, user.passwordHash);
+    if (!valid) return { success: false, error: "הסיסמה הנוכחית אינה נכונה" };
+  }
+
+  await db.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await hashPassword(parsed.data.newPassword), hasPassword: true },
+  });
+
+  return { success: true, error: null };
+}
+
+/** Does this account have a password, or only Google? The form asks before it renders. */
+export async function accountHasPassword(): Promise<boolean> {
+  const session = await getSession();
+  if (!session) return true;
+  const user = await db.user.findUnique({ where: { id: session.sub }, select: { hasPassword: true } });
+  return user?.hasPassword ?? true;
+}
+
+const forgotSchema = z.object({ email: z.email("כתובת אימייל לא תקינה") });
+
+/**
+ * "שלחו לי קישור לאיפוס".
+ *
+ * Always answers the same way. Telling somebody "no such address" turns
+ * this form into a way to find out which addresses shop here, one guess at
+ * a time — and the people most worth protecting from that are the ones who
+ * would never think to ask.
+ *
+ * By email only, and not by phone, even though signing in now accepts a
+ * phone. A reset has to travel to something the shop can prove the person
+ * controls, and there is no SMS provider connected here. Sending a reset
+ * link over a channel the shop cannot reach is not a feature.
+ */
+export async function forgotPasswordAction(input: { email: string }) {
+  const parsed = forgotSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
+
+  await requestPasswordReset(parsed.data.email);
+  return { success: true, error: null };
+}
+
+const resetSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(6, "הסיסמה חייבת להכיל לפחות 6 תווים"),
+});
+
+const RESET_FAILURES: Record<string, string> = {
+  invalid: "הקישור אינו תקין. אפשר לבקש קישור חדש.",
+  expired: "הקישור פג תוקף. אפשר לבקש קישור חדש.",
+  used: "כבר השתמשת בקישור הזה. אפשר לבקש קישור חדש.",
+};
+
+/**
+ * Set the password from a reset link, and sign the person in.
+ *
+ * Signing them in adds no risk worth weighing: whoever holds the link can
+ * already set the password and then sign in with it, so refusing to would
+ * only add a step for the person who legitimately asked.
+ */
+export async function resetPasswordAction(input: { token: string; newPassword: string }) {
+  const parsed = resetSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
+
+  const hash = await hashPassword(parsed.data.newPassword);
+  const outcome = await consumeResetToken(parsed.data.token, hash);
+  if (!outcome.ok) return { success: false, error: RESET_FAILURES[outcome.reason] };
+
+  const user = await db.user.findUnique({ where: { id: outcome.userId } });
+  if (!user) return { success: false, error: "החשבון לא נמצא" };
+
+  await createSession({ sub: user.id, role: user.role as never, name: user.name });
+  await claimGuestOrders(user.id, user.email);
+  return { success: true, error: null };
+}
+
+/**
+ * Clears the session, and deliberately does not redirect.
+ *
+ * It used to end with redirect("/"), which is a client-side navigation — so
+ * the React tree survived it and the header kept the name, the cart badge
+ * and the filled hearts it had already fetched. LogoutButton sends the
+ * browser to "/" itself, as a real page load, which is the only way to be
+ * sure nothing of the last session is still on screen.
+ */
 export async function logoutAction() {
   await clearSession();
-  redirect("/");
 }
 
 const deleteAccountSchema = z.object({
@@ -108,12 +289,19 @@ const deleteAccountSchema = z.object({
  * same as the account's owner standing there — and this is the one action in
  * the shop with nothing to undo it with.
  *
- * Copying the email has a consequence worth stating: claimGuestOrders above
+ * Copying the email would otherwise undo half of this. claimGuestOrders above
  * gives every ownerless order with a matching email to whoever next signs in
- * with it, so registering again with the same address brings this history
- * back. That is the same person by the same proof the order-tracking page
- * already accepts, so it is left as it is — and the deletion page says it in
- * as many words rather than promising a break it does not make.
+ * with it, and a detached order is ownerless with that email written on it —
+ * so registering again with the same address brought the whole history back.
+ *
+ * It was argued that this is the same person by the same proof the
+ * order-tracking page already accepts, and disclosed on the deletion page
+ * instead of being changed. What that argument misses is the address that
+ * outlives its owner: a work address reassigned, a provider recycling a
+ * mailbox. Whoever registers it next is not the same person, and what they
+ * would receive is somebody's name, phone and delivery address. So the orders
+ * this detaches are stamped with ownerDeletedAt and the claim skips them; the
+ * break is real, and the deletion page now says that instead.
  *
  * Staff and admins are refused. Their accounts own audit trails, order notes
  * and sync history, and the storefront is not where an operator account should
@@ -139,7 +327,14 @@ export async function deleteAccountAction(input: { password: string }) {
   await db.$transaction([
     db.order.updateMany({
       where: { userId: user.id },
-      data: { guestName: user.name, guestEmail: user.email, guestPhone: user.phone },
+      data: {
+        guestName: user.name,
+        guestEmail: user.email,
+        guestPhone: user.phone,
+        // Marks these as detached by a deletion rather than placed as a guest,
+        // so registering this email again never claims them back.
+        ownerDeletedAt: new Date(),
+      },
     }),
     db.user.delete({ where: { id: user.id } }),
   ]);

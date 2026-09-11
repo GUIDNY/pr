@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { submitSupportRequestAction } from "@/actions/support";
+import { BUSINESS } from "@/lib/business";
 
 export function ConsultSection({ productTitle }: { productTitle: string }) {
   const [open, setOpen] = useState(false);
@@ -22,8 +23,8 @@ export function ConsultSection({ productTitle }: { productTitle: string }) {
 
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" asChild className="gap-1.5">
-          <a href="tel:04-6639510">
-            <PhoneCall className="size-4" /> 04-6639510
+          <a href={BUSINESS.phoneHref}>
+            <PhoneCall className="size-4" /> {BUSINESS.phone}
           </a>
         </Button>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setOpen((v) => !v)}>

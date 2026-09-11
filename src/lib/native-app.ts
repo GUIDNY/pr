@@ -6,14 +6,24 @@ import { useSyncExternalStore } from "react";
  * Whether this page is being rendered inside the iOS/Android app rather than
  * in a browser.
  *
- * It exists for one decision: the Meta pixel does not run in the app. Apple
- * counts sending a customer's activity to Meta as "tracking" — the pixel
- * receives viewed SKUs, search strings, cart values and purchase amounts (see
- * lib/analytics/meta.ts) — and an app that tracks has to declare it and put
- * the App Tracking Transparency prompt in front of every customer before any
- * of it fires. Most people decline that prompt, so the attribution is lost
- * either way; what is left is a permission dialog on first launch, a native
- * plugin, and a declaration that has to keep matching the code forever.
+ * It exists so two third-party scripts stay out of the app. Apple counts
+ * sending a customer's activity to another company for advertising as
+ * "tracking", and an app that tracks has to declare it and put the App
+ * Tracking Transparency prompt in front of every customer before any of it
+ * fires. Most people decline that prompt, so the attribution is lost either
+ * way; what is left is a permission dialog on first launch, a native plugin,
+ * and a declaration that has to keep matching the code forever.
+ *
+ * The Meta pixel is the clear case: it receives viewed SKUs, search strings,
+ * cart values and purchase amounts (lib/analytics/meta.ts). Microsoft Clarity
+ * is the careful one — session replay rather than advertising, but Microsoft
+ * documents it as able to set MUID, their cross-site identifier, which they
+ * also use for advertising. It is a cookie this codebase neither controls nor
+ * can enumerate, and "no cookie in the app is used for tracking" should be
+ * true by construction rather than by trusting somebody's defaults.
+ *
+ * Google Analytics stays in both places: first-party cookie only, no Google
+ * Ads link, Google Signals disabled.
  *
  * Leaving the pixel out of the app makes "does this app track you" a plain no,
  * and a privacy label is only worth anything when it is true. The web keeps

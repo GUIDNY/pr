@@ -13,6 +13,12 @@ import {
   type PaymentStatus,
 } from "@/lib/enums";
 import { formatPrice, formatDateTime } from "@/lib/format";
+import { requireBackOffice } from "@/lib/auth";
+import { canManageCatalog } from "@/lib/permissions";
+import { getSellerOrdersByStage, getSellerStageCounts } from "@/lib/queries/seller-orders";
+import { SellerOrderRow } from "@/components/admin/seller-order-row";
+import { OrderStageTabs } from "@/components/admin/order-stage-tabs";
+import { isStage, STAGE_HINTS } from "@/lib/order-stage";
 
 export const metadata = { title: "הזמנות | Buy Today Admin" };
 
@@ -34,6 +40,38 @@ export default async function AdminOrdersPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  /* Two different pages behind one address, and the address is the reason.
+     A salesperson and a manager both mean "the orders" when they say it, and
+     giving the seller /admin/seller-orders would put a second URL for the
+     same thing into every link, bookmark and revalidatePath in the app. What
+     differs is what each of them needs to see, so that is what branches. */
+  const session = await requireBackOffice();
+  if (!canManageCatalog(session.role)) {
+    const sp = await searchParams;
+    const stage = isStage(sp.stage) ? sp.stage : "open";
+    const [orders, counts] = await Promise.all([
+      getSellerOrdersByStage(stage),
+      getSellerStageCounts(),
+    ]);
+    return (
+      <div className="flex flex-col gap-4">
+        <OrderStageTabs active={stage} counts={counts} />
+        <p className="text-muted-foreground text-sm">{STAGE_HINTS[stage]}</p>
+        {orders.length === 0 ? (
+          <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">
+            אין כאן הזמנות כרגע.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {orders.map((order) => (
+              <SellerOrderRow key={order.id} order={order} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   const sp = await searchParams;
   const page = Number(sp.page) || 1;
   const status = (sp.status as OrderStatus) ?? "ALL";

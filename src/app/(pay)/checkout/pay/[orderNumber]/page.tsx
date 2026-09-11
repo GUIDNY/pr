@@ -5,6 +5,9 @@ import { getSession, getCurrentUser } from "@/lib/auth";
 import { openPelecardPayment } from "@/lib/pelecard/open-payment";
 import { formatPrice } from "@/lib/format";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
+import { canManageCatalog } from "@/lib/permissions";
+import { customerHasPaid } from "@/lib/order-signal";
+import { BUSINESS } from "@/lib/business";
 
 export const metadata = { title: "תשלום מאובטח", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -42,7 +45,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
 
   // An order already paid for has no business opening a second payment, and
   // sending the customer back to the form would invite exactly that.
-  if (order.paymentStatus === "CAPTURED") {
+  if (customerHasPaid(order.paymentStatus)) {
     return <Settled orderNumber={order.orderNumber} />;
   }
 
@@ -57,7 +60,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
   const isTestOrder = /^(TEST|LIVETEST)-/.test(order.orderNumber);
   if (isTestOrder) {
     const session = await getSession();
-    if (session?.role !== "ADMIN" && session?.role !== "STAFF") {
+    if (!canManageCatalog(session?.role)) {
       return <OrderNotFound orderNumber={orderNumber} />;
     }
   }
@@ -65,7 +68,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
   const viewer = await getCurrentUser();
   const opened = await openPelecardPayment(order.id, {
     lane: isTestOrder ? "test" : "customer",
-    sessionEmail: viewer?.email,
+    viewer,
   });
 
   return (
@@ -135,8 +138,8 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
               <Phone className="text-brand mt-0.5 size-3.5 shrink-0" aria-hidden />
               <span>
                 נתקעתם?{" "}
-                <a href="tel:04-6639510" className="text-brand font-medium underline underline-offset-2">
-                  04-6639510
+                <a href={BUSINESS.phoneHref} className="text-brand font-medium underline underline-offset-2">
+                  {BUSINESS.phone}
                 </a>
               </span>
             </p>
@@ -165,8 +168,8 @@ function OrderNotFound({ orderNumber }: { orderNumber: string }) {
         <Link href="/track-order" className="bg-brand text-brand-foreground rounded-lg px-4 py-2 text-sm font-medium">
           מעקב אחר הזמנה
         </Link>
-        <a href="tel:04-6639510" className="border-border rounded-lg border px-4 py-2 text-sm font-medium">
-          04-6639510
+        <a href={BUSINESS.phoneHref} className="border-border rounded-lg border px-4 py-2 text-sm font-medium">
+          {BUSINESS.phone}
         </a>
       </div>
     </div>
@@ -207,8 +210,8 @@ function FrameFailed({ reason, orderNumber }: { reason: string; orderNumber: str
           <RotateCcw className="size-4" aria-hidden />
           ניסיון נוסף
         </Link>
-        <a href="tel:04-6639510" className="border-border rounded-lg border px-4 py-2 text-sm font-medium">
-          04-6639510
+        <a href={BUSINESS.phoneHref} className="border-border rounded-lg border px-4 py-2 text-sm font-medium">
+          {BUSINESS.phone}
         </a>
       </div>
       <p className="text-muted-foreground/70 font-mono text-[0.7rem]" dir="ltr">

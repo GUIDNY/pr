@@ -282,7 +282,11 @@ export const ENRICHMENT_STATUS_LABELS: Record<EnrichmentStatus, string> = {
   NEEDS_REVIEW: "דורש בדיקה",
 };
 
-export const USER_ROLES = ["CUSTOMER", "ADMIN", "STAFF"] as const;
+// SELLER is the back office without the shop attached to it: orders, and
+// nothing else. ADMIN and STAFF are still the same thing as each other and
+// see everything — see lib/permissions.ts, which is the only place that
+// decides what a role may reach.
+export const USER_ROLES = ["CUSTOMER", "ADMIN", "STAFF", "SELLER"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 export const userRoleSchema = z.enum(USER_ROLES);
 

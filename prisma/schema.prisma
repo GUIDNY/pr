@@ -16,6 +16,24 @@ datasource db {
   provider = "postgresql"
 }
 
+/// One-time links for "I forgot my password".
+///
+/// The token itself is never stored — only its SHA-256. What is emailed
+/// exists in the customer's inbox and nowhere else, so a copy of this table
+/// is a list of hashes and a hash cannot be pasted into a URL.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 // ---------- Identity ----------
 
 model User {
@@ -23,6 +41,11 @@ model User {
   email        String   @unique
   phone        String?
   passwordHash String
+  /// Whether the owner has chosen a password. False for accounts created
+  /// through Google: passwordHash holds random bytes so the column is
+  /// satisfied, and nothing anybody can type will match it. The account page
+  /// reads this to offer "set a password" instead of "change password".
+  hasPassword  Boolean  @default(true)
   name         String
   role         String   @default("CUSTOMER") // CUSTOMER | ADMIN | STAFF
   createdAt    DateTime @default(now())
@@ -38,6 +61,7 @@ model User {
   statusChanges     OrderStatusHistory[] @relation("StatusChangedBy")
   assignedOrders    Order[]              @relation("AssignedEmployee")
   auditLogs         AuditLog[]
+  passwordResets    PasswordResetToken[]
   uploadedSources   InventorySource[]    @relation("SourceUploadedBy")
   triggeredSyncRuns InventorySyncRun[]   @relation("SyncTriggeredBy")
   resolvedAlerts    InventoryAlert[]     @relation("AlertResolvedBy")
@@ -457,6 +481,11 @@ model Order {
   shipStreet         String?
   shipHouseNo        String?
   shipApartment      String?
+  // Set when the account that placed this order closed it. The row then looks
+  // exactly like a guest order — userId null, contact details in the guest
+  // fields — and this is the only thing that tells them apart, so registering
+  // that email again never hands these back. See claimGuestOrders.
+  ownerDeletedAt     DateTime?
   addressId          String?
   address            Address?  @relation(fields: [addressId], references: [id])
   deliveryMethod     String    @default("DELIVERY") // DELIVERY | PICKUP
@@ -480,14 +509,54 @@ model Order {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // ---------- Delivery, once it has left ----------
+  // Written when the order is marked shipped. trackingUrl is stored rather
+  // than built from the number: every courier has a different address for it
+  // and some have none, and a link built from a pattern is a link that 404s
+  // in front of a customer.
+  courierName    String?
+  trackingNumber String?
+  trackingUrl    String?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+
   items         OrderItem[]
   payments      Payment[]
   statusHistory OrderStatusHistory[]
   notes         OrderNote[]
+  notifications OrderNotification[]
 
   @@index([status])
   @@index([userId])
   complaints         Complaint[]
+}
+
+/// Every message the shop sent a customer about an order, and every one it
+/// tried to send and could not.
+///
+/// A log and not a queue. What it buys is the answer to "did the customer
+/// ever hear about this", which is the first question asked when one rings
+/// up confused — and without a row it can only be guessed at. A failure is
+/// as much worth keeping as a success: a WhatsApp that never went is the
+/// reason the customer is on the phone.
+///
+/// The unique index on (orderId, channel, event) is the thing that stops a
+/// retried action from texting somebody twice. Sending late is a nuisance;
+/// sending twice is what makes people mute a shop.
+model OrderNotification {
+  id        String    @id @default(cuid())
+  orderId   String
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  channel   String // EMAIL | SMS | WHATSAPP
+  event     String // ORDER_RECEIVED | PAYMENT_APPROVED | SHIPPED | DELIVERED
+  recipient String?
+  status    String    @default("QUEUED") // QUEUED | SENT | FAILED | SKIPPED
+  error     String?
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@unique([orderId, channel, event])
+  @@index([orderId])
 }
 
 model OrderItem {
@@ -537,8 +606,25 @@ model Payment {
   rawResponse           Json? // the full exchange, for the day something is disputed
   updatedAt             DateTime? @updatedAt
 
+  // ---------- J5: money held, not yet taken ----------
+  // The handle Pelecard's CompleteDebitByUid needs to turn this hold into a
+  // charge. Without it the hold cannot be collected at all — the money sits
+  // frozen on the customer's card until it lapses — so a hold that arrives
+  // without one raises an alert rather than being filed quietly.
+  authorizationUid String?
+  authorizedAt     DateTime?
+  capturedAt       DateTime?
+  // A hold is not open-ended. What the window actually is comes from the
+  // card networks via Pelecard, not from us, so it is stored per payment
+  // rather than assumed: PELECARD_HOLD_DAYS sets it and the default is
+  // conservative on purpose — expiring early costs a phone call, expiring
+  // late costs the sale.
+  holdExpiresAt    DateTime?
+
   @@index([pelecardTransactionId])
   @@index([orderId])
+  @@index([authorizationUid])
+  @@index([status, holdExpiresAt])
 }
 
 model OrderStatusHistory {

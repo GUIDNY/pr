@@ -6,9 +6,15 @@ import {
   getTransaction,
   normalizeFeedback,
   CLEARERS,
+  holdThenCapture,
+  holdDays,
+  authorizationUidFrom,
   type PelecardFeedback,
 } from "@/lib/pelecard/client";
 import { pelecardConfig, callbackSecret } from "@/lib/pelecard/config";
+import { customerHasPaid } from "@/lib/order-signal";
+import { notifyOrder } from "@/lib/notify";
+import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -146,7 +152,7 @@ export async function POST(req: Request) {
 
   // 2. Idempotency. Pelecard may deliver the same callback twice, and a retry
   //    must not produce a second payment record or a second status entry.
-  if (order.paymentStatus === "CAPTURED") return NextResponse.json({ ok: true });
+  if (customerHasPaid(order.paymentStatus)) return NextResponse.json({ ok: true });
 
   const fail = async (reason: string, extra?: unknown) => {
     // Pelecard's own verdict, in our logs. `reason` is our summary of why we
@@ -173,7 +179,7 @@ export async function POST(req: Request) {
     const movesToFailed = order.status === "PAYMENT_PENDING" || order.status === "NEW";
     const details = feedback.ResultData ?? {};
 
-    await db.$transaction([
+  await db.$transaction([
       db.payment.update({
         where: { id: payment.id },
         data: {
@@ -246,6 +252,9 @@ export async function POST(req: Request) {
   if (!validation || (typeof validation === "object" && Object.keys(validation).length === 0)) {
     return fail("validation empty");
   }
+  if (readsAsRefusal(validation)) {
+    return fail("validation refused", validation);
+  }
 
   // 6. The full record, for the day a charge is disputed. The notification
   //    already carries most of it, so that is the starting point and
@@ -266,12 +275,51 @@ export async function POST(req: Request) {
 
   // 7. Paid. Status, payment record and history in one transaction — a
   //    half-written payment is worse than none.
+  /* A J5 authorisation is not a payment. The gateway reports both the same
+     way — an approved transaction — and the only thing that separates them is
+     what we asked it for, so this has to come from our own switch and never
+     from the feedback. Backwards, it marks held money as collected: the order
+     ships, the day's revenue counts it, and nobody ever presses the button
+     that actually takes it. */
+  const held = holdThenCapture();
+  const settled = held ? "AUTHORIZED" : "CAPTURED";
+  const orderStatus = held ? "NEW" : "PAID";
+
+  /* A hold we cannot name is a hold we cannot collect: CompleteDebitByUid
+     takes a uid and nothing else identifies the authorisation to Pelecard.
+     The money would sit frozen on the customer's card until it lapsed, and
+     nothing in the ordinary flow would ever say so — the order looks
+     perfectly normal, orange light and all.
+
+     So it is recorded and, when it is missing, shouted about with every key
+     the reply actually carried. That listing is deliberate: their field name
+     for this is not in the three endpoints this integration already speaks,
+     so the first hold in the sandbox is what tells us what to look for. */
+  const authorizationUid = held ? authorizationUidFrom(feedback) : null;
+  const holdExpiresAt = held ? new Date(Date.now() + holdDays() * 86_400_000) : null;
+  if (held && !authorizationUid) {
+    await db.inventoryAlert.create({
+      data: {
+        type: "MANUAL_URGENT",
+        severity: "CRITICAL",
+        sourceSku: order.orderNumber,
+        message:
+          `הזמנה ${order.orderNumber}: נתפסה מסגרת בכרטיס אבל לא נמצא מזהה תפיסה (UID) בתשובה של פלאקארד, ` +
+          `ולכן אי אפשר לגבות אותה מהממשק. השדות שחזרו: ${Object.keys(feedback.ResultData ?? {}).join(", ") || "אין"}. ` +
+          `צריך לזהות את שם השדה הנכון מול Hotels API Technical Guide ולהשלים את הגבייה ידנית מול פלאקארד.`,
+      },
+    });
+  }
+
   await db.$transaction([
     db.payment.update({
       where: { id: payment.id },
       data: {
-        status: "CAPTURED",
+        status: settled,
         environment,
+        ...(held
+          ? { authorizationUid, authorizedAt: new Date(), holdExpiresAt }
+          : { capturedAt: new Date() }),
         ...paymentColumns(feedback, details),
         reference: feedback.PelecardTransactionNumber ?? feedback.PelecardTransactionId ?? null,
         rawResponse: { feedback, rawBody, validation, details } as object,
@@ -279,17 +327,77 @@ export async function POST(req: Request) {
     }),
     db.order.update({
       where: { id: orderId },
-      data: { paymentStatus: "CAPTURED", paymentMethod: "PELECARD", status: "PAID" },
+      data: { paymentStatus: settled, paymentMethod: "PELECARD", status: orderStatus },
     }),
     db.orderStatusHistory.create({
       data: {
         orderId,
         fromStatus: order.status,
-        toStatus: "PAID",
-        note: `תשלום פלאקארד (${environment}) · אסמכתה ${feedback.PelecardTransactionId ?? "—"} · אישור ${feedback.ApprovalNo ?? "—"}`,
+        toStatus: orderStatus,
+        note: `${held ? "דפוזיט" : "תשלום"} פלאקארד (${environment}) · אסמכתה ${feedback.PelecardTransactionId ?? "—"} · אישור ${feedback.ApprovalNo ?? "—"}`,
       },
     }),
   ]);
 
+  /* Both mails go out here rather than at order creation, because on this
+     lane the order exists before the customer has paid: it is created, the
+     customer is sent to the gateway, and plenty of them never come back.
+     Alerting on that would fill the shop's inbox with abandoned carts and
+     tell a customer their order was received when it was not. The card
+     clearing is the moment the order is real. */
+  await notifyOrder(orderId, "ORDER_RECEIVED");
+  await notifyOwnerOfNewOrder(orderId);
+
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Whether Pelecard's answer to ValidateByUniqueKey is a NO.
+ *
+ * The check above it asks only whether the answer was empty, and an empty
+ * answer is what a forged notification gets: it carries a UniqueKey Pelecard
+ * has never issued, so there is nothing to confirm and the order is refused.
+ * That is the gate that matters and it holds.
+ *
+ * What it does not cover is Pelecard answering, and answering no. Their manual
+ * documents this call as returning 1 or 0, and a 0 is not empty — so a
+ * transaction their own validation rejects reads to the check above as
+ * confirmation, and the order is marked paid. An order packed and shipped
+ * against a payment the clearing company refused.
+ *
+ * The right fix is to require an affirmative, and it is not written yet for an
+ * honest reason: no transaction has ever completed against this terminal, so
+ * the exact shape of a YES is unknown. Requiring a shape guessed from the
+ * manual would fail every valid payment the day it is wrong, which is worse
+ * than what it replaces.
+ *
+ * So this is the half that can be written without seeing one: refuse every
+ * shape that is unambiguously a NO, and go on accepting the rest. It cannot
+ * reject a valid payment — nothing here matches an approval — and it closes
+ * the case where Pelecard said no and we heard yes.
+ *
+ * WHEN THE FIRST REAL TRANSACTION LANDS, read what came back and replace this
+ * with the positive check. That is the version that belongs here.
+ */
+function readsAsRefusal(validation: unknown): boolean {
+  if (validation === 0 || validation === false || validation === "0") return true;
+
+  if (typeof validation === "object" && validation !== null) {
+    const record = validation as Record<string, unknown>;
+
+    /* An error envelope. Pelecard use this shape on init, and a non-zero
+       ErrCode there has never meant anything but a refusal. */
+    const error = record.Error as { ErrCode?: unknown } | undefined;
+    if (error && error.ErrCode !== undefined && String(error.ErrCode) !== "0") return true;
+
+    /* The documented 1/0, under whichever of the plausible names it arrives.
+       Only an explicit zero counts: a key that is absent, or holds anything
+       else, falls through to being accepted as before. */
+    for (const key of ["Result", "result", "Status", "status", "ResultCode", "Value"]) {
+      const value = record[key];
+      if (value === 0 || value === false || value === "0") return true;
+    }
+  }
+
+  return false;
 }

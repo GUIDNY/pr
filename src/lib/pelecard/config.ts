@@ -1,5 +1,6 @@
 import "server-only";
 import { resolveGateway, isSandboxGateway, isLiveTestConsoleEnabled, isPaymentConsoleAvailable } from "./gateway";
+import { isBackOffice } from "@/lib/permissions";
 
 /* Pelecard has no separate test credentials: the same terminal/user/password
    work against both environments, and the ONLY thing deciding whether a card
@@ -63,9 +64,29 @@ export function pelecardConfig(): PelecardConfig {
  * page against the live terminal while the shop kept taking orders the old way
  * — which is impossible if the only thing that arms the gateway also opens it
  * to every visitor.
+ *
+ * IT DEFAULTS TO ON, and it did not always. Opt-in was right while the shop was
+ * being built: nothing was configured, nobody was buying, and the cost of
+ * forgetting to set it was zero. The shop is open now, and the same default
+ * means a checkout that quietly shows a demo form to paying customers — which
+ * costs a sale every time and looks like nothing is wrong.
+ *
+ * So the kill switch stays and its polarity flips: PELECARD_ENABLED=false turns
+ * card payment off for the whole shop, in one dashboard field, with no deploy.
+ * That is the direction that needs to be one field, because it is the one
+ * somebody reaches for at three in the morning.
+ *
+ * Nothing else about the safety design changes. Reaching the production gateway
+ * still needs PELECARD_ALLOW_PRODUCTION=I_UNDERSTAND, credentials are still
+ * required, and an unconfigured gateway is still demo for everyone — this
+ * cannot arm anything on its own.
  */
 export function pelecardEnabled(): boolean {
-  return process.env.PELECARD_ENABLED?.trim() === "true";
+  /* Case-insensitive, and that is not tidiness. This is the one comparison in
+     the file where a near miss fails OPEN: somebody typing FALSE to stop card
+     payments would have stopped nothing, and believed otherwise. A switch that
+     turns things off has to accept every spelling of off. */
+  return process.env.PELECARD_ENABLED?.trim().toLowerCase() !== "false";
 }
 
 /**
@@ -92,19 +113,31 @@ export function pelecardEnabled(): boolean {
  *                                    the override that cannot be lost: an
  *                                    account named here never charges a card,
  *                                    whatever else is set.
- *   3. Listed in LIVE_EMAILS,     -> gateway, even when the shop is closed.
+ *   3. A back-office role         -> demo. The shop's own staff walk the order
+ *                                    flow all day; none of those runs is meant
+ *                                    to move money. See below.
+ *   4. Listed in LIVE_EMAILS,     -> gateway, even when the shop is closed.
  *      or in BUILT_IN_LIVE_EMAILS      The account used to test against the real
  *                                      terminal before opening to customers.
- *   4. Nobody is signed in        -> PELECARD_DEMO_ANONYMOUS pins guests to
- *                                    demo; otherwise the global switch.
- *   5. Everyone else              -> the global switch, PELECARD_ENABLED.
+ *   5. Everyone else, guests     -> the global switch, PELECARD_ENABLED. A
+ *      included                        guest has no account to name in a list
+ *                                      and no role to hold, so the shop being
+ *                                      open is the whole answer for them.
  *
- * THE EMAIL COMES FROM THE SESSION AND NEVER FROM THE FORM. The checkout asks
+ * THE VIEWER COMES FROM THE SESSION AND NEVER FROM THE FORM. The checkout asks
  * a guest for an email and that field is whatever they typed; deciding the
  * lane from it would mean anyone could type their way onto — or off — the
- * gateway. Callers pass the address on the signed cookie or nothing at all.
+ * gateway. Callers pass the account on the signed cookie or nothing at all.
+ *
+ * It takes the viewer rather than the address for the sake of rule 3, and the
+ * shape is the point: a second optional argument would have gone on compiling
+ * everywhere it was left out, and the place it was left out is the place an
+ * admin gets charged. Nothing here can be called with half a viewer.
  */
 export type CheckoutLane = "gateway" | "demo";
+
+/** As much of the signed-in account as the lane depends on. */
+export type CheckoutViewer = { email?: string | null; role?: string | null };
 
 /**
  * The account that pays for real while the shop itself is still closed.
@@ -133,16 +166,33 @@ function emailList(name: string): string[] {
     .filter(Boolean);
 }
 
-export function paymentLaneFor(sessionEmail: string | null | undefined): CheckoutLane {
+export function paymentLaneFor(viewer: CheckoutViewer | null | undefined): CheckoutLane {
   if (!pelecardConfigured()) return "demo";
 
-  const email = sessionEmail?.trim().toLowerCase();
+  const email = viewer?.email?.trim().toLowerCase();
 
   if (email && emailList("PELECARD_DEMO_EMAILS").includes(email)) return "demo";
+
+  /* The shop's own people, on the demo lane for as long as they hold the role.
+     Not a list of addresses: a list would have to be edited every time someone
+     is hired, and the failure mode of forgetting is a real card charged for a
+     rehearsal. The role is already the thing the rest of the back office is
+     decided by, and it is on the signed cookie, so it costs nothing to ask.
+
+     Above the live list on purpose. An address in both is somebody who was put
+     on the gateway once and then given a back-office role, and the safe answer
+     to that contradiction is the one that does not spend money. To put a staff
+     account on the real gateway, take the role away from it or use an account
+     that never had one. */
+  if (isBackOffice(viewer?.role)) return "demo";
+
   if (email && [...BUILT_IN_LIVE_EMAILS, ...emailList("PELECARD_LIVE_EMAILS")].includes(email)) return "gateway";
 
-  if (!email && process.env.PELECARD_DEMO_ANONYMOUS?.trim() === "true") return "demo";
-
+  /* A guest follows the shop switch, and there is deliberately no way to say
+     otherwise. There used to be one — PELECARD_DEMO_ANONYMOUS — and it was a
+     trap: most customers check out without an account, so with it set the shop
+     was open and taking no card payments at all, and the only symptom was a
+     demo form nobody signed in ever saw. */
   return pelecardEnabled() ? "gateway" : "demo";
 }
 
@@ -225,4 +275,75 @@ export function callbackSecret(): string {
   const secret = process.env.PELECARD_CALLBACK_SECRET;
   if (!secret) throw new Error("PELECARD_CALLBACK_SECRET is not set");
   return secret;
+}
+
+/**
+ * WHY IS CHECKOUT SHOWING THE DEMO FORM?
+ *
+ * There was no way to find out. The lane is decided by six environment
+ * variables and a role, all of them invisible from inside the running site, and
+ * the only symptom of any one being wrong is a demo form — which looks
+ * identical whether it is deliberate or an accident. Answering the question
+ * meant opening the Vercel dashboard, or guessing, and guessing is what it got.
+ *
+ * So this reports the state of every input, and the payment console page shows
+ * it. NAMES AND YES/NO ONLY. Never a terminal, a user, a password or a secret:
+ * this renders in a browser, and a page that prints a credential to help you
+ * debug is a page that leaks it into a screenshot.
+ *
+ * PELECARD_ENABLED is the one whose raw shape matters, because "unset" and
+ * "false" mean different things now and look the same from a distance, so it is
+ * reported as one of three states rather than a boolean.
+ */
+export type PelecardDiagnosis = {
+  gateway: { ok: true; host: string; isSandbox: boolean } | { ok: false; error: string };
+  credentials: { terminal: boolean; user: boolean; password: boolean };
+  callbackSecret: boolean;
+  siteUrl: string | null;
+  killSwitch: "unset" | "off" | "on";
+  configured: boolean;
+  sellsToCustomers: boolean;
+  guestLane: CheckoutLane;
+  /** The single sentence that names what to change, or says nothing is wrong. */
+  blocker: string | null;
+};
+
+export function diagnosePelecard(): PelecardDiagnosis {
+  const resolved = resolveGateway();
+  const raw = process.env.PELECARD_ENABLED?.trim().toLowerCase();
+  const killSwitch = raw === undefined || raw === "" ? "unset" : raw === "false" ? "off" : "on";
+
+  const credentials = {
+    terminal: Boolean(process.env.PELECARD_TERMINAL?.trim()),
+    user: Boolean(process.env.PELECARD_USER?.trim()),
+    password: Boolean(process.env.PELECARD_PASSWORD?.trim()),
+  };
+
+  const configured = pelecardConfigured();
+  const guestLane = paymentLaneFor(null);
+
+  /* One blocker, the first one that stops a guest paying, because a list of
+     five things to check is how the real one gets skipped. */
+  let blocker: string | null = null;
+  if (!resolved.ok) blocker = resolved.error;
+  else if (!credentials.terminal) blocker = "PELECARD_TERMINAL is not set";
+  else if (!credentials.user) blocker = "PELECARD_USER is not set";
+  else if (!credentials.password) blocker = "PELECARD_PASSWORD is not set";
+  else if (killSwitch === "off") blocker = 'PELECARD_ENABLED is set to "false" — remove it, or set it to true';
+  else if (!process.env.PELECARD_CALLBACK_SECRET) blocker = "PELECARD_CALLBACK_SECRET is not set";
+  else if (!process.env.NEXT_PUBLIC_SITE_URL?.trim()) blocker = "NEXT_PUBLIC_SITE_URL is not set";
+
+  return {
+    gateway: resolved.ok
+      ? { ok: true, host: resolved.gateway.baseUrl, isSandbox: resolved.gateway.isSandbox }
+      : { ok: false, error: resolved.error },
+    credentials,
+    callbackSecret: Boolean(process.env.PELECARD_CALLBACK_SECRET),
+    siteUrl: process.env.NEXT_PUBLIC_SITE_URL?.trim() || null,
+    killSwitch,
+    configured,
+    sellsToCustomers: pelecardEnabled(),
+    guestLane,
+    blocker,
+  };
 }

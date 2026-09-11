@@ -88,7 +88,7 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-const STAFF_ROLES = new Set(["ADMIN", "STAFF"]);
+const STAFF_ROLES = new Set(["ADMIN", "STAFF", "SELLER"]);
 
 /**
  * Is this request carrying a real, signed staff session?

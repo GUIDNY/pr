@@ -2,14 +2,25 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth";
+import { requireBackOffice } from "@/lib/auth";
+import { canManageCatalog } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
 import { orderStatusSchema } from "@/lib/enums";
 
 export async function updateOrderStatusAction(orderId: string, newStatus: string, note?: string) {
-  const session = await requireAdmin();
+  const session = await requireBackOffice();
   const parsed = orderStatusSchema.safeParse(newStatus);
   if (!parsed.success) return { success: false, error: "סטטוס לא תקין" };
+
+  /* Moving an order along is the job. Sending money back is not: REFUNDED
+     writes a refund row and REFUND_PENDING is the step before it, and both
+     belong to whoever owns the till. */
+  if (
+    (parsed.data === "REFUNDED" || parsed.data === "REFUND_PENDING") &&
+    !canManageCatalog(session.role)
+  ) {
+    return { success: false, error: "זיכוי הזמנה מחייב הרשאת מנהל" };
+  }
 
   const order = await db.order.findUnique({ where: { id: orderId } });
   if (!order) return { success: false, error: "הזמנה לא נמצאה" };
@@ -42,7 +53,7 @@ export async function updateOrderStatusAction(orderId: string, newStatus: string
 }
 
 export async function assignOrderAction(orderId: string, employeeId: string | null) {
-  const session = await requireAdmin();
+  const session = await requireBackOffice();
   const order = await db.order.update({ where: { id: orderId }, data: { assignedToId: employeeId } });
   await logAudit({
     actorId: session.sub,
@@ -56,7 +67,7 @@ export async function assignOrderAction(orderId: string, employeeId: string | nu
 }
 
 export async function addOrderNoteAction(orderId: string, body: string, isInternal: boolean) {
-  const session = await requireAdmin();
+  const session = await requireBackOffice();
   if (!body.trim()) return { success: false, error: "יש להזין תוכן להערה" };
 
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
@@ -68,7 +79,7 @@ export async function addOrderNoteAction(orderId: string, body: string, isIntern
 }
 
 export async function updateExpectedDeliveryAction(orderId: string, date: string) {
-  const session = await requireAdmin();
+  const session = await requireBackOffice();
   const order = await db.order.update({ where: { id: orderId }, data: { expectedDeliveryAt: new Date(date) } });
   await logAudit({ actorId: session.sub, action: "ORDER_DELIVERY_DATE_UPDATED", entityType: "Order", entityId: orderId, metadata: { date } });
   revalidatePath(`/admin/orders/${order.orderNumber}`);

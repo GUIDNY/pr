@@ -19,8 +19,24 @@ import {
   type DeliveryMethod,
   type PaymentStatus,
 } from "@/lib/enums";
+import { requireBackOffice } from "@/lib/auth";
+import { canManageCatalog } from "@/lib/permissions";
+import { getSellerOrderDetail } from "@/lib/queries/seller-orders";
+import { SellerOrderPage } from "@/components/admin/seller-order-page";
 
 export default async function AdminOrderDetailPage({ params }: { params: Promise<{ orderNumber: string }> }) {
+  /* Same address, two pages — see the orders list for why the URL is shared.
+     A seller gets the page built around the single next action; a manager
+     gets the one with the assignee, the supplier and the full status
+     vocabulary. */
+  const viewer = await requireBackOffice();
+  if (!canManageCatalog(viewer.role)) {
+    const { orderNumber } = await params;
+    const detail = await getSellerOrderDetail(orderNumber);
+    if (!detail) notFound();
+    return <SellerOrderPage order={detail} />;
+  }
+
   const { orderNumber } = await params;
   const [order, staff] = await Promise.all([getAdminOrderDetail(orderNumber), getStaffUsers()]);
   if (!order) notFound();

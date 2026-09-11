@@ -104,5 +104,8 @@ export async function getAdminOrderDetail(orderNumber: string) {
 }
 
 export async function getStaffUsers() {
-  return db.user.findMany({ where: { role: { in: ["ADMIN", "STAFF"] } }, orderBy: { name: "asc" } });
+  return db.user.findMany({
+    where: { role: { in: ["ADMIN", "STAFF", "SELLER"] } },
+    orderBy: { name: "asc" },
+  });
 }

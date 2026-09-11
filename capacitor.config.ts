@@ -76,7 +76,19 @@ const config: CapacitorConfig = {
     // hosts from src/lib/pelecard/gateway.ts; without them a navigation to the
     // gateway can be handed to the system browser, which drops the customer
     // out of the app mid-purchase and loses the frame-return breakout.
-    allowNavigation: ["gateway21.pelecard.biz", "gateway20.pelecard.biz"],
+    //
+    // appleid.apple.com is here for the same reason: Sign in with Apple is a
+    // redirect out to Apple and a form_post back, and anything not listed
+    // here is handed to Safari — where the session cookie would be set in
+    // the wrong browser and the customer would return to an app that still
+    // thinks they are signed out. Google is not listed, and could not be
+    // helped by listing it: they refuse OAuth from an embedded WebView
+    // outright, so that button is hidden in the app instead (login-form.tsx).
+    allowNavigation: [
+      "gateway21.pelecard.biz",
+      "gateway20.pelecard.biz",
+      "appleid.apple.com",
+    ],
   },
 
   ios: {

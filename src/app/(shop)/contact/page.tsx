@@ -2,13 +2,14 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Phone, Mail, MapPin } from "lucide-react";
+import { Phone, Mail, MapPin, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { submitSupportRequestAction } from "@/actions/support";
+import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 
 export default function ContactPage() {
   const [form, setForm] = useState({ name: "", phone: "", email: "", message: "" });
@@ -45,7 +46,27 @@ export default function ContactPage() {
             </span>
             <div>
               <p className="font-medium">טלפון</p>
-              <a href="tel:04-6639510" className="text-muted-foreground text-sm hover:underline">04-6639510</a>
+              <a href={BUSINESS.phoneHref} className="text-muted-foreground text-sm hover:underline">{BUSINESS.phone}</a>
+            </div>
+          </div>
+          {/* Its own row, not a second link on the phone line. WhatsApp is a
+              different number answered in a different place, and a customer
+              who taps "WhatsApp" expecting a chat and gets a dialler has
+              been told something untrue. */}
+          <div className="flex items-center gap-3">
+            <span className="bg-brand/10 text-brand flex size-10 items-center justify-center rounded-full">
+              <MessageCircle className="size-4" />
+            </span>
+            <div>
+              <p className="font-medium">וואטסאפ</p>
+              <a
+                href={BUSINESS.whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground text-sm hover:underline"
+              >
+                {BUSINESS.whatsapp}
+              </a>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -62,8 +83,15 @@ export default function ContactPage() {
               <MapPin className="size-4" />
             </span>
             <div>
-              <p className="font-medium">סניפים</p>
-              <p className="text-muted-foreground text-sm">לרשימת הסניפים המלאה בעמוד הסניפים</p>
+              <p className="font-medium">כתובת</p>
+              <a
+                href={BUSINESS_MAP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground text-sm hover:underline"
+              >
+                {BUSINESS_ADDRESS}
+              </a>
             </div>
           </div>
         </div>

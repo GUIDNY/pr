@@ -40,7 +40,7 @@ const BRANDS = [
 
 const SUPPLIERS = [
   { name: "יבואן ראשי - אלקטרו-טרייד בע\"מ", contactName: "אבי כהן", phone: "03-9123456", leadTimeDays: 5 },
-  { name: "מחסן מרכזי פר", contactName: "לוגיסטיקה", phone: "04-6639510", leadTimeDays: 2 },
+  { name: "מחסן מרכזי פר", contactName: "לוגיסטיקה", phone: "04-622-4041", leadTimeDays: 2 },
   { name: "ספק חלופי - נורדיק סחר", contactName: "מיכל לוי", phone: "09-7712345", leadTimeDays: 10 },
 ];
 
@@ -682,7 +682,7 @@ async function main() {
     data: {
       slug: "branches",
       title: "סניפים",
-      body: "לבירור סניפים קרובים ושעות פעילות ניתן ליצור קשר בטלפון 04-6639510.",
+      body: "לבירור סניפים קרובים ושעות פעילות ניתן ליצור קשר בטלפון 04-622-4041.",
     },
   });
   await db.cmsPage.create({
@@ -710,7 +710,7 @@ async function main() {
       payload: JSON.stringify([
         { title: "משלוח עד הבית", body: "משלוח מהיר לכל הארץ, כולל התקנה למוצרים גדולים." },
         { title: "אחריות יבואן רשמי", body: "כל המוצרים מגיעים עם אחריות מלאה של היבואן הרשמי." },
-        { title: "שירות לקוחות אמיתי", body: "צוות שירות זמין בטלפון 04-6639510 לכל שאלה." },
+        { title: "שירות לקוחות אמיתי", body: "צוות שירות זמין בטלפון 04-622-4041 לכל שאלה." },
         { title: "מגוון ענק של מותגים", body: "Bosch, Siemens, LG, Samsung, Electrolux ועוד עשרות מותגים מובילים." },
       ]),
       sortOrder: 1,

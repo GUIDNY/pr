@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { runFullSync } from "@/lib/inventory/sync";
 import { getSession } from "@/lib/auth";
+import { canManageCatalog } from "@/lib/permissions";
 
 // Hit by Vercel Cron (see vercel.json) via the CRON_SECRET bearer token.
 // Also accepts a logged-in admin/staff session — lets a sync be triggered
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
 
   if (!hasValidSecret) {
     const session = await getSession();
-    if (!session || (session.role !== "ADMIN" && session.role !== "STAFF")) {
+    if (!session || !canManageCatalog(session.role)) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
   }

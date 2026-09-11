@@ -8,7 +8,10 @@ import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
-import { rememberOrder } from "@/lib/order-receipts";
+import { rememberOrder, browserPlacedOrder } from "@/lib/order-receipts";
+import { notifyOrder } from "@/lib/notify";
+import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
+import { holdDays } from "@/lib/pelecard/client";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -79,12 +82,24 @@ export async function createOrderAction(input: CheckoutInput) {
        Refusing is the only safe answer when the two disagree: the alternative
        is an order nobody can pay for, or worse, one marked paid. */
     const viewer = await getCurrentUser();
-    if (paymentLaneFor(viewer?.email) !== "gateway") {
+    if (paymentLaneFor(viewer) !== "gateway") {
       return { success: false as const, error: "התשלום בכרטיס אינו זמין כרגע. נסו שוב או בחרו תשלום במזומן." };
     }
   }
-  const paymentStatus = payWithPelecard ? "PENDING" : data.paymentMethod === "DEMO_CARD" ? "CAPTURED" : "PENDING";
-  const orderStatus = payWithPelecard ? "PAYMENT_PENDING" : data.paymentMethod === "DEMO_CARD" ? "PAID" : "NEW";
+  /* The demo card rehearses a deposit, not a charge.
+     Its whole job is to let the back office be walked end to end without a
+     real card, and a rehearsal that skips the step the shop actually runs on
+     rehearses the wrong thing — an order paid by demo card went straight to
+     green, so the deposit queue could never be seen at all.
+
+     Unconditional, and not tied to PELECARD_HOLD_THEN_CAPTURE. That switch
+     governs what the real gateway is asked for and is off until the terminal
+     is confirmed with Pelecard; this lane asks nobody for anything and moves
+     no money, so making it wait on that would leave the one safe way to test
+     the flow switched off for the same reason as the risky one. */
+  const demoCard = data.paymentMethod === "DEMO_CARD";
+  const paymentStatus = payWithPelecard ? "PENDING" : demoCard ? "AUTHORIZED" : "PENDING";
+  const orderStatus = payWithPelecard ? "PAYMENT_PENDING" : demoCard ? "NEW" : "NEW";
 
   const order = await db.order.create({
     data: {
@@ -144,15 +159,21 @@ export async function createOrderAction(input: CheckoutInput) {
   // one — that customer reaches the same page after paying.
   await rememberOrder(order.orderNumber);
 
-  if (!payWithPelecard && paymentStatus === "CAPTURED") {
+  if (!payWithPelecard && paymentStatus === "AUTHORIZED") {
     const last4 = data.cardNumber ? data.cardNumber.replace(/\s/g, "").slice(-4) : null;
     await db.payment.create({
       data: {
         orderId: order.id,
         provider: "DEMO",
         amount: summary.total,
-        status: "CAPTURED",
+        amountAgorot: Math.round(summary.total * 100),
+        status: "AUTHORIZED",
         reference: last4 ? `DEMO-**** ${last4}` : "DEMO-COD",
+        // The prefix is what tells the approval it may settle this one itself
+        // instead of asking Pelecard — see approveOrderAction.
+        authorizationUid: `DEMO-${order.orderNumber}`,
+        authorizedAt: new Date(),
+        holdExpiresAt: new Date(Date.now() + holdDays() * 86_400_000),
       },
     });
   }
@@ -194,6 +215,13 @@ export async function createOrderAction(input: CheckoutInput) {
     },
   });
 
+  // The customer is told the order exists as soon as it does, and this is the
+  // one message that goes out without anybody pressing anything. It is also
+  // the only one whose absence a customer notices immediately: a shop that
+  // takes an order and says nothing is a shop they assume lost it.
+  await notifyOrder(order.id, "ORDER_RECEIVED");
+  await notifyOwnerOfNewOrder(order.id);
+
   return {
     success: true as const,
     orderId: order.id,
@@ -216,7 +244,15 @@ export async function clearPaidOrderCartAction(orderNumber: string) {
     where: { orderNumber },
     select: { id: true, paymentStatus: true },
   });
-  if (!order || order.paymentStatus !== "CAPTURED") return { success: false as const };
+  /* AUTHORIZED counts, and has to. Under J5 the gateway holds the money
+     instead of taking it, so a customer who has just paid successfully lands
+     here with a held payment — refusing to empty their cart would leave them
+     looking at the items they just bought, which reads as "it did not go
+     through" and produces a second order. From the customer's side a hold and
+     a charge are the same event: the card was accepted. */
+  if (!order || (order.paymentStatus !== "CAPTURED" && order.paymentStatus !== "AUTHORIZED")) {
+    return { success: false as const };
+  }
 
   const cart = await getCart();
   if (!cart.id) return { success: false as const };
@@ -308,19 +344,33 @@ export async function updatePendingOrderDetailsAction(
   },
 ) {
   const session = await getSession();
-  if (!session) return { success: false as const };
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: { id: true, userId: true, status: true, paymentStatus: true, addressId: true },
+    select: { id: true, orderNumber: true, userId: true, status: true, paymentStatus: true, addressId: true },
   });
+  if (!order) return { success: false as const };
 
-  /* Three conditions, and each of them is the difference between an edit and
-     something else: the order is this account's, it has not been paid, and it
-     is still in the state the checkout left it in. An order that reached PAID
-     between the keystroke and the save must not be rewritten underneath the
-     receipt. */
-  if (!order || order.userId !== session.sub) return { success: false as const };
+  /* WHOSE ORDER THIS IS, and a guest's counts.
+     It used to require a signed-in owner, so a guest who noticed a typo in
+     their own address while the card form was open could do nothing about it —
+     the fields were frozen and the only way out was to abandon the order. Most
+     customers here check out without an account, so that was most customers.
+
+     A guest proves it the way the confirmation page already makes them prove
+     it: the receipt this browser got when it placed the order. And the order id
+     itself is the real barrier — it is a cuid, it is never in a URL, and the
+     only browser that has ever been told it is the one that created the order.
+     An order number can be guessed; this cannot. */
+  const ownedBySession = Boolean(session) && order.userId === session!.sub;
+  const placedByThisBrowser = await browserPlacedOrder(order.orderNumber);
+  if (!ownedBySession && !placedByThisBrowser) return { success: false as const };
+
+  /* And whoever is asking, only an unpaid order in the state checkout left it
+     in may be rewritten. An order that reached PAID between the keystroke and
+     the save must not be changed underneath the receipt — at that point the
+     address is what was charged for, and correcting it is the shop's job, not
+     a form's. */
   if (order.status !== "PAYMENT_PENDING" || order.paymentStatus !== "PENDING") {
     return { success: false as const };
   }

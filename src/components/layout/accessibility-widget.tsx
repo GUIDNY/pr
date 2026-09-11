@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BUSINESS } from "@/lib/business";
 
 /* The accessibility menu required by תקנות שוויון זכויות לאנשים עם מוגבלות
    (התאמות נגישות לשירות), תשע"ג-2013, which adopt ת"י 5568 (WCAG 2.0 AA) for
@@ -430,8 +431,8 @@ export function AccessibilityWidget() {
               <Link href="/privacy" className="text-brand underline underline-offset-2" onClick={() => setOpen(false)}>
                 מדיניות פרטיות
               </Link>
-              <a href="tel:04-6639510" className="text-brand underline underline-offset-2">
-                רכז נגישות: 04-6639510
+              <a href={BUSINESS.phoneHref} className="text-brand underline underline-offset-2">
+                רכז נגישות: {BUSINESS.phone}
               </a>
             </p>
           </div>

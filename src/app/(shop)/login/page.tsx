@@ -1,83 +1,38 @@
-"use client";
+import { Suspense } from "react";
+import { LoginForm } from "@/components/auth/login-form";
+import { googleOAuthConfigured } from "@/lib/google-oauth";
+import { appleOAuthConfigured, appleNativeConfigured } from "@/lib/apple-oauth";
 
-import { Suspense, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { LogIn } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { loginAction } from "@/actions/auth";
+/* Rendered per request, not baked at build time.
+ *
+ * This page has no dynamic data in it, so Next prerenders it — and that
+ * freezes the answer to "is Google configured" into the HTML at the moment
+ * of the build. The credentials were added to Vercel after the build that
+ * prerendered this page, so the route handler (always dynamic) redirected to
+ * Google correctly while the page it was linked from had no button on it.
+ *
+ * The same trap waits for anybody who rotates the keys later: the button
+ * would keep pointing at a client that no longer exists, or stay missing
+ * after the keys arrive, until somebody happened to redeploy. A settings
+ * question has to be asked when somebody is actually looking. */
+export const dynamic = "force-dynamic";
 
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") ?? "/account";
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    startTransition(async () => {
-      const result = await loginAction({ email, password });
-      if (!result.success) {
-        setError(result.error ?? "שגיאה בהתחברות");
-        return;
-      }
-      toast.success("התחברת בהצלחה");
-      router.push(result.role === "ADMIN" || result.role === "STAFF" ? "/admin" : redirectTo);
-      router.refresh();
-    });
-  }
-
-  return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <div className="mb-6 text-center">
-        <span className="bg-brand/10 text-brand mx-auto mb-3 flex size-12 items-center justify-center rounded-full">
-          <LogIn className="size-5" />
-        </span>
-        <h1 className="text-2xl font-bold">התחברות לחשבון</h1>
-      </div>
-
-      <form onSubmit={submit} className="flex flex-col gap-3">
-        <div>
-          <Label htmlFor="email" className="mb-1.5">אימייל</Label>
-          <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus />
-        </div>
-        <div>
-          <Label htmlFor="password" className="mb-1.5">סיסמה</Label>
-          <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </div>
-        {error && <p className="text-destructive text-sm">{error}</p>}
-        <Button type="submit" variant="brand" size="lg" disabled={isPending} className="mt-2">
-          {isPending ? "מתחבר..." : "התחברות"}
-        </Button>
-      </form>
-
-      <p className="text-muted-foreground mt-6 text-center text-sm">
-        אין לכם חשבון?{" "}
-        <Link href="/register" className="text-brand font-medium hover:underline">
-          הרשמה
-        </Link>
-      </p>
-
-      <div className="bg-muted mt-8 rounded-lg p-3 text-xs">
-        <p className="mb-1 font-semibold">גישת הדגמה:</p>
-        <p>לקוח: eitan@example.com / demo1234</p>
-        <p>מנהל: admin@prec.co.il / admin123</p>
-      </div>
-    </div>
-  );
-}
-
+/**
+ * A server component now, only so it can answer one question the browser
+ * must not be asked to answer: whether Google sign-in is configured.
+ *
+ * The button appears when the credentials exist and not before, which is the
+ * same rule the notification channels follow. A button that leads to "this
+ * is not available" is worse than no button.
+ */
 export default function LoginPage() {
   return (
     <Suspense>
-      <LoginForm />
+      <LoginForm
+        googleEnabled={googleOAuthConfigured()}
+        appleEnabled={appleOAuthConfigured()}
+        appleNativeEnabled={appleNativeConfigured()}
+      />
     </Suspense>
   );
 }
