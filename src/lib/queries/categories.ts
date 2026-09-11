@@ -57,7 +57,11 @@ export async function getDepartmentCounts(): Promise<DepartmentCount[]> {
       }),
     })),
   );
-  return counted.filter((d) => d.count > 0);
+  // A department with one or two live products is a line in a menu that
+  // says "1" beside it, which reads as a shop running out rather than a
+  // shop with range. It stays reachable through the mega menu and the
+  // chips; it just does not get a line here until it has something in it.
+  return counted.filter((d) => d.count >= 5);
 }
 
 export type CategoryTile = { slug: string; name: string; imageUrl: string };
