@@ -39,10 +39,9 @@ const GOOGLE_ERRORS: Record<string, string> = {
  * button. The logo is there because this page is also reached from an email
  * link, where "which shop is this" is a real question.
  *
- * There is no "forgot password" link, because there is no password reset in
- * this application. A link to a route that does not exist is worse than its
- * absence — the phone number underneath is the honest answer, and it reaches
- * somebody who can actually help.
+ * The "שכחתם סיסמה?" link is real now — see lib/password-reset.ts. The shop
+ * phone stays underneath it anyway, because a reset that goes to an address
+ * somebody has lost access to helps nobody.
  */
 export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
   const router = useRouter();
@@ -171,7 +170,10 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
           </Button>
         </form>
 
-        <div className="border-border mt-6 border-t pt-5 text-center">
+        <div className="border-border mt-6 flex flex-col gap-3 border-t pt-5 text-center">
+          <Link href="/forgot-password" className="text-muted-foreground text-sm hover:underline">
+            שכחתם סיסמה?
+          </Link>
           <p className="text-sm">
             <span className="text-muted-foreground">אין לכם חשבון? </span>
             <Link href="/register" className="text-brand font-bold hover:underline">
@@ -181,8 +183,8 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
         </div>
       </div>
 
-      {/* No password reset exists in this application, so this is what a
-          locked-out customer actually has. */}
+      {/* Still here alongside the reset link: somebody who has lost the
+          mailbox as well as the password has nothing a form can give them. */}
       <p className="text-muted-foreground mt-5 text-center text-sm">
         נתקעתם?{" "}
         <a href={BUSINESS.phoneHref} className="text-brand font-semibold hover:underline">

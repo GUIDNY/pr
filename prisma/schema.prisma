@@ -16,6 +16,24 @@ datasource db {
   provider = "postgresql"
 }
 
+/// One-time links for "I forgot my password".
+///
+/// The token itself is never stored — only its SHA-256. What is emailed
+/// exists in the customer's inbox and nowhere else, so a copy of this table
+/// is a list of hashes and a hash cannot be pasted into a URL.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 // ---------- Identity ----------
 
 model User {
@@ -43,6 +61,7 @@ model User {
   statusChanges     OrderStatusHistory[] @relation("StatusChangedBy")
   assignedOrders    Order[]              @relation("AssignedEmployee")
   auditLogs         AuditLog[]
+  passwordResets    PasswordResetToken[]
   uploadedSources   InventorySource[]    @relation("SourceUploadedBy")
   triggeredSyncRuns InventorySyncRun[]   @relation("SyncTriggeredBy")
   resolvedAlerts    InventoryAlert[]     @relation("AlertResolvedBy")

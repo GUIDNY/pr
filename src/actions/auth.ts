@@ -4,6 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession, createSession, clearSession, hashPassword, verifyPassword } from "@/lib/auth";
 import { looksLikePhone, normalizeIsraeliPhone } from "@/lib/phone";
+import { consumeResetToken, requestPasswordReset } from "@/lib/password-reset";
 
 /* One field, two kinds of answer. It cannot be z.email() any more, so the
    shape of what was typed is worked out below instead of rejected here. */
@@ -189,6 +190,63 @@ export async function accountHasPassword(): Promise<boolean> {
   if (!session) return true;
   const user = await db.user.findUnique({ where: { id: session.sub }, select: { hasPassword: true } });
   return user?.hasPassword ?? true;
+}
+
+const forgotSchema = z.object({ email: z.email("כתובת אימייל לא תקינה") });
+
+/**
+ * "שלחו לי קישור לאיפוס".
+ *
+ * Always answers the same way. Telling somebody "no such address" turns
+ * this form into a way to find out which addresses shop here, one guess at
+ * a time — and the people most worth protecting from that are the ones who
+ * would never think to ask.
+ *
+ * By email only, and not by phone, even though signing in now accepts a
+ * phone. A reset has to travel to something the shop can prove the person
+ * controls, and there is no SMS provider connected here. Sending a reset
+ * link over a channel the shop cannot reach is not a feature.
+ */
+export async function forgotPasswordAction(input: { email: string }) {
+  const parsed = forgotSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
+
+  await requestPasswordReset(parsed.data.email);
+  return { success: true, error: null };
+}
+
+const resetSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(6, "הסיסמה חייבת להכיל לפחות 6 תווים"),
+});
+
+const RESET_FAILURES: Record<string, string> = {
+  invalid: "הקישור אינו תקין. אפשר לבקש קישור חדש.",
+  expired: "הקישור פג תוקף. אפשר לבקש קישור חדש.",
+  used: "כבר השתמשת בקישור הזה. אפשר לבקש קישור חדש.",
+};
+
+/**
+ * Set the password from a reset link, and sign the person in.
+ *
+ * Signing them in adds no risk worth weighing: whoever holds the link can
+ * already set the password and then sign in with it, so refusing to would
+ * only add a step for the person who legitimately asked.
+ */
+export async function resetPasswordAction(input: { token: string; newPassword: string }) {
+  const parsed = resetSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
+
+  const hash = await hashPassword(parsed.data.newPassword);
+  const outcome = await consumeResetToken(parsed.data.token, hash);
+  if (!outcome.ok) return { success: false, error: RESET_FAILURES[outcome.reason] };
+
+  const user = await db.user.findUnique({ where: { id: outcome.userId } });
+  if (!user) return { success: false, error: "החשבון לא נמצא" };
+
+  await createSession({ sub: user.id, role: user.role as never, name: user.name });
+  await claimGuestOrders(user.id, user.email);
+  return { success: true, error: null };
 }
 
 /**
