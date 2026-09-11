@@ -2,6 +2,7 @@
 
 import Script from "next/script";
 import { useConsent } from "@/lib/consent";
+import { useIsNativeApp } from "@/lib/native-app";
 
 
 /**
@@ -23,7 +24,20 @@ export function Clarity() {
   // unanswered banner and a refusal both render nothing at all — see
   // lib/consent.ts for why "load it and switch it off" is not the same thing.
   const consent = useConsent();
-  if (!id || consent !== "granted") return null;
+  /* And not in the app, at any consent — the same rule as the Meta pixel, for
+     a narrower reason. Clarity is session replay rather than advertising, but
+     Microsoft documents it as able to set MUID, which is their cross-site
+     identifier and is used for advertising among other things. That is a
+     cookie this codebase does not control and cannot enumerate, and the App
+     Store answer has to say plainly that no cookie in the app is used for
+     tracking. Leaving it out of the app makes that sentence true by
+     construction rather than by trusting a third party's defaults.
+
+     Google Analytics deliberately stays. It sets a first-party cookie only,
+     the property is not linked to Google Ads, and Google Signals is off — so
+     nothing it collects becomes an advertising audience. */
+  const inApp = useIsNativeApp();
+  if (!id || consent !== "granted" || inApp) return null;
 
   /* Clarity's published snippet is an inline script whose entire job is to
      create a queue stub and then append <script src="clarity.ms/tag/{id}">.
