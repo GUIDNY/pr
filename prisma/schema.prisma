@@ -23,6 +23,11 @@ model User {
   email        String   @unique
   phone        String?
   passwordHash String
+  /// Whether the owner has chosen a password. False for accounts created
+  /// through Google: passwordHash holds random bytes so the column is
+  /// satisfied, and nothing anybody can type will match it. The account page
+  /// reads this to offer "set a password" instead of "change password".
+  hasPassword  Boolean  @default(true)
   name         String
   role         String   @default("CUSTOMER") // CUSTOMER | ADMIN | STAFF
   createdAt    DateTime @default(now())

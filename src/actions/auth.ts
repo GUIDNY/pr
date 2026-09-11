@@ -133,6 +133,64 @@ export async function registerAction(input: { name: string; email: string; phone
   return { success: true, error: null };
 }
 
+const setPasswordSchema = z.object({
+  currentPassword: z.string().optional(),
+  newPassword: z.string().min(6, "הסיסמה חייבת להכיל לפחות 6 תווים"),
+});
+
+/**
+ * Choosing a password, or replacing one.
+ *
+ * Two jobs behind one form, and which one it does is decided by the account
+ * rather than by what the form sent:
+ *
+ *   An account that has a password must prove the current one. Otherwise
+ *   anybody who finds a signed-in browser unattended takes the account for
+ *   good — changing the password is how you lock the owner out of their own
+ *   order history.
+ *
+ *   An account created through Google has no password to prove. Demanding
+ *   one would be asking for something that does not exist, and the random
+ *   bytes standing in for it cannot be typed. Being signed in is the proof
+ *   here, and it is the same proof Google just gave.
+ *
+ * The distinction comes from User.hasPassword and never from whether the
+ * form filled the field in — a client that simply omits currentPassword must
+ * not be able to skip the check.
+ */
+export async function setPasswordAction(input: { currentPassword?: string; newPassword: string }) {
+  const session = await getSession();
+  if (!session) return { success: false, error: "צריך להתחבר מחדש" };
+
+  const parsed = setPasswordSchema.safeParse(input);
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
+
+  const user = await db.user.findUnique({ where: { id: session.sub } });
+  if (!user) return { success: false, error: "צריך להתחבר מחדש" };
+
+  if (user.hasPassword) {
+    const current = parsed.data.currentPassword ?? "";
+    if (!current) return { success: false, error: "יש להזין את הסיסמה הנוכחית" };
+    const valid = await verifyPassword(current, user.passwordHash);
+    if (!valid) return { success: false, error: "הסיסמה הנוכחית אינה נכונה" };
+  }
+
+  await db.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await hashPassword(parsed.data.newPassword), hasPassword: true },
+  });
+
+  return { success: true, error: null };
+}
+
+/** Does this account have a password, or only Google? The form asks before it renders. */
+export async function accountHasPassword(): Promise<boolean> {
+  const session = await getSession();
+  if (!session) return true;
+  const user = await db.user.findUnique({ where: { id: session.sub }, select: { hasPassword: true } });
+  return user?.hasPassword ?? true;
+}
+
 /**
  * Clears the session, and deliberately does not redirect.
  *

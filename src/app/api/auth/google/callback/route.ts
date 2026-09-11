@@ -80,7 +80,15 @@ export async function GET(request: Request) {
        is given a way to set one. */
     const unusable = await hashPassword(randomBytes(32).toString("base64url"));
     user = await db.user.create({
-      data: { email: profile.email, name: profile.name, passwordHash: unusable, role: "CUSTOMER" },
+      data: {
+        email: profile.email,
+        name: profile.name,
+        passwordHash: unusable,
+        // Nothing anybody can type matches that hash, so the account page
+        // offers "set a password" rather than "change password".
+        hasPassword: false,
+        role: "CUSTOMER",
+      },
     });
 
     /* The same claim the password sign-up makes, for the same reason: a
