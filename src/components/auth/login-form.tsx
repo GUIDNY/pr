@@ -7,6 +7,7 @@ import Image from "next/image";
 import { Eye, EyeOff, Phone } from "lucide-react";
 import { useIsNativeApp } from "@/lib/native-app";
 import { GoogleButton } from "@/components/auth/google-button";
+import { AppleNativeButton } from "@/components/auth/apple-native-button";
 import { AppleButton } from "@/components/auth/apple-button";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,7 @@ const SOCIAL_ERRORS: Record<string, string> = {
  * phone stays underneath it anyway, because a reset that goes to an address
  * somebody has lost access to helps nobody.
  */
-export function LoginForm({ googleEnabled, appleEnabled }: { googleEnabled: boolean; appleEnabled: boolean }) {
+export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled }: { googleEnabled: boolean; appleEnabled: boolean; appleNativeEnabled: boolean }) {
   /* Google refuses OAuth from an embedded WebView — their documented
      "disallowed_useragent" policy — and a top-level navigation to
      accounts.google.com leaves the app for Safari, where the session cookie
@@ -75,7 +76,10 @@ export function LoginForm({ googleEnabled, appleEnabled }: { googleEnabled: bool
      in capacitor.config.ts now, which fixes it, but a config change only
      reaches a device through a new build while this file reaches it on the
      next page load. Flip this back once a build carrying that config ships. */
+  /* The app gets the native sheet, the web keeps the redirect. Same provider,
+     two buttons, because only one of them can work in each place. */
   const showApple = appleEnabled && !inApp;
+  const showAppleNative = appleNativeEnabled && inApp;
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/account";
@@ -117,11 +121,12 @@ export function LoginForm({ googleEnabled, appleEnabled }: { googleEnabled: bool
           </p>
         </div>
 
-        {(showGoogle || showApple) && (
+        {(showGoogle || showApple || showAppleNative) && (
           <>
             <div className="flex flex-col gap-2.5">
               {showGoogle && <GoogleButton />}
               {showApple && <AppleButton />}
+              {showAppleNative && <AppleNativeButton />}
             </div>
             {/* A real separator rather than the word "or" floating between
                 two stacks — the rule is what tells you these are two ways to

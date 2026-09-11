@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { googleOAuthConfigured } from "@/lib/google-oauth";
-import { appleOAuthConfigured } from "@/lib/apple-oauth";
+import { appleOAuthConfigured, appleNativeConfigured } from "@/lib/apple-oauth";
 
 /* Rendered per request, not baked at build time.
  *
@@ -28,7 +28,11 @@ export const dynamic = "force-dynamic";
 export default function LoginPage() {
   return (
     <Suspense>
-      <LoginForm googleEnabled={googleOAuthConfigured()} appleEnabled={appleOAuthConfigured()} />
+      <LoginForm
+        googleEnabled={googleOAuthConfigured()}
+        appleEnabled={appleOAuthConfigured()}
+        appleNativeEnabled={appleNativeConfigured()}
+      />
     </Suspense>
   );
 }

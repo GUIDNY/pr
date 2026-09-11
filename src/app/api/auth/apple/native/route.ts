@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { randomBytes } from "crypto";
+import { randomBytes, createHash } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { createSession, hashPassword } from "@/lib/auth";
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
   }
 
   const profile = result.profile;
-  if (!expectedNonce || profile.nonce !== expectedNonce) {
+  if (!expectedNonce || !noncesMatch(profile.nonce, expectedNonce)) {
     return NextResponse.json({ error: "apple_nonce" }, { status: 401 });
   }
   if (!profile.emailVerified) {
@@ -135,4 +135,23 @@ export async function POST(request: Request) {
 /** Is this name the email's local part rather than something a person chose? */
 function isPlaceholderName(name: string, email: string): boolean {
   return name.trim().toLowerCase() === email.split("@")[0].toLowerCase();
+}
+
+/**
+ * Both shapes the nonce comes back in.
+ *
+ * Apple echoes the value the sheet was given, and some clients hash it with
+ * SHA-256 before handing it over so the raw value never travels. Which of the
+ * two arrives is a property of the plugin and of the iOS version, not of
+ * anything decided here, and guessing wrong fails silently with a 401 nobody
+ * can read a cause out of.
+ *
+ * Accepting either costs nothing. Both are derived from the same single-use
+ * value this server issued and kept in an httpOnly cookie, so what the nonce
+ * is for — a captured token being useless the second time — holds for both.
+ */
+function noncesMatch(received: string | null, expected: string): boolean {
+  if (!received) return false;
+  if (received === expected) return true;
+  return received === createHash("sha256").update(expected).digest("hex");
 }
