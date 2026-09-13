@@ -6,21 +6,10 @@ import { Button } from "@/components/ui/button";
 import { DepartmentMenu } from "@/components/home/department-menu";
 import { CategoryCircles } from "@/components/home/category-circles";
 import { PromoCarousel, type PromoSlide } from "@/components/home/promo-carousel";
-import { discountPercent } from "@/lib/format";
+import { discountPercent, formatPrice } from "@/lib/format";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import type { DepartmentCount, CategoryTile } from "@/lib/queries/categories";
 import type { ProductCardData } from "@/components/product/product-card";
-
-/**
- * PLACEHOLDER promotions, asked for as stand-ins while the real campaign
- * copy is decided. Nothing here is a live offer: no cashback and no 1+1
- * exists in the shop's promotion rules, so this must not reach main as
- * it stands — replace the two entries with real, configured promotions
- * (or wire them to the Promotion table) before merging.
- */
-const PROMOS: PromoSlide[] = [
-  { kind: "promo", title: "20% קאשבק", body: "לפרטים", href: "/deals", tone: "brand" },
-  { kind: "promo", title: "1+1", body: "על מוצרים נבחרים", href: "/deals", tone: "light" },
-];
 
 /**
  * The first screen.
@@ -54,17 +43,42 @@ export function HeroBand({
   categoryTiles: CategoryTile[];
   deals: ProductCardData[];
 }) {
-  // The promotions with real product photographs from today's deals on
-  // them (see PromoCarousel) — the pictures are the catalogue's own.
-  const dealImages = deals.map((p) => p.imageUrl).filter((u): u is string => !!u);
-  const promos: PromoSlide[] = PROMOS.map((p, i) =>
-    p.kind === "promo" ? { ...p, images: i === 0 ? dealImages.slice(0, 3) : dealImages.slice(3, 6).length ? dealImages.slice(3, 6) : dealImages.slice(0, 3).reverse() } : p,
-  );
-
   const bestDiscount = deals
     .map((p) => discountPercent(p.price, p.compareAtPrice ?? undefined))
     .filter((n): n is number => typeof n === "number")
     .reduce((max, n) => Math.max(max, n), 0);
+
+  // The slides say only what the data says. Today's best real discount,
+  // with today's real deal photographs; the delivery rule, with the
+  // sampler's photographs of what it applies to. Nothing here is a
+  // campaign that does not exist — the day one does, it goes in the
+  // admin's banner manager, not in this file.
+  const dealImages = deals.map((p) => p.imageUrl).filter((u): u is string => !!u);
+  const tileImages = ["fridge-4-door", "tvs", "washing-machines"]
+    .map((slug) => categoryTiles.find((t) => t.slug === slug)?.imageUrl)
+    .filter((u): u is string => !!u);
+  const promos: PromoSlide[] = [
+    ...(bestDiscount > 0
+      ? [
+          {
+            kind: "promo" as const,
+            title: `עד ${bestDiscount}% הנחה`,
+            body: "על המבצעים של היום",
+            href: "/deals",
+            tone: "brand" as const,
+            images: dealImages.slice(0, 3),
+          },
+        ]
+      : []),
+    {
+      kind: "promo" as const,
+      title: "משלוח חינם",
+      body: `בהזמנה מעל ${formatPrice(FREE_DELIVERY_THRESHOLD)}`,
+      href: "/category/refrigeration",
+      tone: "light" as const,
+      images: tileImages.length > 0 ? tileImages : dealImages.slice(0, 3),
+    },
+  ];
 
 
   return (
@@ -74,43 +88,20 @@ export function HeroBand({
         <div className="lg:hidden">
           <CategoryCircles tiles={categoryTiles} className="mb-3" />
 
-          {/* The shop's own line stays put; only the promotions rotate
-              under it. The line under the headline is the reason to buy
-              here, in three facts, not a slogan. */}
-          <div className="bg-primary text-primary-foreground relative overflow-hidden rounded-2xl p-5">
-            <div
-              aria-hidden
-              className="absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(ellipse 60% 90% at 0% 50%, oklch(0.42 0.12 264 / 0.9), transparent), radial-gradient(ellipse 45% 70% at 100% 0%, oklch(0.658 0.209 39.1 / 0.3), transparent)",
-              }}
-            />
-            <div className="relative flex flex-col items-start gap-3">
-              <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1">
-                <ShieldCheck className="text-brand size-3.5" />
-                יבואן רשמי
-              </span>
-              <p className="max-w-md text-[1.6rem] leading-tight font-black text-balance">{title}</p>
-              <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium">
-                {["מחירי אונליין", "אחריות יבואן", "משלוח מהיר עד הבית"].map((f) => (
-                  <li key={f} className="flex items-center gap-1">
-                    <Check className="text-brand size-4" strokeWidth={2.5} />
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href={ctaHref ?? "/deals"}
-                className="bg-brand text-brand-foreground hover:bg-brand-hover mt-1 inline-flex h-10 items-center gap-1.5 rounded-lg px-5 text-sm font-bold shadow-sm transition-colors"
-              >
-                לכל המבצעים
-                <ArrowLeft className="size-4" />
-              </Link>
-            </div>
-          </div>
+          {/* One card: the shop's line and the importer chip ride at the
+              top of every slide, and only the offer underneath rotates.
+              The three reasons to buy here follow as a line of text, not
+              a box. */}
+          <PromoCarousel slides={promos} compact slogan={title} />
 
-          <PromoCarousel slides={promos} compact className="mt-3" />
+          <ul className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-medium">
+            {["מחירי אונליין", "אחריות יבואן", "משלוח מהיר עד הבית"].map((f) => (
+              <li key={f} className="flex items-center gap-1">
+                <Check className="text-brand size-3.5" strokeWidth={2.5} />
+                {f}
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* ---------------- desktop ---------------- */}

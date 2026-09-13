@@ -40,6 +40,7 @@ export function PromoCarousel({
   intervalMs = 5000,
   compact = false,
   stacked = false,
+  slogan,
 }: {
   slides: PromoSlide[];
   className?: string;
@@ -49,6 +50,11 @@ export function PromoCarousel({
   // Text above the photographs instead of beside them — for a narrow
   // column, where side by side leaves the words no room.
   stacked?: boolean;
+  // The shop's own line, small, at the top of every slide — so the
+  // banner is one card that always says whose it is, and only the offer
+  // underneath rotates. A separate navy card above the promotions read as
+  // a box on a box.
+  slogan?: string;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -108,7 +114,7 @@ export function PromoCarousel({
       >
         {slides.map((s, i) => (
           <div key={i} className="w-full shrink-0 snap-center">
-            <Slide slide={s} compact={compact} stacked={stacked} />
+            <Slide slide={s} compact={compact} stacked={stacked} slogan={slogan} />
           </div>
         ))}
       </div>
@@ -133,7 +139,24 @@ export function PromoCarousel({
   );
 }
 
-function Slide({ slide, compact, stacked }: { slide: PromoSlide; compact: boolean; stacked: boolean }) {
+function SloganStrip({ slogan, light }: { slogan: string; light: boolean }) {
+  return (
+    <div className={cn("relative mb-3 flex items-center gap-2 text-xs font-semibold", light ? "text-foreground" : "text-white")}>
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ring-1",
+          light ? "bg-brand/10 text-brand ring-brand/20" : "bg-white/10 ring-white/20"
+        )}
+      >
+        <ShieldCheck className={cn("size-3.5", light ? "text-brand" : "text-brand")} />
+        יבואן רשמי
+      </span>
+      <span className={cn("truncate", light ? "text-muted-foreground" : "text-white/85")}>{slogan}</span>
+    </div>
+  );
+}
+
+function Slide({ slide, compact, stacked, slogan }: { slide: PromoSlide; compact: boolean; stacked: boolean; slogan?: string }) {
   if (slide.kind === "brand") {
     return (
       <div className="bg-primary text-primary-foreground relative flex h-full min-h-56 flex-col justify-center overflow-hidden p-5 pb-8 sm:min-h-64 sm:p-8">
@@ -177,6 +200,7 @@ function Slide({ slide, compact, stacked }: { slide: PromoSlide; compact: boolea
       className={cn(
         "group relative flex h-full gap-3 overflow-hidden p-5 pb-8 sm:p-6",
         stacked ? "flex-col items-start justify-between" : "items-center justify-between sm:p-8",
+        slogan && !stacked && "pt-12 sm:pt-14",
         compact ? "min-h-40 sm:min-h-44" : "min-h-56 sm:min-h-64",
         tone === "brand" && "bg-brand text-brand-foreground",
         tone === "navy" && "bg-primary text-primary-foreground",
@@ -193,6 +217,11 @@ function Slide({ slide, compact, stacked }: { slide: PromoSlide; compact: boolea
               : "radial-gradient(ellipse 60% 100% at 100% 100%, oklch(1 0 0 / 0.22), transparent), radial-gradient(ellipse 40% 60% at 0% 0%, oklch(0 0 0 / 0.12), transparent)",
         }}
       />
+      {slogan && !stacked && (
+        <div className="absolute inset-x-5 top-4 sm:inset-x-8 sm:top-6">
+          <SloganStrip slogan={slogan} light={tone === "light"} />
+        </div>
+      )}
       {images.length === 0 && (
         <div
           aria-hidden
