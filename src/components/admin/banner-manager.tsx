@@ -12,6 +12,8 @@ import { PromoCarousel, type PromoSlide } from "@/components/home/promo-carousel
 import { searchProductsAction, type SearchResult } from "@/actions/search";
 import { saveBannersAction, uploadBannerImageAction } from "@/actions/admin-banners";
 import {
+  showsOnDesktop,
+  showsOnPhone,
   BANNER_TONES,
   BANNER_TONE_LABELS,
   MAX_BANNERS,
@@ -81,6 +83,8 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
   }
 
   const active = banners.filter((b) => b.isActive);
+  const onPhone = active.filter(showsOnPhone);
+  const onDesktop = active.filter(showsOnDesktop);
 
   return (
     <div>
@@ -103,12 +107,25 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
       </div>
 
       {active.length > 0 && (
-        <div className="border-border bg-card mb-6 rounded-xl border p-4">
-          <p className="text-muted-foreground mb-3 text-sm font-medium">כך זה ייראה בטלפון ({active.length} פעילים):</p>
-          <div className="mx-auto max-w-sm">
-            <PromoCarousel slides={active.map(toSlide)} compact slogan="הדרך החכמה לקנות אלקטרוניקה" intervalMs={4000} />
-            {active.every((b) => b.layout === "image") && (
-              <p className="text-muted-foreground mt-2 text-xs">התמונה מוצגת בשלמותה, ביחס שבו הועלתה — בטלפון ברוחב המסך, במחשב כרצועה מתחת לכותרת.</p>
+        <div className="border-border bg-card mb-6 grid grid-cols-1 gap-6 rounded-xl border p-4 lg:grid-cols-2">
+          <div>
+            <p className="text-muted-foreground mb-3 text-sm font-medium">בטלפון ({onPhone.length} מתוך {active.length} הפעילים):</p>
+            {onPhone.length > 0 ? (
+              <div className="mx-auto max-w-sm">
+                <PromoCarousel slides={onPhone.map((b) => toSlide(b, "phone"))} compact slogan="הדרך החכמה לקנות אלקטרוניקה" intervalMs={4000} />
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-xs">לאף באנר פעיל אין תמונה לטלפון — הטלפון מציג את הבאנר האוטומטי.</p>
+            )}
+          </div>
+          <div>
+            <p className="text-muted-foreground mb-3 text-sm font-medium">במחשב, בכרטיס שבצד הכותרת ({onDesktop.length} מתוך {active.length}):</p>
+            {onDesktop.length > 0 ? (
+              <div className="bg-primary rounded-xl p-4">
+                <PromoCarousel slides={onDesktop.map((b) => toSlide(b, "desktop"))} stacked intervalMs={4000} className="mx-auto max-w-[22rem] shadow-xl" />
+              </div>
+            ) : (
+              <p className="text-muted-foreground text-xs">לאף באנר פעיל אין תמונה למחשב — המחשב מציג את הבאנר האוטומטי.</p>
             )}
           </div>
         </div>
@@ -137,11 +154,12 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
   );
 }
 
-function toSlide(b: Banner): PromoSlide {
+function toSlide(b: Banner, device: "phone" | "desktop"): PromoSlide {
   if (b.layout === "image") {
-    return b.images[0]
-      ? { kind: "image", src: b.images[0], srcDesktop: b.desktopImage, alt: b.title || b.body, href: b.href }
-      : { kind: "promo", title: "העלו תמונה", body: "באנר תמונה", href: b.href, tone: "light", images: [] };
+    const src = device === "phone" ? b.images[0] : b.desktopImage;
+    return src
+      ? { kind: "image", src, alt: b.title || b.body, href: b.href }
+      : { kind: "promo", title: "העלו תמונה", body: device === "phone" ? "לטלפון" : "למחשב", href: b.href, tone: "light", images: [] };
   }
   return { kind: "promo", title: b.title || "כותרת", body: b.body, href: b.href, tone: b.tone, images: b.images };
 }
@@ -311,8 +329,9 @@ function BannerCard({
             </div>
             {imageOnly && (
               <p className="text-muted-foreground mt-1.5 text-xs">
-                רק התמונה, בשלמותה וביחס שבו הועלתה, בלי טקסט או מסגרת מעליה. מומלץ 1600×700 פיקסלים (יחס 16:7), עד 10MB. הכותרת למטה
-                משמשת רק כתיאור לקוראי מסך. במחשב התמונה יושבת בכרטיס שבצד הכותרת; אפשר להעלות לו גרסה גבוהה נפרדת.
+                רק התמונה, בלי טקסט או מסגרת מעליה. לטלפון תמונה רחבה (1600×700), למחשב תמונה ריבועית (1000×1000) לכרטיס שבצד
+                הכותרת. אפשר להעלות רק אחת מהן — אז הבאנר מופיע רק במכשיר שיש לו תמונה, ולא נחתך למכשיר השני. הכותרת למטה משמשת
+                רק כתיאור לקוראי מסך.
               </p>
             )}
           </div>
@@ -395,88 +414,102 @@ function BannerCard({
             </div>
           </div>
 
-          <div>
-            <Label className="mb-1.5 block">{imageOnly ? "התמונה" : `תמונות (עד ${MAX_BANNER_IMAGES})`}</Label>
-            <div className="mb-2 flex flex-wrap gap-2">
-              {banner.images.map((src, i) => (
-                <span key={src + i} className={cn("border-border relative overflow-hidden rounded-lg border bg-white", imageOnly ? "h-20 w-44" : "size-20")}>
-                  <Image src={src} alt="" fill sizes="176px" className={imageOnly ? "object-cover" : "object-contain p-1"} />
-                  <button
-                    type="button"
-                    onClick={() => onChange({ images: banner.images.filter((_, j) => j !== i) })}
-                    className="bg-background/90 hover:text-destructive absolute top-1 end-1 rounded-full p-0.5 shadow"
-                    aria-label="הסר תמונה"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                </span>
-              ))}
-              {banner.images.length < maxImages && (
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading !== false}
-                  className="border-border text-muted-foreground hover:border-brand hover:text-brand flex size-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[11px]"
-                >
-                  <ImagePlus className="size-5" />
-                  {uploading === "wide" ? "מעלה..." : "העלאה"}
-                </button>
-              )}
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files)} />
-            </div>
-            <div className="flex gap-2">
-              <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} dir="ltr" className="font-mono text-xs" placeholder="https://... כתובת תמונה" />
-              <Button type="button" variant="outline" size="sm" onClick={addImageUrl} disabled={!imageUrl.trim()}>
-                הוסף
-              </Button>
-            </div>
-          </div>
-
-          {imageOnly && (
+          <div className={cn(imageOnly && "grid grid-cols-1 gap-4 sm:grid-cols-2")}>
             <div>
-              <Label className="mb-1.5 block">גרסה למחשב (לא חובה)</Label>
-              <p className="text-muted-foreground mb-2 text-xs">
-                כרטיס גבוה בצד הכותרת, בערך 3:4 (למשל 900×1200). בלי גרסה כזו, התמונה הרחבה מוצגת שם בשלמותה, קטנה יותר.
-              </p>
-              <div className="flex flex-wrap items-center gap-2">
-                {banner.desktopImage ? (
-                  <span className="border-border relative h-28 w-21 overflow-hidden rounded-lg border bg-white">
-                    <Image src={banner.desktopImage} alt="" fill sizes="84px" className="object-cover" />
+              <Label className="mb-1.5 block">{imageOnly ? "תמונה לטלפון (רחבה, 1600×700)" : `תמונות (עד ${MAX_BANNER_IMAGES})`}</Label>
+              <div className="mb-2 flex flex-wrap gap-2">
+                {banner.images.map((src, i) => (
+                  <span key={src + i} className={cn("border-border relative overflow-hidden rounded-lg border bg-white", imageOnly ? "h-24 w-52" : "size-20")}>
+                    <Image src={src} alt="" fill sizes="208px" className={imageOnly ? "object-cover" : "object-contain p-1"} />
                     <button
                       type="button"
-                      onClick={() => onChange({ desktopImage: undefined })}
+                      onClick={() => onChange({ images: banner.images.filter((_, j) => j !== i) })}
                       className="bg-background/90 hover:text-destructive absolute top-1 end-1 rounded-full p-0.5 shadow"
-                      aria-label="הסר גרסה למחשב"
+                      aria-label="הסר תמונה"
                     >
                       <X className="size-3.5" />
                     </button>
                   </span>
-                ) : (
+                ))}
+                {banner.images.length < maxImages && (
                   <button
                     type="button"
-                    onClick={() => desktopRef.current?.click()}
+                    onClick={() => fileRef.current?.click()}
                     disabled={uploading !== false}
-                    className="border-border text-muted-foreground hover:border-brand hover:text-brand flex h-28 w-21 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[11px]"
+                    className={cn(
+                      "border-border text-muted-foreground hover:border-brand hover:text-brand flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[11px]",
+                      imageOnly ? "h-24 w-52" : "size-20"
+                    )}
                   >
                     <ImagePlus className="size-5" />
-                    {uploading === "desktop" ? "מעלה..." : "העלאה"}
+                    {uploading === "wide" ? "מעלה..." : "העלאה"}
                   </button>
                 )}
-                <input ref={desktopRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files, "desktop")} />
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files)} />
               </div>
+              {!imageOnly && (
+                <div className="flex gap-2">
+                  <Input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} dir="ltr" className="font-mono text-xs" placeholder="https://... כתובת תמונה" />
+                  <Button type="button" variant="outline" size="sm" onClick={addImageUrl} disabled={!imageUrl.trim()}>
+                    הוסף
+                  </Button>
+                </div>
+              )}
+              {imageOnly && banner.images.length === 0 && <p className="text-muted-foreground text-xs">בלי תמונה לטלפון הבאנר לא יופיע בטלפון.</p>}
             </div>
-          )}
+
+            {imageOnly && (
+              <div>
+                <Label className="mb-1.5 block">תמונה למחשב (ריבוע, 1000×1000)</Label>
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  {banner.desktopImage ? (
+                    <span className="border-border relative size-24 overflow-hidden rounded-lg border bg-white">
+                      <Image src={banner.desktopImage} alt="" fill sizes="96px" className="object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => onChange({ desktopImage: undefined })}
+                        className="bg-background/90 hover:text-destructive absolute top-1 end-1 rounded-full p-0.5 shadow"
+                        aria-label="הסר תמונה למחשב"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => desktopRef.current?.click()}
+                      disabled={uploading !== false}
+                      className="border-border text-muted-foreground hover:border-brand hover:text-brand flex size-24 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[11px]"
+                    >
+                      <ImagePlus className="size-5" />
+                      {uploading === "desktop" ? "מעלה..." : "העלאה"}
+                    </button>
+                  )}
+                  <input ref={desktopRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files, "desktop")} />
+                </div>
+                {!banner.desktopImage && <p className="text-muted-foreground text-xs">בלי תמונה למחשב הבאנר לא יופיע במחשב.</p>}
+              </div>
+            )}
+          </div>
         </div>
 
         <div>
-          <p className="text-muted-foreground mb-2 text-xs font-medium">תצוגה מקדימה</p>
-          <PromoCarousel slides={[toSlide(banner)]} compact slogan="הדרך החכמה לקנות אלקטרוניקה" />
-          {imageOnly && banner.images[0] && (
+          <p className="text-muted-foreground mb-2 text-xs font-medium">{imageOnly ? "בטלפון" : "תצוגה מקדימה"}</p>
+          {!imageOnly || banner.images[0] ? (
+            <PromoCarousel slides={[toSlide(banner, "phone")]} compact slogan="הדרך החכמה לקנות אלקטרוניקה" />
+          ) : (
+            <p className="text-muted-foreground text-xs">אין תמונה לטלפון — לא מופיע בטלפון.</p>
+          )}
+          {imageOnly && (
             <div className="mt-4">
-              <p className="text-muted-foreground mb-2 text-xs font-medium">הכרטיס בצד הכותרת במחשב</p>
-              <div className="bg-primary rounded-xl p-4">
-                <PromoCarousel slides={[toSlide(banner)]} stacked natural={!banner.desktopImage} className="mx-auto max-w-[22rem] shadow-xl" />
-              </div>
+              <p className="text-muted-foreground mb-2 text-xs font-medium">במחשב, בכרטיס שבצד הכותרת</p>
+              {banner.desktopImage ? (
+                <div className="bg-primary rounded-xl p-4">
+                  <PromoCarousel slides={[toSlide(banner, "desktop")]} stacked className="mx-auto max-w-[22rem] shadow-xl" />
+                </div>
+              ) : (
+                <p className="text-muted-foreground text-xs">אין תמונה למחשב — לא מופיע במחשב.</p>
+              )}
             </div>
           )}
           {!banner.isActive && <p className="text-destructive mt-2 text-xs font-medium">הבאנר מוסתר. הפעילו את המתג למעלה ושמרו כדי שיופיע באתר.</p>}

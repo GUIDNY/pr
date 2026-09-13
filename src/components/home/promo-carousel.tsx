@@ -28,9 +28,9 @@ export type PromoSlide =
   | {
       // One designed picture, edge to edge; the words are in the picture.
       kind: "image";
+      // The picture for the device this carousel is on: the caller picks
+      // the wide one for a phone or the square one for the desktop card.
       src: string;
-      // A taller cut for the narrow card beside the desktop headline.
-      srcDesktop?: string;
       alt: string;
       href: string;
     };
@@ -225,27 +225,26 @@ function Slide({
     // The picture as it was made: full width, its own height, nothing
     // cropped. The width/height attributes only hold the space until it
     // loads; then its real ratio takes over.
-    const src = stacked && slide.srcDesktop ? slide.srcDesktop : slide.src;
     return (
       <Link href={slide.href} className="group relative block overflow-hidden bg-white">
-        <Image src={src} alt={slide.alt} width={1600} height={700} sizes={stacked ? "352px" : "(min-width: 1280px) 1024px, 100vw"} className="h-auto w-full" priority />
+        <Image src={slide.src} alt={slide.alt} width={1600} height={700} sizes="(min-width: 1280px) 1024px, 100vw" className="h-auto w-full" priority />
       </Link>
     );
   }
 
   if (slide.kind === "image") {
-    // A fixed-height slot — beside collage slides, or the desktop side
-    // card with its own tall cut — so the picture fills it and crops.
-    const src = stacked && slide.srcDesktop ? slide.srcDesktop : slide.src;
+    // The desktop card is a square, so a square picture fits it exactly;
+    // beside collage slides on a phone the slot has a fixed height and
+    // the picture fills it.
     return (
       <Link
         href={slide.href}
         className={cn(
-          "group relative block h-full overflow-hidden bg-white",
-          stacked || !compact ? "min-h-56 sm:min-h-64" : "aspect-[16/7] min-h-40 sm:min-h-44"
+          "group relative block overflow-hidden bg-white",
+          stacked ? "aspect-square w-full" : compact ? "h-full min-h-40 sm:min-h-44" : "h-full min-h-56 sm:min-h-64"
         )}
       >
-        <Image src={src} alt={slide.alt} fill sizes="(min-width: 1024px) 352px, 100vw" className="object-cover" priority />
+        <Image src={slide.src} alt={slide.alt} fill sizes={stacked ? "352px" : "100vw"} className="object-cover" priority />
       </Link>
     );
   }

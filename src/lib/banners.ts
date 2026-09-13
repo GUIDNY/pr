@@ -48,10 +48,13 @@ export const bannerSchema = z
     body: z.string().trim().max(60, "טקסט משני עד 60 תווים"),
     href,
     tone: z.enum(BANNER_TONES),
+    // Collage: up to three product photographs, shown on every device.
+    // Image layout: images[0] is the wide picture for the phone (about
+    // 16:7) and desktopImage the square one for the card beside the
+    // desktop headline. Each is optional, and a device with no picture of
+    // its own simply does not show the banner — nothing is ever cropped
+    // or re-cut from the other device's picture.
     images: z.array(z.string().trim().url().max(1000)).max(MAX_BANNER_IMAGES),
-    // Image layout only: a second, taller cut of the same picture for the
-    // card beside the desktop headline (about 3:4). Without it the wide
-    // picture is shown there whole, at its own ratio.
     desktopImage: z.string().trim().url().max(1000).optional(),
     isActive: z.boolean(),
   })
@@ -59,14 +62,22 @@ export const bannerSchema = z
     if (b.layout === "collage" && b.title.length === 0) {
       ctx.addIssue({ code: "custom", path: ["title"], message: "חסרה כותרת" });
     }
-    if (b.layout === "image" && b.images.length === 0) {
-      ctx.addIssue({ code: "custom", path: ["images"], message: "באנר תמונה צריך תמונה" });
+    if (b.layout === "image" && b.images.length === 0 && !b.desktopImage) {
+      ctx.addIssue({ code: "custom", path: ["images"], message: "באנר תמונה צריך תמונה לטלפון או למחשב" });
     }
   });
 
 export const bannersSchema = z.array(bannerSchema).max(MAX_BANNERS);
 
 export type Banner = z.infer<typeof bannerSchema>;
+
+/** Whether a banner has something to show on a phone / on a desktop. */
+export function showsOnPhone(b: Banner) {
+  return b.layout !== "image" || b.images.length > 0;
+}
+export function showsOnDesktop(b: Banner) {
+  return b.layout !== "image" || !!b.desktopImage;
+}
 
 /** Parses a stored payload leniently: a bad row is dropped, not fatal. */
 export function parseStoredBanners(payload: unknown): Banner[] {

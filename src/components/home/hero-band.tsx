@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import type { DepartmentCount, CategoryTile } from "@/lib/queries/categories";
 import type { ProductCardData } from "@/components/product/product-card";
-import type { Banner } from "@/lib/banners";
+import { showsOnDesktop, showsOnPhone, type Banner } from "@/lib/banners";
 
 /**
  * The first screen.
@@ -85,23 +85,22 @@ export function HeroBand({
       images: tileImages.length > 0 ? tileImages : dealImages.slice(0, 3),
     },
   ];
-  const promos: PromoSlide[] =
-    banners.length > 0
-      ? banners.map((b) =>
-          b.layout === "image"
-            ? { kind: "image" as const, src: b.images[0], srcDesktop: b.desktopImage, alt: b.title || b.body, href: b.href }
-            : { kind: "promo" as const, title: b.title, body: b.body, href: b.href, tone: b.tone, images: b.images },
-        )
-      : dataSlides;
-
-  // The owner's pictures sit in the card at the desktop banner's end, the
-  // same place the data slides do. The column widens a little for them,
-  // and unless every picture comes with its own tall cut for that card,
-  // the card takes the picture's own shape — whole and centred beside
-  // the headline — rather than cropping a wide picture to its middle.
-  const picturesOnly = banners.length > 0 && banners.every((b) => b.layout === "image");
-  const sideNatural = picturesOnly && !banners.every((b) => !!b.desktopImage);
-
+  // Each device shows the banners that have a picture for it. A picture
+  // is never borrowed from the other device — a wide phone picture in the
+  // square desktop card, or a square in the wide phone slot, is a crop of
+  // the owner's artwork — so a banner with one picture appears on one
+  // device only. Collage banners appear on both.
+  const toSlide = (b: Banner, device: "phone" | "desktop"): PromoSlide =>
+    b.layout === "image"
+      ? { kind: "image", src: device === "phone" ? b.images[0] : b.desktopImage!, alt: b.title || b.body, href: b.href }
+      : { kind: "promo", title: b.title, body: b.body, href: b.href, tone: b.tone, images: b.images };
+  const phoneBanners = banners.filter(showsOnPhone);
+  const desktopBanners = banners.filter(showsOnDesktop);
+  const phoneSlides = phoneBanners.length > 0 ? phoneBanners.map((b) => toSlide(b, "phone")) : dataSlides;
+  const desktopSlides = desktopBanners.length > 0 ? desktopBanners.map((b) => toSlide(b, "desktop")) : dataSlides;
+  // Square pictures get a slightly wider column and a card of their own
+  // height, centred beside the headline.
+  const desktopPictures = desktopBanners.length > 0 && desktopBanners.every((b) => b.layout === "image");
 
   return (
     <section className="bg-secondary border-b">
@@ -114,7 +113,7 @@ export function HeroBand({
               top of every slide, and only the offer underneath rotates.
               The three reasons to buy here follow as a line of text, not
               a box. */}
-          <PromoCarousel slides={promos} compact slogan={title} />
+          <PromoCarousel slides={phoneSlides} compact slogan={title} />
 
           <ul className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-medium">
             {["מחירי אונליין", "אחריות יבואן", "משלוח מהיר עד הבית"].map((f) => (
@@ -140,7 +139,7 @@ export function HeroBand({
                     "radial-gradient(ellipse 60% 90% at 0% 50%, oklch(0.42 0.12 264 / 0.9), transparent), radial-gradient(ellipse 40% 60% at 100% 0%, oklch(0.658 0.209 39.1 / 0.25), transparent)",
                 }}
               />
-              <div className={cn("relative grid items-center gap-10 p-8", picturesOnly ? "grid-cols-[1fr_22rem]" : "grid-cols-[1fr_18rem]")}>
+              <div className={cn("relative grid items-center gap-10 p-8", desktopPictures ? "grid-cols-[1fr_22rem]" : "grid-cols-[1fr_18rem]")}>
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                     <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1">
@@ -191,10 +190,9 @@ export function HeroBand({
 
                 {/* The promotions, rotating, in the banner's end column. */}
                 <PromoCarousel
-                  slides={promos}
+                  slides={desktopSlides}
                   stacked
-                  natural={sideNatural}
-                  className={sideNatural ? "self-center shadow-xl" : "self-stretch shadow-xl [&>div:first-child]:h-full"}
+                  className={desktopPictures ? "self-center shadow-xl" : "self-stretch shadow-xl [&>div:first-child]:h-full"}
                 />
               </div>
             </div>

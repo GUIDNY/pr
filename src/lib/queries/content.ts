@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { BANNERS_SECTION_KEY, parseStoredBanners, type Banner } from "@/lib/banners";
+import { BANNERS_SECTION_KEY, parseStoredBanners, showsOnDesktop, showsOnPhone, type Banner } from "@/lib/banners";
 
 export async function getHomepageSection(key: string) {
   const row = await db.homepageSection.findUnique({ where: { key } });
@@ -89,9 +89,7 @@ export async function getPromoBanners(): Promise<Banner[]> {
   const row = await db.homepageSection.findUnique({ where: { key: BANNERS_SECTION_KEY } });
   if (!row || !row.isActive) return [];
   try {
-    return parseStoredBanners(JSON.parse(row.payload)).filter(
-      (b) => b.isActive && (b.layout !== "image" || b.images.length > 0),
-    );
+    return parseStoredBanners(JSON.parse(row.payload)).filter((b) => b.isActive && (showsOnPhone(b) || showsOnDesktop(b)));
   } catch {
     return [];
   }
