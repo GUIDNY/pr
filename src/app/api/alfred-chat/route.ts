@@ -160,11 +160,24 @@ export async function POST(request: Request) {
       }),
       signal: AbortSignal.timeout(20000),
     });
-  } catch {
+  } catch (error) {
+    /* The customer sees "we are busy"; the log has to say which of the very
+       different things went wrong, or the next person debugging this is
+       reduced to swapping API keys and hoping. This branch is the network
+       itself — a timeout, DNS, a dropped connection — and never Google
+       refusing us, which arrives as a perfectly good response below. */
+    console.error("[alfred] gemini request failed:", (error as Error).message);
     return NextResponse.json({ error: "השירות עמוס כרגע, נסו שוב בעוד רגע" }, { status: 502 });
   }
 
   if (!geminiRes.ok) {
+    /* Google's own words, which are specific and worth having: an invalid or
+       revoked key, a model this key's tier cannot reach, a quota that ran
+       out, a project with billing switched off. All four look identical from
+       the outside — the same 502 and the same Hebrew sentence — and picking
+       between them by trying a different key is how an afternoon goes. */
+    const detail = await geminiRes.text().catch(() => "");
+    console.error(`[alfred] gemini ${geminiRes.status}:`, detail.slice(0, 500));
     return NextResponse.json({ error: "השירות עמוס כרגע, נסו שוב בעוד רגע" }, { status: 502 });
   }
 
