@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { normalizeFacetValue } from "@/lib/facet-value";
 import { db } from "@/lib/db";
 import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
@@ -447,4 +448,177 @@ export async function searchProducts(query: string, take = 8) {
     take,
   });
   return rows.map(mapProductToCard);
+}
+
+/**
+ * What is actually there to filter by, and how much of it.
+ *
+ * The filters on a category page used to be built from CategoryAttribute's
+ * `options` column — a list typed into the schema when the attribute was
+ * defined, describing what values are *allowed* rather than which ones any
+ * product has. On a live catalogue those are two very different lists, and
+ * the gap between them was visible in both directions:
+ *
+ *   מקרר 4-5 דלתות showed "מיקום מקפיא: עליון / תחתון", because the schema
+ *   says a fridge has a freezer position. Not one of its 58 live products
+ *   has that value filled. Twenty-four products on screen, click the filter,
+ *   zero — a dead end a shopper reads as "this shop has nothing".
+ *
+ *   מכונות כביסה did not show "קיבולת" at all, though 64 of its 71 live
+ *   products have it and it is the first thing anyone asks about a washing
+ *   machine. It has no `options` list, because capacity is a number, so it
+ *   was invisible.
+ *
+ * So the options come from the products now, counted, and an option nobody
+ * can reach is not offered. That is also what makes counts possible, and a
+ * count is the difference between choosing and guessing.
+ *
+ * ONE DELIBERATE IMPRECISION. The counts apply the brand and price filters
+ * but not the attribute ones, so with two attribute filters active a number
+ * can read higher than what clicking it returns. Doing better means one
+ * query per attribute per request, on every category page, to sharpen a
+ * number in a case most shoppers never reach — while the direction that
+ * matters is already right: nothing is ever offered at zero.
+ */
+/** `values` are the raw rows this one chip stands for — a chip reading "8"
+    filters on both "8" and `8 ק"ג`, or it would quietly drop products. */
+export type FacetOption = { value: string; count: number; values: string[] };
+export type Facet = {
+  key: string;
+  label: string;
+  unit: string | null;
+  /** Share of the category's live products that have any value here, 0-1. */
+  coverage: number;
+  options: FacetOption[];
+};
+
+/* An attribute filled in by only a handful of products is worse than no
+   filter: every option in it hides the overwhelming majority of the shelf,
+   and the shopper cannot tell that what vanished was missing data rather
+   than missing stock. Below this the attribute waits until the catalogue
+   catches up. */
+const MIN_FACET_COVERAGE = 0.3;
+
+export async function getCategoryFacets(
+  categorySlug: string,
+  opts: { brandSlugs?: string[]; minPrice?: number; maxPrice?: number } = {}
+): Promise<{ brands: (FacetOption & { name: string })[]; attributes: Facet[] }> {
+  const category = await db.category.findUnique({
+    where: { slug: categorySlug },
+    include: { children: true },
+  });
+  if (!category) return { brands: [], attributes: [] };
+
+  const categoryIds = categoryScope(category);
+  const priceWhere =
+    opts.minPrice !== undefined || opts.maxPrice !== undefined
+      ? {
+          price: {
+            ...(opts.minPrice !== undefined ? { gte: opts.minPrice } : {}),
+            ...(opts.maxPrice !== undefined ? { lte: opts.maxPrice } : {}),
+          },
+        }
+      : {};
+
+  const inCategory = { ...PUBLIC_PRODUCT_WHERE, categoryId: { in: categoryIds } };
+
+  /* Brand counts ignore the brand filter on purpose. Picking Bosch must not
+     make every other brand read zero — the shopper is choosing between
+     brands, and a list that collapses the moment they choose one cannot be
+     used to add a second. */
+  const brandScope = { ...inCategory, ...priceWhere };
+  const attrScope = {
+    ...inCategory,
+    ...priceWhere,
+    ...(opts.brandSlugs && opts.brandSlugs.length > 0 ? { brand: { slug: { in: opts.brandSlugs } } } : {}),
+  };
+
+  const [brandGroups, brandRows, attributes, valueGroups, filledCounts, liveTotal] = await Promise.all([
+    db.product.groupBy({ by: ["brandId"], where: brandScope, _count: { _all: true } }),
+    db.brand.findMany({
+      where: { products: { some: brandScope } },
+      select: { id: true, name: true, slug: true },
+    }),
+    db.categoryAttribute.findMany({
+      where: { categoryId: { in: categoryIds }, isFilter: true },
+      orderBy: { sortOrder: "asc" },
+    }),
+    db.productAttributeValue.groupBy({
+      by: ["attributeId", "value"],
+      where: { product: attrScope },
+      _count: { _all: true },
+    }),
+    db.productAttributeValue.groupBy({
+      by: ["attributeId"],
+      where: { product: inCategory },
+      _count: { _all: true },
+    }),
+    db.product.count({ where: inCategory }),
+  ]);
+
+  const brandCount = new Map(brandGroups.map((g) => [g.brandId, g._count._all]));
+  const brands = brandRows
+    .map((b) => ({ name: b.name, value: b.slug, values: [b.slug], count: brandCount.get(b.id) ?? 0 }))
+    .filter((b) => b.count > 0)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "he"));
+
+  /* Two attributes in different sub-categories can share a key — the scope
+     spans a department and its children — so values are collected per key
+     rather than per attribute row, and the counts add up across them. */
+  const byId = new Map(attributes.map((a) => [a.id, a]));
+  const optionsByKey = new Map<string, Map<string, FacetOption>>();
+  for (const group of valueGroups) {
+    const attr = byId.get(group.attributeId);
+    if (!attr) continue;
+    const label = normalizeFacetValue(group.value);
+    if (!label) continue; // blank, or "לא צוין"
+
+    const bucket = optionsByKey.get(attr.key) ?? new Map<string, FacetOption>();
+    const existing = bucket.get(label);
+    if (existing) {
+      existing.count += group._count._all;
+      // Both spellings have to reach the query, or the chip under-selects.
+      if (!existing.values.includes(group.value)) existing.values.push(group.value);
+    } else {
+      bucket.set(label, { value: label, count: group._count._all, values: [group.value] });
+    }
+    optionsByKey.set(attr.key, bucket);
+  }
+
+  const filledByKey = new Map<string, number>();
+  for (const group of filledCounts) {
+    const attr = byId.get(group.attributeId);
+    if (!attr) continue;
+    filledByKey.set(attr.key, (filledByKey.get(attr.key) ?? 0) + group._count._all);
+  }
+
+  const seen = new Set<string>();
+  const facets: Facet[] = [];
+  for (const attr of attributes) {
+    if (seen.has(attr.key)) continue;
+    seen.add(attr.key);
+
+    const bucket = optionsByKey.get(attr.key);
+    if (!bucket || bucket.size < 2) continue; // one option filters nothing
+
+    const coverage = liveTotal > 0 ? (filledByKey.get(attr.key) ?? 0) / liveTotal : 0;
+    if (coverage < MIN_FACET_COVERAGE) continue;
+
+    const options = [...bucket.values()];
+
+    /* A numeric attribute reads as a scale and has to be ordered like one:
+       "6 ק״ג, 7, 8, 9" is a list somebody can run their eye down, and the
+       same values ordered by popularity are just noise. Everything else is
+       ordered by how many products carry it, because that is the order in
+       which they are worth trying. */
+    if (attr.inputType === "number") {
+      options.sort((a, b) => parseFloat(a.value) - parseFloat(b.value) || a.value.localeCompare(b.value, "he"));
+    } else {
+      options.sort((a, b) => b.count - a.count || a.value.localeCompare(b.value, "he"));
+    }
+
+    facets.push({ key: attr.key, label: attr.label, unit: attr.unit, coverage, options });
+  }
+
+  return { brands, attributes: facets };
 }

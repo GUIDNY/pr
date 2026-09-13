@@ -13,7 +13,7 @@ import { FilterSidebar } from "@/components/catalog/filter-sidebar";
 import { MobileFilters } from "@/components/catalog/mobile-filters";
 import { SortSelect } from "@/components/catalog/sort-select";
 import { ProductCard } from "@/components/product/product-card";
-import { getProductsByCategorySlug, getCategoryFilterAttributes, type ProductSort } from "@/lib/queries/products";
+import { getProductsByCategorySlug, getCategoryFacets, type ProductSort } from "@/lib/queries/products";
 import { getArticleByCategorySlug } from "@/lib/queries/articles";
 import { findCategoryBySlug } from "@/lib/category-tree";
 import { PackageSearch, BookOpen, ArrowLeft } from "lucide-react";
@@ -87,7 +87,7 @@ export async function CategoryPageView({
     }
   }
 
-  const [{ products, total, category, brands, priceRange }, attributes, guideArticle] = await Promise.all([
+  const [{ products, total, category, priceRange }, facets, guideArticle] = await Promise.all([
     getProductsByCategorySlug(slug, {
       sort,
       page,
@@ -97,19 +97,19 @@ export async function CategoryPageView({
       maxPrice,
       attributeFilters,
     }),
-    getCategoryFilterAttributes(slug),
+    /* Not the attributes the schema defines for this category — the values
+       its live products actually carry, counted. See getCategoryFacets: the
+       old list offered "מיקום מקפיא" on a fridge shelf where no product has
+       one, and withheld "קיבולת" on a washing-machine shelf where 64 of 71
+       do. */
+    getCategoryFacets(slug, { brandSlugs, minPrice, maxPrice }),
     getArticleByCategorySlug(slug),
   ]);
 
   if (!category) notFound();
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const filterAttrs = attributes.map((a) => ({
-    key: a.key,
-    label: a.label,
-    unit: a.unit,
-    options: a.options ? (JSON.parse(a.options) as string[]) : null,
-  }));
+
 
   // Both helpers keep every other search param — the filters, the sort —
   // so switching view or page never silently clears a filter the shopper
@@ -182,7 +182,7 @@ export async function CategoryPageView({
       <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[240px_1fr]">
         <aside className="hidden lg:block">
           <div className="sticky top-24">
-            <FilterSidebar brands={brands} attributes={filterAttrs} priceRange={priceRange} query={query} />
+            <FilterSidebar brands={facets.brands} attributes={facets.attributes} priceRange={priceRange} query={query} />
           </div>
         </aside>
 
@@ -194,7 +194,7 @@ export async function CategoryPageView({
           <div className="mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <p className="text-muted-foreground text-sm">{total} מוצרים</p>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <MobileFilters brands={brands} attributes={filterAttrs} priceRange={priceRange} resultCount={total} query={query} />
+              <MobileFilters brands={facets.brands} attributes={facets.attributes} priceRange={priceRange} resultCount={total} query={query} />
               {/* Two links, not a client-side toggle: the choice belongs in
                   the URL so it survives a reload, a back button and a
                   shared link, and the page is a Server Component that reads

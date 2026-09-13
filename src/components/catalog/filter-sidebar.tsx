@@ -1,20 +1,24 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { useState } from "react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
-export type FilterAttribute = {
-  key: string;
-  label: string;
-  unit: string | null;
-  options: string[] | null;
-};
+/** `values` are the raw database spellings one chip stands for — a chip
+    reading "8" carries both "8" and `8 ק"ג`. See getCategoryFacets. */
+export type FacetOption = { value: string; count: number; values: string[] };
+export type BrandFacet = FacetOption & { name: string };
+export type Facet = { key: string; label: string; unit: string | null; options: FacetOption[] };
+
+/* Six is the whole anti-clutter rule, and it is not arbitrary: six lines is
+   about what the eye takes in without reading, and a section that is taller
+   than that stops being a choice and becomes a wall. Anything the shopper
+   has already picked is always shown, so a selection can never hide behind
+   "show more" — a filter you cannot see is a filter you cannot undo. */
+const VISIBLE = 6;
 
 export function FilterSidebar({
   brands,
@@ -22,8 +26,8 @@ export function FilterSidebar({
   priceRange,
   query = "",
 }: {
-  brands: { name: string; slug: string }[];
-  attributes: FilterAttribute[];
+  brands: BrandFacet[];
+  attributes: Facet[];
   priceRange: { min: number; max: number };
   query?: string;
 }) {
@@ -40,31 +44,29 @@ export function FilterSidebar({
     const params = new URLSearchParams(searchParams.toString());
     mutate(params);
     params.delete("page");
-    router.push(`${pathname}?${params.toString()}`);
+    const qs = params.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
   }
 
-  function toggleBrand(slug: string) {
+  /* A chip owns a set of raw values, not one, so it goes into the URL and
+     comes out of it as a set. Toggling one spelling at a time would leave a
+     chip that looks off while half its products are still filtered out. */
+  function toggle(paramKey: string, values: string[]) {
     pushParams((params) => {
-      const current = params.getAll("brand");
-      params.delete("brand");
-      if (current.includes(slug)) {
-        current.filter((s) => s !== slug).forEach((s) => params.append("brand", s));
-      } else {
-        [...current, slug].forEach((s) => params.append("brand", s));
-      }
+      const current = params.getAll(paramKey);
+      params.delete(paramKey);
+      const isOn = values.some((v) => current.includes(v));
+      const next = isOn ? current.filter((s) => !values.includes(s)) : [...current, ...values];
+      next.forEach((s) => params.append(paramKey, s));
     });
   }
 
-  function toggleAttribute(key: string, value: string) {
+  function clearPrice() {
+    setMinPrice("");
+    setMaxPrice("");
     pushParams((params) => {
-      const paramKey = `attr_${key}`;
-      const current = params.getAll(paramKey);
-      params.delete(paramKey);
-      if (current.includes(value)) {
-        current.filter((s) => s !== value).forEach((s) => params.append(paramKey, s));
-      } else {
-        [...current, value].forEach((s) => params.append(paramKey, s));
-      }
+      params.delete("min");
+      params.delete("max");
     });
   }
 
@@ -77,24 +79,60 @@ export function FilterSidebar({
     });
   }
 
-  function clearAll() {
-    router.push(pathname);
+  /* Everything currently narrowing the shelf, in one row at the top.
+   *
+   * Without it the only record of a choice is a tick somewhere down a list
+   * the shopper has scrolled past, and the usual result is a page showing
+   * four products, a shopper who cannot see why, and a shop that looks empty
+   * rather than filtered. */
+  const activeChips: { label: string; clear: () => void }[] = [];
+  for (const slug of selectedBrands) {
+    const brand = brands.find((b) => b.value === slug);
+    activeChips.push({ label: brand?.name ?? slug, clear: () => toggle("brand", [slug]) });
   }
-
-  const hasActiveFilters =
-    selectedBrands.length > 0 || searchParams.get("min") || searchParams.get("max") ||
-    attributes.some((a) => searchParams.getAll(`attr_${a.key}`).length > 0);
+  for (const attr of attributes) {
+    const active = searchParams.getAll(`attr_${attr.key}`);
+    // One chip per option the shopper picked, not per raw spelling behind it.
+    for (const opt of attr.options) {
+      if (opt.values.some((v) => active.includes(v))) {
+        activeChips.push({ label: opt.value, clear: () => toggle(`attr_${attr.key}`, opt.values) });
+      }
+    }
+  }
+  const priceActive = searchParams.get("min") || searchParams.get("max");
+  if (priceActive) {
+    activeChips.push({
+      label: `₪${searchParams.get("min") ?? priceRange.min}–₪${searchParams.get("max") ?? priceRange.max}`,
+      clear: clearPrice,
+    });
+  }
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold">מסננים</h3>
-        {hasActiveFilters && (
-          <Button variant="ghost" size="sm" onClick={clearAll} className="text-brand h-auto p-0 text-xs">
+        {activeChips.length > 0 && (
+          <Button variant="ghost" size="sm" onClick={() => router.push(pathname)} className="text-brand h-auto p-0 text-xs">
             נקה הכל
           </Button>
         )}
       </div>
+
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {activeChips.map((chip, i) => (
+            <button
+              key={`${chip.label}-${i}`}
+              type="button"
+              onClick={chip.clear}
+              className="bg-brand/10 text-brand hover:bg-brand/20 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors"
+            >
+              {chip.label}
+              <X className="size-3" />
+            </button>
+          ))}
+        </div>
+      )}
 
       <div>
         <p className="mb-2 text-sm font-medium">טווח מחירים</p>
@@ -122,51 +160,90 @@ export function FilterSidebar({
       </div>
 
       {brands.length > 0 && (
-        <>
-          <Separator />
-          <div>
-            <p className="mb-2 text-sm font-medium">יצרן</p>
-            <div className="flex flex-col gap-2">
-              {brands.map((b) => (
-                <div key={b.slug} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`brand-${b.slug}`}
-                    checked={selectedBrands.includes(b.slug)}
-                    onCheckedChange={() => toggleBrand(b.slug)}
-                  />
-                  <Label htmlFor={`brand-${b.slug}`} className="text-sm font-normal">
-                    {b.name}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
+        <FacetSection
+          title="יצרן"
+          options={brands.map((b) => ({ label: b.name, count: b.count, values: b.values }))}
+          selected={selectedBrands}
+          onToggle={(values) => toggle("brand", values)}
+        />
       )}
 
-      {attributes.map((attr) =>
-        attr.options && attr.options.length > 0 ? (
-          <div key={attr.key}>
-            <Separator className="mb-4" />
-            <p className="mb-2 text-sm font-medium">
-              {attr.label} {attr.unit && `(${attr.unit})`}
-            </p>
-            <div className="flex flex-col gap-2">
-              {attr.options.map((opt) => (
-                <div key={opt} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`${attr.key}-${opt}`}
-                    checked={searchParams.getAll(`attr_${attr.key}`).includes(opt)}
-                    onCheckedChange={() => toggleAttribute(attr.key, opt)}
-                  />
-                  <Label htmlFor={`${attr.key}-${opt}`} className="text-sm font-normal">
-                    {opt}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : null
+      {attributes.map((attr) => (
+        <FacetSection
+          key={attr.key}
+          title={attr.unit ? `${attr.label} (${attr.unit})` : attr.label}
+          options={attr.options.map((o) => ({ label: o.value, count: o.count, values: o.values }))}
+          selected={searchParams.getAll(`attr_${attr.key}`)}
+          onToggle={(values) => toggle(`attr_${attr.key}`, values)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function FacetSection({
+  title,
+  options,
+  selected,
+  onToggle,
+}: {
+  title: string;
+  options: { label: string; count: number; values: string[] }[];
+  selected: string[];
+  onToggle: (values: string[]) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  // A chosen option is never folded away, whatever its position in the list.
+  const isOn = (o: { values: string[] }) => o.values.some((v) => selected.includes(v));
+  const shown = expanded ? options : options.filter((o, i) => i < VISIBLE || isOn(o));
+  const hidden = options.length - shown.length;
+
+  return (
+    <div className="border-border border-t pt-4">
+      <p className="mb-2 text-sm font-medium">{title}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {shown.map((opt) => {
+          const isSelected = isOn(opt);
+          return (
+            <button
+              key={opt.label}
+              type="button"
+              onClick={() => onToggle(opt.values)}
+              aria-pressed={isSelected}
+              className={cn(
+                "rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+                isSelected
+                  ? "border-brand bg-brand/10 text-brand font-semibold"
+                  : "border-border hover:border-brand/50 hover:bg-muted"
+              )}
+            >
+              {opt.label}
+              {/* The count is the point of the whole rebuild: it turns a
+                  guess into a choice, and it is the reason an option that
+                  leads nowhere is never printed. */}
+              <span className={cn("ms-1", isSelected ? "text-brand/70" : "text-muted-foreground")}>{opt.count}</span>
+            </button>
+          );
+        })}
+      </div>
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="text-muted-foreground hover:text-brand mt-2 text-xs underline"
+        >
+          עוד {hidden}
+        </button>
+      )}
+      {expanded && options.length > VISIBLE && (
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          className="text-muted-foreground hover:text-brand mt-2 text-xs underline"
+        >
+          הצג פחות
+        </button>
       )}
     </div>
   );
