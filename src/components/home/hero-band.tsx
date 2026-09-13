@@ -64,7 +64,7 @@ export function HeroBand({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[250px_1fr] lg:items-stretch">
           <DepartmentMenu departments={departments} />
 
-          <div className="flex min-w-0 flex-col gap-4">
+          <div className="flex min-w-0 flex-col gap-3 sm:gap-4">
             {/* The banner. Navy — the logo's own — with the copy at the
                 start and the product card at the end. */}
             <div className="bg-primary text-primary-foreground relative overflow-hidden rounded-2xl">
@@ -76,18 +76,19 @@ export function HeroBand({
                     "radial-gradient(ellipse 60% 90% at 0% 50%, oklch(0.42 0.12 264 / 0.9), transparent), radial-gradient(ellipse 40% 60% at 100% 0%, oklch(0.658 0.209 39.1 / 0.25), transparent)",
                 }}
               />
-              <div className="relative grid grid-cols-1 gap-6 p-5 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center lg:gap-10">
-                <div className="flex flex-col gap-4">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-                    <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1">
+              <div className="relative grid grid-cols-1 gap-6 p-4 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center lg:gap-10">
+                <div className="flex flex-col gap-3 sm:gap-4">
+                  {/* One row of small chips on a phone; they used to stack three high. */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold sm:gap-2 sm:text-xs">
+                    <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1 rounded-full px-2.5 py-1 ring-1 sm:gap-1.5 sm:px-3">
                       <ShieldCheck className="text-brand size-3.5" />
                       יבואן רשמי
                     </span>
                     {roundedCount >= 100 && (
-                      <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 tabular-nums">
+                      <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1 rounded-full px-2.5 py-1 ring-1 tabular-nums sm:gap-1.5 sm:px-3">
                         {roundedCount.toLocaleString("he-IL")}+ מוצרים במלאי
                         {brandCount > 0 && (
-                          <span className="text-primary-foreground/70 font-normal">מ־{brandCount} מותגים</span>
+                          <span className="text-primary-foreground/70 hidden font-normal sm:inline">מ־{brandCount} מותגים</span>
                         )}
                       </span>
                     )}
@@ -95,19 +96,19 @@ export function HeroBand({
                       href={BUSINESS_MAP_URL}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bg-primary-foreground/10 ring-primary-foreground/15 hover:bg-primary-foreground/20 inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1 transition-colors"
+                      className="bg-primary-foreground/10 ring-primary-foreground/15 hover:bg-primary-foreground/20 inline-flex items-center gap-1 rounded-full px-2.5 py-1 ring-1 transition-colors sm:gap-1.5 sm:px-3"
                     >
                       <MapPin className="text-brand size-3.5" />
                       חנות בחדרה
                     </a>
                   </div>
 
-                  <h1 className="max-w-xl text-2xl leading-tight font-black text-balance sm:text-3xl lg:text-4xl">{title}</h1>
+                  <h1 className="max-w-xl text-[1.6rem] leading-tight font-black text-balance sm:text-3xl lg:text-4xl">{title}</h1>
                   <p className="text-primary-foreground/75 max-w-xl text-sm sm:text-base">{subtitle}</p>
 
                   <div className="w-full max-w-xl">
                     <SearchBar size="hero" showIntro={false} className="mx-0" />
-                    <p className="text-primary-foreground/70 mt-2 flex items-center gap-2 text-xs sm:text-sm">
+                    <p className="text-primary-foreground/70 mt-2 hidden items-center gap-2 text-xs sm:flex sm:text-sm">
                       <Image
                         src="/mascot/alfred.png"
                         alt=""
@@ -122,9 +123,11 @@ export function HeroBand({
                     </p>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
+                  {/* Side by side on a phone too — stacked, the pair cost
+                      130px and read as one button with an afterthought. */}
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
                     {ctaLabel && ctaHref && (
-                      <Button variant="brand" size="lg" asChild className="h-11 px-6 text-base">
+                      <Button variant="brand" size="lg" asChild className="h-11 px-4 text-sm sm:px-6 sm:text-base">
                         <Link href={ctaHref}>
                           {ctaLabel}
                           <ArrowLeft className="size-4" />
@@ -135,7 +138,7 @@ export function HeroBand({
                       variant="outline"
                       size="lg"
                       asChild
-                      className="border-primary-foreground/25 text-primary-foreground hover:bg-primary-foreground/10 h-11 bg-transparent px-6 text-base"
+                      className="border-primary-foreground/25 text-primary-foreground hover:bg-primary-foreground/10 h-11 bg-transparent px-4 text-sm sm:px-6 sm:text-base"
                     >
                       <Link href="/finder">עזרו לי לבחור</Link>
                     </Button>
@@ -167,10 +170,10 @@ export function HeroBand({
 
             {/* Two promo tiles: today's deals, and the finder — Alfred's
                 convenience, in a tile rather than a headline. */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
               <Link
                 href="/deals"
-                className="group bg-brand text-brand-foreground relative flex items-center gap-4 overflow-hidden rounded-2xl p-5 transition-shadow hover:shadow-lg"
+                className="group bg-brand text-brand-foreground relative flex items-center gap-3 overflow-hidden rounded-2xl p-4 transition-shadow hover:shadow-lg sm:gap-4 sm:p-5"
               >
                 <div
                   aria-hidden
@@ -181,7 +184,7 @@ export function HeroBand({
                   <Tag className="size-6" />
                 </span>
                 <div className="relative min-w-0 flex-1">
-                  <p className="text-lg font-black">מבצעים חמים</p>
+                  <p className="text-base font-black sm:text-lg">מבצעים חמים</p>
                   <p className="text-brand-foreground/85 text-sm">
                     {bestDiscount > 0 ? `עד ${bestDiscount}% הנחה על מוצרים במלאי` : "הנחות לזמן מוגבל על מוצרים במלאי"}
                   </p>
@@ -206,7 +209,7 @@ export function HeroBand({
 
               <Link
                 href="/finder"
-                className="group border-border bg-card hover:border-brand/40 relative flex items-center gap-4 rounded-2xl border p-5 transition-all hover:shadow-md"
+                className="group border-border bg-card hover:border-brand/40 relative flex items-center gap-3 rounded-2xl border p-4 transition-all hover:shadow-md sm:gap-4 sm:p-5"
               >
                 <Image
                   src="/mascot/alfred.png"
@@ -216,7 +219,7 @@ export function HeroBand({
                   className="size-14 shrink-0 rounded-full object-cover object-top"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1.5 text-lg font-black">
+                  <p className="flex items-center gap-1.5 text-base font-black sm:text-lg">
                     לא בטוחים מה לבחור?
                     <Sparkles className="text-brand size-4" />
                   </p>

@@ -246,14 +246,13 @@ export function AccessibilityWidget() {
         aria-label="תפריט נגישות (Alt+1)"
         title="תפריט נגישות (Alt+1)"
         className={cn(
-          // Up the inline-end edge (= left in RTL) at a third of the
-          // viewport height, not in a bottom corner. The bottom of a phone
-          // screen is already spoken for: the product page's buy bar is
-          // fixed across the full width at bottom-0 holding the price and
-          // the add-to-cart button, and this launcher — at z-50 against the
-          // bar's z-30 — sat on top of it. Alfred owns the other bottom
-          // corner. A third of the way down the empty side of the page is
-          // clear of all three, and clear of the sticky header above it.
+          // The inline-end bottom corner (= bottom-left in RTL), lifted
+          // above the product page's buy bar the same way Alfred's launcher
+          // is lifted in the other corner. It used to sit a third of the
+          // way down the left edge, which on a phone is on top of whatever
+          // is being read — the hero's headline, a product title. The two
+          // bottom corners are the one place a floating control is expected
+          // and covers nothing that matters.
           //
           // 44px on a phone: the smallest a touch target may be without
           // failing WCAG 2.5.8. 56px from lg: up, where there is room.
@@ -262,7 +261,7 @@ export function AccessibilityWidget() {
           // the accessibility menu beneath a notice somebody may need that
           // menu in order to read is the one stacking order this widget
           // must never end up in.
-          "floating-launcher border-border bg-background text-foreground fixed top-1/3 end-4 z-[65] flex size-11 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105 lg:size-14",
+          "floating-launcher border-border bg-background text-foreground fixed bottom-24 end-4 z-[65] flex size-11 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105 lg:bottom-6 lg:size-14",
           open && "scale-0 opacity-0"
         )}
       >
@@ -277,11 +276,9 @@ export function AccessibilityWidget() {
         aria-label="תפריט נגישות"
         hidden={!open}
         // Opens from where the launcher is, so the panel is not somewhere
-        // else on the screen from the button that summoned it. 60vh, not
-        // the old 72vh: starting a third of the way down, anything taller
-        // runs off the bottom of a phone (33vh + 72vh > 100vh). The panel
+        // else on the screen from the button that summoned it. The panel
         // scrolls inside itself, so the cap costs scrolling, never reach.
-        className="floating-launcher border-border bg-background fixed top-1/3 end-4 z-[65] flex max-h-[min(34rem,60vh)] w-[min(21rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl"
+        className="floating-launcher border-border bg-background fixed bottom-24 end-4 z-[65] flex max-h-[min(34rem,70vh)] w-[min(21rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl lg:bottom-6"
       >
         <div className="bg-primary text-primary-foreground flex items-center justify-between gap-2 px-4 py-3">
           <span className="flex items-center gap-2 font-semibold">

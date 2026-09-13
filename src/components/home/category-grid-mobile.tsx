@@ -11,10 +11,11 @@ import type { CategoryTile } from "@/lib/queries/categories";
 // hand-corrected miscategorized ones).
 export function CategoryGrid({ tiles }: { tiles: CategoryTile[] }) {
   if (tiles.length === 0) return null;
-  // Two rows on a desktop, six on a phone. The full list ran to five
-  // desktop rows of tiles between the visitor and the first product rail;
-  // the department row above and the mega menu already reach every
-  // category, so this is a sampler, not the index.
+  // Two rows on a desktop, three on a phone (the grid hides the tenth
+  // tile onward below sm:). The full list ran to five desktop rows of
+  // tiles between the visitor and the first product rail; the department
+  // menu and the mega menu already reach every category, so this is a
+  // sampler, not the index.
   const shown = tiles.slice(0, 18);
 
   return (
@@ -23,7 +24,7 @@ export function CategoryGrid({ tiles }: { tiles: CategoryTile[] }) {
       {/* Desktop deliberately denser/smaller than mobile — 6 then 9 columns
           instead of 4 then 6, closer to a compact icon-grid than big
           tiles. Mobile's own 3-column size is untouched. */}
-      <div className="grid grid-cols-3 gap-x-2 gap-y-5 sm:grid-cols-6 sm:gap-x-3 sm:gap-y-6 lg:grid-cols-9">
+      <div className="grid grid-cols-3 gap-x-2 gap-y-5 sm:grid-cols-6 sm:gap-x-3 sm:gap-y-6 lg:grid-cols-9 [&>*:nth-child(n+10)]:hidden sm:[&>*:nth-child(n+10)]:flex">
         {shown.map((tile) => (
           <Link
             key={tile.slug}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, Phone, MapPin, Tag, Truck } from "lucide-react";
+import { Menu, Phone, MapPin, Tag, Truck, User, Heart } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -23,7 +23,7 @@ export function MobileNav({ departments }: { departments: NavigableDepartment[] 
         <button
           type="button"
           aria-label="פתח תפריט"
-          className="hover:bg-muted flex size-11 items-center justify-center rounded-full lg:hidden"
+          className="hover:bg-muted flex size-10 shrink-0 items-center justify-center rounded-full lg:hidden"
         >
           <Menu className="size-5" />
         </button>
@@ -68,6 +68,18 @@ export function MobileNav({ departments }: { departments: NavigableDepartment[] 
               <BackOfficeLink />
             </div>
             <ul className="flex flex-col gap-3 text-sm">
+              {/* The phone header is one row with no room for these two
+                  icons, so the drawer carries them. */}
+              <li>
+                <Link href="/account" onClick={() => setOpen(false)} className="flex items-center gap-2">
+                  <User className="size-4" /> החשבון שלי
+                </Link>
+              </li>
+              <li>
+                <Link href="/account/favorites" onClick={() => setOpen(false)} className="flex items-center gap-2">
+                  <Heart className="size-4" /> מועדפים
+                </Link>
+              </li>
               <li>
                 <Link href="/deals" onClick={() => setOpen(false)} className="flex items-center gap-2">
                   <Tag className="text-brand size-4" /> מבצעים

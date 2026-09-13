@@ -85,7 +85,7 @@ export function ProductCard({
         <FavoriteButton productId={product.id} initialFavorite={isFavorite} className="absolute top-2 end-2" />
       </Link>
 
-      <div className="flex flex-1 flex-col gap-1 border-t p-3.5">
+      <div className="flex flex-1 flex-col gap-1 border-t p-3 sm:p-3.5">
         <span className="text-muted-foreground text-xs font-semibold">{product.brandName}</span>
         <Link href={`/product/${product.slug}`} className="line-clamp-2 min-h-10 text-sm font-medium leading-5 hover:underline">
           {product.title}
@@ -111,7 +111,7 @@ export function ProductCard({
         <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           <StockBadge status={cardStatus} />
           {cardStatus !== "OUT_OF_STOCK" && (
-            <span className="flex items-center gap-1">
+            <span className="hidden items-center gap-1 sm:flex">
               <Truck className="size-3.5" /> משלוח תוך {product.deliveryDays} ימים
             </span>
           )}
@@ -121,7 +121,7 @@ export function ProductCard({
           productId={product.id}
           disabled={product.stockStatus === "OUT_OF_STOCK"}
           size="sm"
-          className="mt-3 h-9 w-full rounded-lg text-sm"
+          className="mt-2.5 h-9 w-full rounded-lg text-sm sm:mt-3"
           label={product.stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : "הוספה לעגלה"}
         />
       </div>
