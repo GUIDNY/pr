@@ -103,7 +103,9 @@ export default async function HomePage() {
           order classes put products right after the banner — hero, deals
           grid, finder, brands, facts — because a shop shows a product and
           a price early. From lg: the wrapper is display:contents and the
-          document order below is the desktop's. */}
+          document order below is the desktop's: banner, facts, deals,
+          brands — the brands after the first products, so a product is on
+          the first screen of a laptop rather than a row of logos. */}
       <div className="flex flex-col lg:contents">
         <div className="order-1">
           <HeroBand
@@ -122,12 +124,12 @@ export default async function HomePage() {
           <UspBar />
         </div>
 
-        <div className="order-4">
-          <BrandStrip brands={brands} />
-        </div>
-
         <div className="order-2">
           <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" phoneGrid />
+        </div>
+
+        <div className="order-4">
+          <BrandStrip brands={brands} />
         </div>
 
         <div className="order-3 lg:hidden">
