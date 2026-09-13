@@ -25,11 +25,10 @@ const PROMOS: PromoSlide[] = [
 /**
  * The first screen.
  *
- * On a phone: the round category tiles, then one banner slot whose slides
- * rotate — the shop's own line first, then the promotions — then a slim
- * pair of actions (deals, the finder). One card at a time where there
- * used to be a stack of five; the layout of a shop app, which is what a
- * phone already knows how to read.
+ * On a phone: the round category tiles, the shop's own banner (importer
+ * chip, headline, one CTA), then one short slot whose promotion slides
+ * rotate, then a slim pair of actions (deals, the finder). The layout of
+ * a shop app, which is what a phone already knows how to read.
  *
  * On a desktop: the department menu down one side with a live count per
  * line, the navy banner beside it carrying the importer chip, the
@@ -59,7 +58,6 @@ export function HeroBand({
     .filter((n): n is number => typeof n === "number")
     .reduce((max, n) => Math.max(max, n), 0);
 
-  const phoneSlides: PromoSlide[] = [{ kind: "brand", title, subtitle, ctaLabel, ctaHref }, ...PROMOS];
 
   return (
     <section className="bg-secondary border-b">
@@ -68,7 +66,38 @@ export function HeroBand({
         <div className="lg:hidden">
           <CategoryCircles tiles={categoryTiles} className="mb-3" />
 
-          <PromoCarousel slides={phoneSlides} />
+          {/* The shop's own line stays put; only the promotions rotate
+              under it. A headline that is on screen one third of the time
+              is not a headline. */}
+          <div className="bg-primary text-primary-foreground relative overflow-hidden rounded-2xl p-5">
+            <div
+              aria-hidden
+              className="absolute inset-0"
+              style={{
+                background:
+                  "radial-gradient(ellipse 60% 90% at 0% 50%, oklch(0.42 0.12 264 / 0.9), transparent), radial-gradient(ellipse 45% 70% at 100% 0%, oklch(0.658 0.209 39.1 / 0.3), transparent)",
+              }}
+            />
+            <div className="relative flex flex-col items-start gap-2.5">
+              <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1">
+                <ShieldCheck className="text-brand size-3.5" />
+                יבואן רשמי
+              </span>
+              <p className="max-w-md text-[1.6rem] leading-tight font-black text-balance">{title}</p>
+              <p className="text-primary-foreground/75 max-w-sm text-sm">{subtitle}</p>
+              {ctaLabel && ctaHref && (
+                <Link
+                  href={ctaHref}
+                  className="bg-brand text-brand-foreground hover:bg-brand-hover mt-1 inline-flex h-10 items-center gap-1.5 rounded-lg px-5 text-sm font-bold shadow-sm transition-colors"
+                >
+                  {ctaLabel}
+                  <ArrowLeft className="size-4" />
+                </Link>
+              )}
+            </div>
+          </div>
+
+          <PromoCarousel slides={PROMOS} compact className="mt-3" />
 
           <div className="mt-3 grid grid-cols-2 gap-3">
             <Link

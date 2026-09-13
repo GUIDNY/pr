@@ -33,10 +33,13 @@ export function PromoCarousel({
   slides,
   className,
   intervalMs = 5000,
+  compact = false,
 }: {
   slides: PromoSlide[];
   className?: string;
   intervalMs?: number;
+  // A shorter slot — for the promotions under a hero that stays put.
+  compact?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -96,7 +99,7 @@ export function PromoCarousel({
       >
         {slides.map((s, i) => (
           <div key={i} className="w-full shrink-0 snap-center">
-            <Slide slide={s} />
+            <Slide slide={s} compact={compact} />
           </div>
         ))}
       </div>
@@ -121,7 +124,7 @@ export function PromoCarousel({
   );
 }
 
-function Slide({ slide }: { slide: PromoSlide }) {
+function Slide({ slide, compact }: { slide: PromoSlide; compact: boolean }) {
   if (slide.kind === "brand") {
     return (
       <div className="bg-primary text-primary-foreground relative flex h-full min-h-56 flex-col justify-center overflow-hidden p-5 pb-8 sm:min-h-64 sm:p-8">
@@ -162,7 +165,8 @@ function Slide({ slide }: { slide: PromoSlide }) {
     <Link
       href={slide.href}
       className={cn(
-        "group relative flex h-full min-h-56 flex-col justify-center overflow-hidden p-5 pb-8 sm:min-h-64 sm:p-8",
+        "group relative flex h-full flex-col justify-center overflow-hidden p-5 pb-8 sm:p-8",
+        compact ? "min-h-36 sm:min-h-40" : "min-h-56 sm:min-h-64",
         tone === "brand" && "bg-brand text-brand-foreground",
         tone === "navy" && "bg-primary text-primary-foreground",
         tone === "light" && "text-foreground bg-white"
@@ -183,12 +187,15 @@ function Slide({ slide }: { slide: PromoSlide }) {
       <div
         aria-hidden
         className={cn(
-          "absolute -end-10 -bottom-16 size-56 rounded-full border-[18px] sm:size-72",
+          "absolute -end-10 -bottom-16 rounded-full border-[18px]",
+          compact ? "size-40 border-[12px] sm:size-56" : "size-56 sm:size-72",
           tone === "light" ? "border-brand/10" : "border-white/10"
         )}
       />
       <div className="relative flex flex-col items-start gap-2">
-        <span className="text-[3.2rem] leading-none font-black tracking-tight sm:text-6xl">{slide.title}</span>
+        <span className={cn("leading-none font-black tracking-tight", compact ? "text-4xl sm:text-5xl" : "text-[3.2rem] sm:text-6xl")}>
+          {slide.title}
+        </span>
         <span
           className={cn(
             "mt-1 inline-flex items-center gap-1.5 text-sm font-semibold",
