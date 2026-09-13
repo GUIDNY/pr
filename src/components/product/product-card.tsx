@@ -9,6 +9,7 @@ import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import type { StockStatus } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 import { discountPercent } from "@/lib/format";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 
 export type ProductCardData = {
   id: string;
@@ -51,7 +52,10 @@ export function ProductCard({
   return (
     <div
       className={cn(
-        "group border-border/80 bg-card hover:border-brand/40 relative flex flex-col overflow-hidden rounded-2xl border transition-all hover:shadow-lg",
+        // No hard border: a hairline ring and a soft shadow, the way a card
+        // sits in a shopping app, so a grid of them reads as products on a
+        // page rather than boxes on a chart.
+        "group bg-card relative flex flex-col overflow-hidden rounded-2xl shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.05)] transition-all hover:shadow-[0_8px_24px_rgb(0_0_0/0.10),0_0_0_1px_rgb(0_0_0/0.05)]",
         className
       )}
     >
@@ -91,7 +95,7 @@ export function ProductCard({
         <FavoriteButton productId={product.id} initialFavorite={isFavorite} className="absolute top-2 end-2" />
       </Link>
 
-      <div className="flex flex-1 flex-col gap-1 border-t p-3 sm:p-3.5">
+      <div className="flex flex-1 flex-col gap-1 p-3 sm:p-3.5">
         <span className="text-muted-foreground text-xs font-semibold">{product.brandName}</span>
         <Link href={`/product/${product.slug}`} className="line-clamp-2 min-h-10 text-sm font-medium leading-5 hover:underline">
           {product.title}
@@ -114,8 +118,13 @@ export function ProductCard({
           />
         </div>
 
-        <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
           <StockBadge status={cardStatus} />
+          {/* True by the shop's own rule, so it may be said: over the
+              threshold, delivery is free. The one tag shoppers look for. */}
+          {product.price >= FREE_DELIVERY_THRESHOLD && cardStatus !== "OUT_OF_STOCK" && (
+            <span className="bg-success/10 text-success rounded px-1.5 py-0.5 font-medium">משלוח חינם</span>
+          )}
           {cardStatus !== "OUT_OF_STOCK" && (
             <span className="hidden items-center gap-1 sm:flex">
               <Truck className="size-3.5" /> משלוח תוך {product.deliveryDays} ימים

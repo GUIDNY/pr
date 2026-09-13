@@ -7,6 +7,7 @@ import Link from "next/link";
 import { X, Send } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { showsBottomNav, ALFRED_OPEN_EVENT } from "@/lib/bottom-nav";
 
 type ChatTurn = { role: "user" | "model"; text: string };
 type ProductHit = { title: string; slug: string; price: number; imageUrl: string | null; stockStatus: string };
@@ -18,13 +19,11 @@ const GREETING: Message = {
 };
 
 export function AlfredChatWidget() {
-  // The home page's hero already carries Alfred's search bar with his
-  // face beside it, and a floating avatar competing for attention on top
-  // of that was exactly the kind of mobile clutter this redesign pass is
-  // removing. Every other mobile page keeps the launcher exactly
-  // as before; desktop is untouched everywhere, including the home page.
   const pathname = usePathname();
-  const isHome = pathname === "/";
+  // Where the phone's tab bar shows, Alfred is one of its tabs and the
+  // bubble stays out of the way; where it does not (the product page,
+  // the checkout) the bubble is the only door and stays.
+  const hasTab = showsBottomNav(pathname);
   // Alfred sells to customers. In the back office he is a face floating over
   // the order someone is working on, and his answers are useless there.
   const isAdmin = pathname.startsWith("/admin");
@@ -38,6 +37,12 @@ export function AlfredChatWidget() {
     if (!open) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, open, isSending]);
+
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(ALFRED_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(ALFRED_OPEN_EVENT, onOpen);
+  }, []);
 
   async function send() {
     const text = input.trim();
@@ -76,7 +81,7 @@ export function AlfredChatWidget() {
         className={cn(
           "floating-launcher border-border bg-background fixed bottom-24 start-4 z-50 flex size-14 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105 lg:bottom-6",
           open && "scale-0 opacity-0",
-          isHome && "max-sm:hidden"
+          hasTab && "max-sm:hidden"
         )}
       >
         <Image src="/mascot/alfred-chat.png" alt="" width={56} height={56} className="size-full rounded-full object-cover" />
@@ -84,7 +89,7 @@ export function AlfredChatWidget() {
 
       <div
         className={cn(
-          "floating-launcher border-border bg-background fixed bottom-24 start-4 z-50 flex h-[min(32rem,70vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 lg:bottom-6",
+          "floating-launcher border-border bg-background fixed bottom-20 start-4 z-50 flex h-[min(32rem,70vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 lg:bottom-6",
           open ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
         )}
       >

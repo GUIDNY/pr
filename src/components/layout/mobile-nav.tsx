@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, Phone, MapPin, Tag, Truck, User, Heart } from "lucide-react";
+import { Menu, Phone, MapPin, Tag, Truck, User, Heart, LayoutGrid } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -14,19 +14,37 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import type { NavigableDepartment } from "@/lib/queries/categories";
 import { BackOfficeLink } from "@/components/layout/back-office-link";
 
-export function MobileNav({ departments }: { departments: NavigableDepartment[] }) {
+export function MobileNav({
+  departments,
+  variant = "icon",
+}: {
+  departments: NavigableDepartment[];
+  // "icon": the round hamburger in the header. "tab": a labelled tab in
+  // the phone's bottom bar — same drawer, second door.
+  variant?: "icon" | "tab";
+}) {
   const [open, setOpen] = useState(false);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <button
-          type="button"
-          aria-label="פתח תפריט"
-          className="hover:bg-muted flex size-10 shrink-0 items-center justify-center rounded-full lg:hidden"
-        >
-          <Menu className="size-5" />
-        </button>
+        {variant === "tab" ? (
+          <button
+            type="button"
+            className="text-muted-foreground flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium"
+          >
+            <LayoutGrid className="size-5" strokeWidth={1.75} />
+            מחלקות
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="פתח תפריט"
+            className="hover:bg-muted flex size-10 shrink-0 items-center justify-center rounded-full lg:hidden"
+          >
+            <Menu className="size-5" />
+          </button>
+        )}
       </SheetTrigger>
       <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-sm">
         <SheetHeader className="border-b px-5 py-4">

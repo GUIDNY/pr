@@ -39,7 +39,7 @@ const ICONS: Record<string, LucideIcon> = {
  * reason: a visitor who has never heard of the shop reads the whole
  * range in one glance, with a number beside each line that says the
  * range is real. Desktop only; on a phone the same departments run as a
- * scrollable row of chips above the banner (DepartmentChips).
+ * scrollable row of round photo tiles above the banner (CategoryCircles).
  */
 export function DepartmentMenu({ departments }: { departments: DepartmentCount[] }) {
   return (

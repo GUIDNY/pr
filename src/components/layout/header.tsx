@@ -5,6 +5,7 @@ import { BUSINESS } from "@/lib/business";
 import { SearchBar } from "@/components/layout/search-bar";
 import { MegaMenu } from "@/components/layout/mega-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { CartTrigger } from "@/components/cart/cart-trigger";
 import { AccountButton } from "@/components/layout/account-button";
 import { FavoritesLink } from "@/components/layout/favorites-link";
@@ -35,7 +36,7 @@ export async function Header() {
               <ShieldCheck className="text-brand size-3.5" /> אחריות יבואן רשמי
             </span>
             <span className="flex items-center gap-1">
-              <Truck className="text-brand size-3.5" /> משלוח עד הבית<span className="hidden sm:inline"> בכל הארץ</span>
+              <Truck className="text-brand size-3.5" /> משלוח חינם מעל ₪500
             </span>
             <Link href="/page/branches" className="hover:text-primary-foreground hidden items-center gap-1 md:flex">
               <MapPin className="size-3.5" /> חנות בחדרה
@@ -114,6 +115,8 @@ export async function Header() {
 
         <MegaMenu departments={departments} />
       </header>
+
+      <MobileBottomNav departments={departments} />
     </>
   );
 }

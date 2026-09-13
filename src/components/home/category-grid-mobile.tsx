@@ -31,13 +31,13 @@ export function CategoryGrid({ tiles }: { tiles: CategoryTile[] }) {
             href={`/category/${tile.slug}`}
             className="group/tile flex flex-col items-center gap-1.5 text-center sm:gap-2"
           >
-            <div className="relative aspect-square w-full">
+            <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-white p-2 shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.05)] transition-shadow group-hover/tile:shadow-md">
               <Image
                 src={tile.imageUrl}
                 alt=""
                 fill
                 sizes="(min-width: 1024px) 110px, (min-width: 640px) 140px, 120px"
-                className="object-contain transition-transform duration-300 group-hover/tile:scale-105"
+                className="object-contain p-2 transition-transform duration-300 group-hover/tile:scale-105"
               />
             </div>
             <span className="line-clamp-2 text-xs leading-tight font-medium">{tile.name}</span>

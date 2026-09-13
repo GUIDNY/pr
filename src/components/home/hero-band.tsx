@@ -4,10 +4,10 @@ import { ArrowLeft, MapPin, ShieldCheck, Sparkles, Tag } from "lucide-react";
 import { SearchBar } from "@/components/layout/search-bar";
 import { Button } from "@/components/ui/button";
 import { DepartmentMenu } from "@/components/home/department-menu";
-import { DepartmentChips } from "@/components/home/department-chips";
+import { CategoryCircles } from "@/components/home/category-circles";
 import { discountPercent } from "@/lib/format";
 import { BUSINESS_MAP_URL } from "@/lib/business";
-import type { DepartmentCount } from "@/lib/queries/categories";
+import type { DepartmentCount, CategoryTile } from "@/lib/queries/categories";
 import type { ProductCardData } from "@/components/product/product-card";
 
 /**
@@ -29,6 +29,7 @@ export function HeroBand({
   ctaLabel,
   ctaHref,
   departments,
+  categoryTiles,
   featureImage,
   featureLabel,
   deals,
@@ -40,6 +41,8 @@ export function HeroBand({
   ctaLabel?: string;
   ctaHref?: string;
   departments: DepartmentCount[];
+  // The phone's category row under the search: round photo tiles.
+  categoryTiles: CategoryTile[];
   // A product photograph that stands for the shop — the four-door fridge
   // tile's, when there is one.
   featureImage: string | null;
@@ -57,8 +60,8 @@ export function HeroBand({
   return (
     <section className="bg-secondary border-b">
       <div className="mx-auto max-w-7xl px-4 pt-3 pb-6 lg:py-6">
-        <div className="lg:hidden">
-          <DepartmentChips />
+        <div className="mb-3 lg:hidden">
+          <CategoryCircles tiles={categoryTiles} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-[250px_1fr] lg:items-stretch">
@@ -103,8 +106,23 @@ export function HeroBand({
                     </a>
                   </div>
 
-                  <h1 className="max-w-xl text-[1.6rem] leading-tight font-black text-balance sm:text-3xl lg:text-4xl">{title}</h1>
-                  <p className="text-primary-foreground/75 max-w-xl text-sm sm:text-base">{subtitle}</p>
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h1 className="max-w-xl text-[1.6rem] leading-tight font-black text-balance sm:text-3xl lg:text-4xl">{title}</h1>
+                      <p className="text-primary-foreground/75 mt-2 max-w-xl text-sm sm:text-base">{subtitle}</p>
+                    </div>
+                    {/* The same real product the desktop shows on its card,
+                        small, beside the headline — a banner with only words
+                        on a phone read as an advert; a fridge on it reads as
+                        a shop. */}
+                    {featureImage && (
+                      <span className="relative block w-[88px] shrink-0 overflow-hidden rounded-xl bg-white p-1.5 shadow-lg lg:hidden">
+                        <span className="relative block aspect-[4/5]">
+                          <Image src={featureImage} alt="" fill sizes="88px" className="object-contain" referrerPolicy="no-referrer" priority />
+                        </span>
+                      </span>
+                    )}
+                  </div>
 
                   <div className="w-full max-w-xl">
                     <SearchBar size="hero" showIntro={false} className="mx-0" />
