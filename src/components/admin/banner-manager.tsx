@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { PromoCarousel } from "@/components/home/promo-carousel";
+import { PromoCarousel, type PromoSlide } from "@/components/home/promo-carousel";
 import { searchProductsAction, type SearchResult } from "@/actions/search";
 import { saveBannersAction, uploadBannerImageAction } from "@/actions/admin-banners";
 import {
@@ -60,7 +60,7 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
     }
     setBanners((prev) => [
       ...prev,
-      { id: newBannerId(), title: "", body: "", href: "/deals", tone: "brand", images: [], isActive: false },
+      { id: newBannerId(), layout: "collage", title: "", body: "", href: "/deals", tone: "brand", images: [], isActive: false },
     ]);
     setDirty(true);
   }
@@ -128,8 +128,36 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
   );
 }
 
-function toSlide(b: Banner) {
-  return { kind: "promo" as const, title: b.title || "כותרת", body: b.body, href: b.href, tone: b.tone, images: b.images };
+function toSlide(b: Banner): PromoSlide {
+  if (b.layout === "image") {
+    return b.images[0]
+      ? { kind: "image", src: b.images[0], alt: b.title || b.body, href: b.href }
+      : { kind: "promo", title: "העלו תמונה", body: "באנר תמונה", href: b.href, tone: "light", images: [] };
+  }
+  return { kind: "promo", title: b.title || "כותרת", body: b.body, href: b.href, tone: b.tone, images: b.images };
+}
+
+/** Downscales to at most `max` px on the long side, as JPEG, in the browser. */
+async function shrinkImage(file: File, max: number): Promise<File> {
+  if (!file.type.startsWith("image/")) throw new Error("הקובץ שנבחר אינו תמונה");
+  // GIFs and SVGs would lose animation / vectors; send small ones as they are.
+  if (/gif|svg/.test(file.type) && file.size < 2 * 1024 * 1024) return file;
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) return file;
+  const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
+  if (scale === 1 && file.size < 1.5 * 1024 * 1024) return file;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const hasAlpha = file.type === "image/png" || file.type === "image/webp";
+  const type = hasAlpha ? "image/png" : "image/jpeg";
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.86));
+  if (!blob) return file;
+  const name = file.name.replace(/\.[^.]+$/, "") + (hasAlpha ? ".png" : ".jpg");
+  return new File([blob], name, { type });
 }
 
 function BannerCard({
@@ -154,6 +182,8 @@ function BannerCard({
   const [imageUrl, setImageUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const imageOnly = banner.layout === "image";
+  const maxImages = imageOnly ? 1 : MAX_BANNER_IMAGES;
 
   function onQuery(v: string) {
     setQuery(v);
@@ -169,7 +199,7 @@ function BannerCard({
 
   function pickProduct(p: SearchResult) {
     const patch: Partial<Banner> = { href: `/product/${p.slug}` };
-    if (p.imageUrl && banner.images.length < MAX_BANNER_IMAGES && !banner.images.includes(p.imageUrl)) {
+    if (!imageOnly && p.imageUrl && banner.images.length < maxImages && !banner.images.includes(p.imageUrl)) {
       patch.images = [...banner.images, p.imageUrl];
     }
     onChange(patch);
@@ -181,8 +211,8 @@ function BannerCard({
   function addImageUrl() {
     const u = imageUrl.trim();
     if (!u) return;
-    if (banner.images.length >= MAX_BANNER_IMAGES) {
-      toast.error(`עד ${MAX_BANNER_IMAGES} תמונות לבאנר`);
+    if (banner.images.length >= maxImages) {
+      toast.error(`עד ${maxImages} תמונות לבאנר`);
       return;
     }
     onChange({ images: [...banner.images, u] });
@@ -191,17 +221,27 @@ function BannerCard({
 
   async function upload(files: FileList | null) {
     if (!files || files.length === 0) return;
-    if (banner.images.length >= MAX_BANNER_IMAGES) {
-      toast.error(`עד ${MAX_BANNER_IMAGES} תמונות לבאנר`);
+    if (banner.images.length >= maxImages) {
+      toast.error(`עד ${maxImages} תמונות לבאנר`);
       return;
     }
     setUploading(true);
-    const fd = new FormData();
-    fd.append("file", files[0]);
-    const result = await uploadBannerImageAction(fd);
-    setUploading(false);
-    if (result.success && result.url) onChange({ images: [...banner.images, result.url] });
-    else toast.error(result.error ?? "העלאה נכשלה");
+    try {
+      // Shrunk in the browser first: a phone photograph is 4–8MB and a
+      // banner is shown at most ~1300px wide, so sending the original
+      // only made the upload slow and, past the action body limit, fail.
+      const file = await shrinkImage(files[0], 1600);
+      const fd = new FormData();
+      fd.append("file", file);
+      const result = await uploadBannerImageAction(fd);
+      if (result.success && result.url) onChange({ images: [...banner.images, result.url] });
+      else toast.error(result.error ?? "העלאה נכשלה");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "העלאה נכשלה");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   return (
@@ -231,18 +271,50 @@ function BannerCard({
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_22rem]">
         <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <Label htmlFor={`t-${banner.id}`} className="mb-1.5">כותרת (גדול)</Label>
-              <Input id={`t-${banner.id}`} value={banner.title} maxLength={40} placeholder='למשל: "20% הנחה על מקררים"' onChange={(e) => onChange({ title: e.target.value })} />
+          <div>
+            <Label className="mb-1.5 block">סוג הבאנר</Label>
+            <div className="flex gap-2">
+              {(
+                [
+                  ["collage", "טקסט + תמונות מוצר"],
+                  ["image", "תמונה מעוצבת בלבד"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => onChange({ layout: value, images: banner.images.slice(0, value === "image" ? 1 : MAX_BANNER_IMAGES) })}
+                  className={cn(
+                    "rounded-lg border px-3 py-1.5 text-sm",
+                    banner.layout === value ? "border-brand ring-brand/30 ring-2" : "border-border"
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-            <div>
-              <Label htmlFor={`b-${banner.id}`} className="mb-1.5">טקסט משני</Label>
-              <Input id={`b-${banner.id}`} value={banner.body} maxLength={60} placeholder='למשל: "עד סוף החודש"' onChange={(e) => onChange({ body: e.target.value })} />
-            </div>
+            {imageOnly && (
+              <p className="text-muted-foreground mt-1.5 text-xs">
+                התמונה ממלאת את כל הבאנר, בלי טקסט מעליה. מומלץ 1600×700 פיקסלים (יחס 16:7), עד 10MB. הכותרת למטה
+                משמשת רק כתיאור לקוראי מסך.
+              </p>
+            )}
           </div>
 
-          <div>
+          <div className={cn("grid grid-cols-1 gap-3 sm:grid-cols-2", imageOnly && "sm:grid-cols-1")}>
+            <div>
+              <Label htmlFor={`t-${banner.id}`} className="mb-1.5">{imageOnly ? "תיאור התמונה (לא מוצג)" : "כותרת (גדול)"}</Label>
+              <Input id={`t-${banner.id}`} value={banner.title} maxLength={40} placeholder={imageOnly ? 'למשל: "מבצע מקררים ספטמבר"' : 'למשל: "20% הנחה על מקררים"'} onChange={(e) => onChange({ title: e.target.value })} />
+            </div>
+            {!imageOnly && (
+              <div>
+                <Label htmlFor={`b-${banner.id}`} className="mb-1.5">טקסט משני</Label>
+                <Input id={`b-${banner.id}`} value={banner.body} maxLength={60} placeholder='למשל: "עד סוף החודש"' onChange={(e) => onChange({ body: e.target.value })} />
+              </div>
+            )}
+          </div>
+
+          <div className={cn(imageOnly && "hidden")}>
             <Label className="mb-1.5 block">צבע</Label>
             <div className="flex gap-2">
               {BANNER_TONES.map((t) => (
@@ -308,11 +380,11 @@ function BannerCard({
           </div>
 
           <div>
-            <Label className="mb-1.5 block">תמונות (עד {MAX_BANNER_IMAGES})</Label>
+            <Label className="mb-1.5 block">{imageOnly ? "התמונה" : `תמונות (עד ${MAX_BANNER_IMAGES})`}</Label>
             <div className="mb-2 flex flex-wrap gap-2">
               {banner.images.map((src, i) => (
-                <span key={src + i} className="border-border relative size-20 overflow-hidden rounded-lg border bg-white">
-                  <Image src={src} alt="" fill sizes="80px" className="object-contain p-1" />
+                <span key={src + i} className={cn("border-border relative overflow-hidden rounded-lg border bg-white", imageOnly ? "h-20 w-44" : "size-20")}>
+                  <Image src={src} alt="" fill sizes="176px" className={imageOnly ? "object-cover" : "object-contain p-1"} />
                   <button
                     type="button"
                     onClick={() => onChange({ images: banner.images.filter((_, j) => j !== i) })}
@@ -323,7 +395,7 @@ function BannerCard({
                   </button>
                 </span>
               ))}
-              {banner.images.length < MAX_BANNER_IMAGES && (
+              {banner.images.length < maxImages && (
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}

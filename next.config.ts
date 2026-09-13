@@ -36,6 +36,14 @@ const nextConfig: NextConfig = {
     root: path.join(__dirname),
   },
   outputFileTracingRoot: path.join(__dirname),
+  // Server actions are capped at 1MB by default, which is smaller than a
+  // phone photograph. The back office uploads product and banner images
+  // through actions (the browser shrinks them first, but not below this).
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
   images: {
     remotePatterns: [
       // Product images increasingly come from wherever a manufacturer's own

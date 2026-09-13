@@ -33,15 +33,32 @@ const href = z
   .max(500)
   .refine((v) => v.startsWith("/") || /^https?:\/\//.test(v), "היעד חייב להתחיל ב-/ או ב-https://");
 
-export const bannerSchema = z.object({
-  id: z.string().min(1).max(40),
-  title: z.string().trim().min(1, "חסרה כותרת").max(40, "כותרת עד 40 תווים"),
-  body: z.string().trim().max(60, "טקסט משני עד 60 תווים"),
-  href,
-  tone: z.enum(BANNER_TONES),
-  images: z.array(z.string().trim().url().max(1000)).max(MAX_BANNER_IMAGES),
-  isActive: z.boolean(),
-});
+export const BANNER_LAYOUTS = ["collage", "image"] as const;
+export type BannerLayout = (typeof BANNER_LAYOUTS)[number];
+
+export const bannerSchema = z
+  .object({
+    id: z.string().min(1).max(40),
+    // "collage": words in the shop's type on a coloured ground, product
+    // photographs fanned beside them. "image": one designed picture fills
+    // the whole slide — the words are in the picture, so title and body
+    // are only its alt text and may be empty.
+    layout: z.enum(BANNER_LAYOUTS).default("collage"),
+    title: z.string().trim().max(40, "כותרת עד 40 תווים"),
+    body: z.string().trim().max(60, "טקסט משני עד 60 תווים"),
+    href,
+    tone: z.enum(BANNER_TONES),
+    images: z.array(z.string().trim().url().max(1000)).max(MAX_BANNER_IMAGES),
+    isActive: z.boolean(),
+  })
+  .superRefine((b, ctx) => {
+    if (b.layout === "collage" && b.title.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["title"], message: "חסרה כותרת" });
+    }
+    if (b.layout === "image" && b.images.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["images"], message: "באנר תמונה צריך תמונה" });
+    }
+  });
 
 export const bannersSchema = z.array(bannerSchema).max(MAX_BANNERS);
 

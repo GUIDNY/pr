@@ -86,7 +86,11 @@ export function HeroBand({
   ];
   const promos: PromoSlide[] =
     banners.length > 0
-      ? banners.map((b) => ({ kind: "promo" as const, title: b.title, body: b.body, href: b.href, tone: b.tone, images: b.images }))
+      ? banners.map((b) =>
+          b.layout === "image"
+            ? { kind: "image" as const, src: b.images[0], alt: b.title || b.body, href: b.href }
+            : { kind: "promo" as const, title: b.title, body: b.body, href: b.href, tone: b.tone, images: b.images },
+        )
       : dataSlides;
 
 

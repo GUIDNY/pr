@@ -24,6 +24,13 @@ export type PromoSlide =
       // a small collage at the slide's end — what turns a coloured block
       // into a shop's banner without inventing artwork.
       images?: string[];
+    }
+  | {
+      // One designed picture, edge to edge; the words are in the picture.
+      kind: "image";
+      src: string;
+      alt: string;
+      href: string;
     };
 
 /**
@@ -129,7 +136,7 @@ export function PromoCarousel({
               onClick={() => goTo(i)}
               className={cn(
                 "h-1.5 rounded-full transition-all",
-                i === index ? "bg-brand w-5" : s.kind === "promo" && s.tone === "light" ? "w-1.5 bg-black/20" : "w-1.5 bg-white/45"
+                i === index ? "bg-brand w-5" : s.kind === "promo" && s.tone === "light" ? "w-1.5 bg-black/20" : "w-1.5 bg-white/60 shadow"
               )}
             />
           ))}
@@ -189,6 +196,22 @@ function Slide({ slide, compact, stacked, slogan }: { slide: PromoSlide; compact
           )}
         </div>
       </div>
+    );
+  }
+
+  if (slide.kind === "image") {
+    // The picture sets the height on a phone (a designed banner is
+    // usually about 16:7); in a fixed-height slot it fills and crops.
+    return (
+      <Link
+        href={slide.href}
+        className={cn(
+          "group relative block h-full overflow-hidden bg-white",
+          stacked || !compact ? "min-h-56 sm:min-h-64" : "aspect-[16/7] min-h-40 sm:min-h-44"
+        )}
+      >
+        <Image src={slide.src} alt={slide.alt} fill sizes="(min-width: 1024px) 288px, 100vw" className="object-cover" priority />
+      </Link>
     );
   }
 

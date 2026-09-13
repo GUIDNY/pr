@@ -89,7 +89,9 @@ export async function getPromoBanners(): Promise<Banner[]> {
   const row = await db.homepageSection.findUnique({ where: { key: BANNERS_SECTION_KEY } });
   if (!row || !row.isActive) return [];
   try {
-    return parseStoredBanners(JSON.parse(row.payload)).filter((b) => b.isActive);
+    return parseStoredBanners(JSON.parse(row.payload)).filter(
+      (b) => b.isActive && (b.layout !== "image" || b.images.length > 0),
+    );
   } catch {
     return [];
   }
