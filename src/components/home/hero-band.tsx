@@ -177,7 +177,7 @@ export function HeroBand({
                 </div>
 
                 {/* The promotions, rotating, in the banner's end column. */}
-                <PromoCarousel slides={promos} className="self-stretch shadow-xl [&>div:first-child]:h-full" />
+                <PromoCarousel slides={promos} stacked className="self-stretch shadow-xl [&>div:first-child]:h-full" />
               </div>
             </div>
 

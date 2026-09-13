@@ -39,12 +39,16 @@ export function PromoCarousel({
   className,
   intervalMs = 5000,
   compact = false,
+  stacked = false,
 }: {
   slides: PromoSlide[];
   className?: string;
   intervalMs?: number;
   // A shorter slot — for the promotions under a hero that stays put.
   compact?: boolean;
+  // Text above the photographs instead of beside them — for a narrow
+  // column, where side by side leaves the words no room.
+  stacked?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -104,7 +108,7 @@ export function PromoCarousel({
       >
         {slides.map((s, i) => (
           <div key={i} className="w-full shrink-0 snap-center">
-            <Slide slide={s} compact={compact} />
+            <Slide slide={s} compact={compact} stacked={stacked} />
           </div>
         ))}
       </div>
@@ -129,7 +133,7 @@ export function PromoCarousel({
   );
 }
 
-function Slide({ slide, compact }: { slide: PromoSlide; compact: boolean }) {
+function Slide({ slide, compact, stacked }: { slide: PromoSlide; compact: boolean; stacked: boolean }) {
   if (slide.kind === "brand") {
     return (
       <div className="bg-primary text-primary-foreground relative flex h-full min-h-56 flex-col justify-center overflow-hidden p-5 pb-8 sm:min-h-64 sm:p-8">
@@ -171,7 +175,8 @@ function Slide({ slide, compact }: { slide: PromoSlide; compact: boolean }) {
     <Link
       href={slide.href}
       className={cn(
-        "group relative flex h-full items-center justify-between gap-3 overflow-hidden p-5 pb-8 sm:p-8",
+        "group relative flex h-full gap-3 overflow-hidden p-5 pb-8 sm:p-6",
+        stacked ? "flex-col items-start justify-between" : "items-center justify-between sm:p-8",
         compact ? "min-h-40 sm:min-h-44" : "min-h-56 sm:min-h-64",
         tone === "brand" && "bg-brand text-brand-foreground",
         tone === "navy" && "bg-primary text-primary-foreground",
@@ -199,7 +204,12 @@ function Slide({ slide, compact }: { slide: PromoSlide; compact: boolean }) {
         />
       )}
       <div className="relative flex min-w-0 flex-col items-start gap-2">
-        <span className={cn("leading-none font-black tracking-tight", compact ? "text-4xl sm:text-5xl" : "text-[3.2rem] sm:text-6xl")}>
+        <span
+          className={cn(
+            "leading-none font-black tracking-tight",
+            stacked ? "text-4xl" : compact ? "text-4xl sm:text-5xl" : "text-[3.2rem] sm:text-6xl"
+          )}
+        >
           {slide.title}
         </span>
         <span
@@ -218,7 +228,12 @@ function Slide({ slide, compact }: { slide: PromoSlide; compact: boolean }) {
            others tucked behind it at a slight tilt — a shop window, not
            a grid. Each on its own white card so a dark oven and a white
            kettle read as one set. */
-        <div className={cn("relative shrink-0", compact ? "h-28 w-36 sm:h-32 sm:w-44" : "h-40 w-48 sm:h-48 sm:w-60")}>
+        <div
+          className={cn(
+            "relative shrink-0",
+            stacked ? "mt-3 h-28 w-40 self-end" : compact ? "h-28 w-36 sm:h-32 sm:w-44" : "h-40 w-48 sm:h-48 sm:w-60"
+          )}
+        >
           {images.map((src, i) => (
             <span
               key={src + i}
