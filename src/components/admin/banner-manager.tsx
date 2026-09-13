@@ -140,7 +140,7 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
 function toSlide(b: Banner): PromoSlide {
   if (b.layout === "image") {
     return b.images[0]
-      ? { kind: "image", src: b.images[0], alt: b.title || b.body, href: b.href }
+      ? { kind: "image", src: b.images[0], srcDesktop: b.desktopImage, alt: b.title || b.body, href: b.href }
       : { kind: "promo", title: "העלו תמונה", body: "באנר תמונה", href: b.href, tone: "light", images: [] };
   }
   return { kind: "promo", title: b.title || "כותרת", body: b.body, href: b.href, tone: b.tone, images: b.images };
@@ -187,7 +187,8 @@ function BannerCard({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, startSearch] = useTransition();
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState<false | "wide" | "desktop">(false);
+  const desktopRef = useRef<HTMLInputElement>(null);
   const [imageUrl, setImageUrl] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -228,13 +229,13 @@ function BannerCard({
     setImageUrl("");
   }
 
-  async function upload(files: FileList | null) {
+  async function upload(files: FileList | null, target: "wide" | "desktop" = "wide") {
     if (!files || files.length === 0) return;
-    if (banner.images.length >= maxImages) {
+    if (target === "wide" && banner.images.length >= maxImages) {
       toast.error(`עד ${maxImages} תמונות לבאנר`);
       return;
     }
-    setUploading(true);
+    setUploading(target);
     try {
       // Shrunk in the browser first: a phone photograph is 4–8MB and a
       // banner is shown at most ~1300px wide, so sending the original
@@ -243,13 +244,15 @@ function BannerCard({
       const fd = new FormData();
       fd.append("file", file);
       const result = await uploadBannerImageAction(fd);
-      if (result.success && result.url) onChange({ images: [...banner.images, result.url] });
-      else toast.error(result.error ?? "העלאה נכשלה");
+      if (result.success && result.url) {
+        onChange(target === "desktop" ? { desktopImage: result.url } : { images: [...banner.images, result.url] });
+      } else toast.error(result.error ?? "העלאה נכשלה");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "העלאה נכשלה");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+      if (desktopRef.current) desktopRef.current.value = "";
     }
   }
 
@@ -309,7 +312,7 @@ function BannerCard({
             {imageOnly && (
               <p className="text-muted-foreground mt-1.5 text-xs">
                 רק התמונה, בשלמותה וביחס שבו הועלתה, בלי טקסט או מסגרת מעליה. מומלץ 1600×700 פיקסלים (יחס 16:7), עד 10MB. הכותרת למטה
-                משמשת רק כתיאור לקוראי מסך.
+                משמשת רק כתיאור לקוראי מסך. במחשב התמונה יושבת בכרטיס שבצד הכותרת; אפשר להעלות לו גרסה גבוהה נפרדת.
               </p>
             )}
           </div>
@@ -412,11 +415,11 @@ function BannerCard({
                 <button
                   type="button"
                   onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
+                  disabled={uploading !== false}
                   className="border-border text-muted-foreground hover:border-brand hover:text-brand flex size-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[11px]"
                 >
                   <ImagePlus className="size-5" />
-                  {uploading ? "מעלה..." : "העלאה"}
+                  {uploading === "wide" ? "מעלה..." : "העלאה"}
                 </button>
               )}
               <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files)} />
@@ -428,11 +431,54 @@ function BannerCard({
               </Button>
             </div>
           </div>
+
+          {imageOnly && (
+            <div>
+              <Label className="mb-1.5 block">גרסה למחשב (לא חובה)</Label>
+              <p className="text-muted-foreground mb-2 text-xs">
+                כרטיס גבוה בצד הכותרת, בערך 3:4 (למשל 900×1200). בלי גרסה כזו, התמונה הרחבה מוצגת שם בשלמותה, קטנה יותר.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                {banner.desktopImage ? (
+                  <span className="border-border relative h-28 w-21 overflow-hidden rounded-lg border bg-white">
+                    <Image src={banner.desktopImage} alt="" fill sizes="84px" className="object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => onChange({ desktopImage: undefined })}
+                      className="bg-background/90 hover:text-destructive absolute top-1 end-1 rounded-full p-0.5 shadow"
+                      aria-label="הסר גרסה למחשב"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => desktopRef.current?.click()}
+                    disabled={uploading !== false}
+                    className="border-border text-muted-foreground hover:border-brand hover:text-brand flex h-28 w-21 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-[11px]"
+                  >
+                    <ImagePlus className="size-5" />
+                    {uploading === "desktop" ? "מעלה..." : "העלאה"}
+                  </button>
+                )}
+                <input ref={desktopRef} type="file" accept="image/*" className="hidden" onChange={(e) => upload(e.target.files, "desktop")} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div>
           <p className="text-muted-foreground mb-2 text-xs font-medium">תצוגה מקדימה</p>
           <PromoCarousel slides={[toSlide(banner)]} compact slogan="הדרך החכמה לקנות אלקטרוניקה" />
+          {imageOnly && banner.images[0] && (
+            <div className="mt-4">
+              <p className="text-muted-foreground mb-2 text-xs font-medium">הכרטיס בצד הכותרת במחשב</p>
+              <div className="bg-primary rounded-xl p-4">
+                <PromoCarousel slides={[toSlide(banner)]} stacked natural={!banner.desktopImage} className="mx-auto max-w-[22rem] shadow-xl" />
+              </div>
+            </div>
+          )}
           {!banner.isActive && <p className="text-destructive mt-2 text-xs font-medium">הבאנר מוסתר. הפעילו את המתג למעלה ושמרו כדי שיופיע באתר.</p>}
         </div>
       </div>

@@ -49,6 +49,10 @@ export const bannerSchema = z
     href,
     tone: z.enum(BANNER_TONES),
     images: z.array(z.string().trim().url().max(1000)).max(MAX_BANNER_IMAGES),
+    // Image layout only: a second, taller cut of the same picture for the
+    // card beside the desktop headline (about 3:4). Without it the wide
+    // picture is shown there whole, at its own ratio.
+    desktopImage: z.string().trim().url().max(1000).optional(),
     isActive: z.boolean(),
   })
   .superRefine((b, ctx) => {

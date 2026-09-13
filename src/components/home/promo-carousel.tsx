@@ -29,6 +29,8 @@ export type PromoSlide =
       // One designed picture, edge to edge; the words are in the picture.
       kind: "image";
       src: string;
+      // A taller cut for the narrow card beside the desktop headline.
+      srcDesktop?: string;
       alt: string;
       href: string;
     };
@@ -48,6 +50,7 @@ export function PromoCarousel({
   compact = false,
   stacked = false,
   slogan,
+  natural: naturalProp,
 }: {
   slides: PromoSlide[];
   className?: string;
@@ -62,6 +65,9 @@ export function PromoCarousel({
   // underneath rotates. A separate navy card above the promotions read as
   // a box on a box.
   slogan?: string;
+  // Draw picture slides at their own ratio instead of filling the slot.
+  // Decided from the slides when not given.
+  natural?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -108,7 +114,7 @@ export function PromoCarousel({
 
   // A set of designed pictures is shown as the pictures are: each at its
   // own ratio, edge to edge, nothing drawn over it but the position dots.
-  const natural = !stacked && slides.every((s) => s.kind === "image");
+  const natural = naturalProp ?? (!stacked && slides.every((s) => s.kind === "image"));
 
   return (
     <div className={cn("relative", className)}>
@@ -219,16 +225,18 @@ function Slide({
     // The picture as it was made: full width, its own height, nothing
     // cropped. The width/height attributes only hold the space until it
     // loads; then its real ratio takes over.
+    const src = stacked && slide.srcDesktop ? slide.srcDesktop : slide.src;
     return (
       <Link href={slide.href} className="group relative block overflow-hidden bg-white">
-        <Image src={slide.src} alt={slide.alt} width={1600} height={700} sizes="(min-width: 1280px) 1024px, 100vw" className="h-auto w-full" priority />
+        <Image src={src} alt={slide.alt} width={1600} height={700} sizes={stacked ? "352px" : "(min-width: 1280px) 1024px, 100vw"} className="h-auto w-full" priority />
       </Link>
     );
   }
 
   if (slide.kind === "image") {
-    // Beside collage slides the slot has a fixed height, so the picture
-    // fills it and crops; in the desktop side column too.
+    // A fixed-height slot — beside collage slides, or the desktop side
+    // card with its own tall cut — so the picture fills it and crops.
+    const src = stacked && slide.srcDesktop ? slide.srcDesktop : slide.src;
     return (
       <Link
         href={slide.href}
@@ -237,7 +245,7 @@ function Slide({
           stacked || !compact ? "min-h-56 sm:min-h-64" : "aspect-[16/7] min-h-40 sm:min-h-44"
         )}
       >
-        <Image src={slide.src} alt={slide.alt} fill sizes="(min-width: 1024px) 288px, 100vw" className="object-cover" priority />
+        <Image src={src} alt={slide.alt} fill sizes="(min-width: 1024px) 352px, 100vw" className="object-cover" priority />
       </Link>
     );
   }

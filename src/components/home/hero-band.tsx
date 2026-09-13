@@ -7,6 +7,7 @@ import { DepartmentMenu } from "@/components/home/department-menu";
 import { CategoryCircles } from "@/components/home/category-circles";
 import { PromoCarousel, type PromoSlide } from "@/components/home/promo-carousel";
 import { discountPercent, formatPrice } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import type { DepartmentCount, CategoryTile } from "@/lib/queries/categories";
 import type { ProductCardData } from "@/components/product/product-card";
@@ -88,17 +89,18 @@ export function HeroBand({
     banners.length > 0
       ? banners.map((b) =>
           b.layout === "image"
-            ? { kind: "image" as const, src: b.images[0], alt: b.title || b.body, href: b.href }
+            ? { kind: "image" as const, src: b.images[0], srcDesktop: b.desktopImage, alt: b.title || b.body, href: b.href }
             : { kind: "promo" as const, title: b.title, body: b.body, href: b.href, tone: b.tone, images: b.images },
         )
       : dataSlides;
 
-  // Designed pictures are wide. On a desktop they get a strip of their own
-  // under the banner, at full width and their own ratio, and the narrow
-  // column at the banner's end goes back to the data slides — a 16:7
-  // picture squeezed into an 18rem column would show its middle third.
+  // The owner's pictures sit in the card at the desktop banner's end, the
+  // same place the data slides do. The column widens a little for them,
+  // and unless every picture comes with its own tall cut for that card,
+  // the card takes the picture's own shape — whole and centred beside
+  // the headline — rather than cropping a wide picture to its middle.
   const picturesOnly = banners.length > 0 && banners.every((b) => b.layout === "image");
-  const sideSlides = picturesOnly ? dataSlides : promos;
+  const sideNatural = picturesOnly && !banners.every((b) => !!b.desktopImage);
 
 
   return (
@@ -138,7 +140,7 @@ export function HeroBand({
                     "radial-gradient(ellipse 60% 90% at 0% 50%, oklch(0.42 0.12 264 / 0.9), transparent), radial-gradient(ellipse 40% 60% at 100% 0%, oklch(0.658 0.209 39.1 / 0.25), transparent)",
                 }}
               />
-              <div className="relative grid grid-cols-[1fr_18rem] items-center gap-10 p-8">
+              <div className={cn("relative grid items-center gap-10 p-8", picturesOnly ? "grid-cols-[1fr_22rem]" : "grid-cols-[1fr_18rem]")}>
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                     <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1">
@@ -188,11 +190,14 @@ export function HeroBand({
                 </div>
 
                 {/* The promotions, rotating, in the banner's end column. */}
-                <PromoCarousel slides={sideSlides} stacked className="self-stretch shadow-xl [&>div:first-child]:h-full" />
+                <PromoCarousel
+                  slides={promos}
+                  stacked
+                  natural={sideNatural}
+                  className={sideNatural ? "self-center shadow-xl" : "self-stretch shadow-xl [&>div:first-child]:h-full"}
+                />
               </div>
             </div>
-
-            {picturesOnly && <PromoCarousel slides={promos} className="shadow-sm" />}
 
             <div className="grid grid-cols-2 gap-4">
               <Link
