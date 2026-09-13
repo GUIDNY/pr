@@ -115,7 +115,7 @@ export function HeroBand({
               a box. */}
           <PromoCarousel slides={phoneSlides} compact slogan={title} />
 
-          <ul className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs font-medium">
+          <ul className="mt-4 mb-1 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[13px] font-medium">
             {["מחירי אונליין", "אחריות יבואן", "משלוח מהיר עד הבית"].map((f) => (
               <li key={f} className="flex items-center gap-1">
                 <Check className="text-brand size-3.5" strokeWidth={2.5} />
@@ -139,8 +139,8 @@ export function HeroBand({
                     "radial-gradient(ellipse 60% 90% at 0% 50%, oklch(0.42 0.12 264 / 0.9), transparent), radial-gradient(ellipse 40% 60% at 100% 0%, oklch(0.658 0.209 39.1 / 0.25), transparent)",
                 }}
               />
-              <div className={cn("relative grid items-center gap-10 p-8", desktopPictures ? "grid-cols-[1fr_22rem]" : "grid-cols-[1fr_18rem]")}>
-                <div className="flex flex-col gap-4">
+              <div className={cn("relative grid items-center gap-8 px-8 py-6", desktopPictures ? "grid-cols-[1fr_19rem]" : "grid-cols-[1fr_17rem]")}>
+                <div className="flex flex-col gap-3">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                     <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1">
                       <ShieldCheck className="text-brand size-3.5" />
@@ -148,8 +148,8 @@ export function HeroBand({
                     </span>
                   </div>
 
-                  <h1 className="max-w-xl text-4xl leading-tight font-black text-balance">{title}</h1>
-                  <p className="text-primary-foreground/75 max-w-xl text-base">{subtitle}</p>
+                  <h1 className="max-w-xl text-[2.125rem] leading-tight font-black text-balance">{title}</h1>
+                  <p className="text-primary-foreground/75 max-w-xl text-[15px]">{subtitle}</p>
 
                   <div className="w-full max-w-xl">
                     <SearchBar size="hero" showIntro={false} className="mx-0" />
@@ -169,22 +169,24 @@ export function HeroBand({
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">
+                    {/* One button on the banner. The finder is a text link
+                        beside it: a second button of the same weight split
+                        the click between the two. */}
                     {ctaLabel && ctaHref && (
-                      <Button variant="brand" size="lg" asChild className="h-11 px-6 text-base">
+                      <Button variant="brand" size="lg" asChild className="h-12 px-7 text-base font-bold shadow-lg shadow-black/20">
                         <Link href={ctaHref}>
                           {ctaLabel}
                           <ArrowLeft className="size-4" />
                         </Link>
                       </Button>
                     )}
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      asChild
-                      className="border-primary-foreground/25 text-primary-foreground hover:bg-primary-foreground/10 h-11 bg-transparent px-6 text-base"
+                    <Link
+                      href="/finder"
+                      className="text-primary-foreground/80 hover:text-primary-foreground inline-flex h-12 items-center gap-1.5 px-2 text-sm font-semibold underline-offset-4 hover:underline"
                     >
-                      <Link href="/finder">עזרו לי לבחור</Link>
-                    </Button>
+                      <Sparkles className="text-brand size-4" />
+                      עזרו לי לבחור
+                    </Link>
                   </div>
                 </div>
 
@@ -200,7 +202,7 @@ export function HeroBand({
             <div className="grid grid-cols-2 gap-4">
               <Link
                 href="/deals"
-                className="group bg-brand text-brand-foreground relative flex items-center gap-4 overflow-hidden rounded-2xl p-5 transition-shadow hover:shadow-lg"
+                className="group bg-brand text-brand-foreground relative flex items-center gap-4 overflow-hidden rounded-2xl px-5 py-4 transition-shadow hover:shadow-lg"
               >
                 <div
                   aria-hidden
@@ -233,7 +235,7 @@ export function HeroBand({
 
               <Link
                 href="/finder"
-                className="group border-border bg-card hover:border-brand/40 relative flex items-center gap-4 rounded-2xl border p-5 transition-all hover:shadow-md"
+                className="group border-border bg-card hover:border-brand/40 relative flex items-center gap-4 rounded-2xl border px-5 py-4 transition-all hover:shadow-md"
               >
                 <Image
                   src="/mascot/alfred.png"

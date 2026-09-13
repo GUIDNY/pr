@@ -56,9 +56,12 @@ export function DepartmentMenu({ departments }: { departments: DepartmentCount[]
                 href={`/category/${d.slug}`}
                 className="group hover:bg-muted hover:text-brand flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors"
               >
-                <Icon className="text-brand size-4.5 shrink-0" strokeWidth={1.75} />
+                {/* Quiet by default — the icon and the count take the brand
+                    colour only under the pointer, so the list reads as a
+                    list and the banner beside it stays the loudest thing. */}
+                <Icon className="text-muted-foreground/70 group-hover:text-brand size-4.5 shrink-0 transition-colors" strokeWidth={1.75} />
                 <span className="min-w-0 flex-1 truncate">{d.name}</span>
-                <span className="text-muted-foreground text-xs tabular-nums">{d.count.toLocaleString("he-IL")}</span>
+                <span className="text-muted-foreground/60 text-[11px] tabular-nums">{d.count.toLocaleString("he-IL")}</span>
                 <ChevronLeft className="text-muted-foreground size-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
               </Link>
             </li>

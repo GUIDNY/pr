@@ -123,7 +123,7 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
             <p className="text-muted-foreground mb-3 text-sm font-medium">במחשב, בכרטיס שבצד הכותרת ({onDesktop.length} מתוך {active.length}):</p>
             {onDesktop.length > 0 ? (
               <div className="bg-primary rounded-xl p-4">
-                <PromoCarousel slides={onDesktop.map((b) => toSlide(b, "desktop"))} stacked intervalMs={4000} className="mx-auto max-w-[22rem] shadow-xl" />
+                <PromoCarousel slides={onDesktop.map((b) => toSlide(b, "desktop"))} stacked intervalMs={4000} className="mx-auto max-w-[19rem] shadow-xl" />
               </div>
             ) : (
               <p className="text-muted-foreground text-xs">לאף באנר פעיל אין תמונה למחשב — המחשב מציג את הבאנר האוטומטי.</p>
@@ -524,7 +524,7 @@ function BannerCard({
               <p className="text-muted-foreground mb-2 text-xs font-medium">במחשב, בכרטיס שבצד הכותרת</p>
               {banner.desktopImage ? (
                 <div className="bg-primary rounded-xl p-4">
-                  <PromoCarousel slides={[toSlide(banner, "desktop")]} stacked className="mx-auto max-w-[22rem] shadow-xl" />
+                  <PromoCarousel slides={[toSlide(banner, "desktop")]} stacked className="mx-auto max-w-[19rem] shadow-xl" />
                 </div>
               ) : (
                 <p className="text-muted-foreground text-xs">אין תמונה למחשב — לא מופיע במחשב.</p>

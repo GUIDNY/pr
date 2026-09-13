@@ -270,7 +270,7 @@ function Slide({
           stacked ? "aspect-square w-full" : compact ? "h-full min-h-40 sm:min-h-44" : "h-full min-h-56 sm:min-h-64"
         )}
       >
-        <Image src={slide.src} alt={slide.alt} fill sizes={stacked ? "352px" : "100vw"} className="object-cover" priority />
+        <Image src={slide.src} alt={slide.alt} fill sizes={stacked ? "304px" : "100vw"} className="object-cover" priority />
       </SlideLink>
     );
   }
