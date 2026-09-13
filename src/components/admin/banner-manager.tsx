@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import Image from "next/image";
-import { ArrowDown, ArrowUp, ImagePlus, Link2, Package, Plus, Search, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ImagePlus, Link2, MessageCircle, Package, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { PromoCarousel, type PromoSlide } from "@/components/home/promo-carousel
 import { searchProductsAction, type SearchResult } from "@/actions/search";
 import { saveBannersAction, uploadBannerImageAction } from "@/actions/admin-banners";
 import {
+  ALFRED_CHAT_HREF,
   showsOnDesktop,
   showsOnPhone,
   BANNER_TONES,
@@ -379,10 +380,28 @@ function BannerCard({
           <div>
             <Label className="mb-1.5 block">לאן לחיצה מובילה</Label>
             <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChange({ href: banner.href === ALFRED_CHAT_HREF ? "/deals" : ALFRED_CHAT_HREF })}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm",
+                    banner.href === ALFRED_CHAT_HREF ? "border-brand ring-brand/30 ring-2" : "border-border"
+                  )}
+                >
+                  <MessageCircle className="size-4" />
+                  פתיחת הצ&apos;אט עם אלפרד
+                </button>
+                {banner.href === ALFRED_CHAT_HREF && (
+                  <span className="text-muted-foreground text-xs">לחיצה על הבאנר פותחת את חלון הצ&apos;אט, באתר ובאפליקציה, בלי לעבור דף.</span>
+                )}
+              </div>
+              {banner.href !== ALFRED_CHAT_HREF && (
               <div className="relative">
                 <Link2 className="text-muted-foreground pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2" />
                 <Input value={banner.href} onChange={(e) => onChange({ href: e.target.value })} className="ps-9 font-mono text-xs" dir="ltr" placeholder="/deals" />
               </div>
+              )}
               <div className="relative">
                 <Search className="text-muted-foreground pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2" />
                 <Input value={query} onChange={(e) => onQuery(e.target.value)} className="ps-9" placeholder="או חפשו מוצר לפי שם ובחרו אותו כיעד..." />

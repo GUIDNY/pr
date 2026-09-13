@@ -26,12 +26,22 @@ export const BANNER_TONE_LABELS: Record<BannerTone, string> = {
   navy: "כחול",
 };
 
+/**
+ * A banner target that is not a page: a tap opens the Alfred chat panel
+ * instead of navigating. The carousel turns it into a button that fires
+ * the same event the phone's Alfred tab does.
+ */
+export const ALFRED_CHAT_HREF = "#alfred";
+
 const href = z
   .string()
   .trim()
   .min(1, "חסר יעד")
   .max(500)
-  .refine((v) => v.startsWith("/") || /^https?:\/\//.test(v), "היעד חייב להתחיל ב-/ או ב-https://");
+  .refine(
+    (v) => v === ALFRED_CHAT_HREF || v.startsWith("/") || /^https?:\/\//.test(v),
+    "היעד חייב להתחיל ב-/ או ב-https://, או להיות פתיחת הצ'אט",
+  );
 
 export const BANNER_LAYOUTS = ["collage", "image"] as const;
 export type BannerLayout = (typeof BANNER_LAYOUTS)[number];

@@ -5,6 +5,32 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ALFRED_CHAT_HREF } from "@/lib/banners";
+import { ALFRED_OPEN_EVENT } from "@/lib/bottom-nav";
+
+/**
+ * A slide is a link to a page, or — when its target is the Alfred chat —
+ * a button that opens the chat panel where the person already is.
+ */
+function SlideLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
+  if (href === ALFRED_CHAT_HREF) {
+    return (
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event(ALFRED_OPEN_EVENT))}
+        className={cn("w-full cursor-pointer text-start", className)}
+        aria-label="פתיחת הצ'אט עם אלפרד"
+      >
+        {children}
+      </button>
+    );
+  }
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
 
 export type PromoSlide =
   | {
@@ -226,9 +252,9 @@ function Slide({
     // cropped. The width/height attributes only hold the space until it
     // loads; then its real ratio takes over.
     return (
-      <Link href={slide.href} className="group relative block overflow-hidden bg-white">
+      <SlideLink href={slide.href} className="group relative block overflow-hidden bg-white">
         <Image src={slide.src} alt={slide.alt} width={1600} height={700} sizes="(min-width: 1280px) 1024px, 100vw" className="h-auto w-full" priority />
-      </Link>
+      </SlideLink>
     );
   }
 
@@ -237,7 +263,7 @@ function Slide({
     // beside collage slides on a phone the slot has a fixed height and
     // the picture fills it.
     return (
-      <Link
+      <SlideLink
         href={slide.href}
         className={cn(
           "group relative block overflow-hidden bg-white",
@@ -245,14 +271,14 @@ function Slide({
         )}
       >
         <Image src={slide.src} alt={slide.alt} fill sizes={stacked ? "352px" : "100vw"} className="object-cover" priority />
-      </Link>
+      </SlideLink>
     );
   }
 
   const tone = slide.tone;
   const images = (slide.images ?? []).slice(0, 3);
   return (
-    <Link
+    <SlideLink
       href={slide.href}
       className={cn(
         "group relative flex h-full gap-3 overflow-hidden p-5 pb-8 sm:p-6",
@@ -335,6 +361,6 @@ function Slide({
           ))}
         </div>
       )}
-    </Link>
+    </SlideLink>
   );
 }
