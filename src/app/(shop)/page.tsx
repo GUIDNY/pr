@@ -1,5 +1,6 @@
 import { HeroBand } from "@/components/home/hero-band";
 import { UspBar } from "@/components/home/usp-bar";
+import { FinderTile } from "@/components/home/finder-tile";
 import { CategoryGrid } from "@/components/home/category-grid-mobile";
 import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
@@ -96,21 +97,40 @@ export default async function HomePage() {
           address, phone, the registered company.
 
           Same order at every width; nothing rotates on its own. */}
-      <HeroBand
-        title={hero?.title || "מוצרי חשמל מיבואן רשמי, במחיר טוב"}
-        subtitle={hero?.subtitle || "משלוח עד הבית, אחריות יבואן רשמי ושירות לקוחות אמיתי"}
-        ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
-        ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
-        departments={departmentCounts}
-        categoryTiles={categoryTiles}
-        deals={deals}
-      />
+      {/* Two orders, one DOM. On a phone the wrapper is a column and the
+          order classes put products right after the banner — hero, deals
+          grid, finder, brands, facts — because a shop shows a product and
+          a price early. From lg: the wrapper is display:contents and the
+          document order below is the desktop's. */}
+      <div className="flex flex-col lg:contents">
+        <div className="order-1">
+          <HeroBand
+            title={hero?.title || "מוצרי חשמל מיבואן רשמי, במחיר טוב"}
+            subtitle={hero?.subtitle || "משלוח עד הבית, אחריות יבואן רשמי ושירות לקוחות אמיתי"}
+            ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
+            ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
+            departments={departmentCounts}
+            categoryTiles={categoryTiles}
+            deals={deals}
+          />
+        </div>
 
-      <UspBar />
+        <div className="order-5">
+          <UspBar />
+        </div>
 
-      <BrandStrip brands={brands} />
+        <div className="order-4">
+          <BrandStrip brands={brands} />
+        </div>
 
-      <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" />
+        <div className="order-2">
+          <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" phoneGrid />
+        </div>
+
+        <div className="order-3 lg:hidden">
+          <FinderTile />
+        </div>
+      </div>
 
       {firstShowcases.map((d) => (
         <ProductRail

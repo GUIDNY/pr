@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { DEPARTMENTS_OPEN_EVENT } from "@/lib/bottom-nav";
 import Link from "next/link";
 import { Menu, Phone, MapPin, Tag, Truck, User, Heart, LayoutGrid } from "lucide-react";
 import {
@@ -24,6 +25,15 @@ export function MobileNav({
   variant?: "icon" | "tab";
 }) {
   const [open, setOpen] = useState(false);
+
+  // Only the tab-bar instance answers the event: the header's hamburger is
+  // a second instance on the same phone screen, and one drawer is enough.
+  useEffect(() => {
+    if (variant !== "tab") return;
+    const onOpen = () => setOpen(true);
+    window.addEventListener(DEPARTMENTS_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(DEPARTMENTS_OPEN_EVENT, onOpen);
+  }, [variant]);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

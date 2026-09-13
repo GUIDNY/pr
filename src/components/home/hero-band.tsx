@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, ShieldCheck, Sparkles, Tag } from "lucide-react";
+import { ArrowLeft, Check, ShieldCheck, Sparkles, Tag } from "lucide-react";
 import { SearchBar } from "@/components/layout/search-bar";
 import { Button } from "@/components/ui/button";
 import { DepartmentMenu } from "@/components/home/department-menu";
@@ -25,10 +25,11 @@ const PROMOS: PromoSlide[] = [
 /**
  * The first screen.
  *
- * On a phone: the round category tiles, the shop's own banner (importer
- * chip, headline, one CTA), then one short slot whose promotion slides
- * rotate, then a slim pair of actions (deals, the finder). The layout of
- * a shop app, which is what a phone already knows how to read.
+ * On a phone: six round category tiles and "everything", the shop's own
+ * banner (importer chip, headline, three reasons to buy here, one CTA),
+ * then one short slot whose promotion slides rotate with real product
+ * photographs on them. The deals grid follows straight after on the
+ * page, because a shop shows a product and a price early.
  *
  * On a desktop: the department menu down one side with a live count per
  * line, the navy banner beside it carrying the importer chip, the
@@ -53,6 +54,13 @@ export function HeroBand({
   categoryTiles: CategoryTile[];
   deals: ProductCardData[];
 }) {
+  // The promotions with real product photographs from today's deals on
+  // them (see PromoCarousel) — the pictures are the catalogue's own.
+  const dealImages = deals.map((p) => p.imageUrl).filter((u): u is string => !!u);
+  const promos: PromoSlide[] = PROMOS.map((p, i) =>
+    p.kind === "promo" ? { ...p, images: i === 0 ? dealImages.slice(0, 3) : dealImages.slice(3, 6).length ? dealImages.slice(3, 6) : dealImages.slice(0, 3).reverse() } : p,
+  );
+
   const bestDiscount = deals
     .map((p) => discountPercent(p.price, p.compareAtPrice ?? undefined))
     .filter((n): n is number => typeof n === "number")
@@ -67,8 +75,8 @@ export function HeroBand({
           <CategoryCircles tiles={categoryTiles} className="mb-3" />
 
           {/* The shop's own line stays put; only the promotions rotate
-              under it. A headline that is on screen one third of the time
-              is not a headline. */}
+              under it. The line under the headline is the reason to buy
+              here, in three facts, not a slogan. */}
           <div className="bg-primary text-primary-foreground relative overflow-hidden rounded-2xl p-5">
             <div
               aria-hidden
@@ -78,62 +86,31 @@ export function HeroBand({
                   "radial-gradient(ellipse 60% 90% at 0% 50%, oklch(0.42 0.12 264 / 0.9), transparent), radial-gradient(ellipse 45% 70% at 100% 0%, oklch(0.658 0.209 39.1 / 0.3), transparent)",
               }}
             />
-            <div className="relative flex flex-col items-start gap-2.5">
+            <div className="relative flex flex-col items-start gap-3">
               <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1">
                 <ShieldCheck className="text-brand size-3.5" />
                 יבואן רשמי
               </span>
               <p className="max-w-md text-[1.6rem] leading-tight font-black text-balance">{title}</p>
-              <p className="text-primary-foreground/75 max-w-sm text-sm">{subtitle}</p>
-              {ctaLabel && ctaHref && (
-                <Link
-                  href={ctaHref}
-                  className="bg-brand text-brand-foreground hover:bg-brand-hover mt-1 inline-flex h-10 items-center gap-1.5 rounded-lg px-5 text-sm font-bold shadow-sm transition-colors"
-                >
-                  {ctaLabel}
-                  <ArrowLeft className="size-4" />
-                </Link>
-              )}
+              <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium">
+                {["מחירי אונליין", "אחריות יבואן", "משלוח מהיר עד הבית"].map((f) => (
+                  <li key={f} className="flex items-center gap-1">
+                    <Check className="text-brand size-4" strokeWidth={2.5} />
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href={ctaHref ?? "/deals"}
+                className="bg-brand text-brand-foreground hover:bg-brand-hover mt-1 inline-flex h-10 items-center gap-1.5 rounded-lg px-5 text-sm font-bold shadow-sm transition-colors"
+              >
+                לכל המבצעים
+                <ArrowLeft className="size-4" />
+              </Link>
             </div>
           </div>
 
-          <PromoCarousel slides={PROMOS} compact className="mt-3" />
-
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <Link
-              href="/deals"
-              className="bg-brand text-brand-foreground flex items-center gap-2.5 rounded-xl px-3 py-2.5 shadow-sm active:scale-[0.99]"
-            >
-              <span className="bg-brand-foreground/15 flex size-9 shrink-0 items-center justify-center rounded-full">
-                <Tag className="size-4.5" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm leading-tight font-bold">מבצעים חמים</span>
-                <span className="text-brand-foreground/85 block text-[11px] leading-tight">
-                  {bestDiscount > 0 ? `עד ${bestDiscount}% הנחה` : "הנחות לזמן מוגבל"}
-                </span>
-              </span>
-            </Link>
-            <Link
-              href="/finder"
-              className="bg-card text-foreground flex items-center gap-2.5 rounded-xl px-3 py-2.5 shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.05)] active:scale-[0.99]"
-            >
-              <Image
-                src="/mascot/alfred.png"
-                alt=""
-                width={36}
-                height={36}
-                className="size-9 shrink-0 rounded-full object-cover object-top"
-              />
-              <span className="min-w-0">
-                <span className="flex items-center gap-1 text-sm leading-tight font-bold">
-                  עזרו לי לבחור
-                  <Sparkles className="text-brand size-3.5" />
-                </span>
-                <span className="text-muted-foreground block text-[11px] leading-tight">אלפרד ממליץ לפי הצרכים שלכם</span>
-              </span>
-            </Link>
-          </div>
+          <PromoCarousel slides={promos} compact className="mt-3" />
         </div>
 
         {/* ---------------- desktop ---------------- */}
@@ -200,7 +177,7 @@ export function HeroBand({
                 </div>
 
                 {/* The promotions, rotating, in the banner's end column. */}
-                <PromoCarousel slides={PROMOS} className="self-stretch shadow-xl [&>div:first-child]:h-full" />
+                <PromoCarousel slides={promos} className="self-stretch shadow-xl [&>div:first-child]:h-full" />
               </div>
             </div>
 

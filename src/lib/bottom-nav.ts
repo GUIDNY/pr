@@ -18,3 +18,6 @@ export function showsBottomNav(pathname: string): boolean {
 
 /** The DOM event the Alfred tab fires to open the chat panel. */
 export const ALFRED_OPEN_EVENT = "alfred:open";
+
+/** The DOM event the "הכל" category tile fires to open the departments drawer. */
+export const DEPARTMENTS_OPEN_EVENT = "departments:open";

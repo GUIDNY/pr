@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +20,10 @@ export type PromoSlide =
       body: string;
       href: string;
       tone: "brand" | "light" | "navy";
+      // Real product photographs from the catalogue, up to three, shown as
+      // a small collage at the slide's end — what turns a coloured block
+      // into a shop's banner without inventing artwork.
+      images?: string[];
     };
 
 /**
@@ -161,12 +166,13 @@ function Slide({ slide, compact }: { slide: PromoSlide; compact: boolean }) {
   }
 
   const tone = slide.tone;
+  const images = (slide.images ?? []).slice(0, 3);
   return (
     <Link
       href={slide.href}
       className={cn(
-        "group relative flex h-full flex-col justify-center overflow-hidden p-5 pb-8 sm:p-8",
-        compact ? "min-h-36 sm:min-h-40" : "min-h-56 sm:min-h-64",
+        "group relative flex h-full items-center justify-between gap-3 overflow-hidden p-5 pb-8 sm:p-8",
+        compact ? "min-h-40 sm:min-h-44" : "min-h-56 sm:min-h-64",
         tone === "brand" && "bg-brand text-brand-foreground",
         tone === "navy" && "bg-primary text-primary-foreground",
         tone === "light" && "text-foreground bg-white"
@@ -182,17 +188,17 @@ function Slide({ slide, compact }: { slide: PromoSlide; compact: boolean }) {
               : "radial-gradient(ellipse 60% 100% at 100% 100%, oklch(1 0 0 / 0.22), transparent), radial-gradient(ellipse 40% 60% at 0% 0%, oklch(0 0 0 / 0.12), transparent)",
         }}
       />
-      {/* A large, soft ring for depth — a shape, not a photograph, since
-          the shop has no campaign artwork yet. */}
-      <div
-        aria-hidden
-        className={cn(
-          "absolute -end-10 -bottom-16 rounded-full border-[18px]",
-          compact ? "size-40 border-[12px] sm:size-56" : "size-56 sm:size-72",
-          tone === "light" ? "border-brand/10" : "border-white/10"
-        )}
-      />
-      <div className="relative flex flex-col items-start gap-2">
+      {images.length === 0 && (
+        <div
+          aria-hidden
+          className={cn(
+            "absolute -end-10 -bottom-16 rounded-full border-[18px]",
+            compact ? "size-40 border-[12px] sm:size-56" : "size-56 sm:size-72",
+            tone === "light" ? "border-brand/10" : "border-white/10"
+          )}
+        />
+      )}
+      <div className="relative flex min-w-0 flex-col items-start gap-2">
         <span className={cn("leading-none font-black tracking-tight", compact ? "text-4xl sm:text-5xl" : "text-[3.2rem] sm:text-6xl")}>
           {slide.title}
         </span>
@@ -206,6 +212,28 @@ function Slide({ slide, compact }: { slide: PromoSlide; compact: boolean }) {
           <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
         </span>
       </div>
+
+      {images.length > 0 && (
+        /* Three photographs, fanned: the first upright and largest, the
+           others tucked behind it at a slight tilt — a shop window, not
+           a grid. Each on its own white card so a dark oven and a white
+           kettle read as one set. */
+        <div className={cn("relative shrink-0", compact ? "h-28 w-36 sm:h-32 sm:w-44" : "h-40 w-48 sm:h-48 sm:w-60")}>
+          {images.map((src, i) => (
+            <span
+              key={src + i}
+              className={cn(
+                "absolute overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5",
+                i === 0 && "end-0 bottom-0 z-30 h-full w-[62%]",
+                i === 1 && "end-[42%] bottom-2 z-20 h-[78%] w-[50%] -rotate-6",
+                i === 2 && "end-[68%] bottom-5 z-10 h-[62%] w-[42%] rotate-6"
+              )}
+            >
+              <Image src={src} alt="" fill sizes="120px" className="object-contain p-1.5" referrerPolicy="no-referrer" />
+            </span>
+          ))}
+        </div>
+      )}
     </Link>
   );
 }
