@@ -156,8 +156,22 @@ export default function PrivacyPage() {
               לעגלה, רכישה) והתאמת פרסום ברשתות של Meta. לא נשלחים אליו שם, אימייל, טלפון או כתובת
             </li>
           </ul>
+          {/* Stated here because this page is where somebody checking goes —
+              App Review among them. The three services above describe the
+              website; inside the iOS app none of them is ever loaded, and the
+              app therefore shows no consent bar at all (see
+              components/layout/cookie-notice.tsx). Saying so is not a
+              reassurance, it is the difference between two builds of the same
+              pages, and a policy that omitted it would read as a description
+              of the app too. */}
+          <p className="mt-3 mb-2">
+            <strong className="text-foreground">באפליקציה ל־iOS</strong> — שלושת השירותים האלה אינם נטענים
+            כלל, ולכן גם אינה מוצגת בה בקשת הסכמה. האפליקציה משתמשת אך ורק בשלוש העוגיות ההכרחיות שלנו
+            (התחברות לחשבון, עגלת קניות וגישת אורח להזמנה), אינה משתפת מידע עם רשתות פרסום ואינה מבצעת מעקב
+            — לרבות מעקב כהגדרתו במדיניות השקיפות של Apple.
+          </p>
           <p className="mt-2">
-            את ההסכמה אפשר לשנות או לבטל בכל רגע, דרך הקישור &quot;הגדרות פרטיות ועוגיות&quot; בתחתית כל עמוד.
+            באתר, את ההסכמה אפשר לשנות או לבטל בכל רגע, דרך הקישור &quot;הגדרות פרטיות ועוגיות&quot; בתחתית כל עמוד.
             ביטול עוצר את השירותים האלה מיד וטוען את העמוד מחדש בלעדיהם. ניתן גם לחסום או למחוק עוגיות דרך
             הגדרות הדפדפן, אך חסימת העוגיות ההכרחיות עלולה למנוע התחברות לחשבון או שמירת עגלה.
           </p>

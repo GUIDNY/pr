@@ -5,6 +5,7 @@ import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useConsent } from "@/lib/consent";
 import { redactSensitiveParams } from "@/lib/analytics/redact";
+import { useIsNativeApp } from "@/lib/native-app";
 
 declare global {
   interface Window {
@@ -32,7 +33,14 @@ export function GoogleAnalytics() {
   // unanswered banner and a refusal both render nothing at all — see
   // lib/consent.ts for why "load it and switch it off" is not the same thing.
   const consent = useConsent();
-  if (!id || consent !== "granted") return null;
+  /* And never inside the iOS app, which is the other half of removing the
+     consent bar there (see cookie-notice.tsx). Without the bar nobody in the
+     app can be asked, and a measurement tag that loads without being asked is
+     the failure this whole module was written to avoid — so in the app there
+     is nothing to load. The pixel and Clarity already answered this way; this
+     file was the one that still would have run on an unanswered question. */
+  const inApp = useIsNativeApp();
+  if (!id || inApp || consent !== "granted") return null;
 
   /* Google's two setup lines used to be an inline <script> here, which was
      right while this component was part of the server's HTML: the parser ran

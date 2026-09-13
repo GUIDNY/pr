@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Cookie } from "lucide-react";
 import { setConsent, useIsUndecided } from "@/lib/consent";
+import { useIsNativeApp } from "@/lib/native-app";
 
 /* This used to be a notice with one "הבנתי" button, and it said so: the site
    set two strictly necessary cookies, there was nothing to switch off, and a
@@ -41,7 +42,35 @@ export function CookieNotice() {
   // measured while they work; the tags stay off there, which is what an
   // undecided state already means.
   const isAdmin = usePathname().startsWith("/admin");
-  const open = undecided && !isAdmin;
+
+  /* Never inside the iOS app, and this one is not a preference.
+   *
+   * App Review rejected build 1.0 (3) under guideline 5.1.2(i) for exactly
+   * this bar. The reviewer's reasoning is in the text above: it offers to
+   * "להתאים פרסום ברשתות של Meta" through the Meta pixel, which is Apple's
+   * definition of tracking almost word for word — and an app that asks for
+   * that without App Tracking Transparency is refused.
+   *
+   * The offer was never true inside the app. The pixel and Clarity are both
+   * gated on useIsNativeApp and have been since the shell was built; the bar
+   * was describing the website to somebody holding the app. Asking for
+   * consent to something that cannot happen is not a formality, it is a
+   * misdescription, and the reviewer read it as a statement of fact —
+   * correctly.
+   *
+   * So the app gets no consent bar, and with it no analytics at all:
+   * google-analytics.tsx carries the same gate, because the honest way to
+   * stop asking is to stop having anything to ask about. What remains in the
+   * app is the three strictly necessary first-party cookies — session, cart,
+   * guest order access — which need no consent in any jurisdiction and are
+   * not tracking under any definition. Nothing here needs ATT, because
+   * nothing here tracks.
+   *
+   * The website is untouched: it still asks, still refuses by default, and
+   * still loads nothing before somebody chooses. */
+  const inApp = useIsNativeApp();
+
+  const open = undecided && !isAdmin && !inApp;
 
   /* The banner sits across the bottom of the screen, which on a phone is
      exactly where the chat and accessibility launchers live — and burying the

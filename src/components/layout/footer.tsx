@@ -141,12 +141,12 @@ export async function Footer() {
                 הצהרת נגישות
               </Link>
             </li>
-            <li>
-              {/* Next to the privacy policy on purpose: withdrawing consent has
-                  to be findable in the same place someone goes to read what
-                  they agreed to. */}
-              <ConsentSettingsLink />
-            </li>
+            {/* Next to the privacy policy on purpose: withdrawing consent has
+                to be findable in the same place someone goes to read what
+                they agreed to. It renders its own <li>, because inside the
+                iOS app it renders nothing at all and an empty row would be
+                left behind. */}
+            <ConsentSettingsLink />
             <li>
               <a href={BUSINESS.phoneHref} className="text-primary-foreground/60 hover:text-primary-foreground flex items-center gap-1.5 text-sm">
                 <Phone className="size-3.5" /> {BUSINESS.phone}
