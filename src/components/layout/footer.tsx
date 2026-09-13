@@ -170,7 +170,11 @@ export async function Footer() {
 
       <div className="border-primary-foreground/10 border-t px-4 py-4">
         <div className="text-primary-foreground/50 mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-xs sm:flex-row">
-          <span>© {new Date().getFullYear()} Buy Today. כל הזכויות שמורות.</span>
+          {/* The registered company beside the trading name: a shop that says
+              who is legally behind it reads as one that expects to be found. */}
+          <span>
+            © {new Date().getFullYear()} Buy Today · {BUSINESS.legalName}. כל הזכויות שמורות.
+          </span>
           {/* Was "ישראל", which is not an address — it told a visitor
               wondering whether this is a real shop with a real counter
               exactly nothing. */}

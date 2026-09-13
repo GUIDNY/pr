@@ -811,6 +811,23 @@ export function CheckoutForm({
                 : `בצע הזמנה - ${formatPrice(cart.total)}`}
           </Button>
         )}
+        {/* The three things a first-time buyer on a phone checks before
+            pressing: that no account is being demanded, that the card goes
+            somewhere secure, and that the purchase can be undone. */}
+        <ul className="text-muted-foreground mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs">
+          <li className="flex items-center gap-1">
+            <Lock className="text-success size-3.5" /> תשלום מאובטח
+          </li>
+          <li className="flex items-center gap-1">
+            <ShieldCheck className="text-success size-3.5" /> בלי הרשמה
+          </li>
+          <li className="flex items-center gap-1">
+            <RotateCcw className="text-success size-3.5" />
+            <Link href="/returns" className="hover:text-foreground underline underline-offset-2">
+              ביטול והחזרה
+            </Link>
+          </li>
+        </ul>
         {/* חובת היידוע שבסעיף 11 לחוק הגנת הפרטיות — מסירת הפרטים כאן אינה חובה
             חוקית, והלקוח זכאי לדעת לשם מה הם נאספים לפני שהוא מוסר אותם, לא
             אחרי. */}

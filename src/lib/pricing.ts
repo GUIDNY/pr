@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 
-export const FREE_DELIVERY_THRESHOLD = 500;
-export const STANDARD_DELIVERY_FEE = 49;
+export { FREE_DELIVERY_THRESHOLD, STANDARD_DELIVERY_FEE, computeDeliveryFee } from "@/lib/delivery";
 
 export type CartLine = { productId: string; price: number; quantity: number; categoryId: string; brandId: string };
 
@@ -24,10 +23,6 @@ export async function resolveCoupon(code: string | null | undefined, subtotal: n
 
   const discount = promo.type === "PERCENTAGE" ? Math.round((subtotal * promo.value) / 100) : Math.min(promo.value, subtotal);
   return { discount, error: null, promotion: promo };
-}
-
-export function computeDeliveryFee(subtotal: number) {
-  return subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : STANDARD_DELIVERY_FEE;
 }
 
 export function computeCartSubtotal(lines: { price: number; quantity: number }[]) {
