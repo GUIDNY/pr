@@ -143,7 +143,11 @@ export function ProductGallery({
   return (
     <div className="relative">
       <div
-        className="bg-muted sticky top-24 aspect-square overflow-hidden rounded-2xl"
+        // 4:3 on a phone, square from sm:. A square photo at 390px is 358px
+        // tall and pushes the price and the buy button under the fold; the
+        // catalogue shots are on white with room around the product, so the
+        // shorter box loses margin, not appliance.
+        className="bg-muted sticky top-24 aspect-[4/3] overflow-hidden rounded-2xl sm:aspect-square"
         onDragOver={
           isAdmin
             ? (e) => {

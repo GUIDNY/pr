@@ -66,9 +66,15 @@ export async function getFeaturedBrands(take = 40) {
     where: { isActive: true },
     include: { _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } } },
   });
+  // Logos first, then by how much of the shop each brand is. The strip
+  // sits directly under the hero as evidence that this is a real
+  // appliance shop, and a Samsung or Bosch mark carries that in a glance
+  // where a wordmark for a brand nobody has heard of carries nothing —
+  // so the marquee should open on the marks, not reach them on its third
+  // loop.
   return brands
     .filter((b) => b._count.products >= FEATURED_BRAND_MIN_PRODUCTS)
-    .sort((a, b) => b._count.products - a._count.products)
+    .sort((a, b) => Number(Boolean(b.logoUrl)) - Number(Boolean(a.logoUrl)) || b._count.products - a._count.products)
     .slice(0, take)
     .map((b) => ({ name: b.name, slug: b.slug, logoUrl: b.logoUrl }));
 }

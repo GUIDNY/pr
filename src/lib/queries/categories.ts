@@ -34,6 +34,36 @@ export async function getNavigableCategoryTree(): Promise<NavigableDepartment[]>
     .map((d) => ({ slug: d.slug, name: d.name, children: d.children }));
 }
 
+export type DepartmentCount = { slug: string; name: string; count: number };
+
+/**
+ * Every department with something to sell, with its live product count,
+ * in catalogue order — the homepage's vertical department menu. Counted
+ * through the public predicate so the number beside "מקררים" is the
+ * number of fridges a visitor can actually open.
+ */
+export async function getDepartmentCounts(): Promise<DepartmentCount[]> {
+  const departments = await db.category.findMany({
+    where: { parentId: null },
+    select: { id: true, slug: true, name: true, sortOrder: true, children: { select: { id: true } } },
+    orderBy: { sortOrder: "asc" },
+  });
+  const counted = await Promise.all(
+    departments.map(async (d) => ({
+      slug: d.slug,
+      name: d.name,
+      count: await db.product.count({
+        where: { ...PUBLIC_PRODUCT_WHERE, categoryId: { in: [d.id, ...d.children.map((c) => c.id)] } },
+      }),
+    })),
+  );
+  // A department with one or two live products is a line in a menu that
+  // says "1" beside it, which reads as a shop running out rather than a
+  // shop with range. It stays reachable through the mega menu and the
+  // chips; it just does not get a line here until it has something in it.
+  return counted.filter((d) => d.count >= 5);
+}
+
 export type CategoryTile = { slug: string; name: string; imageUrl: string };
 
 /**

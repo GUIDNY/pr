@@ -1,14 +1,20 @@
-import { Hero } from "@/components/home/hero";
-import { AlfredSection } from "@/components/home/alfred-section";
-import { CategoryExplorer } from "@/components/home/category-explorer";
+import { HeroBand } from "@/components/home/hero-band";
+import { UspBar } from "@/components/home/usp-bar";
+import { FinderTile } from "@/components/home/finder-tile";
 import { CategoryGrid } from "@/components/home/category-grid-mobile";
 import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
-import { FinderTeaser } from "@/components/home/finder-teaser";
-import { getDeals, getBestSellers, getFeaturedProducts, getProductsByIds } from "@/lib/queries/products";
+import {
+  getDeals,
+  getBestSellers,
+  getFeaturedProducts,
+  getProductsByIds,
+  getNewArrivals,
+  getDepartmentShowcases,
+} from "@/lib/queries/products";
 import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
-import { getCategoryTilesWithImages } from "@/lib/queries/categories";
+import { getCategoryTilesWithImages, getDepartmentCounts } from "@/lib/queries/categories";
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/seo/json-ld";
 import { organizationSchema, webSiteSchema } from "@/lib/schema";
@@ -32,8 +38,19 @@ export const metadata: Metadata = { alternates: { canonical: "/" } };
 export const revalidate = 300;
 
 export default async function HomePage() {
-  const [hero, whyPrec, deals, bestSellers, featured, brands, categoryTiles, alfredWidget] =
-    await Promise.all([
+  const [
+    hero,
+    whyPrec,
+    deals,
+    bestSellers,
+    featured,
+    brands,
+    categoryTiles,
+    alfredWidget,
+    newArrivals,
+    showcases,
+    departmentCounts,
+  ] = await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
       getDeals(8),
@@ -42,88 +59,112 @@ export default async function HomePage() {
       getFeaturedBrands(),
       getCategoryTilesWithImages(),
       getHomepageSection("alfred-widget"),
+      getNewArrivals(8),
+      getDepartmentShowcases({ departments: 8, perDepartment: 6 }),
+      getDepartmentCounts(),
     ]);
 
-  // Admin-curated at /admin/homepage-alfred (payload.productIds); falls
-  // back to today's first 3 deals so the widget never sits empty before an
-  // admin has configured it.
+  // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
+  // an ordinary product rail, not as a chat panel in a second hero: when
+  // nobody has picked anything the rail simply does not render, rather
+  // than borrowing today's deals and showing them twice.
   const alfredWidgetIds = (alfredWidget?.payload as { productIds?: string[] } | undefined)?.productIds ?? [];
-  const alfredPicks = alfredWidgetIds.length > 0 ? await getProductsByIds(alfredWidgetIds) : deals.slice(0, 3);
+  const alfredPicks = alfredWidgetIds.length > 0 ? await getProductsByIds(alfredWidgetIds) : [];
+
+  const [firstShowcases, laterShowcases] = [showcases.slice(0, 2), showcases.slice(2)];
 
   return (
     <>
       <JsonLd data={organizationSchema()} />
       <JsonLd data={webSiteSchema()} />
-      {/* Mobile-only reorder: Alfred's panel first, then top categories,
-          then hot deals, then the Hero (title/CTA/benefits) — everything
-          below this block keeps its normal document order untouched.
-          `flex flex-col` only applies (and `order` only has any effect)
-          below sm: — at sm: and up this reverts to `sm:block`, i.e. plain
-          stacking in the original DOM order, so desktop is unaffected. */}
-      <div className="flex flex-col sm:block">
-        {/* Desktop order swapped: AlfredSection (the real hero content now
-            — h1, CTA buttons, trust badges) leads, then CategoryExplorer,
-            then the search-spotlight Hero, then deals. Each block keeps its
-            own `order-N` class, which only does anything below sm:, so
-            mobile's order (unchanged: Alfred, Explorer, deals, then the
-            category grid in Hero's old slot) is untouched by this DOM
-            reshuffle — only desktop's plain top-to-bottom stacking order,
-            which follows DOM order, actually changes. */}
+      {/* The page, top to bottom, and why in this order.
+
+          The first screen is laid out like a shop, not a landing page: the
+          department menu down one side with a live count beside each
+          line, the banner beside it with the facts a doubtful visitor
+          checks (importer warranty, catalogue size, a street in Hadera),
+          Alfred's search bar, and a real product on a card; then two
+          tiles — today's deals and the finder. A row of the same facts
+          with icons, and the manufacturers' marks, follow before the first
+          product, because Bosch, Samsung and LG say "legitimate" faster
+          than any sentence about it.
+
+          Then products, a department at a time — fridges, ovens,
+          televisions — each a row of real stock with prices and a link to
+          the whole department, biggest first. Not "best sellers": nothing
+          is flagged as one and there is no sales history to rank by, so
+          that rail rendered empty. The page closes on the shop itself:
+          address, phone, the registered company.
+
+          Same order at every width; nothing rotates on its own. */}
+      {/* Two orders, one DOM. On a phone the wrapper is a column and the
+          order classes put products right after the banner — hero, deals
+          grid, finder, brands, facts — because a shop shows a product and
+          a price early. From lg: the wrapper is display:contents and the
+          document order below is the desktop's. */}
+      <div className="flex flex-col lg:contents">
         <div className="order-1">
-          <AlfredSection
-            heroTitle={hero?.title ?? ""}
-            heroSubtitle={hero?.subtitle ?? ""}
+          <HeroBand
+            title={hero?.title || "מוצרי חשמל מיבואן רשמי, במחיר טוב"}
+            subtitle={hero?.subtitle || "משלוח עד הבית, אחריות יבואן רשמי ושירות לקוחות אמיתי"}
             ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
             ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
+            departments={departmentCounts}
+            categoryTiles={categoryTiles}
+            deals={deals}
           />
         </div>
 
-        <div className="order-2">
-          <CategoryExplorer />
+        <div className="order-5">
+          <UspBar />
         </div>
 
         <div className="order-4">
-          {/* Mobile: the full real-category grid instead of the Hero.
-              Desktop: the Hero, exactly as it always rendered here — kept
-              in the DOM either way (not deleted), just one or the other is
-              visually hidden per breakpoint. */}
-          <div className="sm:hidden">
-            <CategoryGrid tiles={categoryTiles} />
-          </div>
-          <div className="hidden sm:block">
-            {hero && (
-              <Hero
-                ctaLabel={(hero.payload as { ctaLabel: string }).ctaLabel}
-                ctaHref={(hero.payload as { ctaHref: string }).ctaHref}
-                showcaseProducts={deals}
-                alfredPicks={alfredPicks}
-              />
-            )}
-          </div>
+          <BrandStrip brands={brands} />
         </div>
 
-        <div className="order-3">
-          <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" />
+        <div className="order-2">
+          <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" phoneGrid />
+        </div>
+
+        <div className="order-3 lg:hidden">
+          <FinderTile />
         </div>
       </div>
 
-      <FinderTeaser />
+      {firstShowcases.map((d) => (
+        <ProductRail
+          key={d.slug}
+          title={d.name}
+          subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
+          products={d.products}
+          viewAllHref={`/category/${d.slug}`}
+          viewAllLabel={`לכל ${d.name}`}
+        />
+      ))}
 
-      {/* Desktop only — directly below the finder teaser ("לא בטוחים מה
-          לבחור?") now, before the product rails. The mobile copy of this
-          same grid lives up in the Hero slot above, so it isn't repeated
-          here below sm:. */}
-      <div className="hidden sm:block">
-        <CategoryGrid tiles={categoryTiles} />
-      </div>
+      <CategoryGrid tiles={categoryTiles} />
 
-      <ProductRail title="הנמכרים ביותר" products={bestSellers} />
+      {laterShowcases.map((d) => (
+        <ProductRail
+          key={d.slug}
+          title={d.name}
+          subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
+          products={d.products}
+          viewAllHref={`/category/${d.slug}`}
+          viewAllLabel={`לכל ${d.name}`}
+        />
+      ))}
 
-      {featured.length > 0 && (
-        <ProductRail title="מומלצים במיוחד" products={featured} />
+      <ProductRail title="חדש בקטלוג" subtitle="הגיעו אלינו לאחרונה" products={newArrivals} />
+
+      {alfredPicks.length > 0 && (
+        <ProductRail title="אלפרד ממליץ" subtitle="הבחירות של העוזר החכם שלנו להיום" products={alfredPicks} />
       )}
 
-      <BrandStrip brands={brands} />
+      {bestSellers.length > 0 && <ProductRail title="הנמכרים ביותר" products={bestSellers} />}
+
+      {featured.length > 0 && <ProductRail title="מומלצים במיוחד" products={featured} />}
 
       {whyPrec && (
         <WhyPrec
