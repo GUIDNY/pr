@@ -1,9 +1,11 @@
 import { CreditCard, ShieldCheck, Store, Truck } from "lucide-react";
 import { BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
+import { formatPrice } from "@/lib/format";
 
 const FACTS = [
   { icon: ShieldCheck, title: "אחריות יבואן רשמי", body: "על כל מוצר באתר" },
-  { icon: Truck, title: "משלוח עד הבית", body: "לכל הארץ, כולל התקנה" },
+  { icon: Truck, title: "משלוח עד הבית", body: `חינם מעל ${formatPrice(FREE_DELIVERY_THRESHOLD)}, לכל הארץ` },
   { icon: CreditCard, title: "תשלום מאובטח", body: "גם בפריסה לתשלומים" },
   { icon: Store, title: "חנות פיזית בחדרה", body: BUSINESS_ADDRESS, href: BUSINESS_MAP_URL },
 ];

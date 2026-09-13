@@ -3,7 +3,8 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { MetaViewContent } from "@/components/analytics/meta-events";
 import { breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
-import { Star, Truck, ShieldCheck, PackageCheck, Pencil } from "lucide-react";
+import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw } from "lucide-react";
+import { FREE_DELIVERY_THRESHOLD, computeDeliveryFee } from "@/lib/delivery";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -54,7 +55,7 @@ import {
   feedDescription,
 } from "@/lib/feeds/google-merchant";
 import { absoluteUrl } from "@/lib/site-url";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatPrice } from "@/lib/format";
 import type { StockStatus } from "@/lib/enums";
 
 /**
@@ -127,6 +128,9 @@ export async function ProductPageView({
 
   const categoryIcon = product.category.parent?.icon ?? product.category.icon;
   const maxQuantity = Math.max(1, Math.min(product.stockQty, 10));
+  // For one unit of this product on its own — the same rule the cart
+  // applies, stated before anything is in the cart.
+  const deliveryFee = computeDeliveryFee(product.price);
 
   // ProductGallery is a Client Component, so whatever's in its `images`
   // prop gets serialized into the page's hydration payload for every
@@ -294,7 +298,7 @@ export async function ProductPageView({
             {isAdminViewer ? (
               <ProductTitleEditor productId={product.id} title={product.title} />
             ) : (
-              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{product.title}</h1>
+              <h1 className="mt-1 text-xl leading-snug font-bold sm:text-3xl sm:leading-tight">{product.title}</h1>
             )}
             <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-sm">
               <span>מק&quot;ט: {product.sku}</span>
@@ -360,11 +364,56 @@ export async function ProductPageView({
             {isAdminViewer && <ProductReviewFlagButton productId={product.id} initialFlag={reviewFlag} />}
           </div>
 
-          {/* The full warranty/delivery/payment trio used to repeat here
-              AND in the "משלוח ואחריות" tab below — same three facts twice
-              on one page. Warranty now lives as a badge on the gallery
-              photo itself instead (see ProductGallery); delivery/payment
-              stay covered by the tab, so nothing here duplicates it. */}
+          {/* What it will actually cost and what happens if it is wrong,
+              next to the button that commits to it. Unexpected delivery
+              charges are the largest single reason a purchase is abandoned
+              (39%), and most shoppers look for the return policy on the
+              product page and leave when they cannot find it — so the fee,
+              the delivery time, the warranty and the policy link sit here
+              rather than in a tab further down. Every line is a fact from
+              the shop's own configuration, not copy. */}
+          {!isSoldOut && (
+            <ul className="border-border bg-muted/40 divide-border divide-y rounded-xl border text-sm">
+              <li className="flex items-center gap-2.5 px-3.5 py-2.5">
+                <Truck className="text-brand size-4 shrink-0" />
+                <span>
+                  {deliveryFee === 0 ? (
+                    <>
+                      <span className="font-semibold">משלוח עד הבית חינם</span>
+                      <span className="text-muted-foreground"> · מגיע תוך {product.deliveryDays} ימים</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-semibold">משלוח עד הבית {formatPrice(deliveryFee)}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · תוך {product.deliveryDays} ימים
+                      </span>
+                    </>
+                  )}
+                </span>
+              </li>
+              {product.warrantyMonths > 0 && (
+                <li className="flex items-center gap-2.5 px-3.5 py-2.5">
+                  <ShieldCheck className="text-brand size-4 shrink-0" />
+                  <span>
+                    <span className="font-semibold">אחריות יבואן רשמי</span>
+                    <span className="text-muted-foreground"> · {product.warrantyMonths} חודשים</span>
+                  </span>
+                </li>
+              )}
+              <li className="flex items-center gap-2.5 px-3.5 py-2.5">
+                <RotateCcw className="text-brand size-4 shrink-0" />
+                <span>
+                  <span className="font-semibold">ביטול והחזרה לפי חוק</span>
+                  <span className="text-muted-foreground"> · </span>
+                  <Link href="/returns" className="text-brand underline-offset-2 hover:underline">
+                    למדיניות המלאה
+                  </Link>
+                </span>
+              </li>
+            </ul>
+          )}
 
           <ConsultSection productTitle={product.title} />
         </div>

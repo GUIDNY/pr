@@ -197,7 +197,17 @@ export function SearchBar({
           </>
         ) : (
           <>
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2" />
+            {/* A real submit control, not a decorative glyph. On a phone
+                people look to the page for the search button before they
+                look to the keyboard, and a field with only an icon they
+                cannot press is a field they give up on. */}
+            <button
+              type="submit"
+              aria-label="חיפוש"
+              className="text-muted-foreground hover:text-brand absolute top-1/2 start-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-full"
+            >
+              <Search className="size-4" />
+            </button>
             <input
               value={query}
               onChange={(e) => onChange(e.target.value)}
@@ -206,7 +216,7 @@ export function SearchBar({
               placeholder="מה אתם מחפשים היום?"
               aria-label="חיפוש מוצרים"
               className={cn(
-                "border-input bg-background focus-visible:ring-brand/40 h-10 w-full rounded-full border py-2 ps-9 pe-9 text-sm outline-none focus-visible:ring-3",
+                "border-input bg-background focus-visible:ring-brand/40 h-10 w-full rounded-full border py-2 ps-10 pe-9 text-sm outline-none focus-visible:ring-3",
                 inputClassName
               )}
             />
