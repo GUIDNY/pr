@@ -58,6 +58,12 @@ const CONVERSATIONAL_WORDS = new Set([
   "תוכל", "תוכלי", "יכול", "יכולה", "בבקשה", "תודה", "שלום", "היי",
   "שאלה", "שאלות", "לשאול", "לדעת", "להבין", "עוזר", "לעזור", "עזרה",
   "יום", "ימים", "שבוע", "שבועות", "חודש", "חודשים", "היום", "מחר",
+  /* "זמן" was the one that got through on the very question this list was
+     written for, and it landed on the same shaver: its title reads
+     "משוב לחץ בזמן אמת". A word this ordinary will always be inside
+     something in a catalogue this size. */
+  "זמן", "הזמן", "זמנים", "זמני", "לוקח", "לוקחת", "מגיע", "מגיעה", "מגיעים",
+  "עולה", "עולים", "עולות", "כולל", "כוללת", "נמצא", "קיים", "זמין", "זמינות",
 ]);
 
 // The shipping/warranty/hours facts are NOT hardcoded here — they come
