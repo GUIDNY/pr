@@ -4,6 +4,7 @@ import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { searchProducts } from "@/lib/queries/products";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 import { getChatbotSettings } from "@/lib/queries/chatbot-settings";
+import { clientKey, rateLimit } from "@/lib/rate-limit";
 
 // Public-facing chat endpoint behind the "Alfred" widget — no bearer auth
 // (unlike /api/integrations/*, which are for trusted external agents, not
@@ -15,7 +16,49 @@ const GEMINI_MODEL = "gemini-3.6-flash";
 const MAX_HISTORY_TURNS = 10;
 const MAX_MESSAGE_LENGTH = 1000;
 
+/* Generous for a person and impossible for a loop. A real conversation is
+   five or six messages; somebody comparing three fridges might reach twenty.
+   Nobody types sixty questions in half an hour, so this is invisible to
+   every customer and immediate for a script. */
+const RATE_LIMIT = 30;
+const RATE_WINDOW_MS = 30 * 60 * 1000;
+
 type ChatTurn = { role: "user" | "model"; text: string };
+
+/* Words that mean the visitor is asking about the shop, not naming a thing
+   to buy.
+ *
+ * The product search underneath is a plain substring `contains`, and that is
+ * a blunt instrument pointed at a catalogue of two thousand titles: any word
+ * long enough to survive the length filter will be found inside *something*.
+ * "מה זמן המשלוח שלכם?" returned an electric shaver, because "משלוח" appears
+ * in its description, and the customer got a razor attached to an answer
+ * about delivery times.
+ *
+ * The length filter alone cannot fix that — "המשלוח" is six letters. What
+ * separates the two cases is not length but subject: these words belong to
+ * questions about policy, and a question about policy wants a sentence, not
+ * a shelf. Strip them, and if nothing is left, search for nothing.
+ *
+ * Only words that are never a product. "מקרר" and "בוש" are not here and
+ * never will be. */
+const CONVERSATIONAL_WORDS = new Set([
+  // delivery, warranty, payment, returns — the policy questions
+  "משלוח", "המשלוח", "משלוחים", "המשלוחים", "לשלוח", "שליח", "שילוח",
+  "אחריות", "האחריות", "אחריותה", "תשלום", "התשלום", "לשלם", "תשלומים",
+  "החזרה", "החזרות", "להחזיר", "ביטול", "לבטל", "זיכוי", "החלפה", "להחליף",
+  "הזמנה", "ההזמנה", "הזמנות", "להזמין", "מחיר", "המחיר", "מחירים",
+  "חשבונית", "קבלה", "מבצע", "מבצעים", "הנחה", "הנחות", "קופון",
+  // the shop itself
+  "חנות", "החנות", "סניף", "סניפים", "כתובת", "הכתובת", "טלפון", "הטלפון",
+  "שעות", "פתוח", "סגור", "שירות", "השירות", "לקוחות", "עסקים",
+  // question and filler words long enough to slip past the length filter
+  "שלכם", "שלכן", "שלנו", "אצלכם", "איפה", "מתי", "כמה", "למה", "איך",
+  "אפשר", "אפשרי", "רוצה", "רציתי", "מחפש", "מחפשת", "צריך", "צריכה",
+  "תוכל", "תוכלי", "יכול", "יכולה", "בבקשה", "תודה", "שלום", "היי",
+  "שאלה", "שאלות", "לשאול", "לדעת", "להבין", "עוזר", "לעזור", "עזרה",
+  "יום", "ימים", "שבוע", "שבועות", "חודש", "חודשים", "היום", "מחר",
+]);
 
 // The shipping/warranty/hours facts are NOT hardcoded here — they come
 // live from ChatbotSettings (editable at /admin/chatbot) on every request,
@@ -30,7 +73,17 @@ function buildPersona(settings: {
     `את/ה "אלפרד" — עוזר שירות הלקוחות של Buy Today, חנות אלקטרוניקה ומוצרי חשמל ישראלית מקוונת.`,
     `מדברים בעברית בלבד, בטון חם, אישי וקצר — כמו נציג שירות אנושי טוב, לא כמו רובוט. 2-4 משפטים לתשובה, לא יותר, אלא אם ממש נדרש יותר.`,
     `עוזרים ללקוחות למצוא מוצרים, עונים על שאלות משלוח/אחריות/תשלום, ומכוונים באתר.`,
-    `כלל ברזל: אסור להמציא מחיר, זמינות במלאי, או פרטי מוצר שלא ניתנו במפורש בהקשר הפנימי למטה. אם אין מידע על מוצר מסוים — אומרים שלא בטוחים ומציעים לחפש באתר או לפנות לצוות, לא מנחשים.`,
+    /* Named field by field, because the general version was not enough.
+       Asked to compare two fridges it had only titles and prices for, the
+       model answered that the LG "comes with InstaView smart double-door
+       technology" — a real feature of some LG fridges, invented for this
+       one out of the model name. A wrong spec on a shop page is a customer
+       ordering something other than what they saw, so the rule now says
+       what is known rather than what is forbidden: a list can be checked
+       against, a prohibition has to be interpreted. */
+    `כלל ברזל: המידע היחיד שיש לך על מוצר הוא מה שכתוב בהקשר הפנימי למטה — שם, מותג, מחיר וסטטוס מלאי. אין לך מפרט, אין לך תכונות, אין לך מידות ואין לך נפחים.`,
+    `אם שואלים על תכונה, טכנולוגיה, נפח, מידה, דירוג אנרגטי או השוואה טכנית בין דגמים — אומרים בפירוש שהפרטים המלאים נמצאים בעמוד המוצר ומפנים לשם. אסור לנחש תכונה, ואסור להסיק אותה משם הדגם או מהמותג.`,
+    `אסור להמציא מחיר או זמינות במלאי שלא ניתנו במפורש בהקשר. אם אין מידע על מוצר מסוים — אומרים שלא בטוחים ומציעים לחפש באתר או לפנות לצוות, לא מנחשים.`,
     `משלוח: ${settings.shippingInfo}`,
     `אחריות: ${settings.warrantyInfo}`,
   ];
@@ -44,6 +97,17 @@ export async function POST(request: Request) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "הצ'אט לא זמין כרגע" }, { status: 503 });
+  }
+
+  /* Before anything expensive: the database reads below and the Gemini call
+     after them both cost something, and neither should be spent on a caller
+     who has already had their turn. */
+  const limit = rateLimit(`alfred:${clientKey(request)}`, RATE_LIMIT, RATE_WINDOW_MS);
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "שלחתם הרבה הודעות בזמן קצר. אפשר להמשיך בעוד כמה דקות, או להתקשר אלינו." },
+      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } }
+    );
   }
 
   let body: unknown;
@@ -82,12 +146,33 @@ export async function POST(request: Request) {
   // *before* they ever reach searchProducts (not just gating on whether one
   // exists) fixes this — confirmed by hand: the raw message here 5-matched
   // wall-mount arms via "מה", the filtered one correctly matches nothing.
-  const { text: searchText } = parseShoppingQuery(message);
+  //
+  // The length rule is necessary and not sufficient: "המשלוח" is six letters
+  // and still matched a shaver. CONVERSATIONAL_WORDS above catches the rest.
+  const { text: searchText, maxPrice } = parseShoppingQuery(message);
   const substantiveWords = splitSearchWords(searchText)
     .map((w) => w.replace(/[?!.,]/g, ""))
-    .filter((w) => w.length >= 3);
+    .filter((w) => w.length >= 3 && !CONVERSATIONAL_WORDS.has(w));
+
+  /* The budget has to be put back before the search sees it.
+   *
+   * parseShoppingQuery pulls "עד 2000 ₪" out and hands back the rest, and
+   * searchProducts parses its own argument the same way — so passing it only
+   * the leftover words threw the ceiling away between the two. Somebody
+   * asking for a washing machine under two thousand was shown one at five.
+   *
+   * Only ever alongside real words: a price with nothing else in it would
+   * match the whole catalogue under that number and return five arbitrary
+   * cheap things. */
+  const searchQuery =
+    substantiveWords.length > 0
+      ? maxPrice !== null
+        ? `${substantiveWords.join(" ")} עד ${maxPrice}`
+        : substantiveWords.join(" ")
+      : "";
+
   const [products, settings, pinnedRows] = await Promise.all([
-    substantiveWords.length > 0 ? searchProducts(substantiveWords.join(" "), 5) : Promise.resolve([]),
+    searchQuery ? searchProducts(searchQuery, 5) : Promise.resolve([]),
     getChatbotSettings(),
     pinnedIds.length > 0
       ? db.product.findMany({
@@ -142,24 +227,58 @@ export async function POST(request: Request) {
 
   let geminiRes: Response;
   try {
-    geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-goog-api-key": apiKey },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: `${buildPersona(settings)}\n\nהקשר פנימי לתשובה הזו בלבד (לא לצטט כמו שהוא):\n${productContext}` }],
-        },
-        contents,
-        // gemini-3.6-flash spends a meaningful chunk of this budget on
-        // hidden "thinking" tokens before it ever writes the visible reply
-        // (measured ~500 thinking tokens for a two-sentence answer) —
-        // maxOutputTokens caps that total, not just the visible text, so a
-        // low value here truncates the reply mid-sentence even though the
-        // model "finished" its actual answer just fine.
-        generationConfig: { maxOutputTokens: 2048, temperature: 0.6 },
-      }),
-      signal: AbortSignal.timeout(20000),
-    });
+    /* streamGenerateContent, not generateContent.
+     *
+     * The whole answer took just over five seconds to arrive, and all five
+     * were a blank bubble with three dots in it. The model does not take
+     * five seconds to start — it takes five seconds to finish, and waiting
+     * for the last word before showing the first is a choice this code was
+     * making on the customer's behalf. Streaming the same answer puts the
+     * first words on screen in well under a second. Nothing about the reply
+     * changes; only how long the shop looks broken. */
+    geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-goog-api-key": apiKey },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [
+              { text: `${buildPersona(settings)}\n\nהקשר פנימי לתשובה הזו בלבד (לא לצטט כמו שהוא):\n${productContext}` },
+            ],
+          },
+          contents,
+          // maxOutputTokens caps thinking and visible text together, not just
+          // the visible text, so a low value truncates the reply mid-sentence
+          // even though the model "finished" its actual answer just fine.
+          //
+          // thinkingLevel is where the five-second wait went. Measured on
+          // this model, on real questions from this shop:
+          //
+          //   default    5.2s   ~650 hidden thinking tokens
+          //   low        3.3s   ~350
+          //   minimal    1.7s   0
+          //
+          // The answers at "minimal" were as good — side by side on the same
+          // questions, the shorter one was if anything more direct and more
+          // likely to end by asking something back. That is not surprising:
+          // nothing here is a reasoning problem. The persona is fixed, the
+          // catalogue rows are handed over already chosen, and the job is to
+          // write three warm sentences about them. There was nothing for
+          // half a second of deliberation to work out, and the customer paid
+          // for it twice — once in waiting and once per token.
+          //
+          // "thinkingBudget: 0" is rejected by this model; minimal is the
+          // floor.
+          generationConfig: {
+            maxOutputTokens: 2048,
+            temperature: 0.6,
+            thinkingConfig: { thinkingLevel: "minimal" },
+          },
+        }),
+        signal: AbortSignal.timeout(30000),
+      }
+    );
   } catch (error) {
     /* The customer sees "we are busy"; the log has to say which of the very
        different things went wrong, or the next person debugging this is
@@ -170,7 +289,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "השירות עמוס כרגע, נסו שוב בעוד רגע" }, { status: 502 });
   }
 
-  if (!geminiRes.ok) {
+  if (!geminiRes.ok || !geminiRes.body) {
     /* Google's own words, which are specific and worth having: an invalid or
        revoked key, a model this key's tier cannot reach, a quota that ran
        out, a project with billing switched off. All four look identical from
@@ -181,23 +300,92 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "השירות עמוס כרגע, נסו שוב בעוד רגע" }, { status: 502 });
   }
 
-  const data = await geminiRes.json();
-  const parts: { text?: string }[] = data?.candidates?.[0]?.content?.parts ?? [];
-  const reply = parts.map((p) => p.text ?? "").join("").trim() || "מצטער, לא הצלחתי לענות כרגע. נסו לנסח אחרת?";
-
   const combinedProducts = [
     ...pinnedProducts,
     ...products.filter((p) => !pinnedProducts.some((pinned) => pinned.slug === p.slug)),
-  ];
+  ].map((p) => ({
+    title: p.title,
+    slug: p.slug,
+    price: p.price,
+    imageUrl: p.imageUrl,
+    stockStatus: p.stockStatus,
+  }));
 
-  return NextResponse.json({
-    reply,
-    products: combinedProducts.map((p) => ({
-      title: p.title,
-      slug: p.slug,
-      price: p.price,
-      imageUrl: p.imageUrl,
-      stockStatus: p.stockStatus,
-    })),
+  /* Newline-delimited JSON rather than Server-Sent Events.
+   *
+   * SSE would mean the browser's EventSource, which only does GET — and this
+   * request carries a message, a history and pinned ids in its body. One
+   * object per line over a plain POST response is the whole protocol, read
+   * on the other side with a TextDecoder and a split. */
+  const encoder = new TextEncoder();
+  const upstream = geminiRes.body;
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (payload: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
+
+      /* The cards go first, before the model has written a word. They were
+         already known — the catalogue was searched to build the prompt — so
+         making them wait for the sentence that introduces them is holding
+         back something already in hand. */
+      if (combinedProducts.length > 0) send({ type: "products", products: combinedProducts });
+
+      const reader = upstream.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let wroteAnything = false;
+
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          /* Gemini's SSE frames are "data: {…}" lines separated by blank
+             lines. A chunk can split one anywhere, so only whole lines are
+             parsed and the remainder stays in the buffer for the next read. */
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data:")) continue;
+            const json = trimmed.slice(5).trim();
+            if (!json || json === "[DONE]") continue;
+            try {
+              const parsed = JSON.parse(json) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
+              const text = (parsed.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
+              if (text) {
+                wroteAnything = true;
+                send({ type: "delta", text });
+              }
+            } catch {
+              // A frame we cannot read is one frame, not the conversation.
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[alfred] stream broke:", (error as Error).message);
+      } finally {
+        reader.releaseLock();
+      }
+
+      /* A stream that ended having said nothing is a failure the customer
+         would otherwise see as an empty bubble. It has already been answered
+         with a 200, so it cannot become a 502 now — it becomes a sentence. */
+      if (!wroteAnything) send({ type: "delta", text: "מצטער, לא הצלחתי לענות כרגע. נסו לנסח אחרת?" });
+
+      controller.close();
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store",
+      // Nothing between here and the browser may hold the reply back to
+      // buffer it — that would undo the streaming entirely.
+      "X-Accel-Buffering": "no",
+    },
   });
 }
