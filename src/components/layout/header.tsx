@@ -29,11 +29,11 @@ export async function Header() {
           the first thing on the screen at every size. Outside the sticky
           header on purpose: it is read once, at the top, and should not
           spend a strip of every screen afterwards. */}
-      <div className="bg-primary text-primary-foreground/85 flex justify-center py-1.5 text-xs">
-        <div className="flex w-full max-w-7xl items-center justify-center gap-4 px-4 md:justify-between">
-          <div className="flex items-center gap-4">
+      <div className="bg-primary text-primary-foreground/85 flex justify-center py-1.5 text-[11px] sm:text-xs">
+        <div className="flex w-full max-w-7xl items-center justify-center gap-3 px-4 sm:gap-4 md:justify-between">
+          <div className="flex items-center gap-3 whitespace-nowrap sm:gap-4">
             <span className="flex items-center gap-1">
-              <ShieldCheck className="text-brand size-3.5" /> אחריות יבואן רשמי
+              <ShieldCheck className="text-brand size-3.5" /> <span className="hidden sm:inline">אחריות </span>יבואן רשמי
             </span>
             <span className="flex items-center gap-1">
               <Truck className="text-brand size-3.5" /> משלוח חינם מעל ₪500
@@ -49,7 +49,10 @@ export async function Header() {
             <Link href="/track-order" className="hover:text-primary-foreground hidden items-center gap-1 md:flex">
               <Truck className="size-3.5" /> מעקב הזמנה
             </Link>
-            <a href={BUSINESS.phoneHref} className="hover:text-primary-foreground flex items-center gap-1 font-medium">
+            {/* On a phone the number lives one tap away in the drawer and
+                on the product page; three facts in one 390px line wrapped
+                to two, and a strip that wraps is a strip that shouts. */}
+            <a href={BUSINESS.phoneHref} className="hover:text-primary-foreground hidden items-center gap-1 font-medium whitespace-nowrap sm:flex">
               <Phone className="size-3.5" /> {BUSINESS.phone}
             </a>
             {/* Staff only, and empty for everyone else — see BackOfficeLink. */}
