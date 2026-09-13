@@ -60,7 +60,13 @@ export function ProductCard({
           {product.imageUrl ? (
             <Image
               src={product.imageUrl}
-              alt={product.title}
+              // Empty on purpose. The title link beside the picture names
+              // the product for a screen reader already, and most of these
+              // URLs are hotlinks to other retailers' servers that can stop
+              // answering at any moment — when one does, a browser paints
+              // the alt text across the picture area, and a card wearing a
+              // paragraph where its photo should be is worse than a blank.
+              alt=""
               fill
               className="bg-white object-contain p-3"
               sizes="(min-width: 1024px) 25vw, 50vw"
