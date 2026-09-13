@@ -1,14 +1,59 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, MapPin, ShieldCheck, Sparkles, Tag } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Sparkles, Tag } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { SearchBar } from "@/components/layout/search-bar";
 import { Button } from "@/components/ui/button";
 import { DepartmentMenu } from "@/components/home/department-menu";
 import { CategoryCircles } from "@/components/home/category-circles";
 import { discountPercent } from "@/lib/format";
-import { BUSINESS_MAP_URL } from "@/lib/business";
 import type { DepartmentCount, CategoryTile } from "@/lib/queries/categories";
 import type { ProductCardData } from "@/components/product/product-card";
+
+/**
+ * PLACEHOLDER promotions, asked for as stand-ins while the real campaign
+ * copy is decided. Nothing here is a live offer: no cashback and no 1+1
+ * exists in the shop's promotion rules, so this must not reach main as
+ * it stands — replace the two entries with real, configured promotions
+ * (or wire them to the Promotion table) before merging.
+ */
+const PROMOS: Promo[] = [
+  { title: "20% קאשבק", body: "לפרטים", href: "/deals", tone: "brand" },
+  { title: "1+1", body: "על מוצרים נבחרים", href: "/deals", tone: "light" },
+];
+
+type Promo = { title: string; body: string; href: string; tone: "brand" | "light" };
+
+function PromoCard({ promo, compact = false }: { promo: Promo; compact?: boolean }) {
+  const brand = promo.tone === "brand";
+  return (
+    <Link
+      href={promo.href}
+      className={cn(
+        "group relative flex flex-col justify-between overflow-hidden rounded-2xl p-4 transition-shadow hover:shadow-lg",
+        brand ? "bg-brand text-brand-foreground" : "bg-white text-foreground",
+        compact ? "min-h-24" : "min-h-32"
+      )}
+    >
+      <div
+        aria-hidden
+        className="absolute inset-0"
+        style={{
+          background: brand
+            ? "radial-gradient(ellipse 60% 90% at 100% 100%, oklch(1 0 0 / 0.22), transparent)"
+            : "radial-gradient(ellipse 60% 90% at 0% 0%, oklch(0.658 0.209 39.1 / 0.14), transparent)",
+        }}
+      />
+      <span className={cn("relative font-black leading-none tracking-tight", compact ? "text-2xl" : "text-3xl xl:text-4xl")}>
+        {promo.title}
+      </span>
+      <span className={cn("relative mt-2 flex items-center gap-1 text-xs font-semibold", brand ? "text-brand-foreground/90" : "text-brand")}>
+        {promo.body}
+        <ArrowLeft className="size-3.5 transition-transform group-hover:-translate-x-0.5" />
+      </span>
+    </Link>
+  );
+}
 
 /**
  * The first screen: a department menu down one side, a banner beside it,
@@ -17,11 +62,10 @@ import type { ProductCardData } from "@/components/product/product-card";
  * on, which is exactly the recognition a visitor who has never heard of
  * this one needs in the first second.
  *
- * The banner's facts are the shop's own: importer warranty, the live
- * catalogue size, the street in Hadera. Its picture is a real product
- * from the catalogue on a white card, since the shop has no marketing
- * photography and a borrowed lifestyle photo would be the first lie on
- * the page. Alfred keeps the search bar, credited under it.
+ * The banner carries the importer-warranty chip, the headline, Alfred's
+ * search bar and the two CTAs, with the promotions beside it on a
+ * desktop and under it on a phone. Alfred keeps the search bar, credited
+ * under it on wider screens.
  */
 export function HeroBand({
   title,
@@ -30,11 +74,7 @@ export function HeroBand({
   ctaHref,
   departments,
   categoryTiles,
-  featureImage,
-  featureLabel,
   deals,
-  productCount,
-  brandCount,
 }: {
   title: string;
   subtitle: string;
@@ -43,15 +83,8 @@ export function HeroBand({
   departments: DepartmentCount[];
   // The phone's category row under the search: round photo tiles.
   categoryTiles: CategoryTile[];
-  // A product photograph that stands for the shop — the four-door fridge
-  // tile's, when there is one.
-  featureImage: string | null;
-  featureLabel: string | null;
   deals: ProductCardData[];
-  productCount: number;
-  brandCount: number;
 }) {
-  const roundedCount = Math.floor(productCount / 100) * 100;
   const bestDiscount = deals
     .map((p) => discountPercent(p.price, p.compareAtPrice ?? undefined))
     .filter((n): n is number => typeof n === "number")
@@ -81,48 +114,15 @@ export function HeroBand({
               />
               <div className="relative grid grid-cols-1 gap-6 p-4 sm:p-8 lg:grid-cols-[1fr_auto] lg:items-center lg:gap-10">
                 <div className="flex flex-col gap-3 sm:gap-4">
-                  {/* One row of small chips on a phone; they used to stack three high. */}
                   <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold sm:gap-2 sm:text-xs">
                     <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1 rounded-full px-2.5 py-1 ring-1 sm:gap-1.5 sm:px-3">
                       <ShieldCheck className="text-brand size-3.5" />
                       יבואן רשמי
                     </span>
-                    {roundedCount >= 100 && (
-                      <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1 rounded-full px-2.5 py-1 ring-1 tabular-nums sm:gap-1.5 sm:px-3">
-                        {roundedCount.toLocaleString("he-IL")}+ מוצרים במלאי
-                        {brandCount > 0 && (
-                          <span className="text-primary-foreground/70 hidden font-normal sm:inline">מ־{brandCount} מותגים</span>
-                        )}
-                      </span>
-                    )}
-                    <a
-                      href={BUSINESS_MAP_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-primary-foreground/10 ring-primary-foreground/15 hover:bg-primary-foreground/20 inline-flex items-center gap-1 rounded-full px-2.5 py-1 ring-1 transition-colors sm:gap-1.5 sm:px-3"
-                    >
-                      <MapPin className="text-brand size-3.5" />
-                      חנות בחדרה
-                    </a>
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h1 className="max-w-xl text-[1.6rem] leading-tight font-black text-balance sm:text-3xl lg:text-4xl">{title}</h1>
-                      <p className="text-primary-foreground/75 mt-2 max-w-xl text-sm sm:text-base">{subtitle}</p>
-                    </div>
-                    {/* The same real product the desktop shows on its card,
-                        small, beside the headline — a banner with only words
-                        on a phone read as an advert; a fridge on it reads as
-                        a shop. */}
-                    {featureImage && (
-                      <span className="relative block w-[88px] shrink-0 overflow-hidden rounded-xl bg-white p-1.5 shadow-lg lg:hidden">
-                        <span className="relative block aspect-[4/5]">
-                          <Image src={featureImage} alt="" fill sizes="88px" className="object-contain" referrerPolicy="no-referrer" priority />
-                        </span>
-                      </span>
-                    )}
-                  </div>
+                  <h1 className="max-w-xl text-[1.6rem] leading-tight font-black text-balance sm:text-3xl lg:text-4xl">{title}</h1>
+                  <p className="text-primary-foreground/75 max-w-xl text-sm sm:text-base">{subtitle}</p>
 
                   <div className="w-full max-w-xl">
                     <SearchBar size="hero" showIntro={false} className="mx-0" />
@@ -161,28 +161,21 @@ export function HeroBand({
                       <Link href="/finder">עזרו לי לבחור</Link>
                     </Button>
                   </div>
+
+                  {/* Phone: the promos as a pair under the buttons. */}
+                  <div className="grid grid-cols-2 gap-2 lg:hidden">
+                    {PROMOS.map((p) => (
+                      <PromoCard key={p.title} promo={p} compact />
+                    ))}
+                  </div>
                 </div>
 
-                {featureImage && (
-                  <div className="hidden lg:block">
-                    <div className="relative w-64 overflow-hidden rounded-2xl bg-white p-4 shadow-xl xl:w-72">
-                      <div className="relative aspect-[4/5]">
-                        <Image
-                          src={featureImage}
-                          alt={featureLabel ?? ""}
-                          fill
-                          sizes="288px"
-                          className="object-contain"
-                          referrerPolicy="no-referrer"
-                          priority
-                        />
-                      </div>
-                      {featureLabel && (
-                        <p className="text-foreground mt-2 text-center text-xs font-semibold">{featureLabel}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
+                {/* Desktop: the promos stacked where the product card was. */}
+                <div className="hidden w-64 flex-col gap-3 lg:flex xl:w-72">
+                  {PROMOS.map((p) => (
+                    <PromoCard key={p.title} promo={p} />
+                  ))}
+                </div>
               </div>
             </div>
 

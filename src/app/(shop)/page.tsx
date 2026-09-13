@@ -9,7 +9,6 @@ import {
   getBestSellers,
   getFeaturedProducts,
   getProductsByIds,
-  getCatalogSize,
   getNewArrivals,
   getDepartmentShowcases,
 } from "@/lib/queries/products";
@@ -47,7 +46,6 @@ export default async function HomePage() {
     brands,
     categoryTiles,
     alfredWidget,
-    catalog,
     newArrivals,
     showcases,
     departmentCounts,
@@ -60,7 +58,6 @@ export default async function HomePage() {
       getFeaturedBrands(),
       getCategoryTilesWithImages(),
       getHomepageSection("alfred-widget"),
-      getCatalogSize(),
       getNewArrivals(8),
       getDepartmentShowcases({ departments: 8, perDepartment: 6 }),
       getDepartmentCounts(),
@@ -73,10 +70,6 @@ export default async function HomePage() {
   const alfredWidgetIds = (alfredWidget?.payload as { productIds?: string[] } | undefined)?.productIds ?? [];
   const alfredPicks = alfredWidgetIds.length > 0 ? await getProductsByIds(alfredWidgetIds) : [];
 
-  // The banner's picture: the four-door fridge tile's photograph, which
-  // the sampler chose to look like the thing; failing that, a television.
-  const feature =
-    categoryTiles.find((t) => t.slug === "fridge-4-door") ?? categoryTiles.find((t) => t.slug === "tvs") ?? null;
   const [firstShowcases, laterShowcases] = [showcases.slice(0, 2), showcases.slice(2)];
 
   return (
@@ -110,11 +103,7 @@ export default async function HomePage() {
         ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
         departments={departmentCounts}
         categoryTiles={categoryTiles}
-        featureImage={feature?.imageUrl ?? null}
-        featureLabel={feature?.name ?? null}
         deals={deals}
-        productCount={catalog.products}
-        brandCount={catalog.brands}
       />
 
       <UspBar />
