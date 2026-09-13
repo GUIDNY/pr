@@ -84,7 +84,7 @@ export function AlfredChatWidget() {
           hasTab && "max-sm:hidden"
         )}
       >
-        <Image src="/mascot/alfred-chat.png" alt="" width={56} height={56} className="size-full rounded-full object-cover" />
+        <Image src="/mascot/alfred-face.png" alt="" width={56} height={56} className="size-full rounded-full object-cover" />
       </button>
 
       <div
@@ -94,7 +94,7 @@ export function AlfredChatWidget() {
         )}
       >
         <div className="bg-primary text-primary-foreground flex items-center gap-3 px-4 py-3">
-          <Image src="/mascot/alfred-chat.png" alt="" width={36} height={36} className="size-9 rounded-full object-cover" />
+          <Image src="/mascot/alfred-face.png" alt="" width={36} height={36} className="size-9 rounded-full object-cover" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold">אלפרד</p>
             <p className="text-primary-foreground/70 text-xs">שירות לקוחות Buy Today</p>

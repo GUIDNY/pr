@@ -52,7 +52,7 @@ export function MobileBottomNav({ departments }: { departments: NavigableDepartm
           className={cn(tab, "text-muted-foreground")}
         >
           <span className="ring-brand/40 relative -mt-3 flex size-11 items-center justify-center rounded-full bg-white shadow-md ring-2">
-            <Image src="/mascot/alfred-chat.png" alt="" width={44} height={44} className="size-full rounded-full object-cover" />
+            <Image src="/mascot/alfred-face.png" alt="" width={44} height={44} className="size-full rounded-full object-cover" />
           </span>
           אלפרד
         </button>
