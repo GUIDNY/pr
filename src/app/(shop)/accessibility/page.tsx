@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BUSINESS_ADDRESS } from "@/lib/business";
+import { BUSINESS, BUSINESS_ADDRESS } from "@/lib/business";
 
 /* הצהרת נגישות לפי תקנה 35 לתקנות שוויון זכויות לאנשים עם מוגבלות (התאמות
    נגישות לשירות), תשע"ג-2013. הצהרה שאינה כוללת את רמת הנגישות, התקן שלפיו
@@ -107,8 +107,8 @@ export default function AccessibilityPage() {
           <p>
             פרטים על סידורי הנגישות בסניפים הפיזיים — חניית נכים, דרך גישה נגישה, שירותים נגישים ושירותי עזר — ניתן
             לקבל מרכז הנגישות בטלפון{" "}
-            <a href="tel:04-6639510" className="text-brand hover:underline">
-              04-6639510
+            <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
+              {BUSINESS.phone}
             </a>{" "}
             ובעמוד{" "}
             <Link href="/page/branches" className="text-brand hover:underline">
@@ -127,8 +127,8 @@ export default function AccessibilityPage() {
           <ul className="list-inside list-disc space-y-1">
             <li>
               טלפון רכז הנגישות:{" "}
-              <a href="tel:04-6639510" className="text-brand hover:underline">
-                04-6639510
+              <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
+                {BUSINESS.phone}
               </a>
             </li>
             <li>

@@ -3,6 +3,7 @@ import { XCircle, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { PELECARD_STATUS_MESSAGES, NO_RETRY_STATUS_CODES } from "@/lib/pelecard/client";
+import { BUSINESS } from "@/lib/business";
 
 export const metadata = { title: "התשלום לא הושלם" };
 export const dynamic = "force-dynamic";
@@ -74,8 +75,8 @@ export default async function CheckoutErrorPage({
       <p className="text-muted-foreground mt-6 flex items-center justify-center gap-1.5 text-sm">
         <Phone className="size-3.5" />
         לעזרה:{" "}
-        <a href="tel:04-6639510" className="text-brand hover:underline">
-          04-6639510
+        <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
+          {BUSINESS.phone}
         </a>
       </p>
     </div>

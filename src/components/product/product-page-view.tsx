@@ -57,6 +57,7 @@ import {
 import { absoluteUrl } from "@/lib/site-url";
 import { formatDate, formatPrice } from "@/lib/format";
 import type { StockStatus } from "@/lib/enums";
+import { BUSINESS } from "@/lib/business";
 
 /**
  * The product page itself, rendered identically for everyone except an admin.
@@ -341,8 +342,8 @@ export async function ProductPageView({
               <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                 לא ניתן להזמין אותו כרגע. הדף נשאר כאן כדי שתוכלו לחזור אליו — ברגע שהמוצר יחזור למלאי הוא יהיה זמין
                 להזמנה שוב. אפשר להתקשר{" "}
-                <a href="tel:04-6639510" className="text-brand hover:underline">
-                  04-6639510
+                <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
+                  {BUSINESS.phone}
                 </a>{" "}
                 כדי לברר מתי הוא צפוי לחזור, או לראות מוצרים דומים בהמשך העמוד.
               </p>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RETURNS_POLICY_UPDATED_LABEL } from "@/lib/returns-policy";
+import { BUSINESS } from "@/lib/business";
 
 /* מדיניות ביטול והחזרות.
    
@@ -45,8 +46,8 @@ export default function ReturnsPage() {
           <ul className="flex list-inside list-disc flex-col gap-1">
             <li>
               בטלפון:{" "}
-              <a href="tel:04-6639510" className="text-brand hover:underline">
-                04-6639510
+              <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
+                {BUSINESS.phone}
               </a>
             </li>
             <li>

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BUSINESS } from "@/lib/business";
 
 /* מדיניות פרטיות. חובת היידוע שבסעיף 11 לחוק הגנת הפרטיות, התשמ"א-1981 חלה על
    כל טופס באתר שאוסף פרטים אישיים — הרשמה, הזמנה, פנייה לשירות — ולכן כל טופס
@@ -178,8 +179,8 @@ export default function PrivacyPage() {
           <p>
             לפי סעיפים 13-14 לחוק הגנת הפרטיות, כל אדם זכאי לעיין במידע המוחזק עליו במאגר, לבקש לתקן מידע שאינו
             נכון, שלם, ברור או מעודכן, ולבקש את מחיקתו. בקשה כזו ניתן להגיש בטלפון{" "}
-            <a href="tel:04-6639510" className="text-brand hover:underline">
-              04-6639510
+            <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
+              {BUSINESS.phone}
             </a>
             , בדוא&quot;ל{" "}
             <a href="mailto:service@prec.co.il" className="text-brand hover:underline">

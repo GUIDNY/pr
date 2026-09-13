@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/stores/cart-store";
 import { clearPaidOrderCartAction } from "@/actions/orders";
 import { PAYMENT_CAPTURED_EVENT } from "@/components/analytics/meta-events";
+import { BUSINESS } from "@/lib/business";
 
 /**
  * What the customer sees on top of the confirmation page after coming back
@@ -163,7 +164,7 @@ export function PaymentConfirmation({
         <p className="font-semibold">האימות מתעכב</p>
         <p className="text-muted-foreground text-sm">
           ההזמנה נשמרה ואנחנו עדיין ממתינים לאישור מחברת האשראי. <strong>אין לבצע תשלום נוסף</strong> — ייתכן שהוא כן
-          נקלט. נעדכן אתכם, וניתן לבדוק בעמוד מעקב ההזמנה או ליצור קשר בטלפון 04-6639510.
+          נקלט. נעדכן אתכם, וניתן לבדוק בעמוד מעקב ההזמנה או ליצור קשר בטלפון {BUSINESS.phone}.
         </p>
       </div>
     );

@@ -40,6 +40,11 @@ type CapacitorConfig = {
     allowNavigation?: string[];
   };
   ios?: { contentInset?: string; limitsNavigationsToAppBoundDomains?: boolean };
+  plugins?: {
+    SocialLogin?: {
+      providers?: { google?: boolean; apple?: boolean; facebook?: boolean; twitter?: boolean };
+    };
+  };
 };
 
 const config: CapacitorConfig = {
@@ -76,7 +81,41 @@ const config: CapacitorConfig = {
     // hosts from src/lib/pelecard/gateway.ts; without them a navigation to the
     // gateway can be handed to the system browser, which drops the customer
     // out of the app mid-purchase and loses the frame-return breakout.
-    allowNavigation: ["gateway21.pelecard.biz", "gateway20.pelecard.biz"],
+    //
+    // appleid.apple.com is here for the same reason: Sign in with Apple is a
+    // redirect out to Apple and a form_post back, and anything not listed
+    // here is handed to Safari — where the session cookie would be set in
+    // the wrong browser and the customer would return to an app that still
+    // thinks they are signed out. Google is not listed, and could not be
+    // helped by listing it: they refuse OAuth from an embedded WebView
+    // outright, so that button is hidden in the app instead (login-form.tsx).
+    allowNavigation: [
+      "gateway21.pelecard.biz",
+      "gateway20.pelecard.biz",
+      "appleid.apple.com",
+    ],
+  },
+
+  /* @capgo/capacitor-social-login ships every provider it supports unless told
+     otherwise, and its default includes Facebook — which links Meta's iOS SDK
+     into the binary. This app's App Store privacy answer states in as many
+     words that it contains no Meta SDK and does no tracking, and that has to
+     stay true of the thing Apple actually receives, not only of the code we
+     wrote. `false` here compiles the provider out rather than merely leaving
+     it unused.
+     
+     Google is the only one this plugin is installed for. Apple's sheet comes
+     from @capacitor-community/apple-sign-in, and Twitter is not offered
+     anywhere in the shop. */
+  plugins: {
+    SocialLogin: {
+      providers: {
+        google: true,
+        apple: false,
+        facebook: false,
+        twitter: false,
+      },
+    },
   },
 
   ios: {

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Package, MapPin, Heart, Trash2 } from "lucide-react";
+import { LayoutDashboard, Package, MapPin, Heart, KeyRound, Trash2 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
 
@@ -9,6 +9,7 @@ const NAV = [
   { href: "/account/orders", label: "ההזמנות שלי", icon: Package },
   { href: "/account/addresses", label: "כתובות", icon: MapPin },
   { href: "/account/favorites", label: "מועדפים", icon: Heart },
+  { href: "/account/password", label: "סיסמה", icon: KeyRound },
 ];
 
 export default async function AccountLayout({ children }: { children: React.ReactNode }) {

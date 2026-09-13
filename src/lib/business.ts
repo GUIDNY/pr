@@ -24,12 +24,24 @@ export const BUSINESS = {
   /** The registered company behind it. Both are stated to Google, not one for the other. */
   legalName: "פ.ר. אלקטרוניקה",
 
+  /* The service line — the number on the Business Profile, which is what a
+     customer should reach. It replaced an older number that was still
+     written out in fourteen files by hand; see the note above. */
   /** As printed on the site. */
-  phone: "04-6639510",
+  phone: "04-622-4041",
   /** As dialled. Hyphens are legal in a tel: URI and help a screen reader group the digits. */
-  phoneHref: "tel:04-6639510",
+  phoneHref: "tel:04-622-4041",
   /** As schema.org wants it. */
-  phoneE164: "+972-4-6639510",
+  phoneE164: "+972-4-622-4041",
+
+  /* WhatsApp is a different number, and it is shown as its own channel
+     rather than as a second way to reach the line above. A number labelled
+     "WhatsApp" that does not answer WhatsApp is worse than not offering
+     one at all. */
+  whatsapp: "055-307-3072",
+  /** wa.me takes digits only, international, with no plus and no leading zero. */
+  whatsappHref: "https://wa.me/972553073072",
+  whatsappE164: "+972-55-307-3072",
 
   street: "דוד אלעזר 27",
   city: "חדרה",
