@@ -13,7 +13,7 @@ import {
   getNewArrivals,
   getDepartmentShowcases,
 } from "@/lib/queries/products";
-import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
+import { getHomepageSection, getFeaturedBrands, getPromoBanners } from "@/lib/queries/content";
 import { getCategoryTilesWithImages, getDepartmentCounts } from "@/lib/queries/categories";
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -50,6 +50,7 @@ export default async function HomePage() {
     newArrivals,
     showcases,
     departmentCounts,
+    banners,
   ] = await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
@@ -62,6 +63,7 @@ export default async function HomePage() {
       getNewArrivals(8),
       getDepartmentShowcases({ departments: 8, perDepartment: 6 }),
       getDepartmentCounts(),
+      getPromoBanners(),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
@@ -112,6 +114,7 @@ export default async function HomePage() {
             departments={departmentCounts}
             categoryTiles={categoryTiles}
             deals={deals}
+            banners={banners}
           />
         </div>
 

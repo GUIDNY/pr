@@ -59,3 +59,12 @@ export function canHandleOrders(role: UserRole | string | undefined | null): boo
 export function backOfficeHome(role: UserRole | string | undefined | null): string {
   return canManageCatalog(role) ? "/admin" : "/admin/orders";
 }
+
+/**
+ * The site's principal administrator only — not staff. What the shop says
+ * about itself on its front page (banners, campaigns) is the owner's call,
+ * so the pages that write it check this, not canManageCatalog.
+ */
+export function isSiteAdmin(role: UserRole | string | undefined | null): boolean {
+  return role === "ADMIN";
+}

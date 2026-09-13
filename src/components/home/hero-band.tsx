@@ -10,6 +10,7 @@ import { discountPercent, formatPrice } from "@/lib/format";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import type { DepartmentCount, CategoryTile } from "@/lib/queries/categories";
 import type { ProductCardData } from "@/components/product/product-card";
+import type { Banner } from "@/lib/banners";
 
 /**
  * The first screen.
@@ -34,6 +35,7 @@ export function HeroBand({
   departments,
   categoryTiles,
   deals,
+  banners,
 }: {
   title: string;
   subtitle: string;
@@ -42,22 +44,25 @@ export function HeroBand({
   departments: DepartmentCount[];
   categoryTiles: CategoryTile[];
   deals: ProductCardData[];
+  // The owner's banners from /admin/banners, active ones in order. When
+  // there are none, the slides are built from live data instead.
+  banners: Banner[];
 }) {
   const bestDiscount = deals
     .map((p) => discountPercent(p.price, p.compareAtPrice ?? undefined))
     .filter((n): n is number => typeof n === "number")
     .reduce((max, n) => Math.max(max, n), 0);
 
-  // The slides say only what the data says. Today's best real discount,
-  // with today's real deal photographs; the delivery rule, with the
-  // sampler's photographs of what it applies to. Nothing here is a
-  // campaign that does not exist — the day one does, it goes in the
-  // admin's banner manager, not in this file.
+  // Without banners from the admin, the slides say only what the data
+  // says: today's best real discount with today's real deal photographs,
+  // and the delivery rule with the sampler's photographs of what it
+  // applies to. Nothing here is a campaign that does not exist — a real
+  // one is entered at /admin/banners and takes over the slot.
   const dealImages = deals.map((p) => p.imageUrl).filter((u): u is string => !!u);
   const tileImages = ["fridge-4-door", "tvs", "washing-machines"]
     .map((slug) => categoryTiles.find((t) => t.slug === slug)?.imageUrl)
     .filter((u): u is string => !!u);
-  const promos: PromoSlide[] = [
+  const dataSlides: PromoSlide[] = [
     ...(bestDiscount > 0
       ? [
           {
@@ -79,6 +84,10 @@ export function HeroBand({
       images: tileImages.length > 0 ? tileImages : dealImages.slice(0, 3),
     },
   ];
+  const promos: PromoSlide[] =
+    banners.length > 0
+      ? banners.map((b) => ({ kind: "promo" as const, title: b.title, body: b.body, href: b.href, tone: b.tone, images: b.images }))
+      : dataSlides;
 
 
   return (

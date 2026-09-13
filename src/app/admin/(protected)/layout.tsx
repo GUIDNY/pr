@@ -13,11 +13,12 @@ import {
   Sparkles,
   AlertTriangle,
   CreditCard,
+  GalleryHorizontal,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { isPelecardSandbox } from "@/lib/pelecard/config";
-import { isBackOffice, canManageCatalog } from "@/lib/permissions";
+import { isBackOffice, canManageCatalog, isSiteAdmin } from "@/lib/permissions";
 
 /**
  * `catalog: true` means the link belongs to running the shop rather than to
@@ -39,6 +40,9 @@ const NAV = [
   { href: "/admin/suppliers", label: "ספקים", icon: Truck, catalog: true },
   { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle, catalog: true },
   { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles, catalog: true },
+  // The owner's alone — what the shop advertises about itself. The page
+  // checks the role itself; this only decides who sees the link.
+  { href: "/admin/banners", label: "באנרים - דף הבית", icon: GalleryHorizontal, catalog: true, ownerOnly: true },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -54,7 +58,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
      asked on the live site. So it is listed everywhere, and the label says what
      it is rather than which gateway it happens to be pointed at. */
   const full = canManageCatalog(session.role);
-  const visible = full ? NAV : NAV.filter((item) => !item.catalog);
+  const owner = isSiteAdmin(session.role);
+  const visible = NAV.filter((item) => (full || !item.catalog) && (owner || !("ownerOnly" in item && item.ownerOnly)));
   const nav = full
     ? [
         ...visible,
