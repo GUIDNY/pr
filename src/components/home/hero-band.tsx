@@ -93,6 +93,13 @@ export function HeroBand({
         )
       : dataSlides;
 
+  // Designed pictures are wide. On a desktop they get a strip of their own
+  // under the banner, at full width and their own ratio, and the narrow
+  // column at the banner's end goes back to the data slides — a 16:7
+  // picture squeezed into an 18rem column would show its middle third.
+  const picturesOnly = banners.length > 0 && banners.every((b) => b.layout === "image");
+  const sideSlides = picturesOnly ? dataSlides : promos;
+
 
   return (
     <section className="bg-secondary border-b">
@@ -181,9 +188,11 @@ export function HeroBand({
                 </div>
 
                 {/* The promotions, rotating, in the banner's end column. */}
-                <PromoCarousel slides={promos} stacked className="self-stretch shadow-xl [&>div:first-child]:h-full" />
+                <PromoCarousel slides={sideSlides} stacked className="self-stretch shadow-xl [&>div:first-child]:h-full" />
               </div>
             </div>
+
+            {picturesOnly && <PromoCarousel slides={promos} className="shadow-sm" />}
 
             <div className="grid grid-cols-2 gap-4">
               <Link

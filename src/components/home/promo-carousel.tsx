@@ -106,6 +106,10 @@ export function PromoCarousel({
 
   if (slides.length === 0) return null;
 
+  // A set of designed pictures is shown as the pictures are: each at its
+  // own ratio, edge to edge, nothing drawn over it but the position dots.
+  const natural = !stacked && slides.every((s) => s.kind === "image");
+
   return (
     <div className={cn("relative", className)}>
       <div
@@ -121,7 +125,7 @@ export function PromoCarousel({
       >
         {slides.map((s, i) => (
           <div key={i} className="w-full shrink-0 snap-center">
-            <Slide slide={s} compact={compact} stacked={stacked} slogan={slogan} />
+            <Slide slide={s} compact={compact} stacked={stacked} slogan={slogan} natural={natural} />
           </div>
         ))}
       </div>
@@ -163,7 +167,19 @@ function SloganStrip({ slogan, light }: { slogan: string; light: boolean }) {
   );
 }
 
-function Slide({ slide, compact, stacked, slogan }: { slide: PromoSlide; compact: boolean; stacked: boolean; slogan?: string }) {
+function Slide({
+  slide,
+  compact,
+  stacked,
+  slogan,
+  natural,
+}: {
+  slide: PromoSlide;
+  compact: boolean;
+  stacked: boolean;
+  slogan?: string;
+  natural: boolean;
+}) {
   if (slide.kind === "brand") {
     return (
       <div className="bg-primary text-primary-foreground relative flex h-full min-h-56 flex-col justify-center overflow-hidden p-5 pb-8 sm:min-h-64 sm:p-8">
@@ -199,9 +215,20 @@ function Slide({ slide, compact, stacked, slogan }: { slide: PromoSlide; compact
     );
   }
 
+  if (slide.kind === "image" && natural) {
+    // The picture as it was made: full width, its own height, nothing
+    // cropped. The width/height attributes only hold the space until it
+    // loads; then its real ratio takes over.
+    return (
+      <Link href={slide.href} className="group relative block overflow-hidden bg-white">
+        <Image src={slide.src} alt={slide.alt} width={1600} height={700} sizes="(min-width: 1280px) 1024px, 100vw" className="h-auto w-full" priority />
+      </Link>
+    );
+  }
+
   if (slide.kind === "image") {
-    // The picture sets the height on a phone (a designed banner is
-    // usually about 16:7); in a fixed-height slot it fills and crops.
+    // Beside collage slides the slot has a fixed height, so the picture
+    // fills it and crops; in the desktop side column too.
     return (
       <Link
         href={slide.href}

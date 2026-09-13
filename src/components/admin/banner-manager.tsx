@@ -60,7 +60,10 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
     }
     setBanners((prev) => [
       ...prev,
-      { id: newBannerId(), layout: "collage", title: "", body: "", href: "/deals", tone: "brand", images: [], isActive: false },
+      // Shown from the start: a banner made and saved but never switched on
+      // is the one way to "not see it on the site" that the page cannot
+      // explain to the person who built it.
+      { id: newBannerId(), layout: "collage", title: "", body: "", href: "/deals", tone: "brand", images: [], isActive: true },
     ]);
     setDirty(true);
   }
@@ -68,7 +71,10 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
     startTransition(async () => {
       const result = await saveBannersAction(banners);
       if (result.success) {
-        toast.success("הבאנרים נשמרו — יופיעו באתר תוך רגע");
+        const shown = banners.filter((b) => b.isActive).length;
+        if (banners.length > 0 && shown === 0) {
+          toast.warning("נשמר, אבל אף באנר לא מסומן \"מוצג באתר\" — האתר ממשיך להציג את הבאנר האוטומטי", { duration: 8000 });
+        } else toast.success(shown > 0 ? `נשמר — ${shown} באנרים מוצגים באתר` : "הבאנרים נשמרו");
         setDirty(false);
       } else toast.error(result.error ?? "שגיאה בשמירה");
     });
@@ -101,6 +107,9 @@ export function BannerManager({ initialBanners }: { initialBanners: Banner[] }) 
           <p className="text-muted-foreground mb-3 text-sm font-medium">כך זה ייראה בטלפון ({active.length} פעילים):</p>
           <div className="mx-auto max-w-sm">
             <PromoCarousel slides={active.map(toSlide)} compact slogan="הדרך החכמה לקנות אלקטרוניקה" intervalMs={4000} />
+            {active.every((b) => b.layout === "image") && (
+              <p className="text-muted-foreground mt-2 text-xs">התמונה מוצגת בשלמותה, ביחס שבו הועלתה — בטלפון ברוחב המסך, במחשב כרצועה מתחת לכותרת.</p>
+            )}
           </div>
         </div>
       )}
@@ -253,7 +262,11 @@ function BannerCard({
           </span>
           <Label className="flex items-center gap-2 text-sm">
             <Switch checked={banner.isActive} onCheckedChange={(v) => onChange({ isActive: v })} />
-            {banner.isActive ? "פעיל" : "כבוי"}
+            {banner.isActive ? (
+              <span className="text-brand font-semibold">מוצג באתר</span>
+            ) : (
+              <span className="text-destructive font-semibold">מוסתר — לא מוצג באתר</span>
+            )}
           </Label>
         </div>
         <div className="flex items-center gap-1">
@@ -295,7 +308,7 @@ function BannerCard({
             </div>
             {imageOnly && (
               <p className="text-muted-foreground mt-1.5 text-xs">
-                התמונה ממלאת את כל הבאנר, בלי טקסט מעליה. מומלץ 1600×700 פיקסלים (יחס 16:7), עד 10MB. הכותרת למטה
+                רק התמונה, בשלמותה וביחס שבו הועלתה, בלי טקסט או מסגרת מעליה. מומלץ 1600×700 פיקסלים (יחס 16:7), עד 10MB. הכותרת למטה
                 משמשת רק כתיאור לקוראי מסך.
               </p>
             )}
@@ -420,6 +433,7 @@ function BannerCard({
         <div>
           <p className="text-muted-foreground mb-2 text-xs font-medium">תצוגה מקדימה</p>
           <PromoCarousel slides={[toSlide(banner)]} compact slogan="הדרך החכמה לקנות אלקטרוניקה" />
+          {!banner.isActive && <p className="text-destructive mt-2 text-xs font-medium">הבאנר מוסתר. הפעילו את המתג למעלה ושמרו כדי שיופיע באתר.</p>}
         </div>
       </div>
     </div>
