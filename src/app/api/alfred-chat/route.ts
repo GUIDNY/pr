@@ -190,7 +190,16 @@ export async function POST(request: Request) {
 
   const [search, settings, pinnedRows] = await Promise.all([
     substantiveWords.length > 0
-      ? searchForChat(substantiveWords, { limit: 10, maxPrice: priceCeiling })
+      /* Six, and the same six become the cards below the reply.
+       *
+       * With ten in context and four on screen, Alfred recommended a Hitachi
+       * at ₪8,200 that the customer had no way to click — it was in the list
+       * the model read and not in the list it could see. Naming a product
+       * and not showing it wastes the recommendation, and the fix is for the
+       * two lists to be one list. Six is enough range to choose from; the
+       * breadth of the shop is carried by the category breakdown, not by
+       * how many examples are pasted in. */
+      ? searchForChat(substantiveWords, { limit: 6, maxPrice: priceCeiling })
       : Promise.resolve({ products: [], spread: [], totalMatches: 0 }),
     getChatbotSettings(),
     pinnedIds.length > 0
@@ -337,14 +346,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "השירות עמוס כרגע, נסו שוב בעוד רגע" }, { status: 502 });
   }
 
-  /* Cards under the reply: the pinned ones first, then the search hits —
-     capped, because ten cards under three sentences is a wall, and the model
-     will have named the one or two that matter. */
+  /* Every product the model was shown, so anything it names is clickable. */
   const combinedProducts = [
     ...pinnedProducts,
     ...search.products.filter((p) => !pinnedProducts.some((pinned) => pinned.slug === p.slug)),
   ]
-    .slice(0, 4)
+    .slice(0, 6)
     .map((p) => ({
     title: p.title,
     slug: p.slug,
