@@ -262,44 +262,33 @@ export const NO_RETRY_STATUS_CODES = ["301"];
 /**
  * Whether checkout should hold the money instead of taking it.
  *
- * Two switches, and the second one is not optional — it is the interlock.
+ * One switch again. The interlock this used to carry — refuse J5 until a
+ * capture endpoint is configured — existed because nobody here knew what
+ * Pelecard's capture call was named, and holding money with no way to
+ * collect it is strictly worse than not holding at all: the card carries a
+ * frozen amount, the shop cannot take it, and the order looks perfectly
+ * normal while it happens.
  *
- * PELECARD_HOLD_THEN_CAPTURE says the shop wants J5. PELECARD_COMPLETE_DEBIT_PATH
- * is the endpoint that later turns a hold into a charge, and until Pelecard
- * have supplied it, completeDebitByUid refuses. Holding money with no way to
- * collect it is strictly worse than not holding at all: the customer's card
- * carries a frozen amount, the shop cannot take it, and nothing in the
- * ordinary flow says so — the order looks perfectly normal.
+ * The endpoint is now known. It is /services/CompleteDebitByUid, out of
+ * Pelecard's own Services ReST API programmer manual, and completeDebitByUid
+ * below sends the fields that manual specifies. So the gap the interlock was
+ * guarding is closed, and requiring a second variable would only be
+ * ceremony.
  *
- * So the intent alone does not enable J5. Both have to be present, which
- * means the flag can be set today and the mode switches itself on the moment
- * the path arrives, with no window in between where a real customer's money
- * can be stranded. Wanting it early is not a mistake; being half-configured
- * is, and this makes that state unreachable.
+ * What is still true and still outside this file: the terminal at Pelecard
+ * must be configured for J5. Sending J5 to a terminal set up for J4 does not
+ * hold anything — it fails, at the moment somebody is trying to pay. And
+ * where a merchant has two terminals, the capture has to run against the
+ * same one that authorised, or the hold is left open on the other.
  *
- * Still outside this file and still required: the terminal at Pelecard must
- * be configured for J5. Sending J5 to a terminal set up for J4 does not hold
- * anything — it fails, at the moment somebody is trying to pay. And where a
- * merchant has two terminals, the capture has to run against the same one
- * that authorised, or the hold is left open on the other.
+ * What is known-but-unproven: the capture call has never run against a real
+ * authorisation. It fails closed if anything comes back ambiguous, leaving
+ * the hold open and raising an alert, which is the recoverable direction —
+ * but the first real J5 order is what turns this from documented into
+ * tested, and it should be a small one.
  */
 export function holdThenCapture(): boolean {
-  const wanted = process.env.PELECARD_HOLD_THEN_CAPTURE === "1";
-  if (!wanted) return false;
-
-  const canCapture = Boolean(process.env.PELECARD_COMPLETE_DEBIT_PATH?.trim());
-  if (!canCapture) {
-    /* Loud, because the shop asked for J5 and is quietly getting J4. That is
-       the safe direction to be wrong in — money collected rather than
-       stranded — but it is not what anybody configured, and a silent
-       downgrade is how it stays unnoticed for a month. */
-    console.error(
-      "[pelecard] PELECARD_HOLD_THEN_CAPTURE is on but PELECARD_COMPLETE_DEBIT_PATH is unset — " +
-        "staying on J4. A hold with no capture endpoint freezes the customer's money uncollectably."
-    );
-    return false;
-  }
-  return true;
+  return process.env.PELECARD_HOLD_THEN_CAPTURE === "1";
 }
 
 export type CaptureResult = { ok: true } | { ok: false; error: string };
@@ -371,28 +360,42 @@ export async function completeDebitByUid(p: {
     };
   }
 
-  const path = process.env.PELECARD_COMPLETE_DEBIT_PATH;
-  if (!path) {
-    return {
-      ok: false,
-      error:
-        "נתיב הגבייה של פלאקארד לא מוגדר. צריך להגדיר PELECARD_COMPLETE_DEBIT_PATH לפי Hotels API Technical Guide (CompleteDebitByUid).",
-    };
-  }
+  /* Out of Pelecard's own Services ReST API programmer manual, not guessed.
+     The env var stays as an override in case they move it, or a terminal is
+     routed somewhere else. */
+  const path = process.env.PELECARD_COMPLETE_DEBIT_PATH?.trim() || "/services/CompleteDebitByUid";
+
+  const { terminal, user, password } = pelecardConfig();
 
   try {
     const result = await post<Record<string, unknown>>(path, {
-      ...pelecardCredentials(),
+      /* `terminalNumber`, not `terminal` — this is a /services/ endpoint, and
+         Pelecard name the field differently there than under /PaymentGW/.
+         checkGoodParamX above already had it right; this call was built from
+         the wrong half of the API and would have been rejected before it ever
+         reached a transaction. */
+      terminalNumber: terminal,
+      user,
+      password,
       Uid: p.uid,
-      TotalX100: String(p.totalAgorot),
+      /* `NewAmount`, not `TotalX100`. Same mistake and the same cause:
+         TotalX100 is the init/validate spelling. The manual's own example
+         leaves this empty to take the whole hold; it is sent explicitly so a
+         partial capture stays possible and so the amount is never implicit. */
+      NewAmount: String(p.totalAgorot),
+      NewParamX: "",
+      debitTrxId: "",
     });
-    /* Their success code is "000" everywhere else in this integration, and a
-       reply that does not say so is not treated as a charge. Anything
-       ambiguous fails closed: the caller leaves the hold open and a person
-       looks at it, which is recoverable. Reporting a charge that did not
-       happen is not. */
-    const code = String(result.StatusCode ?? result.PelecardStatusCode ?? "");
-    if (code === "000") return { ok: true };
+    /* Anything ambiguous fails closed: the caller leaves the hold open and a
+       person looks at it, which is recoverable. Reporting a charge that did
+       not happen is not.
+       Both "000" and "0" count. The rest of this integration sees "000", and
+       the manual's worked example for this endpoint shows StatusCode 0 — so
+       insisting on one spelling would mean a capture that succeeded at the
+       bank and was recorded here as a failure. That is the expensive
+       direction to be strict in. */
+    const code = String(result.StatusCode ?? result.PelecardStatusCode ?? "").trim();
+    if (code === "000" || code === "0") return { ok: true };
     return {
       ok: false,
       error: `פלאקארד החזירו ${code || "תשובה לא מזוהה"}${result.ErrorMessage ? ` — ${result.ErrorMessage}` : ""}`,
@@ -402,7 +405,8 @@ export async function completeDebitByUid(p: {
   }
 }
 
-function pelecardCredentials() {
-  const { terminal, user, password } = pelecardConfig();
-  return { terminal, user, password };
-}
+/* Gone with its only caller. It spelled the terminal field `terminal`, which
+   is right under /PaymentGW/ and wrong under /services/, and a helper whose
+   whole job is to be spread into a request body cannot know which half of
+   the API it is being spread into. Each call site names its own fields now,
+   the way checkGoodParamX always did. */
