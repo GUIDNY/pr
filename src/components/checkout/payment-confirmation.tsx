@@ -37,7 +37,16 @@ const POLL_SLOW_MS = 5_000;
 const POLL_FAST_UNTIL_MS = 20_000;
 const POLL_TIMEOUT_MS = 300_000;
 
-type Status = "PENDING" | "CAPTURED" | "FAILED" | "TIMED_OUT" | string;
+/* AUTHORIZED belongs in this list and was missing from it — which is how the
+   J5 lane's normal, successful outcome ended up rendering as a failure. */
+type Status = "PENDING" | "AUTHORIZED" | "CAPTURED" | "FAILED" | "TIMED_OUT" | string;
+
+/** Whether the customer is done: the money is either taken or held for us.
+    Both empty the cart and both count as a purchase; only the shop's side of
+    the work differs. */
+function isSettled(status: Status): boolean {
+  return status === "CAPTURED" || status === "AUTHORIZED";
+}
 
 export function PaymentConfirmation({
   orderNumber,
@@ -53,6 +62,7 @@ export function PaymentConfirmation({
   clearerName: string | null;
 }) {
   const [status, setStatus] = useState<Status>(initialStatus);
+  const settled = isSettled(status);
   const setCart = useCartStore((s) => s.setCart);
   const cart = useCartStore((s) => s.cart);
 
@@ -102,16 +112,16 @@ export function PaymentConfirmation({
      MetaPurchase listens, and if it is ever removed this fires into nothing.
      A failed or timed-out payment never reaches this line. */
   useEffect(() => {
-    if (status !== "CAPTURED") return;
+    if (!settled) return;
     window.dispatchEvent(
       new CustomEvent(PAYMENT_CAPTURED_EVENT, { detail: { orderNumber } }),
     );
-  }, [status, orderNumber]);
+  }, [settled, orderNumber]);
 
   // The cart is emptied only once the payment is confirmed, and the server
   // re-checks the order before doing it.
   useEffect(() => {
-    if (status !== "CAPTURED") return;
+    if (!settled) return;
     void clearPaidOrderCartAction(orderNumber).then((result) => {
       if (result.success) {
         setCart({
@@ -128,7 +138,36 @@ export function PaymentConfirmation({
     });
     // Runs once on the transition to paid; cart is read fresh inside.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, orderNumber]);
+  }, [settled, orderNumber]);
+
+  /* A held payment is a finished purchase, and this component did not know
+     the word for it.
+     On the shop's first real J5 order the money was taken and held — Pelecard
+     approved it, the authorisation id came back, the order sat at AUTHORIZED
+     exactly as designed — and this screen said "התשלום לא הושלם" and offered
+     a button back to checkout. Every customer would have been told their
+     payment failed and invited to make it twice, with the first ₪ still
+     frozen on their card. The statuses it knew were PENDING, CAPTURED,
+     FAILED and TIMED_OUT; AUTHORIZED fell past all four into the failure
+     branch, which is the worst possible default for an unrecognised state
+     and the reason this one is written out rather than folded into
+     CAPTURED. */
+  if (status === "AUTHORIZED") {
+    return (
+      <div className="border-success/30 bg-success/5 mb-6 flex flex-col items-center gap-2 rounded-xl border p-5 text-center">
+        <CheckCircle2 className="text-success size-10" strokeWidth={1.5} />
+        <p className="text-success font-semibold">התשלום אושר</p>
+        <p className="text-muted-foreground text-sm">
+          הסכום נתפס בכרטיס ויחויב כשנאשר את ההזמנה. אין צורך לשלם שוב.
+        </p>
+        <p className="text-muted-foreground text-sm">
+          {approvalNo && <>מספר אישור {approvalNo}</>}
+          {cardLast4 && <> · כרטיס המסתיים ב-{cardLast4}</>}
+          {clearerName && <> · {clearerName}</>}
+        </p>
+      </div>
+    );
+  }
 
   if (status === "CAPTURED") {
     return (
