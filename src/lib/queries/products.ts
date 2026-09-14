@@ -622,3 +622,161 @@ export async function getCategoryFacets(
 
   return { brands, attributes: facets };
 }
+
+/**
+ * The search behind the chat, which is a different job from the search box.
+ *
+ * A shopper who types "מקרר" into the search field wants a shelf. A shopper
+ * who tells Alfred "אני רוצה מקרר חדש לבית" wants a conversation, and the
+ * model can only hold one about what it is shown. It was being shown five
+ * rows, and the way those five were picked is the whole reason this exists.
+ *
+ * WHAT WENT WRONG. Words were matched with OR, so "מקרר חדש לבית" also
+ * matched every product whose text contains "חדש" or "לבית" — most of the
+ * catalogue. The result was ordered by isBestSeller, which is false for all
+ * two thousand products, so the database returned five arbitrary rows. On the
+ * run a customer saw, they were an office fridge and two mini-bars, and
+ * Alfred said — reasonably, given what it had — that the shop stocks office
+ * fridges and mini-bars. The shop stocks 222 live fridges across nine
+ * sub-categories, from ₪490 to ₪31,000.
+ *
+ * THREE THINGS CHANGE.
+ *
+ * Rows are scored by how many of the query's words they match, so a product
+ * that answers the whole question outranks one that shares a stray word.
+ *
+ * Ties break toward the larger sub-category. A shop's biggest shelf is what
+ * it mainly sells, and it is the better guess when someone says only
+ * "fridge" — 58 four-door fridges before 17 office ones. Cheapest-first,
+ * which is what price ordering would give, is exactly how the mini-bars won.
+ *
+ * The catalogue is described alongside the products. Ten rows can never
+ * stand for 222, and a model handed ten will describe the ten. The breakdown
+ * says what is really there — every matching sub-category, its count and its
+ * price range — which is what lets Alfred ask "which kind?" instead of
+ * guessing, and what stops it ever again telling a customer the shop is
+ * smaller than it is.
+ *
+ * shortDescription travels too. Without it the model knows a title, a price
+ * and a stock status, and every question about the product itself — does it
+ * make ice, is it quiet, will it fit — has to be deflected to the product
+ * page. 144 of those 219 fridges say something about ice in their text.
+ */
+export type ChatProduct = {
+  title: string;
+  slug: string;
+  price: number;
+  stockStatus: string;
+  brandName: string;
+  categoryName: string;
+  summary: string | null;
+  imageUrl: string | null;
+};
+
+export type CategorySpread = { name: string; count: number; minPrice: number; maxPrice: number };
+
+export async function searchForChat(
+  words: string[],
+  opts: { limit?: number; maxPrice?: number } = {}
+): Promise<{ products: ChatProduct[]; spread: CategorySpread[]; totalMatches: number }> {
+  const terms = words.filter((w) => w.length >= 2).slice(0, 6);
+  if (terms.length === 0) return { products: [], spread: [], totalMatches: 0 };
+
+  const limit = opts.limit ?? 10;
+  const priceCeiling = opts.maxPrice ?? null;
+
+  /* Written as SQL because the ranking is the point and Prisma cannot
+     express "how many of these words did this row match". Every term is a
+     bound parameter — none of it is concatenated into the statement. */
+  const like = terms.map((t) => `%${t}%`);
+  const scoreSql = like
+    .map(
+      (_, i) =>
+        `(CASE WHEN p.title ILIKE $${i + 1} OR c.name ILIKE $${i + 1} OR COALESCE(b.name,'') ILIKE $${i + 1} OR COALESCE(p.model,'') ILIKE $${i + 1} THEN 1 ELSE 0 END)`
+    )
+    .join(" + ");
+
+  const priceParam = like.length + 1;
+  const priceClause = priceCeiling !== null ? `AND p.price <= $${priceParam}` : "";
+  const params: unknown[] = [...like];
+  if (priceCeiling !== null) params.push(priceCeiling);
+
+  const sql = `
+    WITH matched AS (
+      SELECT p.id, p.title, p.slug, p.price, p."stockStatus", p."shortDescription",
+             COALESCE(b.name, '') AS brand_name, c.name AS category_name,
+             (${scoreSql}) AS score
+      FROM "Product" p
+      JOIN "Category" c ON c.id = p."categoryId"
+      LEFT JOIN "Brand" b ON b.id = p."brandId"
+      WHERE p."isPublished" AND p."stockQty" > 0
+        AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
+        ${priceClause}
+    ), hits AS (
+      SELECT * FROM matched WHERE score > 0
+    ), sized AS (
+      SELECT h.*, COUNT(*) OVER (PARTITION BY h.category_name) AS cat_size FROM hits h
+    )
+    SELECT s.title, s.slug, s.price, s."stockStatus", s."shortDescription",
+           s.brand_name, s.category_name, s.score, s.cat_size,
+           (SELECT i.url FROM "ProductImage" i WHERE i."productId" = s.id ORDER BY i."sortOrder" ASC LIMIT 1) AS image_url
+    FROM sized s
+    ORDER BY s.score DESC, s.cat_size DESC, s.price ASC
+    LIMIT ${limit}
+  `;
+
+  const spreadSql = `
+    WITH matched AS (
+      SELECT p.price, c.name AS category_name,
+             (${scoreSql}) AS score
+      FROM "Product" p
+      JOIN "Category" c ON c.id = p."categoryId"
+      LEFT JOIN "Brand" b ON b.id = p."brandId"
+      WHERE p."isPublished" AND p."stockQty" > 0
+        AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
+        ${priceClause}
+    )
+    SELECT category_name, COUNT(*)::int AS count, MIN(price)::int AS min_price, MAX(price)::int AS max_price
+    FROM matched WHERE score > 0
+    GROUP BY category_name ORDER BY count DESC LIMIT 12
+  `;
+
+  type Row = {
+    title: string;
+    slug: string;
+    price: number;
+    stockStatus: string;
+    shortDescription: string | null;
+    brand_name: string;
+    category_name: string;
+    image_url: string | null;
+  };
+  type SpreadRow = { category_name: string; count: number; min_price: number; max_price: number };
+
+  const [rows, spreadRows] = await Promise.all([
+    db.$queryRawUnsafe<Row[]>(sql, ...params),
+    db.$queryRawUnsafe<SpreadRow[]>(spreadSql, ...params),
+  ]);
+
+  return {
+    products: rows.map((r) => ({
+      title: r.title,
+      slug: r.slug,
+      price: Number(r.price),
+      stockStatus: r.stockStatus,
+      brandName: r.brand_name,
+      categoryName: r.category_name,
+      // Long enough to answer "does it make ice", short enough that ten of
+      // them still leave the model room to think about the question.
+      summary: r.shortDescription ? r.shortDescription.slice(0, 320) : null,
+      imageUrl: r.image_url,
+    })),
+    spread: spreadRows.map((s) => ({
+      name: s.category_name,
+      count: Number(s.count),
+      minPrice: Number(s.min_price),
+      maxPrice: Number(s.max_price),
+    })),
+    totalMatches: spreadRows.reduce((sum, s) => sum + Number(s.count), 0),
+  };
+}

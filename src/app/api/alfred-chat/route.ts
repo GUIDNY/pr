@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { searchProducts } from "@/lib/queries/products";
+import { searchForChat } from "@/lib/queries/products";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 import { getChatbotSettings } from "@/lib/queries/chatbot-settings";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
@@ -64,6 +64,13 @@ const CONVERSATIONAL_WORDS = new Set([
      something in a catalogue this size. */
   "זמן", "הזמן", "זמנים", "זמני", "לוקח", "לוקחת", "מגיע", "מגיעה", "מגיעים",
   "עולה", "עולים", "עולות", "כולל", "כוללת", "נמצא", "קיים", "זמין", "זמינות",
+  /* "אני רוצה מקרר חדש לבית" was searched as מקרר OR חדש OR לבית, and the
+     last two match most of a catalogue full of "חדש בקטלוג" and "מוצרי חשמל
+     לבית". They describe the shopper's situation, never the thing they
+     want. */
+  "חדש", "חדשה", "חדשים", "ישן", "ישנה", "לבית", "בבית", "הבית", "לדירה",
+  "בשביל", "עבור", "טוב", "טובה", "טובים", "הכי", "ממליץ", "ממליצים", "המלצה",
+  "משהו", "כזה", "כזאת", "איזה", "איזו", "בערך", "אולי", "צריכים", "רוצים",
 ]);
 
 // The shipping/warranty/hours facts are NOT hardcoded here — they come
@@ -79,17 +86,34 @@ function buildPersona(settings: {
     `את/ה "אלפרד" — עוזר שירות הלקוחות של Buy Today, חנות אלקטרוניקה ומוצרי חשמל ישראלית מקוונת.`,
     `מדברים בעברית בלבד, בטון חם, אישי וקצר — כמו נציג שירות אנושי טוב, לא כמו רובוט. 2-4 משפטים לתשובה, לא יותר, אלא אם ממש נדרש יותר.`,
     `עוזרים ללקוחות למצוא מוצרים, עונים על שאלות משלוח/אחריות/תשלום, ומכוונים באתר.`,
+    /* How a salesperson works, written down, because the model will not
+       improvise it.
+       "אני רוצה מקרר חדש לבית" got a paragraph explaining that the shop
+       stocks office fridges and mini-bars — no question back, no product
+       anybody would buy. A person behind a counter asks one thing: freezer
+       on top or bottom, how big, what are you spending. Then they walk you
+       to a specific machine. */
+    `איך עונים כשמישהו מחפש מוצר:`,
+    `— אם הבקשה רחבה (למשל "אני רוצה מקרר"): אל תמליץ עדיין ואל תפרט רשימה. משפט אחד קצר, ואז שאלה אחת שמצמצמת — סוג, גודל או תקציב — עם 2-3 אפשרויות קונקרטיות מתוך פירוט הקטגוריות שקיבלת, כולל כמה יש מכל סוג ומאיזה מחיר.`,
+    `— אם הבקשה כבר ממוקדת: תמליץ על 1-2 דגמים ספציפיים בשם המלא ובמחיר, ולכל אחד משפט אחד שמסביר למה דווקא הוא — מתוך התיאור שניתן לך.`,
+    `— שאלה אחת בכל פעם, אף פעם לא רשימת שאלות. אחרי שהלקוח עונה, מצמצמים עוד או ממליצים.`,
     /* Named field by field, because the general version was not enough.
        Asked to compare two fridges it had only titles and prices for, the
        model answered that the LG "comes with InstaView smart double-door
        technology" — a real feature of some LG fridges, invented for this
        one out of the model name. A wrong spec on a shop page is a customer
-       ordering something other than what they saw, so the rule now says
-       what is known rather than what is forbidden: a list can be checked
-       against, a prohibition has to be interpreted. */
-    `כלל ברזל: המידע היחיד שיש לך על מוצר הוא מה שכתוב בהקשר הפנימי למטה — שם, מותג, מחיר וסטטוס מלאי. אין לך מפרט, אין לך תכונות, אין לך מידות ואין לך נפחים.`,
-    `אם שואלים על תכונה, טכנולוגיה, נפח, מידה, דירוג אנרגטי או השוואה טכנית בין דגמים — אומרים בפירוש שהפרטים המלאים נמצאים בעמוד המוצר ומפנים לשם. אסור לנחש תכונה, ואסור להסיק אותה משם הדגם או מהמותג.`,
-    `אסור להמציא מחיר או זמינות במלאי שלא ניתנו במפורש בהקשר. אם אין מידע על מוצר מסוים — אומרים שלא בטוחים ומציעים לחפש באתר או לפנות לצוות, לא מנחשים.`,
+       ordering something other than what they saw, so the rule says what is
+       known rather than what is forbidden: a list can be checked against, a
+       prohibition has to be interpreted.
+       The description is now part of what is known, which is what makes the
+       difference between answering "does it make ice" and deflecting it. */
+    `כלל ברזל: כל מה שאתה יודע על מוצר הוא מה שכתוב בשורה שלו בהקשר הפנימי — שם, מותג, מחיר, סטטוס מלאי ותיאור. מותר לסכם ולצטט מהתיאור, וזו הדרך הנכונה לענות על שאלות כמו "יש לו מתקן קרח?" או "כמה ליטר?".`,
+    `אם התיאור לא אומר את מה שנשאלת — אומרים את זה במפורש ("בתיאור של הדגם הזה לא מצוין…") ומפנים לעמוד המוצר. אסור להוסיף תכונה שלא כתובה, ואסור להסיק אותה משם הדגם או מהמותג.`,
+    `אסור להמציא מחיר או זמינות שלא ניתנו בהקשר.`,
+    /* Ten rows cannot stand for 222 products, and a model handed ten will
+       describe the ten. This is the sentence that stops it telling a
+       customer the shop is smaller than it is. */
+    `כשמדברים על מה שיש בחנות — מסתמכים על פירוט הקטגוריות, לא על רשימת המוצרים. רשימת המוצרים היא רק דוגמאות שנבחרו לשאלה הזו, אף פעם לא כל מה שיש.`,
     `משלוח: ${settings.shippingInfo}`,
     `אחריות: ${settings.warrantyInfo}`,
   ];
@@ -160,25 +184,14 @@ export async function POST(request: Request) {
     .map((w) => w.replace(/[?!.,]/g, ""))
     .filter((w) => w.length >= 3 && !CONVERSATIONAL_WORDS.has(w));
 
-  /* The budget has to be put back before the search sees it.
-   *
-   * parseShoppingQuery pulls "עד 2000 ₪" out and hands back the rest, and
-   * searchProducts parses its own argument the same way — so passing it only
-   * the leftover words threw the ceiling away between the two. Somebody
-   * asking for a washing machine under two thousand was shown one at five.
-   *
-   * Only ever alongside real words: a price with nothing else in it would
-   * match the whole catalogue under that number and return five arbitrary
-   * cheap things. */
-  const searchQuery =
-    substantiveWords.length > 0
-      ? maxPrice !== null
-        ? `${substantiveWords.join(" ")} עד ${maxPrice}`
-        : substantiveWords.join(" ")
-      : "";
+  /* A budget with nothing else in it would match the whole catalogue under
+     that number, so the ceiling only applies alongside real words. */
+  const priceCeiling = substantiveWords.length > 0 && maxPrice !== null ? maxPrice : undefined;
 
-  const [products, settings, pinnedRows] = await Promise.all([
-    searchQuery ? searchProducts(searchQuery, 5) : Promise.resolve([]),
+  const [search, settings, pinnedRows] = await Promise.all([
+    substantiveWords.length > 0
+      ? searchForChat(substantiveWords, { limit: 10, maxPrice: priceCeiling })
+      : Promise.resolve({ products: [], spread: [], totalMatches: 0 }),
     getChatbotSettings(),
     pinnedIds.length > 0
       ? db.product.findMany({
@@ -215,16 +228,34 @@ export async function POST(request: Request) {
           .map((p) => `- ${p.title} | מותג: ${p.brandName} | מחיר: ${p.price}₪ | סטטוס מלאי: ${p.stockStatus}`)
           .join("\n")
       : "";
+  /* What the shop really holds for this question — the part that lets Alfred
+     ask "which kind?" instead of describing whichever ten rows came back.
+     Without it a model handed ten products says the shop has ten products'
+     worth of range, which is how a customer asking for a fridge was told
+     this shop sells mini-bars. */
+  const spreadContext =
+    search.spread.length > 0
+      ? `מה שיש בחנות בפועל בתחום שנשאל (זה המקור היחיד לתיאור המגוון — סה"כ ${search.totalMatches} מוצרים):\n` +
+        search.spread
+          .map((c) => `- ${c.name}: ${c.count} דגמים, ${c.minPrice}₪–${c.maxPrice}₪`)
+          .join("\n")
+      : "";
+
   const searchContext =
-    products.length > 0
-      ? "מוצרים רלוונטיים מהמלאי האמיתי שלנו כרגע (אפשר להתייחס אליהם, אסור לשנות מחיר/סטטוס ביחס למה שכתוב כאן):\n" +
-        products
-          .map((p) => `- ${p.title} | מותג: ${p.brandName} | מחיר: ${p.price}₪ | סטטוס מלאי: ${p.stockStatus}`)
+    search.products.length > 0
+      ? "דגמים לדוגמה מתוך המלאי (רק דוגמאות, לא כל המגוון. אסור לשנות מחיר או סטטוס):\n" +
+        search.products
+          .map(
+            (p) =>
+              `- ${p.title} | מותג: ${p.brandName} | קטגוריה: ${p.categoryName} | מחיר: ${p.price}₪ | מלאי: ${p.stockStatus}` +
+              (p.summary ? `\n  תיאור: ${p.summary}` : "\n  תיאור: (אין תיאור לדגם הזה)")
+          )
           .join("\n")
       : pinnedProducts.length > 0
         ? ""
         : "לא נמצאו מוצרים תואמים לחיפוש על ההודעה האחרונה — אין להמציא מוצר; להציע ללקוח לנסח אחרת או להפנות לחיפוש באתר.";
-  const productContext = [pinnedContext, searchContext].filter(Boolean).join("\n\n");
+
+  const productContext = [pinnedContext, spreadContext, searchContext].filter(Boolean).join("\n\n");
 
   const contents = [
     ...history.slice(-MAX_HISTORY_TURNS).map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
@@ -306,10 +337,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "השירות עמוס כרגע, נסו שוב בעוד רגע" }, { status: 502 });
   }
 
+  /* Cards under the reply: the pinned ones first, then the search hits —
+     capped, because ten cards under three sentences is a wall, and the model
+     will have named the one or two that matter. */
   const combinedProducts = [
     ...pinnedProducts,
-    ...products.filter((p) => !pinnedProducts.some((pinned) => pinned.slug === p.slug)),
-  ].map((p) => ({
+    ...search.products.filter((p) => !pinnedProducts.some((pinned) => pinned.slug === p.slug)),
+  ]
+    .slice(0, 4)
+    .map((p) => ({
     title: p.title,
     slug: p.slug,
     price: p.price,
