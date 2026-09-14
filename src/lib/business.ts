@@ -22,7 +22,10 @@ export const BUSINESS = {
   /** The trading name. What customers call the shop, and what the logo says. */
   name: "Buy Today",
   /** The registered company behind it. Both are stated to Google, not one for the other. */
-  legalName: "פ.ר. אלקטרוניקה",
+  legalName: 'פ.ר. אלקטרוניקה והשקעות (1999) בע"מ',
+  /** Company registration number. Named in the terms and the privacy policy —
+      a shop that takes money has to say who is taking it. */
+  companyId: "512801093",
 
   /* The service line — the number on the Business Profile, which is what a
      customer should reach. It replaced an older number that was still
