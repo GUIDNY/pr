@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { renderGoogleMerchantFeed } from "@/lib/feeds/google-merchant";
+import { TEST_PRODUCT_SKUS } from "@/lib/test-products";
 
 // Served from /feeds/, not /api/, on purpose: robots.ts disallows /api for
 // every crawler, and Merchant Center's fetcher honours robots.txt — a feed
@@ -19,7 +20,11 @@ export async function GET() {
   // penalises a feed that disagrees with the page it links to, so "what is
   // in the feed" has to be the same predicate as "what is on the site".
   const products = await db.product.findMany({
-    where: PUBLIC_PRODUCT_WHERE,
+    /* The one deliberate departure from PUBLIC_PRODUCT_WHERE, and it only
+       ever removes: a product that exists so somebody can put a real card
+       through the gateway is purchasable on the site and has no business
+       being advertised. See lib/test-products.ts. */
+    where: { ...PUBLIC_PRODUCT_WHERE, sku: { notIn: [...TEST_PRODUCT_SKUS] } },
     select: {
       sku: true,
       slug: true,
