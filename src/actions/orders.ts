@@ -6,6 +6,7 @@ import { getSession, getCurrentUser } from "@/lib/auth";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
+import { computeDeliveryFee } from "@/lib/delivery";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
 import { rememberOrder, browserPlacedOrder } from "@/lib/order-receipts";
@@ -30,6 +31,9 @@ export async function createOrderAction(input: CheckoutInput) {
   const session = await getSession();
 
   const isDelivery = data.deliveryMethod === "DELIVERY";
+
+  const deliveryFee = computeDeliveryFee(summary.subtotal - summary.discount, data.deliveryMethod);
+  const total = Math.max(0, summary.subtotal - summary.discount + deliveryFee);
 
   /* The address goes onto the order itself, below, for every delivery order.
      This block is now only about the customer's ADDRESS BOOK — a saved address
@@ -128,8 +132,12 @@ export async function createOrderAction(input: CheckoutInput) {
       status: orderStatus,
       subtotal: summary.subtotal,
       discountTotal: summary.discount,
-      deliveryFee: summary.deliveryFee,
-      total: summary.total,
+      /* Recomputed here rather than taken from the cart summary, which is
+         built before anybody has said how the order is coming to them. A
+         pickup order was being charged ₪49 to deliver something the customer
+         was driving to collect. */
+      deliveryFee,
+      total,
       couponCode: summary.couponCode,
       paymentStatus,
       paymentMethod: data.paymentMethod,
@@ -165,8 +173,9 @@ export async function createOrderAction(input: CheckoutInput) {
       data: {
         orderId: order.id,
         provider: "DEMO",
-        amount: summary.total,
-        amountAgorot: Math.round(summary.total * 100),
+        // The order's total, not the cart's: they differ on a pickup order.
+        amount: total,
+        amountAgorot: Math.round(total * 100),
         status: "AUTHORIZED",
         reference: last4 ? `DEMO-**** ${last4}` : "DEMO-COD",
         // The prefix is what tells the approval it may settle this one itself

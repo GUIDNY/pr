@@ -11,6 +11,22 @@
 export const FREE_DELIVERY_THRESHOLD = 500;
 export const STANDARD_DELIVERY_FEE = 49;
 
-export function computeDeliveryFee(subtotal: number) {
+export type DeliveryMethod = "DELIVERY" | "PICKUP";
+
+/**
+ * What delivery costs — and nothing costs delivery when there is none.
+ *
+ * The method used to be missing from this calculation entirely, so an order
+ * collected from the counter in Hadera was charged ₪49 to deliver it there.
+ * The checkout showed the charge and the order carried it, consistently and
+ * wrongly, which is the kind of error nobody reports as a bug: the customer
+ * assumes it is the shop's policy and either pays it or leaves.
+ *
+ * Defaulted to DELIVERY so the callers that genuinely do not know the method
+ * yet — the cart drawer, where nobody has chosen — keep quoting the number a
+ * shopper should plan for. Choosing to collect is what removes it.
+ */
+export function computeDeliveryFee(subtotal: number, method: DeliveryMethod = "DELIVERY") {
+  if (method === "PICKUP") return 0;
   return subtotal >= FREE_DELIVERY_THRESHOLD ? 0 : STANDARD_DELIVERY_FEE;
 }

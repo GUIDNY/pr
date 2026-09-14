@@ -120,6 +120,16 @@ export function CheckoutForm({
     cardCvv: "",
   });
 
+  /* Delivery is priced by the method, and the method is chosen on this screen
+     — after the server built the summary. Derived rather than refetched: it
+     is one comparison, and a round trip on every click of a radio button is
+     latency the customer feels for a number that is already known.
+     createOrder computes it the same way from the same rule, so what is shown
+     here is what gets charged. */
+  const isPickup = form.deliveryMethod === "PICKUP";
+  const deliveryFee = isPickup ? 0 : cart.deliveryFee;
+  const orderTotal = Math.max(0, cart.subtotal - cart.discount + deliveryFee);
+
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => {
       const next = { ...f, [key]: value };
@@ -777,15 +787,20 @@ export function CheckoutForm({
               <span className="tabular-nums">-{formatPrice(cart.discount)}</span>
             </div>
           )}
+          {/* The summary came from the server before the customer chose how
+              they are getting the order, so the fee it carries is always the
+              delivery one. Choosing to collect removes it here the moment the
+              radio changes, and createOrder recomputes the same way — the
+              screen and the charge stay the same number. */}
           <div className="flex justify-between">
-            <span className="text-muted-foreground">משלוח</span>
-            <span className="tabular-nums">{cart.deliveryFee === 0 ? "חינם" : formatPrice(cart.deliveryFee)}</span>
+            <span className="text-muted-foreground">{isPickup ? "איסוף עצמי" : "משלוח"}</span>
+            <span className="tabular-nums">{deliveryFee === 0 ? "חינם" : formatPrice(deliveryFee)}</span>
           </div>
         </div>
         <Separator className="my-3" />
         <div className="mb-4 flex justify-between text-base font-bold">
           <span>סה&quot;כ לתשלום</span>
-          <span className="tabular-nums">{formatPrice(cart.total)}</span>
+          <span className="tabular-nums">{formatPrice(orderTotal)}</span>
         </div>
         {payment ? (
           <p className="border-border text-muted-foreground rounded-lg border border-dashed p-3 text-center text-xs leading-relaxed">
