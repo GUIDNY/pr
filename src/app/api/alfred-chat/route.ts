@@ -487,21 +487,46 @@ export async function POST(request: Request) {
          Pinned products are exempt — they are on the customer's screen
          already because the page put them there, not because Alfred chose
          them. */
-      /* A tripwire for the failure above. Every product this shop sells has a
-         manufacturer's code, so a code-shaped token in the reply that matches
-         none of the rows given is the signature of an invented product. It is
-         logged rather than suppressed — rewriting a customer's answer after
-         the fact is worse than knowing how often this happens. */
-      const knownModels = combinedProducts.map((p) => (p.model ?? "").toLowerCase()).filter(Boolean);
-      const codeLike = reply.match(/\b[A-Z][A-Z0-9]{2,}[-–]?[A-Z0-9]{2,}\b/g) ?? [];
-      const unknown = codeLike.filter((c) => !knownModels.some((m) => m.includes(c.toLowerCase()) || c.toLowerCase().includes(m)));
+      /* Matching a model code means ignoring how it was punctuated.
+       *
+       * The TCL's code is stored as "C635CD WG" and printed in its own title
+       * as "C635CDWG". Alfred quoted the title, correctly, and an exact
+       * substring test found nothing — so a real recommendation shipped
+       * without its card, and the tripwire below reported a hallucination
+       * that had not happened. Spaces and hyphens are where these codes
+       * disagree with themselves; stripping them from both sides is the
+       * whole fix. Five characters minimum, because flattening the reply
+       * runs words together and a short code could then match across a
+       * boundary that was never there. */
+      const flatten = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const flatReply = flatten(reply);
+      const codeOf = (p: { model: string | null; title: string }) => {
+        const fromModel = flatten(p.model ?? "");
+        if (fromModel.length >= 5) return fromModel;
+        // Some rows have no usable model; their title still carries the code.
+        const token = p.title.match(/\b[A-Za-z][A-Za-z0-9]{2,}[-–]?[A-Za-z0-9]*\d[A-Za-z0-9-]*\b/)?.[0];
+        return token ? flatten(token) : "";
+      };
+
+      const named = combinedProducts.filter((p) => {
+        if (p.pinned) return true;
+        const code = codeOf(p);
+        return code.length >= 5 && flatReply.includes(code);
+      });
+
+      /* A tripwire for the invented-product failure. Every product this shop
+         sells has a manufacturer's code, so a code-shaped token in the reply
+         matching none of the rows supplied is the signature of one that does
+         not exist. Logged rather than suppressed — rewriting a customer's
+         answer after the fact is worse than knowing how often this happens. */
+      const knownCodes = combinedProducts.map(codeOf).filter((c) => c.length >= 5);
+      const codeLike = reply.match(/\b[A-Z][A-Z0-9]{2,}[-–\s]?[A-Z0-9]{2,}\b/g) ?? [];
+      const unknown = [...new Set(codeLike.map(flatten))].filter(
+        (c) => c.length >= 5 && !knownCodes.some((k) => k.includes(c) || c.includes(k))
+      );
       if (unknown.length > 0) {
         console.error(`[alfred] reply named model codes not in context: ${unknown.slice(0, 5).join(", ")}`);
       }
-
-      const named = combinedProducts.filter(
-        (p) => p.pinned || (p.model && p.model.length >= 4 && reply.toLowerCase().includes(p.model.toLowerCase()))
-      );
       if (named.length > 0) {
         send({
           type: "products",
