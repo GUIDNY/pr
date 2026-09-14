@@ -262,25 +262,44 @@ export const NO_RETRY_STATUS_CODES = ["301"];
 /**
  * Whether checkout should hold the money instead of taking it.
  *
- * Off, and off is not a placeholder — it is the only setting that is safe
- * until two things outside this repository are true:
+ * Two switches, and the second one is not optional — it is the interlock.
  *
- *   The terminal at Pelecard is configured to accept J5. Sending J5 to a
- *   terminal set up for J4 does not hold anything; it fails, and it fails at
- *   the moment a customer is trying to pay.
+ * PELECARD_HOLD_THEN_CAPTURE says the shop wants J5. PELECARD_COMPLETE_DEBIT_PATH
+ * is the endpoint that later turns a hold into a charge, and until Pelecard
+ * have supplied it, completeDebitByUid refuses. Holding money with no way to
+ * collect it is strictly worse than not holding at all: the customer's card
+ * carries a frozen amount, the shop cannot take it, and nothing in the
+ * ordinary flow says so — the order looks perfectly normal.
  *
- *   Pelecard have told us the name of their capture call. This file knows
- *   three of their endpoints — init, ValidateByUniqueKey, GetTransaction —
- *   and none of them takes a held transaction and charges it. Guessing an
- *   endpoint that moves money is not a thing to do from a comment.
+ * So the intent alone does not enable J5. Both have to be present, which
+ * means the flag can be set today and the mode switches itself on the moment
+ * the path arrives, with no window in between where a real customer's money
+ * can be stranded. Wanting it early is not a mistake; being half-configured
+ * is, and this makes that state unreachable.
  *
- * Until both are true, a held payment could be taken but never captured,
- * which is worse than not holding at all: the customer's money is frozen and
- * the shop cannot collect it. So the switch stays off and capturePayment
- * refuses rather than pretending.
+ * Still outside this file and still required: the terminal at Pelecard must
+ * be configured for J5. Sending J5 to a terminal set up for J4 does not hold
+ * anything — it fails, at the moment somebody is trying to pay. And where a
+ * merchant has two terminals, the capture has to run against the same one
+ * that authorised, or the hold is left open on the other.
  */
 export function holdThenCapture(): boolean {
-  return process.env.PELECARD_HOLD_THEN_CAPTURE === "1";
+  const wanted = process.env.PELECARD_HOLD_THEN_CAPTURE === "1";
+  if (!wanted) return false;
+
+  const canCapture = Boolean(process.env.PELECARD_COMPLETE_DEBIT_PATH?.trim());
+  if (!canCapture) {
+    /* Loud, because the shop asked for J5 and is quietly getting J4. That is
+       the safe direction to be wrong in — money collected rather than
+       stranded — but it is not what anybody configured, and a silent
+       downgrade is how it stays unnoticed for a month. */
+    console.error(
+      "[pelecard] PELECARD_HOLD_THEN_CAPTURE is on but PELECARD_COMPLETE_DEBIT_PATH is unset — " +
+        "staying on J4. A hold with no capture endpoint freezes the customer's money uncollectably."
+    );
+    return false;
+  }
+  return true;
 }
 
 export type CaptureResult = { ok: true } | { ok: false; error: string };
