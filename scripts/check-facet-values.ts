@@ -34,6 +34,12 @@ const CASES: Case[] = [
   { raw: "78 dB", expect: "78", why: "unit with a space" },
   { raw: "79 dBA", expect: "79", why: "dBA before dB, longest match first" },
 
+  // A note somebody wrote in a rating column is not a filter option
+  { raw: "F (בטבלת המפרט של היבואן; בכותרת דף המוצר מצוין E)", expect: null, why: "a conflict note, not an answer" },
+  { raw: "E", expect: "E", why: "the ratings themselves are untouched" },
+  { raw: "A+++", expect: "A+++", why: "untouched" },
+  { raw: "פתח חזית", expect: "פתח חזית", why: "well under the length cap" },
+
   // Placeholders must never be offered
   { raw: "לא צוין", expect: null, why: "not a choice" },
   { raw: "לא רלוונטי", expect: null, why: "not a choice" },

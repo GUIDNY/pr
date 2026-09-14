@@ -21,6 +21,16 @@
  * are different numbers that somebody wrote down on purpose, and merging
  * them would be inventing a spec rather than tidying one.
  */
+/* A filter option is a word or a number, and nothing in this catalogue that
+   is a real choice runs long. One product's energy rating is stored as
+   "F (בטבלת המפרט של היבואן; בכותרת דף המוצר מצוין E)" — a genuine conflict
+   between the importer's spec table and the product page, written down by
+   whoever found it instead of being guessed at. That is the right thing to
+   have in the column and the wrong thing to offer as a chip, so it is left
+   in the database, raised as a SOURCE_CONFLICT alert for a person, and not
+   printed here. Anything this long is a note, not an answer. */
+const MAX_FACET_LABEL = 24;
+
 const PLACEHOLDER_VALUES = new Set(["לא צוין", "לא רלוונטי", "לא ידוע", "אין", "-", "--", "n/a", "na", "null"]);
 
 /* Trailing units, longest first so that ס״מ is matched before מ. Only ever
@@ -43,6 +53,7 @@ export function normalizeFacetValue(raw: string): string | null {
 
   if (!value) return null;
   if (PLACEHOLDER_VALUES.has(value.toLowerCase())) return null;
+  if (value.length > MAX_FACET_LABEL) return null;
 
   for (const unit of TRAILING_UNITS) {
     const pattern = new RegExp(`\\s*${unit.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.?$`, "i");
