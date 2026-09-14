@@ -181,10 +181,38 @@ export async function POST(request: Request) {
   //
   // The length rule is necessary and not sufficient: "המשלוח" is six letters
   // and still matched a shaver. CONVERSATIONAL_WORDS above catches the rest.
-  const { text: searchText, maxPrice } = parseShoppingQuery(message);
-  const substantiveWords = splitSearchWords(searchText)
+  /* The search reads the conversation, not the last line of it.
+   *
+   * This is the bug that made Alfred invent two fridges. Asked "אני מחפש
+   * מקרר", then "4 דלתות", then "עד 5000 שקל וחשוב לי שיהיה גדול", the
+   * search ran on that last sentence alone — which contains no product word
+   * at all, because the product was named two turns earlier. The context
+   * arrived empty on the very turn a recommendation was due, and the model
+   * filled the gap itself: a Midea HQ-627WEN and a Hisense RQ68N4BIE, with
+   * volumes, prices and features. Neither exists.
+   *
+   * A shopper narrowing down does not repeat what they are shopping for, so
+   * the words that matter are spread across turns. Recent turns first, and
+   * only the customer's own words — echoing the model's replies back into
+   * the search would let one wrong guess feed itself. */
+  const recentUserText = [
+    message,
+    ...history
+      .filter((h) => h.role === "user")
+      .slice(-4)
+      .reverse()
+      .map((h) => h.text),
+  ].join(" ");
+
+  const { maxPrice } = parseShoppingQuery(message);
+  const seenWords = new Set<string>();
+  const substantiveWords = splitSearchWords(parseShoppingQuery(recentUserText).text)
     .map((w) => w.replace(/[?!.,]/g, ""))
-    .filter((w) => w.length >= 3 && !CONVERSATIONAL_WORDS.has(w));
+    .filter((w) => {
+      if (w.length < 3 || CONVERSATIONAL_WORDS.has(w) || seenWords.has(w)) return false;
+      seenWords.add(w);
+      return true;
+    });
 
   /* A budget with nothing else in it would match the whole catalogue under
      that number, so the ceiling only applies alongside real words. */
@@ -266,7 +294,20 @@ export async function POST(request: Request) {
         ? ""
         : "לא נמצאו מוצרים תואמים לחיפוש על ההודעה האחרונה — אין להמציא מוצר; להציע ללקוח לנסח אחרת או להפנות לחיפוש באתר.";
 
-  const productContext = [pinnedContext, spreadContext, searchContext].filter(Boolean).join("\n\n");
+  /* The instruction to recommend and an empty shelf are a dangerous pair.
+     With rows in hand the anti-invention rules hold; with none, and a
+     persona pushing toward a recommendation, the model wrote two fridges out
+     of nothing — model codes, volumes, prices and features, none of them
+     real. So when there is nothing to name, that outranks everything else
+     and is stated last, where it is read last. */
+  const hasAnyProduct = search.products.length > 0 || pinnedProducts.length > 0;
+  const emptyShelfRule = hasAnyProduct
+    ? ""
+    : "אזהרה מכריעה: לא קיבלת אף מוצר בהקשר הזה. חל איסור מוחלט לנקוב בשם דגם, בקוד דגם, במחיר או בנפח — גם אם הלקוח כבר ענה על הכל וגם אם זה נראה כמו הרגע להמליץ. במקום זה: שואלים שאלה ממקדת נוספת, או מציעים ללקוח לנסח אחרת ומפנים לחיפוש באתר.";
+
+  const productContext = [pinnedContext, spreadContext, searchContext, emptyShelfRule]
+    .filter(Boolean)
+    .join("\n\n");
 
   const contents = [
     ...history.slice(-MAX_HISTORY_TURNS).map((h) => ({ role: h.role, parts: [{ text: h.text }] })),
@@ -446,6 +487,18 @@ export async function POST(request: Request) {
          Pinned products are exempt — they are on the customer's screen
          already because the page put them there, not because Alfred chose
          them. */
+      /* A tripwire for the failure above. Every product this shop sells has a
+         manufacturer's code, so a code-shaped token in the reply that matches
+         none of the rows given is the signature of an invented product. It is
+         logged rather than suppressed — rewriting a customer's answer after
+         the fact is worse than knowing how often this happens. */
+      const knownModels = combinedProducts.map((p) => (p.model ?? "").toLowerCase()).filter(Boolean);
+      const codeLike = reply.match(/\b[A-Z][A-Z0-9]{2,}[-–]?[A-Z0-9]{2,}\b/g) ?? [];
+      const unknown = codeLike.filter((c) => !knownModels.some((m) => m.includes(c.toLowerCase()) || c.toLowerCase().includes(m)));
+      if (unknown.length > 0) {
+        console.error(`[alfred] reply named model codes not in context: ${unknown.slice(0, 5).join(", ")}`);
+      }
+
       const named = combinedProducts.filter(
         (p) => p.pinned || (p.model && p.model.length >= 4 && reply.toLowerCase().includes(p.model.toLowerCase()))
       );
