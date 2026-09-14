@@ -259,6 +259,18 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               <Field label={order.paymentStatus === "AUTHORIZED" ? "נתפס בכרטיס" : "נגבה בפועל"}>
                 {formatPrice(order.paid.heldAmount ?? order.paid.amount)}
               </Field>
+              {/* The card, as the customer knows it. The callback has stored
+                  these since the gateway went in and nothing displayed them,
+                  so the back office had a gateway reference — meaningless to
+                  the person on the other end of the phone — and nothing to
+                  say when somebody asks which card was charged. */}
+              {order.paid.cardLast4 && (
+                <Field label="כרטיס">
+                  <span dir="ltr">**** {order.paid.cardLast4}</span>
+                  {order.paid.clearerName ? ` · ${order.paid.clearerName}` : ""}
+                </Field>
+              )}
+              {order.paid.approvalNo && <Field label="מספר אישור">{order.paid.approvalNo}</Field>}
               {order.paid.capturedAt && <Field label="מועד גבייה">{formatDateTime(order.paid.capturedAt)}</Field>}
             </>
           ) : (

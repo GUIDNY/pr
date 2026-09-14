@@ -237,6 +237,17 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
             {order.payments.map((p) => (
               <p key={p.id} className="text-muted-foreground mt-1 text-xs">
                 {p.reference} · {formatPrice(p.amount)} · {formatDateTime(p.createdAt)}
+                {/* Same addition as the seller screen: a gateway reference
+                    identifies the transaction to Pelecard and nothing to the
+                    customer holding the card. */}
+                {p.cardLast4 && (
+                  <>
+                    {" · "}
+                    <span dir="ltr">**** {p.cardLast4}</span>
+                  </>
+                )}
+                {p.clearerName ? ` · ${p.clearerName}` : ""}
+                {p.approvalNo ? ` · אישור ${p.approvalNo}` : ""}
               </p>
             ))}
           </div>
