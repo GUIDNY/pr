@@ -94,9 +94,11 @@ function buildPersona(settings: {
        on top or bottom, how big, what are you spending. Then they walk you
        to a specific machine. */
     `איך עונים כשמישהו מחפש מוצר:`,
-    `— אם הבקשה רחבה (למשל "אני רוצה מקרר"): אל תמליץ עדיין ואל תפרט רשימה. משפט אחד קצר, ואז שאלה אחת שמצמצמת — סוג, גודל או תקציב — עם 2-3 אפשרויות קונקרטיות מתוך פירוט הקטגוריות שקיבלת, כולל כמה יש מכל סוג ומאיזה מחיר.`,
-    `— אם הבקשה כבר ממוקדת: תמליץ על 1-2 דגמים ספציפיים בשם המלא ובמחיר, ולכל אחד משפט אחד שמסביר למה דווקא הוא — מתוך התיאור שניתן לך.`,
-    `— שאלה אחת בכל פעם, אף פעם לא רשימת שאלות. אחרי שהלקוח עונה, מצמצמים עוד או ממליצים.`,
+    `— לפני שממליצים על דגם, צריך לדעת לפחות שניים מהשלושה: איזה סוג/תצורה, איזה גודל או נפח, ומה התקציב. כל עוד לא יודעים שניים — שואלים, לא ממליצים.`,
+    `— שאלה אחת בכל פעם. משפט קצר ואז השאלה, עם 2-3 אפשרויות קונקרטיות מתוך פירוט הקטגוריות (כמה דגמים יש מכל סוג ומאיזה מחיר) כדי שיהיה קל לענות.`,
+    `— כששואלים שאלה מכוונת — אל תזכיר שום דגם ספציפי בשם. זה שלב הבירור, לא שלב ההצעה. מוכר טוב לא שם ארבעה מקררים על הדלפק כששאל "איזה סוג חיפשת".`,
+    `— רק כשיש מספיק מידע: ממליצים על 1-2 דגמים בשם המלא (כולל קוד הדגם) ובמחיר, ולכל אחד משפט אחד שמסביר למה דווקא הוא מתאים למה שהלקוח ביקש — מתוך התיאור שניתן לך.`,
+    `— אם הלקוח כבר אמר מה הוא צריך ואין צורך לברר עוד — אל תשאל סתם עוד שאלה, תמליץ.`,
     /* Named field by field, because the general version was not enough.
        Asked to compare two fridges it had only titles and prices for, the
        model answered that the LG "comes with InstaView smart double-door
@@ -346,19 +348,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "השירות עמוס כרגע, נסו שוב בעוד רגע" }, { status: 502 });
   }
 
-  /* Every product the model was shown, so anything it names is clickable. */
+  /* Every product the model was shown — the reply decides which of them
+     actually becomes a card, at the end of the stream. */
   const combinedProducts = [
-    ...pinnedProducts,
-    ...search.products.filter((p) => !pinnedProducts.some((pinned) => pinned.slug === p.slug)),
+    ...pinnedProducts.map((p) => ({ ...p, model: null as string | null, pinned: true })),
+    ...search.products
+      .filter((p) => !pinnedProducts.some((pinned) => pinned.slug === p.slug))
+      .map((p) => ({ ...p, pinned: false })),
   ]
     .slice(0, 6)
     .map((p) => ({
-    title: p.title,
-    slug: p.slug,
-    price: p.price,
-    imageUrl: p.imageUrl,
-    stockStatus: p.stockStatus,
-  }));
+      pinned: p.pinned,
+      model: p.model,
+      title: p.title,
+      slug: p.slug,
+      price: p.price,
+      imageUrl: p.imageUrl,
+      stockStatus: p.stockStatus,
+    }));
 
   /* Newline-delimited JSON rather than Server-Sent Events.
    *
@@ -373,16 +380,23 @@ export async function POST(request: Request) {
     async start(controller) {
       const send = (payload: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
 
-      /* The cards go first, before the model has written a word. They were
-         already known — the catalogue was searched to build the prompt — so
-         making them wait for the sentence that introduces them is holding
-         back something already in hand. */
-      if (combinedProducts.length > 0) send({ type: "products", products: combinedProducts });
-
+      /* The cards wait for the sentence, and then only the ones it named.
+       *
+       * They used to go out first, before the model had written a word,
+       * because they were already in hand. That was wrong for the same
+       * reason a salesperson does not put four fridges on the counter while
+       * asking "what kind were you after?" — the question is the answer at
+       * that point, and the pile beside it says nobody was listening.
+       *
+       * So the reply is read as it streams, and when it ends the products
+       * whose model code it actually used become the cards. Alfred asking a
+       * narrowing question ships no cards at all. Alfred naming the Haier
+       * HRF5800FBI ships that one. */
       const reader = upstream.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       let wroteAnything = false;
+      let reply = "";
 
       try {
         for (;;) {
@@ -406,6 +420,7 @@ export async function POST(request: Request) {
               const text = (parsed.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
               if (text) {
                 wroteAnything = true;
+                reply += text;
                 send({ type: "delta", text });
               }
             } catch {
@@ -423,6 +438,30 @@ export async function POST(request: Request) {
          would otherwise see as an empty bubble. It has already been answered
          with a 200, so it cannot become a 502 now — it becomes a sentence. */
       if (!wroteAnything) send({ type: "delta", text: "מצטער, לא הצלחתי לענות כרגע. נסו לנסח אחרת?" });
+
+      /* Matched on the manufacturer's code, which 1,362 of the 1,366 live
+         products have and which the model writes out in full when it names
+         one ("האייר HRF5800FBI"). Titles are too long and too alike to match
+         on; a code is unambiguous or absent.
+         Pinned products are exempt — they are on the customer's screen
+         already because the page put them there, not because Alfred chose
+         them. */
+      const named = combinedProducts.filter(
+        (p) => p.pinned || (p.model && p.model.length >= 4 && reply.toLowerCase().includes(p.model.toLowerCase()))
+      );
+      if (named.length > 0) {
+        send({
+          type: "products",
+          // pinned/model are how the card was chosen, not part of the card.
+          products: named.map((p) => ({
+            title: p.title,
+            slug: p.slug,
+            price: p.price,
+            imageUrl: p.imageUrl,
+            stockStatus: p.stockStatus,
+          })),
+        });
+      }
 
       controller.close();
     },

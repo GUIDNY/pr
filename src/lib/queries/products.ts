@@ -665,6 +665,9 @@ export async function getCategoryFacets(
 export type ChatProduct = {
   title: string;
   slug: string;
+  /** The manufacturer's code. What the model writes when it names a product,
+      and therefore how the reply is matched back to a card. */
+  model: string | null;
   price: number;
   stockStatus: string;
   brandName: string;
@@ -703,7 +706,7 @@ export async function searchForChat(
 
   const sql = `
     WITH matched AS (
-      SELECT p.id, p.title, p.slug, p.price, p."stockStatus", p."shortDescription",
+      SELECT p.id, p.title, p.slug, p.price, p."stockStatus", p."shortDescription", p.model,
              COALESCE(b.name, '') AS brand_name, c.name AS category_name,
              (${scoreSql}) AS score
       FROM "Product" p
@@ -717,7 +720,7 @@ export async function searchForChat(
     ), sized AS (
       SELECT h.*, COUNT(*) OVER (PARTITION BY h.category_name) AS cat_size FROM hits h
     )
-    SELECT s.title, s.slug, s.price, s."stockStatus", s."shortDescription",
+    SELECT s.title, s.slug, s.price, s."stockStatus", s."shortDescription", s.model,
            s.brand_name, s.category_name, s.score, s.cat_size,
            (SELECT i.url FROM "ProductImage" i WHERE i."productId" = s.id ORDER BY i."sortOrder" ASC LIMIT 1) AS image_url
     FROM sized s
@@ -747,6 +750,7 @@ export async function searchForChat(
     price: number;
     stockStatus: string;
     shortDescription: string | null;
+    model: string | null;
     brand_name: string;
     category_name: string;
     image_url: string | null;
@@ -762,6 +766,7 @@ export async function searchForChat(
     products: rows.map((r) => ({
       title: r.title,
       slug: r.slug,
+      model: r.model,
       price: Number(r.price),
       stockStatus: r.stockStatus,
       brandName: r.brand_name,
