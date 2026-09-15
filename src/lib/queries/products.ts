@@ -425,7 +425,7 @@ export async function getProductsByBrandSlug(
 }
 
 /**
- * The search behind the header box and /search.
+ * How search ranks, in one place, returning ids in order.
  *
  * It used to OR every word against every field and take the first 8 rows
  * with no ORDER BY at all. Both halves of that are wrong, and together they
@@ -448,10 +448,10 @@ export async function getProductsByBrandSlug(
  * "מכונת כביסה 8 קילו" with nothing at all, because "קילו" appears in no
  * title — an empty box for a query that is *more* specific, which is the
  * worst way to fail. Scoring keeps every candidate and lets the full
- * matches take the slots: with 71 products matching both words, a
- * one-word match never reaches the first page.
+ * matches take the slots: with 71 products matching both words, a one-word
+ * match never reaches the first page.
  *
- * score = 10 × (words matched anywhere) + (words matched in the title)
+ *   score = 10 × (words matched anywhere) + (words matched in the title)
  *
  * The first term makes "matched more of what you typed" dominate; the
  * second breaks ties toward the product whose own name says it, so a
@@ -461,11 +461,17 @@ export async function getProductsByBrandSlug(
  * SQL because the ranking is the point and Prisma cannot express "how many
  * of these words did this row match" — the same reason searchForChat is
  * written this way. Every term is a bound parameter; nothing is
- * concatenated into the statement. The ids come back ordered and the rows
- * are then loaded through the usual include so the cards are built by
- * mapProductToCard exactly as before.
+ * concatenated into the statement.
+ *
+ * Ids rather than rows, and exported, because there are two callers that
+ * need different shapes: searchProducts below builds cards, and
+ * searchProductsAction builds the header dropdown's own row type. Those two
+ * were separate copies of the same broken query, and fixing one left the
+ * other wrong — the search box on the homepage kept returning coffee
+ * machines after /search had stopped. One ranker means a third copy cannot
+ * quietly disagree with these two.
  */
-export async function searchProducts(query: string, take = 8) {
+export async function rankedSearchIds(query: string, take: number): Promise<string[]> {
   if (!query.trim()) return [];
   const { text, maxPrice } = parseShoppingQuery(query);
   const words = splitSearchWords(text).slice(0, 6);
@@ -513,17 +519,24 @@ export async function searchProducts(query: string, take = 8) {
     `,
     ...params,
   );
+  return rows.map((r) => r.id);
+}
 
-  if (rows.length === 0) return [];
-  const ids = rows.map((r) => r.id);
-  const products = await db.product.findMany({ where: { id: { in: ids } }, include: cardInclude });
-  // findMany does not preserve the order of an `in` list, and the order is
-  // the whole result of the query above.
-  const byId = new Map(products.map((p) => [p.id, p]));
+/** Restore the ranker's order — findMany does not preserve an `in` list. */
+export function inRankedOrder<T extends { id: string }>(ids: string[], rows: T[]): T[] {
+  const byId = new Map(rows.map((r) => [r.id, r]));
   return ids.flatMap((id) => {
     const row = byId.get(id);
-    return row ? [mapProductToCard(row)] : [];
+    return row ? [row] : [];
   });
+}
+
+/** The /search results page. */
+export async function searchProducts(query: string, take = 8) {
+  const ids = await rankedSearchIds(query, take);
+  if (ids.length === 0) return [];
+  const products = await db.product.findMany({ where: { id: { in: ids } }, include: cardInclude });
+  return inRankedOrder(ids, products).map(mapProductToCard);
 }
 
 /**
