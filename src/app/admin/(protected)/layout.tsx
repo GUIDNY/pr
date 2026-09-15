@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   CreditCard,
   GalleryHorizontal,
+  TicketPercent,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
@@ -36,7 +37,14 @@ const NAV = [
   { href: "/admin/complaints", label: "תלונות", icon: AlertTriangle, catalog: true },
   { href: "/admin/products", label: "מוצרים", icon: Package, catalog: true },
   { href: "/admin/inventory", label: "בקרת מלאי", icon: Boxes, catalog: true },
-  { href: "/admin/promotions", label: "מבצעים", icon: TagIcon, catalog: true },
+  /* Two different things were both called "מבצעים" and only one of them was
+     listed, which is how "where do I put a product on sale" became
+     unanswerable from this sidebar. /admin/deals is the discount on a
+     product — what the homepage rail and /deals show. /admin/promotions is
+     coupon codes and cart-level discounts. Same word, unrelated jobs, so
+     neither label is that word on its own any more. */
+  { href: "/admin/deals", label: "מוצרים במבצע", icon: TagIcon, catalog: true },
+  { href: "/admin/promotions", label: "קופונים והנחות עגלה", icon: TicketPercent, catalog: true },
   { href: "/admin/suppliers", label: "ספקים", icon: Truck, catalog: true },
   { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle, catalog: true },
   { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles, catalog: true },
