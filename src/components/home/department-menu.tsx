@@ -1,37 +1,7 @@
 import Link from "next/link";
-import { ChevronLeft, Package, type LucideIcon } from "lucide-react";
-import {
-  Tv,
-  Speaker,
-  Refrigerator,
-  WashingMachine,
-  Utensils,
-  Flame,
-  Coffee,
-  Sparkles,
-  Wind,
-  Thermometer,
-  Laptop,
-  Scissors,
-} from "lucide-react";
-import { DEPARTMENT_ICON_MAP } from "@/lib/department-icons";
+import { ChevronLeft } from "lucide-react";
+import { DepartmentIcon } from "@/components/home/department-icon";
 import type { DepartmentCount } from "@/lib/queries/categories";
-
-const ICONS: Record<string, LucideIcon> = {
-  Tv,
-  Speaker,
-  Refrigerator,
-  WashingMachine,
-  Utensils,
-  Flame,
-  Coffee,
-  Sparkles,
-  Wind,
-  Thermometer,
-  Laptop,
-  Scissors,
-  Package,
-};
 
 /**
  * The vertical department list beside the homepage banner — the shape
@@ -49,17 +19,13 @@ export function DepartmentMenu({ departments }: { departments: DepartmentCount[]
       </p>
       <ul className="py-1">
         {departments.map((d) => {
-          const Icon = ICONS[DEPARTMENT_ICON_MAP[d.slug]] ?? Package;
           return (
             <li key={d.slug}>
               <Link
                 href={`/category/${d.slug}`}
-                className="group hover:bg-muted hover:text-brand flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors"
+                className="group hover:bg-muted hover:text-brand flex items-center gap-3 px-3 py-1 text-sm font-medium transition-colors"
               >
-                {/* Quiet by default — the icon and the count take the brand
-                    colour only under the pointer, so the list reads as a
-                    list and the banner beside it stays the loudest thing. */}
-                <Icon className="text-muted-foreground/70 group-hover:text-brand size-4.5 shrink-0 transition-colors" strokeWidth={1.75} />
+                <DepartmentIcon slug={d.slug} />
                 <span className="min-w-0 flex-1 truncate">{d.name}</span>
                 <span className="text-muted-foreground/60 text-[11px] tabular-nums">{d.count.toLocaleString("he-IL")}</span>
                 <ChevronLeft className="text-muted-foreground size-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />

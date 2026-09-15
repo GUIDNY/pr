@@ -2,41 +2,9 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import {
-  Tv,
-  Speaker,
-  Refrigerator,
-  WashingMachine,
-  Utensils,
-  Flame,
-  Coffee,
-  Sparkles,
-  Wind,
-  Thermometer,
-  Laptop,
-  Scissors,
-  Package,
-  type LucideIcon,
-} from "lucide-react";
 import type { NavigableDepartment } from "@/lib/queries/categories";
-import { DEPARTMENT_ICON_MAP } from "@/lib/department-icons";
+import { DepartmentIcon } from "@/components/home/department-icon";
 import { cn } from "@/lib/utils";
-
-const ICONS: Record<string, LucideIcon> = {
-  Tv,
-  Speaker,
-  Refrigerator,
-  WashingMachine,
-  Utensils,
-  Flame,
-  Coffee,
-  Sparkles,
-  Wind,
-  Thermometer,
-  Laptop,
-  Scissors,
-  Package,
-};
 
 export function MegaMenu({ departments }: { departments: NavigableDepartment[] }) {
   const [openSlug, setOpenSlug] = useState<string | null>(null);
@@ -102,10 +70,7 @@ export function MegaMenu({ departments }: { departments: NavigableDepartment[] }
               ))}
             </div>
             <div className="border-border bg-muted/50 flex flex-col justify-between rounded-lg border p-4">
-              {(() => {
-                const Icon = ICONS[DEPARTMENT_ICON_MAP[openDept.slug]] ?? Package;
-                return <Icon className="text-brand size-8" strokeWidth={1.5} />;
-              })()}
+              <DepartmentIcon slug={openDept.slug} size="lg" />
               <div>
                 <p className="mt-3 text-sm font-semibold">כל המוצרים ב{openDept.name}</p>
                 <Link
