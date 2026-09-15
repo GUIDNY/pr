@@ -137,16 +137,22 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {firstShowcases.map((d) => (
-        <ProductRail
-          key={d.slug}
-          title={d.name}
-          subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
-          products={d.products}
-          viewAllHref={`/category/${d.slug}`}
-          viewAllLabel={`לכל ${d.name}`}
-        />
-      ))}
+      {/* Where the hero's tile scrolls to when there is nothing on sale —
+          see the note on it in hero-band.tsx. scroll-mt keeps the heading
+          clear of the sticky header, which would otherwise cover the first
+          rail's title the moment the anchor lands. */}
+      <div id="products" className="scroll-mt-20 lg:scroll-mt-36">
+        {firstShowcases.map((d) => (
+          <ProductRail
+            key={d.slug}
+            title={d.name}
+            subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
+            products={d.products}
+            viewAllHref={`/category/${d.slug}`}
+            viewAllLabel={`לכל ${d.name}`}
+          />
+        ))}
+      </div>
 
       <CategoryGrid tiles={categoryTiles} />
 

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, Check, ShieldCheck, Sparkles, Tag } from "lucide-react";
+import { ArrowDown, ArrowLeft, Check, LayoutGrid, ShieldCheck, Sparkles, Tag } from "lucide-react";
 import { SearchBar } from "@/components/layout/search-bar";
 import { Button } from "@/components/ui/button";
 import { DepartmentMenu } from "@/components/home/department-menu";
@@ -200,8 +200,19 @@ export function HeroBand({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              {/* This tile is the shop's loudest promise, and when there is
+                  nothing on sale it was promising "הנחות לזמן מוגבל" and
+                  landing on /deals, which says "אין כרגע מוצרים במבצע". The
+                  brightest thing on the homepage led to an empty page.
+
+                  So it says what is true either way: with deals on, it is
+                  the deals tile; with none, it is the way into the catalogue
+                  and scrolls to the department rails further down the same
+                  page rather than navigating anywhere. It flips back by
+                  itself the moment a product is put on sale in
+                  /admin/deals — nobody has to remember to change it back. */}
               <Link
-                href="/deals"
+                href={deals.length > 0 ? "/deals" : "#products"}
                 className="group bg-brand text-brand-foreground relative flex items-center gap-4 overflow-hidden rounded-2xl px-5 py-4 transition-shadow hover:shadow-lg"
               >
                 <div
@@ -210,12 +221,16 @@ export function HeroBand({
                   style={{ background: "radial-gradient(ellipse 50% 100% at 100% 100%, oklch(1 0 0 / 0.18), transparent)" }}
                 />
                 <span className="bg-brand-foreground/15 relative flex size-12 shrink-0 items-center justify-center rounded-full">
-                  <Tag className="size-6" />
+                  {deals.length > 0 ? <Tag className="size-6" /> : <LayoutGrid className="size-6" />}
                 </span>
                 <div className="relative min-w-0 flex-1">
-                  <p className="text-lg font-black">מבצעים חמים</p>
+                  <p className="text-lg font-black">{deals.length > 0 ? "מבצעים חמים" : "לצפייה במוצרים"}</p>
                   <p className="text-brand-foreground/85 text-sm">
-                    {bestDiscount > 0 ? `עד ${bestDiscount}% הנחה על מוצרים במלאי` : "הנחות לזמן מוגבל על מוצרים במלאי"}
+                    {deals.length === 0
+                      ? "כל המוצרים שבמלאי, לפי מחלקות"
+                      : bestDiscount > 0
+                        ? `עד ${bestDiscount}% הנחה על מוצרים במלאי`
+                        : "הנחות לזמן מוגבל על מוצרים במלאי"}
                   </p>
                 </div>
                 {deals.length > 0 && (
@@ -230,7 +245,14 @@ export function HeroBand({
                     )}
                   </div>
                 )}
-                <ArrowLeft className="relative size-5 shrink-0 transition-transform group-hover:-translate-x-1" />
+                {deals.length > 0 ? (
+                  <ArrowLeft className="relative size-5 shrink-0 transition-transform group-hover:-translate-x-1" />
+                ) : (
+                  /* Down, not sideways: the sideways arrow reads as "this
+                     goes somewhere else", and this one does not leave the
+                     page. */
+                  <ArrowDown className="relative size-5 shrink-0 transition-transform group-hover:translate-y-1" />
+                )}
               </Link>
 
               <Link
