@@ -35,9 +35,11 @@ const nextConfig: NextConfig = {
          category-tree.ts for why). The address does not get to disappear
          with it: it is a public category URL, it is in the sitemap Google
          has already fetched, and the dishwasher buying guide links to it.
-         301 rather than 308 for the same reason every other category
-         redirect would be — it is a permanent move of a GET page, and 301
-         is what search engines consolidate ranking through. */
+         `permanent: true` emits 308, not 301 — Next's default, and the
+         right one: 308 is the permanent redirect that preserves the
+         method, and Google consolidates ranking through it exactly as it
+         does through a 301. Verified against the live deployment before
+         the categories were moved in the database. */
       {
         source: "/category/dishwashers",
         destination: "/category/laundry",
