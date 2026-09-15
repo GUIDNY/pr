@@ -30,6 +30,19 @@ const nextConfig: NextConfig = {
         destination: "https://buytoday.co.il/:path",
         permanent: true,
       },
+      /* מדיחי כלים stopped being a department of its own — its three
+         sub-categories moved under כביסה, ייבוש ומדיחים (see
+         category-tree.ts for why). The address does not get to disappear
+         with it: it is a public category URL, it is in the sitemap Google
+         has already fetched, and the dishwasher buying guide links to it.
+         301 rather than 308 for the same reason every other category
+         redirect would be — it is a permanent move of a GET page, and 301
+         is what search engines consolidate ranking through. */
+      {
+        source: "/category/dishwashers",
+        destination: "/category/laundry",
+        permanent: true,
+      },
     ];
   },
   turbopack: {
