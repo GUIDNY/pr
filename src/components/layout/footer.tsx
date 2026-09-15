@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Phone, MapPin, ShieldCheck, Truck, CreditCard, Share2, MessageCircle } from "lucide-react";
+import { Phone, MapPin, ShieldCheck, Truck, CreditCard, MessageCircle } from "lucide-react";
+import { InstagramIcon, FacebookIcon } from "@/components/ui/brand-icons";
 import { ConsentSettingsLink } from "@/components/layout/consent-settings-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
@@ -57,15 +58,31 @@ export async function Footer() {
           <p className="text-primary-foreground/60 mt-3 text-sm leading-relaxed">
             חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. קשת נרחבת של מוצרים במחירים תחרותיים.
           </p>
+          {/* Was one button, captioned "עמוד הפייסבוק שלנו", pointing at
+              https://www.facebook.com/ — Facebook's own front page. A visitor
+              who pressed it was told the shop had a page and then handed
+              somebody else's, which is worse than offering nothing, and
+              schema.ts left sameAs out for exactly that reason. Both
+              addresses are real now and live in BUSINESS, so the footer and
+              the structured data cannot drift apart. */}
           <div className="mt-4 flex items-center gap-3">
             <a
-              href="https://www.facebook.com/"
+              href={BUSINESS.instagram}
               target="_blank"
               rel="noreferrer noopener"
-              aria-label="עמוד הפייסבוק שלנו"
+              aria-label="Buy Today באינסטגרם"
               className="bg-primary-foreground/10 hover:bg-primary-foreground/20 flex size-9 items-center justify-center rounded-full transition-colors"
             >
-              <Share2 className="size-4" />
+              <InstagramIcon className="size-4" />
+            </a>
+            <a
+              href={BUSINESS.facebook}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="Buy Today בפייסבוק"
+              className="bg-primary-foreground/10 hover:bg-primary-foreground/20 flex size-9 items-center justify-center rounded-full transition-colors"
+            >
+              <FacebookIcon className="size-4" />
             </a>
           </div>
         </div>

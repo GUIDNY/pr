@@ -14,11 +14,6 @@ const PHONE_E164 = BUSINESS.phoneE164;
 
 /**
  * Who the shop is. One per site, on the homepage.
- *
- * No `sameAs`. The only social link in the footer points at
- * https://www.facebook.com/ — Facebook's own homepage, a placeholder nobody
- * filled in — and declaring that as the shop's profile is worse than
- * declaring nothing. It goes in the day a real page exists.
  */
 export function organizationSchema() {
   return {
@@ -55,10 +50,19 @@ export function organizationSchema() {
       addressLocality: BUSINESS.city,
       addressCountry: BUSINESS.country,
     },
-    // sameAs is still deliberately absent. The only social link in the footer
-    // points at Facebook's own homepage — a placeholder nobody filled in —
-    // and declaring that as the shop's profile is worse than declaring
-    // nothing.
+    /* The other places this same business exists. sameAs is how Google is
+       told that the Instagram account, the Facebook page and this domain are
+       one entity rather than three unrelated ones — the same consolidation
+       the name, phone and address above are doing against the Business
+       Profile and Merchant Center.
+
+       It was deliberately empty until now, because the only social link in
+       the footer pointed at Facebook's own homepage and declaring a
+       placeholder as the shop's profile is worse than declaring nothing.
+       These come from BUSINESS, which is also what the footer renders, so a
+       claim made here is a link a visitor can actually follow. Nothing goes
+       in this list that is not a profile the shop controls. */
+    sameAs: [BUSINESS.instagram, BUSINESS.facebook],
   };
 }
 

@@ -46,6 +46,19 @@ export const BUSINESS = {
   whatsappHref: "https://wa.me/972553073072",
   whatsappE164: "+972-55-307-3072",
 
+  /* The shop's own pages on the two networks it actually posts to.
+     They are listed here rather than inline in the footer because the footer
+     is not their only reader: schema.ts declares them as the Organization's
+     sameAs, which is how Google ties this domain, the Business Profile and
+     those two profiles together into one entity instead of three. A link
+     that appears in one place and not the other breaks exactly that match.
+
+     The Facebook address is the canonical one the numeric profile.php?id=
+     form redirects to. Both work; this one avoids the redirect and says the
+     page's name out loud, which is what a shared link shows. */
+  instagram: "https://www.instagram.com/buytoday.co.il/",
+  facebook: "https://www.facebook.com/people/BuyToday/61593689074664/",
+
   street: "דוד אלעזר 27",
   city: "חדרה",
   /** ISO 3166-1 alpha-2, which is the form schema.org expects. */
