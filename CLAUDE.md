@@ -161,8 +161,12 @@ hosts in `blocked-image-hosts.ts` outright. `npm run check:images` guards both r
   takes the build down with `Can't reach database server at 127.0.0.1:5432`.
 - **`prisma db push` hangs against the pooler** (PgBouncer, port 6543). For schema
   changes use direct DDL via `db.$executeRawUnsafe`, then `prisma generate`.
-- **`npm install` fails**: `xlsx` is pinned to `cdn.sheetjs.com`, which the sandbox
-  egress policy blocks.
+- **`npm install` depends on the container's egress policy.** `xlsx` is pinned to
+  a tarball on `cdn.sheetjs.com` rather than the npm registry, so any install has
+  to reach that host. It has been blocked; on 2026-09-15 it answered 200 and
+  `npm install @icons-pack/react-simple-icons` completed normally. Try it before
+  assuming it is unavailable — and if it is blocked, that is the reason, so the
+  workaround is to vendor the one thing you need rather than to fight the install.
 - **Manufacturer sites are unreachable** from every cloud container (`samsung.com`,
   `lg.com` → `connect_rejected`). Product images and manufacturer specs can only be
   fetched by a session running on a real machine.

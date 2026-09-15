@@ -42,6 +42,7 @@
   "dependencies": {
     "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capgo/capacitor-social-login": "^8.5.7",
+    "@icons-pack/react-simple-icons": "^13.15.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@supabase/supabase-js": "^2.112.3",

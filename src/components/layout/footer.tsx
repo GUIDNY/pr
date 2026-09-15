@@ -1,7 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Phone, MapPin, ShieldCheck, Truck, CreditCard, MessageCircle } from "lucide-react";
-import { InstagramIcon, FacebookIcon } from "@/components/ui/brand-icons";
+/* The official marks, from Simple Icons. lucide-react dropped every brand
+   glyph before v1.31, so these cannot come from the same import as the icons
+   beside them.
+
+   Imported per icon rather than from the package root: that barrel re-exports
+   around three thousand components, and while the package sets
+   sideEffects:false so a production build shakes the rest out, the subpath
+   costs nothing and keeps dev compiles from walking all of them. */
+import SiInstagram from "@icons-pack/react-simple-icons/icons/SiInstagram";
+import SiFacebook from "@icons-pack/react-simple-icons/icons/SiFacebook";
 import { ConsentSettingsLink } from "@/components/layout/consent-settings-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
@@ -73,7 +82,7 @@ export async function Footer() {
               aria-label="Buy Today באינסטגרם"
               className="bg-primary-foreground/10 hover:bg-primary-foreground/20 flex size-9 items-center justify-center rounded-full transition-colors"
             >
-              <InstagramIcon className="size-4" />
+              <SiInstagram aria-hidden className="size-4" />
             </a>
             <a
               href={BUSINESS.facebook}
@@ -82,7 +91,7 @@ export async function Footer() {
               aria-label="Buy Today בפייסבוק"
               className="bg-primary-foreground/10 hover:bg-primary-foreground/20 flex size-9 items-center justify-center rounded-full transition-colors"
             >
-              <FacebookIcon className="size-4" />
+              <SiFacebook aria-hidden className="size-4" />
             </a>
           </div>
         </div>
