@@ -424,30 +424,106 @@ export async function getProductsByBrandSlug(
   return { products: rows.map(mapProductToCard), total, brand };
 }
 
+/**
+ * The search behind the header box and /search.
+ *
+ * It used to OR every word against every field and take the first 8 rows
+ * with no ORDER BY at all. Both halves of that are wrong, and together they
+ * produced the failure that was actually reported: typing "מכונת כביסה"
+ * returned DeLonghi coffee machines.
+ *
+ * The OR is why they qualified — "מכונת קפה" contains "מכונת", so a coffee
+ * machine matches a search for a washing machine on one word out of two. On
+ * the live catalogue that turns 71 real matches into 121, of which 10 are
+ * coffee machines.
+ *
+ * The missing ORDER BY is why they came first. Without one the database is
+ * free to return any 8 of the 121 in any order, so the same query answers
+ * differently depending on the plan — which is why this reads as
+ * intermittent rather than broken, and why running the same predicate by
+ * hand returned washing machines while the site returned coffee.
+ *
+ * Both are fixed by ranking rather than by filtering harder. A strict AND
+ * across words would also keep the coffee machines out, and would answer
+ * "מכונת כביסה 8 קילו" with nothing at all, because "קילו" appears in no
+ * title — an empty box for a query that is *more* specific, which is the
+ * worst way to fail. Scoring keeps every candidate and lets the full
+ * matches take the slots: with 71 products matching both words, a
+ * one-word match never reaches the first page.
+ *
+ * score = 10 × (words matched anywhere) + (words matched in the title)
+ *
+ * The first term makes "matched more of what you typed" dominate; the
+ * second breaks ties toward the product whose own name says it, so a
+ * washing machine beats an accessory that merely sits in the washing
+ * machine category.
+ *
+ * SQL because the ranking is the point and Prisma cannot express "how many
+ * of these words did this row match" — the same reason searchForChat is
+ * written this way. Every term is a bound parameter; nothing is
+ * concatenated into the statement. The ids come back ordered and the rows
+ * are then loaded through the usual include so the cards are built by
+ * mapProductToCard exactly as before.
+ */
 export async function searchProducts(query: string, take = 8) {
   if (!query.trim()) return [];
   const { text, maxPrice } = parseShoppingQuery(query);
-  const words = splitSearchWords(text);
-  const rows = await db.product.findMany({
-    where: {
-      ...PUBLIC_PRODUCT_WHERE,
-      ...(maxPrice !== null ? { price: { lte: maxPrice } } : {}),
-      ...(words.length > 0
-        ? {
-            OR: words.flatMap((w) => [
-              { title: { contains: w, mode: "insensitive" as const } },
-              { sku: { contains: w, mode: "insensitive" as const } },
-              { model: { contains: w, mode: "insensitive" as const } },
-              { brand: { name: { contains: w, mode: "insensitive" as const } } },
-              { category: { name: { contains: w, mode: "insensitive" as const } } },
-            ]),
-          }
-        : {}),
-    },
-    include: cardInclude,
-    take,
+  const words = splitSearchWords(text).slice(0, 6);
+  if (words.length === 0) return [];
+
+  const like = words.map((w) => `%${w}%`);
+  const anyField = like
+    .map(
+      (_, i) =>
+        `(CASE WHEN p.title ILIKE $${i + 1} OR p.sku ILIKE $${i + 1} OR COALESCE(p.model,'') ILIKE $${i + 1}` +
+        ` OR COALESCE(b.name,'') ILIKE $${i + 1} OR c.name ILIKE $${i + 1} THEN 1 ELSE 0 END)`,
+    )
+    .join(" + ");
+  const titleOnly = like
+    .map((_, i) => `(CASE WHEN p.title ILIKE $${i + 1} THEN 1 ELSE 0 END)`)
+    .join(" + ");
+
+  const params: unknown[] = [...like];
+  let priceClause = "";
+  if (maxPrice !== null) {
+    params.push(maxPrice);
+    priceClause = `AND p.price <= $${params.length}`;
+  }
+  params.push(take);
+  const limitParam = params.length;
+
+  const rows = await db.$queryRawUnsafe<{ id: string }[]>(
+    `
+    WITH scored AS (
+      SELECT p.id,
+             (${anyField}) * 10 + (${titleOnly}) AS score,
+             p."isBestSeller" AS best,
+             p.price AS price
+      FROM "Product" p
+      JOIN "Category" c ON c.id = p."categoryId"
+      LEFT JOIN "Brand" b ON b.id = p."brandId"
+      WHERE p."isPublished" AND p."stockQty" > 0
+        AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
+        ${priceClause}
+    )
+    SELECT id FROM scored
+    WHERE score > 0
+    ORDER BY score DESC, best DESC, price ASC, id ASC
+    LIMIT $${limitParam}
+    `,
+    ...params,
+  );
+
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => r.id);
+  const products = await db.product.findMany({ where: { id: { in: ids } }, include: cardInclude });
+  // findMany does not preserve the order of an `in` list, and the order is
+  // the whole result of the query above.
+  const byId = new Map(products.map((p) => [p.id, p]));
+  return ids.flatMap((id) => {
+    const row = byId.get(id);
+    return row ? [mapProductToCard(row)] : [];
   });
-  return rows.map(mapProductToCard);
 }
 
 /**
