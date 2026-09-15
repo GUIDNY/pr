@@ -63,9 +63,11 @@ export async function Header() {
 
       <header className="bg-background sticky top-0 z-30 border-b">
         {/* Phone: one row, 56px, and that is the whole sticky header —
-            menu, the mark, the search field, the cart. It was three rows
-            and 200px, a quarter of the screen pinned in place. Account and
-            favourites live in the menu drawer on a phone. */}
+            menu, the mark, the search field — and the cart only on the
+            pages without the bottom tab bar, which carries it elsewhere.
+            It was three rows and 200px, a quarter of the screen pinned in
+            place. Account and favourites live in the menu drawer on a
+            phone. */}
         <div className="flex items-center gap-2 px-3 py-2 sm:hidden">
           <MobileNav departments={departments} />
           <Link href="/" aria-label="Buy Today — לדף הבית" className="shrink-0">
@@ -74,7 +76,8 @@ export async function Header() {
           <div className="min-w-0 flex-1">
             <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-10 border-2" />
           </div>
-          <CartTrigger />
+          {/* Only where the bottom tab bar is not already the cart. */}
+          <CartTrigger unlessTabBar />
         </div>
 
         {/* Desktop: the mark with its name, a wide search field, the icons. */}
