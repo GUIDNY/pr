@@ -440,21 +440,42 @@ export async function getColorVariants(product: {
     orderBy: { price: "asc" },
   });
 
+  /* A photograph is only shown for a colour that has its own.
+    
+     Three of the eighteen groups share one picture across both finishes —
+     the LaCasa microwave, the DAVO mixer, the Hyundai hob — because the
+     sheet gave the pair a single image and nobody has photographed the
+     second colour yet. That is already wrong on those product pages, and
+     it was wrong before this picker existed. What the picker must not do
+     is launder it: a photo of a black microwave under a swatch labelled
+     לבן is not a display bug, it is the shop stating in a picture that
+     this is what will arrive.
+    
+     So a duplicate picture is dropped rather than repeated, and the colour
+     is offered by name alone. The shopper still learns the finish exists
+     and can still reach it; they are just not shown a photograph of a
+     different one. The fix for the underlying gap is a photograph, and it
+     belongs to whoever takes them. */
+  const currentImage = product.images[0]?.url ?? null;
+
   const rows: ColorVariant[] = [
     {
       slug: product.slug,
       color: colorInTitle(product.title) ?? "נוכחי",
       price: product.price,
-      imageUrl: product.images[0]?.url ?? null,
+      imageUrl: currentImage,
       isCurrent: true,
     },
-    ...siblings.map((s) => ({
-      slug: s.slug,
-      color: colorInTitle(s.title) ?? s.title,
-      price: s.price,
-      imageUrl: s.images[0]?.url ?? null,
-      isCurrent: false,
-    })),
+    ...siblings.map((s) => {
+      const url = s.images[0]?.url ?? null;
+      return {
+        slug: s.slug,
+        color: colorInTitle(s.title) ?? s.title,
+        price: s.price,
+        imageUrl: url && url !== currentImage ? url : null,
+        isCurrent: false,
+      };
+    }),
   ];
 
   /* One swatch per colour. A group can legitimately hold two live rows of

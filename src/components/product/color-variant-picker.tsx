@@ -34,25 +34,27 @@ export function ColorVariantPicker({ variants }: { variants: ColorVariant[] }) {
       <ul className="flex flex-wrap gap-2">
         {variants.map((v) => {
           const priceDiffers = current !== undefined && v.price !== current.price;
-          const tile = (
+          /* No photograph of this finish in particular — see
+             getColorVariants, which drops a picture that is simply the
+             current product's repeated. The colour is offered by name, in
+             a chip sized to sit level with the photo tiles beside it. An
+             empty grey square would read as a picture that failed to load
+             and invite a reload; a name reads as what it is. */
+          const tile = v.imageUrl ? (
             <>
               <span className="relative block size-12 overflow-hidden rounded-lg bg-white">
-                {v.imageUrl ? (
-                  <Image
-                    src={v.imageUrl}
-                    // The colour name below the tile already says what this
-                    // is, and these URLs are largely hotlinks that can stop
-                    // answering — alt text painted across a 48px swatch is
-                    // worse than an empty one.
-                    alt=""
-                    fill
-                    className="object-contain p-1"
-                    sizes="48px"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <span className="bg-muted block size-full" />
-                )}
+                <Image
+                  src={v.imageUrl}
+                  // The colour name below the tile already says what this
+                  // is, and these URLs are largely hotlinks that can stop
+                  // answering — alt text painted across a 48px swatch is
+                  // worse than an empty one.
+                  alt=""
+                  fill
+                  className="object-contain p-1"
+                  sizes="48px"
+                  referrerPolicy="no-referrer"
+                />
               </span>
               <span className="block max-w-16 truncate text-center text-[11px] leading-tight">{v.color}</span>
               {priceDiffers && (
@@ -61,6 +63,13 @@ export function ColorVariantPicker({ variants }: { variants: ColorVariant[] }) {
                 </span>
               )}
             </>
+          ) : (
+            <span className="flex h-12 min-w-16 flex-col items-center justify-center px-2">
+              <span className="max-w-20 truncate text-center text-xs font-medium leading-tight">{v.color}</span>
+              {priceDiffers && (
+                <span className="text-muted-foreground text-[11px] leading-tight">{formatPrice(v.price)}</span>
+              )}
+            </span>
           );
 
           return (

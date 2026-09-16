@@ -52,11 +52,20 @@ type Row = {
   brandId: string;
   categoryId: string;
   variantGroupId: string | null;
+  images: { url: string }[];
 };
 
 async function main() {
   const products: Row[] = await db.product.findMany({
-    select: { id: true, sku: true, title: true, brandId: true, categoryId: true, variantGroupId: true },
+    select: {
+      id: true,
+      sku: true,
+      title: true,
+      brandId: true,
+      categoryId: true,
+      variantGroupId: true,
+      images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } },
+    },
   });
 
   const buckets = new Map<string, { brandId: string; categoryId: string; base: string; rows: Row[] }>();
@@ -98,6 +107,36 @@ async function main() {
   for (const d of duplicates) {
     console.log(`${d.base.slice(0, 64)}`);
     console.log(`   ${d.rows.map((r) => r.sku).join("  ")}`);
+  }
+
+  /* Colours that share one photograph.
+    
+     A real group whose members were given the same picture — the sheet
+     supplied one image for the pair and nobody has photographed the second
+     finish. The grouping is still right and stays; what is wrong is that
+     the white product's page shows the black one, which was true before
+     any of this existed. The picker refuses to repeat the picture under a
+     second colour name (see getColorVariants), so the shop never states in
+     a photograph that a finish looks like something it does not — but the
+     product page still does, and only a photograph fixes that.
+    
+     Printed here because it is the list of photographs worth taking, in
+     the order they would pay off: these are live products a shopper can
+     reach today. */
+  const sharedPhoto = groups
+    .map((g) => {
+      const withImages = g.rows.filter((r) => r.images[0]?.url);
+      const distinct = new Set(withImages.map((r) => r.images[0].url));
+      return { g, withImages, distinct: distinct.size };
+    })
+    .filter((x) => x.withImages.length > 1 && x.distinct < x.withImages.length);
+
+  if (sharedPhoto.length > 0) {
+    console.log(`\n=== ${sharedPhoto.length} groups where colours share one photograph — needs a photo, not a fix here ===\n`);
+    for (const { g, withImages } of sharedPhoto) {
+      console.log(`${g.base.slice(0, 64)}`);
+      for (const r of withImages) console.log(`   ${r.sku.padEnd(9)} ${colorInTitle(r.title) ?? "—"}`);
+    }
   }
 
   /* A product that was grouped and no longer qualifies — its title was
