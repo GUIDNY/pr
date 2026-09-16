@@ -57,20 +57,32 @@ export async function GET(request: Request) {
   let migrated = 0;
   let failed = 0;
   let configured = true;
+  /* Same reason the screen carries one: a failed image is unchanged in the
+     database, so without feeding the attempted ids back the next batch is
+     the same images and the run makes no progress. */
+  const tried: string[] = [];
 
   while (Date.now() - startedAt < TIME_BUDGET_MS) {
-    const result = await migrateImageBatch({ size: BATCH, excludeHosts: HOSTS_THAT_REFUSE_US });
+    const result = await migrateImageBatch({
+      size: BATCH,
+      excludeHosts: HOSTS_THAT_REFUSE_US,
+      skipIds: tried,
+    });
     if (!result.configured) {
       configured = false;
       break;
     }
     migrated += result.migrated;
     failed += result.failed.length;
-    // Nothing attempted means nothing is left; nothing migrated out of a
-    // full batch means what is left cannot be migrated. Either way, looping
-    // again only burns the budget.
-    if (result.attempted === 0 || result.migrated === 0) break;
+    tried.push(...result.attemptedIds);
+    for (const f of result.failed) {
+      if ("reason" in f) console.log(`[image-migration cron] FAILED ${f.reason} :: ${f.from}`);
+    }
+    // Nothing matched: the queue is empty. Anything else means there is
+    // more to try, whether or not this batch managed any of it.
+    if (result.attempted === 0) break;
   }
+  console.log(`[image-migration cron] migrated=${migrated} failed=${failed} tried=${tried.length}`);
 
   return NextResponse.json({
     configured,

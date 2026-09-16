@@ -24,18 +24,26 @@ export function ImageMigrationPanel({ groups }: { groups: Group[] }) {
   const [done, setDone] = useState(0);
   const [failures, setFailures] = useState<{ url: string; reason: string }[]>([]);
   const [remaining, setRemaining] = useState<number | null>(null);
-  const [stopped, setStopped] = useState(false);
+  const [touched, setTouched] = useState(0);
 
   async function run(group: Group) {
     setRunning(group.key);
     setDone(0);
     setFailures([]);
-    setStopped(false);
+    setTouched(0);
     let migrated = 0;
-    // A batch that migrates nothing means what is left cannot be migrated —
-    // every remaining candidate failed. Looping on it would spin forever.
+    /* Ids already tried, passed back so the queue advances.
+       A failed image is unchanged in the database, so without this the next
+       batch is the same images again — which is why the loop used to stop
+       the moment a batch migrated nothing. That rule turned four unlucky
+       images at the front of the queue into "0 migrated" for the whole
+       catalogue: the first four by id are a price comparison site, a
+       manufacturer, a competitor and an importer, and the two that refuse
+       robots were standing in front of three thousand that would have
+       worked. */
+    const tried: string[] = [];
     for (;;) {
-      const result = await migrateImagesBatchAction(group.hosts);
+      const result = await migrateImagesBatchAction(group.hosts, tried);
       if (!result.configured) {
         toast.error("אחסון התמונות לא מוגדר — חסר SUPABASE_URL או SUPABASE_SERVICE_ROLE_KEY");
         setRunning(null);
@@ -46,19 +54,18 @@ export function ImageMigrationPanel({ groups }: { groups: Group[] }) {
         return;
       }
       migrated += result.migrated;
+      tried.push(...result.attemptedIds);
       setDone(migrated);
       setRemaining(result.remaining);
+      setTouched(tried.length);
       if (result.failed.length > 0) {
         setFailures((prev) => [...prev, ...(result.failed as { url: string; reason: string }[])].slice(0, 100));
       }
+      // The only end condition left: nothing matched the query. Since every
+      // attempt is skipped next time, that now genuinely means the queue is
+      // empty rather than that the front of it is stuck.
       if (result.attempted === 0) {
-        // Nothing matched the query at all — which is either "finished" or
-        // "the filter is wrong", and those look identical from here.
         if (migrated === 0) toast.info("לא נמצאו תמונות להעברה");
-        break;
-      }
-      if (result.migrated === 0) {
-        setStopped(true);
         break;
       }
     }
@@ -92,7 +99,7 @@ export function ImageMigrationPanel({ groups }: { groups: Group[] }) {
             >
               {running === group.key ? (
                 <>
-                  <Loader2 className="size-4 animate-spin" /> מעביר… {done}
+                  <Loader2 className="size-4 animate-spin" /> {done} מתוך {touched}
                 </>
               ) : (
                 "התחלה"
@@ -114,11 +121,9 @@ export function ImageMigrationPanel({ groups }: { groups: Group[] }) {
           <div className="text-sm">
             <p className="font-semibold">{done} תמונות הועברו</p>
             {remaining !== null && <p className="text-muted-foreground mt-0.5">נותרו {remaining} תמונות חיצוניות</p>}
-            {stopped && (
-              <p className="text-muted-foreground mt-0.5">
-                ההרצה נעצרה כי אף תמונה במנה האחרונה לא עברה — מה שנשאר נכשל, ראו הרשימה למטה.
-              </p>
-            )}
+            <p className="text-muted-foreground mt-0.5">
+              נבדקו {touched} תמונות.
+            </p>
           </div>
         </div>
       )}

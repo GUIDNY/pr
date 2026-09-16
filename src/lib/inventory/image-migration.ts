@@ -103,6 +103,18 @@ export async function findImagesToMigrate(opts: {
       competitors and must never be copied. These are hosts that will not
       serve us, which is a fact about them rather than a rule of ours. */
   excludeHosts?: string[];
+  /** Images already tried and failed in this run.
+      Without this the whole thing deadlocks, and it did: candidates come
+      back ordered by id, a failure changes nothing in the database, so the
+      next batch is the same four images and the run makes no progress
+      forever. The client's only defence was to stop as soon as a batch
+      migrated nothing — which turns four unlucky images at the front of the
+      queue into "0 migrated" for the entire catalogue. The first four by id
+      are img.zap.co.il, miele.co.il, bettershop and c100; a price
+      comparison site and a competitor are exactly the hosts that refuse a
+      robot, and they were standing in front of three thousand images that
+      would have worked. */
+  skipIds?: string[];
   take: number;
 }): Promise<MigrationCandidate[]> {
   /* Both filters belong in the query, not in a loop over the first page.
@@ -120,7 +132,13 @@ export async function findImagesToMigrate(opts: {
      further down the table. */
   const rows = await db.productImage.findMany({
     where: {
-      NOT: [{ url: { contains: "supabase.co" } }, { url: { contains: "buytoday.co.il" } }],
+      // Spelled out as two negated conditions rather than NOT: [a, b],
+      // whose meaning depends on knowing how Prisma combines a list there.
+      AND: [
+        { url: { not: { contains: "supabase.co" } } },
+        { url: { not: { contains: "buytoday.co.il" } } },
+      ],
+      ...(opts.skipIds?.length ? { id: { notIn: opts.skipIds } } : {}),
       ...(opts.hosts?.length
         ? { OR: opts.hosts.map((h) => ({ url: { contains: h, mode: "insensitive" as const } })) }
         : {}),
@@ -304,6 +322,11 @@ export type BatchResult = {
   attempted: number;
   migrated: number;
   failed: MigrationOutcome[];
+  /** Every id this batch touched, whether it worked or not. The caller
+      feeds these back as skipIds so the queue moves forward: a failure
+      leaves the row unchanged, so without this the next batch is the same
+      images again. */
+  attemptedIds: string[];
   remaining: number;
   configured: boolean;
 };
@@ -321,15 +344,18 @@ export type BatchResult = {
 export async function migrateImageBatch(opts: {
   hosts?: string[];
   excludeHosts?: string[];
+  /** Ids already tried and failed in this run — see findImagesToMigrate. */
+  skipIds?: string[];
   size: number;
 }): Promise<BatchResult> {
   if (!isProductImageStorageConfigured()) {
-    return { attempted: 0, migrated: 0, failed: [], remaining: 0, configured: false };
+    return { attempted: 0, migrated: 0, failed: [], attemptedIds: [], remaining: 0, configured: false };
   }
 
   const batch = await findImagesToMigrate({
     hosts: opts.hosts,
     excludeHosts: opts.excludeHosts,
+    skipIds: opts.skipIds,
     take: opts.size,
   });
   const failed: MigrationOutcome[] = [];
@@ -345,6 +371,7 @@ export async function migrateImageBatch(opts: {
     attempted: batch.length,
     migrated,
     failed,
+    attemptedIds: batch.map((b) => b.id),
     remaining: await countImagesToMigrate(opts.hosts, opts.excludeHosts),
     configured: true,
   };

@@ -31,7 +31,7 @@ import {
     is the only progress signal there is. */
 const BATCH_SIZE = 4;
 
-export async function migrateImagesBatchAction(hosts?: string[]) {
+export async function migrateImagesBatchAction(hosts?: string[], skipIds?: string[]) {
   const session = await requireSiteAdmin();
   /* The catch-all run skips the host that refuses us; a run that names it
      explicitly still tries, because that is how anyone finds out the block
@@ -39,6 +39,7 @@ export async function migrateImagesBatchAction(hosts?: string[]) {
   const result = await migrateImageBatch({
     hosts,
     excludeHosts: hosts?.length ? undefined : HOSTS_THAT_REFUSE_US,
+    skipIds,
     size: BATCH_SIZE,
   });
 
@@ -74,6 +75,7 @@ export async function migrateImagesBatchAction(hosts?: string[]) {
 
   return {
     attempted: result.attempted,
+    attemptedIds: result.attemptedIds,
     migrated: result.migrated,
     remaining: result.remaining,
     configured: result.configured,
