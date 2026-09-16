@@ -158,6 +158,18 @@ const HOST_MIN_GAP_MS = 1_500;
 const RETRY_AFTER_MS = 8_000;
 const lastHitAt = new Map<string, number>();
 
+/* A host that refuses us twice is not going to relent inside this run.
+   prec.co.il sits behind Cloudflare, which answers a datacenter address
+   with 403 and keeps answering 403 however long the wait — the slow retry
+   above is the right response to a 429 and useless against a bot rule.
+   Without this, every batch spends four requests and twenty seconds
+   rediscovering the same refusal, and the screen fills with identical
+   rows that say nothing new.
+
+   Per invocation, which is all a serverless function has and all this
+   needs: the next run gets to find out whether the block is still there. */
+const refusedThisRun = new Set<string>();
+
 function hostOf(url: string): string {
   return url.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
 }
@@ -194,6 +206,9 @@ export async function migrateOneImage(image: MigrationCandidate): Promise<Migrat
   }
 
   const host = hostOf(image.url);
+  if (refusedThisRun.has(host)) {
+    return { id: image.id, ok: false, from: image.url, reason: `${host} חוסם את הבקשות שלנו` };
+  }
 
   let input: Buffer;
   try {
@@ -212,6 +227,18 @@ export async function migrateOneImage(image: MigrationCandidate): Promise<Migrat
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         headers: fetchHeaders(image.url),
       });
+    }
+    if (res.status === 403) {
+      // Said plainly, because "HTTP 403" on 356 rows reads as our bug and
+      // this one is not: the host is refusing the request, and the fix is
+      // on its side rather than in another retry here.
+      refusedThisRun.add(host);
+      return {
+        id: image.id,
+        ok: false,
+        from: image.url,
+        reason: `${host} חוסם את הבקשות שלנו (403) — נדרש אישור בצד שלהם`,
+      };
     }
     if (!res.ok) return { id: image.id, ok: false, from: image.url, reason: `HTTP ${res.status}` };
     const bytes = await res.arrayBuffer();
