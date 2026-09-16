@@ -15,7 +15,7 @@ export default async function CompetitorImagesPage() {
   const rows = await getCompetitorImageProducts();
   return (
     <div>
-      <InventoryTabs owner />
+      <InventoryTabs />
       <CompetitorImageList rows={rows} />
     </div>
   );

@@ -18,7 +18,7 @@ export default async function ImageMigrationPage() {
 
   return (
     <div>
-      <InventoryTabs owner />
+      <InventoryTabs />
       <ImageMigrationPanel
         groups={[
           {
