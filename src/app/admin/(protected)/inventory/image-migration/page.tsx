@@ -7,6 +7,11 @@ import { ImageMigrationPanel } from "@/components/admin/image-migration-panel";
 
 export const metadata = { title: "העברת תמונות | Buy Today Admin" };
 
+/* The batch action is invoked from this segment, so this is what caps it.
+   Sixty is the Hobby ceiling and comfortably inside Pro's; the default
+   would kill a batch that hits one slow host plus a retry. */
+export const maxDuration = 60;
+
 export default async function ImageMigrationPage() {
   const session = await getSession();
   if (!session || !isSiteAdmin(session.role)) redirect("/admin/inventory");

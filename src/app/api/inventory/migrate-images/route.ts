@@ -35,7 +35,7 @@ export const dynamic = "force-dynamic";
    reports nothing, and a run whose outcome is invisible is one nobody
    notices has been failing. */
 const TIME_BUDGET_MS = 45_000;
-const BATCH = 8;
+const BATCH = 4;
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;

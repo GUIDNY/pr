@@ -19,10 +19,13 @@ import { migrateImageBatch, countImagesToMigrate } from "@/lib/inventory/image-m
  * key already is, and the browser only drives the loop.
  */
 
-/** Small enough to finish inside the platform's default request cap, with
-    room for the slowest host in the set. Twenty images at a second or two
-    each is already close. */
-const BATCH_SIZE = 8;
+/** Four, not eight. Each image now carries a deliberate 1.5-second pause
+    before its request — added after prec.co.il refused a burst of eight —
+    and a 403 or 429 buys another eight seconds on top. Eight images could
+    no longer finish inside the request; four with a retry apiece still
+    can. Smaller batches also mean the number on screen moves sooner, which
+    is the only progress signal there is. */
+const BATCH_SIZE = 4;
 
 export async function migrateImagesBatchAction(hosts?: string[]) {
   const session = await requireSiteAdmin();

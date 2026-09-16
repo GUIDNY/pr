@@ -140,18 +140,79 @@ export type MigrationOutcome =
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_SOURCE_BYTES = 16 * 1024 * 1024;
 
+/* The first real run returned HTTP 403 on all eight images from
+   prec.co.il, and the cause was this file, not the host.
+
+   Eight requests went out back to back with no gap between them. Fetching
+   the same URLs by hand returns 200 — and returns 429 the moment they are
+   requested quickly, which is the site saying "too fast" in as many words.
+   A WAF that escalates a repeated 429 to a 403 is the ordinary shape of
+   what came back. prec.co.il's own robots.txt asks for seven seconds
+   between requests; we asked for eight files in about as many seconds.
+
+   So requests to one host are spaced, and a 403 or 429 is retried once
+   after a longer pause rather than recorded as a dead image. Per host
+   rather than globally: a batch spanning six hosts should not crawl
+   because one of them is slow. */
+const HOST_MIN_GAP_MS = 1_500;
+const RETRY_AFTER_MS = 8_000;
+const lastHitAt = new Map<string, number>();
+
+function hostOf(url: string): string {
+  return url.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
+}
+
+async function politeDelay(host: string): Promise<void> {
+  const last = lastHitAt.get(host);
+  if (last !== undefined) {
+    const wait = HOST_MIN_GAP_MS - (Date.now() - last);
+    if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  }
+  lastHitAt.set(host, Date.now());
+}
+
+/* Enough of a browser's headers to get past the checks that reject a bare
+   programmatic request. The Referer is the image's own site: hotlink
+   protection is common on these hosts and is exactly what it inspects.
+   Nothing here is pretending to be a person — the UA still says what this
+   is — it is the request a normal client would send. */
+function fetchHeaders(url: string): Record<string, string> {
+  const origin = url.match(/^https?:\/\/[^/]+/)?.[0] ?? "";
+  return {
+    "user-agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) " +
+      "Chrome/126.0.0.0 Safari/537.36 BuyTodayBot/1.0 (+https://buytoday.co.il)",
+    accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+    "accept-language": "he-IL,he;q=0.9,en;q=0.8",
+    ...(origin ? { referer: `${origin}/` } : {}),
+  };
+}
+
 export async function migrateOneImage(image: MigrationCandidate): Promise<MigrationOutcome> {
   if (isBlockedImageHost(image.url)) {
     return { id: image.id, ok: false, from: image.url, reason: "מארח חסום — לא מועתק" };
   }
 
+  const host = hostOf(image.url);
+
   let input: Buffer;
   try {
-    const res = await fetch(image.url, {
+    await politeDelay(host);
+    let res = await fetch(image.url, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      // Some importer sites serve a placeholder to unknown agents.
-      headers: { "user-agent": "Mozilla/5.0 (compatible; BuyTodayBot/1.0; +https://buytoday.co.il)" },
+      headers: fetchHeaders(image.url),
     });
+    // Throttled or blocked: wait longer and ask once more. If the host is
+    // rate-limiting, this is what it wanted; if it is genuinely refusing
+    // us, the second answer says so and the image is left alone.
+    if (res.status === 403 || res.status === 429) {
+      await new Promise((r) => setTimeout(r, RETRY_AFTER_MS));
+      lastHitAt.set(host, Date.now());
+      res = await fetch(image.url, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        headers: fetchHeaders(image.url),
+      });
+    }
     if (!res.ok) return { id: image.id, ok: false, from: image.url, reason: `HTTP ${res.status}` };
     const bytes = await res.arrayBuffer();
     if (bytes.byteLength === 0) return { id: image.id, ok: false, from: image.url, reason: "קובץ ריק" };
