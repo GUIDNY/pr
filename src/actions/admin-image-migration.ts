@@ -3,7 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { requireSiteAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
-import { migrateImageBatch, countImagesToMigrate } from "@/lib/inventory/image-migration";
+import {
+  migrateImageBatch,
+  countImagesToMigrate,
+  HOSTS_THAT_REFUSE_US,
+} from "@/lib/inventory/image-migration";
 
 /**
  * Moving the catalogue's photographs onto our own storage, a batch at a time.
@@ -29,7 +33,14 @@ const BATCH_SIZE = 4;
 
 export async function migrateImagesBatchAction(hosts?: string[]) {
   const session = await requireSiteAdmin();
-  const result = await migrateImageBatch({ hosts, size: BATCH_SIZE });
+  /* The catch-all run skips the host that refuses us; a run that names it
+     explicitly still tries, because that is how anyone finds out the block
+     has been lifted. */
+  const result = await migrateImageBatch({
+    hosts,
+    excludeHosts: hosts?.length ? undefined : HOSTS_THAT_REFUSE_US,
+    size: BATCH_SIZE,
+  });
 
   if (result.migrated > 0) {
     await logAudit({
@@ -56,5 +67,5 @@ export async function migrateImagesBatchAction(hosts?: string[]) {
 
 export async function countImagesToMigrateAction(hosts?: string[]) {
   await requireSiteAdmin();
-  return countImagesToMigrate(hosts);
+  return countImagesToMigrate(hosts, hosts?.length ? undefined : HOSTS_THAT_REFUSE_US);
 }

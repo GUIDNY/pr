@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { isSiteAdmin } from "@/lib/permissions";
-import { countImagesToMigrate } from "@/lib/inventory/image-migration";
+import { countImagesToMigrate, HOSTS_THAT_REFUSE_US } from "@/lib/inventory/image-migration";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { ImageMigrationPanel } from "@/components/admin/image-migration-panel";
 
@@ -18,7 +18,7 @@ export default async function ImageMigrationPage() {
 
   const [prec, everything] = await Promise.all([
     countImagesToMigrate(["prec.co.il"]),
-    countImagesToMigrate(),
+    countImagesToMigrate(undefined, HOSTS_THAT_REFUSE_US),
   ]);
 
   return (
@@ -40,7 +40,7 @@ export default async function ImageMigrationPage() {
           {
             key: "all",
             label: "כל השאר",
-            note: `${everything} תמונות חיצוניות בסך הכל, מ-176 מארחים. מארחים חסומים לא נכללים.`,
+            note: `${everything} תמונות חיצוניות. מארחים חסומים לא נכללים, וגם לא prec.co.il — הוא מסרב לבקשות שלנו.`,
           },
         ]}
       />

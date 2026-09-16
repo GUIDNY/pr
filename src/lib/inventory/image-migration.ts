@@ -66,6 +66,27 @@ export function isSelfHosted(url: string): boolean {
   return /supabase\.co|buytoday\.co\.il/i.test(url);
 }
 
+/**
+ * Hosts that answer our requests with a refusal.
+ *
+ * prec.co.il — the shop's own former site — sits behind Cloudflare, which
+ * returns 403 to a datacenter address and keeps returning it however long
+ * the wait. Nothing here can fix that; the fix is a rule on that account.
+ *
+ * NOT the blocked list, and the difference matters. A blocked host is one
+ * whose images we must never copy, however well it serves them. This is a
+ * host that will not serve them at all — an obstacle, not a rule — so it is
+ * listed separately and removing it needs no argument, just for the block
+ * on that side to be lifted.
+ *
+ * Excluded from the "everything" run so a known refusal does not spend four
+ * requests and twenty seconds of every batch, and does not fill the failure
+ * list with 356 rows that all say the same thing. The dedicated
+ * prec.co.il button still tries, which is how you find out it has been
+ * lifted.
+ */
+export const HOSTS_THAT_REFUSE_US = ["prec.co.il"];
+
 export type MigrationCandidate = { id: string; url: string; productId: string };
 
 /**
@@ -76,7 +97,14 @@ export type MigrationCandidate = { id: string; url: string; productId: string };
  * not already ours — minus the blocked hosts, which are excluded here
  * rather than at the call site so no caller can opt out of that rule.
  */
-export async function findImagesToMigrate(opts: { hosts?: string[]; take: number }): Promise<MigrationCandidate[]> {
+export async function findImagesToMigrate(opts: {
+  hosts?: string[];
+  /** Hosts to leave out. Not the same as the blocked list: those are
+      competitors and must never be copied. These are hosts that will not
+      serve us, which is a fact about them rather than a rule of ours. */
+  excludeHosts?: string[];
+  take: number;
+}): Promise<MigrationCandidate[]> {
   /* Both filters belong in the query, not in a loop over the first page.
      Taking N rows by id and filtering them in JS looks fine on the first
      batch and then quietly stops: once the early ids are migrated, that
@@ -111,22 +139,23 @@ export async function findImagesToMigrate(opts: { hosts?: string[]; take: number
     // catch a path; check the host itself.
     if (isSelfHosted(row.url)) continue;
     if (isBlockedImageHost(row.url)) continue;
-    if (opts.hosts?.length) {
-      const host = row.url.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
-      if (!opts.hosts.some((h) => host.includes(h.toLowerCase()))) continue;
-    }
+    const host = row.url.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
+    if (opts.excludeHosts?.some((h) => host.includes(h.toLowerCase()))) continue;
+    if (opts.hosts?.length && !opts.hosts.some((h) => host.includes(h.toLowerCase()))) continue;
     out.push(row);
   }
   return out;
 }
 
-export async function countImagesToMigrate(hosts?: string[]): Promise<number> {
+export async function countImagesToMigrate(hosts?: string[], excludeHosts?: string[]): Promise<number> {
   const rows = await db.productImage.findMany({ select: { url: true } });
   const wanted = hosts?.map((h) => h.toLowerCase());
+  const unwanted = excludeHosts?.map((h) => h.toLowerCase());
   return rows.filter((r) => {
     if (isSelfHosted(r.url) || isBlockedImageHost(r.url)) return false;
-    if (!wanted) return true;
     const host = r.url.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
+    if (unwanted?.some((h) => host.includes(h))) return false;
+    if (!wanted) return true;
     return wanted.some((h) => host.includes(h));
   }).length;
 }
@@ -289,12 +318,20 @@ export type BatchResult = {
  * twenty concurrent fetches at one of them is indistinguishable from an
  * attack.
  */
-export async function migrateImageBatch(opts: { hosts?: string[]; size: number }): Promise<BatchResult> {
+export async function migrateImageBatch(opts: {
+  hosts?: string[];
+  excludeHosts?: string[];
+  size: number;
+}): Promise<BatchResult> {
   if (!isProductImageStorageConfigured()) {
     return { attempted: 0, migrated: 0, failed: [], remaining: 0, configured: false };
   }
 
-  const batch = await findImagesToMigrate({ hosts: opts.hosts, take: opts.size });
+  const batch = await findImagesToMigrate({
+    hosts: opts.hosts,
+    excludeHosts: opts.excludeHosts,
+    take: opts.size,
+  });
   const failed: MigrationOutcome[] = [];
   let migrated = 0;
 
@@ -308,7 +345,7 @@ export async function migrateImageBatch(opts: { hosts?: string[]; size: number }
     attempted: batch.length,
     migrated,
     failed,
-    remaining: await countImagesToMigrate(opts.hosts),
+    remaining: await countImagesToMigrate(opts.hosts, opts.excludeHosts),
     configured: true,
   };
 }

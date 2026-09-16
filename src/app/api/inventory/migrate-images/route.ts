@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { isSiteAdmin } from "@/lib/permissions";
-import { migrateImageBatch, countImagesToMigrate } from "@/lib/inventory/image-migration";
+import {
+  migrateImageBatch,
+  countImagesToMigrate,
+  HOSTS_THAT_REFUSE_US,
+} from "@/lib/inventory/image-migration";
 
 /**
  * Migrating hotlinked product photographs onto our own storage, unattended.
@@ -55,7 +59,7 @@ export async function GET(request: Request) {
   let configured = true;
 
   while (Date.now() - startedAt < TIME_BUDGET_MS) {
-    const result = await migrateImageBatch({ size: BATCH });
+    const result = await migrateImageBatch({ size: BATCH, excludeHosts: HOSTS_THAT_REFUSE_US });
     if (!result.configured) {
       configured = false;
       break;
@@ -72,7 +76,7 @@ export async function GET(request: Request) {
     configured,
     migrated,
     failed,
-    remaining: configured ? await countImagesToMigrate() : null,
+    remaining: configured ? await countImagesToMigrate(undefined, HOSTS_THAT_REFUSE_US) : null,
     tookMs: Date.now() - startedAt,
   });
 }
