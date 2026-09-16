@@ -119,6 +119,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "yearly",
       priority: 0.5,
     },
+    /* The other two policies, which were never offered. /returns was here
+       alone because Merchant Center looks for it by name — but a shop's
+       terms and its privacy policy are the pages a person checks before
+       handing over a card, and both existed at two addresses until this
+       commit, which is its own reason to name the surviving one here
+       explicitly rather than leave an engine to pick. */
+    {
+      url: `${BASE_URL}/terms`,
+      lastModified: RETURNS_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.4,
+    },
+    {
+      url: `${BASE_URL}/privacy`,
+      lastModified: RETURNS_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.4,
+    },
+    {
+      url: `${BASE_URL}/accessibility`,
+      lastModified: RETURNS_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
     ...categories.filter((c) => hasAnything(c.id)).map((c) => ({
       url: `${BASE_URL}/category/${c.slug}`,
       lastModified: categoryLastModified(c.id),

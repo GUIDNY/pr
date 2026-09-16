@@ -144,7 +144,7 @@ export async function Footer() {
               </Link>
             </li>
             <li>
-              <Link href="/page/terms" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+              <Link href="/terms" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 תקנון האתר
               </Link>
             </li>

@@ -137,7 +137,7 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
             מדיניות הפרטיות
           </Link>{" "}
           ול
-          <Link href="/page/terms" className="hover:text-foreground underline">
+          <Link href="/terms" className="hover:text-foreground underline">
             תקנון האתר
           </Link>
           .

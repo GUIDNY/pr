@@ -197,8 +197,8 @@ export default function PrivacyPage() {
               {BUSINESS.phone}
             </a>
             , בדוא&quot;ל{" "}
-            <a href="mailto:service@prec.co.il" className="text-brand hover:underline">
-              service@prec.co.il
+            <a href={`mailto:${BUSINESS.email}`} className="text-brand hover:underline">
+              {BUSINESS.email}
             </a>{" "}
             או דרך עמוד{" "}
             <Link href="/contact" className="text-brand hover:underline">

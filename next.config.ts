@@ -45,6 +45,19 @@ const nextConfig: NextConfig = {
         destination: "/category/laundry",
         permanent: true,
       },
+      /* The policies had two addresses each. /returns and /privacy are real
+         pages in app/(shop); /page/returns and /page/privacy were CMS rows
+         saying the same thing in fewer words and with a different contact
+         address on them — two live policies per subject, disagreeing, both
+         indexable. The terms had the opposite problem: only the CMS address
+         existed, so /terms answered 404 while the footer linked to
+         /page/terms.
+
+         One address each now, all three in the same shape. The CMS row is
+         still what /terms renders — only the URL moved. */
+      { source: "/page/returns", destination: "/returns", permanent: true },
+      { source: "/page/privacy", destination: "/privacy", permanent: true },
+      { source: "/page/terms", destination: "/terms", permanent: true },
     ];
   },
   turbopack: {

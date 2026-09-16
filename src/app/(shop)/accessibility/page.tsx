@@ -133,8 +133,8 @@ export default function AccessibilityPage() {
             </li>
             <li>
               דוא&quot;ל:{" "}
-              <a href="mailto:service@prec.co.il" className="text-brand hover:underline">
-                service@prec.co.il
+              <a href={`mailto:${BUSINESS.email}`} className="text-brand hover:underline">
+                {BUSINESS.email}
               </a>
             </li>
             <li>כתובת: {BUSINESS_ADDRESS}</li>

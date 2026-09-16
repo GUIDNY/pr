@@ -75,7 +75,7 @@ export default function ContactPage() {
             </span>
             <div>
               <p className="font-medium">אימייל</p>
-              <p className="text-muted-foreground text-sm">service@prec.co.il</p>
+              <p className="text-muted-foreground text-sm">{BUSINESS.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">

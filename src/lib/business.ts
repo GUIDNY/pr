@@ -41,6 +41,22 @@ export const BUSINESS = {
      rather than as a second way to reach the line above. A number labelled
      "WhatsApp" that does not answer WhatsApp is worse than not offering
      one at all. */
+  /* One address, because there were three.
+     service@prec.co.il was on the accessibility statement, the privacy
+     policy and the contact page; info@prec.co.il was on the returns policy
+     and in the Organization JSON-LD; and the CMS pages had been moved to a
+     third. Five files, three answers to "how do I reach this shop" — and
+     two of them on a domain that is not this one.
+
+     It sits here for the same reason the phone number does: the next change
+     to it is one edit rather than five, and the one that gets missed is
+     always the legal page nobody reads until they need it.
+
+     Temporary, and known to be. It is a personal mailbox standing in until
+     the domain has one; see the note in the reply thread. Changing it then
+     is this line. */
+  email: "aiasafidan@gmail.com",
+
   whatsapp: "055-307-3072",
   /** wa.me takes digits only, international, with no plus and no leading zero. */
   whatsappHref: "https://wa.me/972553073072",

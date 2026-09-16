@@ -28,7 +28,7 @@ export function organizationSchema() {
     legalName: BUSINESS.legalName,
     url: SITE_URL,
     logo: absoluteUrl("/brand/logo.png"),
-    email: "info@prec.co.il",
+    email: BUSINESS.email,
     description:
       "חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.",
     contactPoint: {
@@ -37,7 +37,7 @@ export function organizationSchema() {
       contactType: "customer service",
       areaServed: "IL",
       availableLanguage: ["he"],
-      email: "info@prec.co.il",
+      email: BUSINESS.email,
     },
     // The shop's real street address, which is what lets Google tie this site
     // to the Business Profile and the Merchant Center account rather than
