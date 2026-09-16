@@ -123,6 +123,10 @@ export async function ProductPageView({
   // a table of one because it happened to have a single CategoryAttribute.
   const allSpecRows = buildSpecRows(product.attributeValues, product.extraSpecsRaw, content.specs);
   const { specs: specRows, dimensions: dimensionRows } = splitDimensions(allSpecRows);
+  // Chips under the title: the first four real specs, skipping the rows
+  // that repeat the brand line or belong in the warranty block.
+  const KEY_SPEC_SKIP = new Set(["מותג", "דגם", "אחריות", "תוצרת", "מק\"ט", "יצרן"]);
+  const keySpecs = specRows.filter((r) => r.kind !== "boolean" && !KEY_SPEC_SKIP.has(r.label) && r.value.length <= 24).slice(0, 4);
   // The highlight strip is drawn from the same list the spec table shows in
   // full, so the two can never disagree — but not simply its first six rows:
   // a yes/no row ("סאב-ווופר אלחוטי") carries no meaning as a bare value.
@@ -350,6 +354,19 @@ export async function ProductPageView({
                 </span>
               )}
             </div>
+            {/* The four facts an appliance is bought on — capacity, spin,
+                energy class, the like — as chips under the title, so they
+                are read before the price rather than found in a tab. */}
+            {keySpecs.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-1.5">
+                {keySpecs.map((row) => (
+                  <li key={row.label} className="bg-muted text-foreground rounded-lg px-2.5 py-1 text-xs">
+                    <span className="text-muted-foreground">{row.label}: </span>
+                    <span className="font-semibold">{row.value}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {isAdminViewer ? (
@@ -368,10 +385,16 @@ export async function ProductPageView({
             />
           )}
 
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <StockBadge status={isSoldOut ? "OUT_OF_STOCK" : (product.stockStatus as StockStatus)} />
+            {/* The delivery cost said at the price, where the decision is
+                made — the one fee shoppers most often first meet at checkout. */}
+            {!isSoldOut && deliveryFee === 0 ? (
+              <span className="bg-success/10 text-success rounded px-2 py-0.5 text-xs font-semibold">משלוח חינם</span>
+            ) : null}
             <span className="text-muted-foreground flex items-center gap-1 text-sm">
-              <Truck className="size-4" /> משלוח תוך {product.deliveryDays} ימים
+              <Truck className="size-4" />
+              {deliveryFee === 0 ? `עד הבית תוך ${product.deliveryDays} ימים` : `משלוח ${formatPrice(deliveryFee)} · תוך ${product.deliveryDays} ימים`}
             </span>
           </div>
 
@@ -477,7 +500,9 @@ export async function ProductPageView({
                   { value: "overview", label: "סקירה כללית" },
                   { value: "specs", label: "מפרט טכני" },
                   { value: "delivery", label: "משלוח ואחריות" },
-                  { value: "reviews", label: `ביקורות (${product.reviews.length})` },
+                  // "(0)" advertises that nobody has reviewed it; the count
+                  // appears once there is one.
+                  { value: "reviews", label: product.reviews.length > 0 ? `ביקורות (${product.reviews.length})` : "ביקורות" },
                 ].map((tab) => (
                   <TabsTrigger
                     key={tab.value}
