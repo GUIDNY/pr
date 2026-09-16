@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { StockStatus } from "@/lib/enums";
+import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
 
 export async function getInventorySummary() {
   const latestRun = await db.inventorySyncRun.findFirst({
@@ -442,4 +443,91 @@ export async function getInventoryProductDetail(id: string) {
       attributeValues: { include: { attribute: true }, orderBy: { attribute: { sortOrder: "asc" } } },
     },
   });
+}
+
+/**
+ * Products still carrying a photograph from a competing retailer's server.
+ *
+ * Derived, never seeded. The competitor list was classified by hand once
+ * and 1,428 images were deleted on the strength of it — and 353 are back,
+ * on 202 products created after that cleanup. A row of alerts written today
+ * would go stale the same way: it would still name a product whose photo
+ * was replaced last week, and it would miss the next one that arrives
+ * tomorrow. Asking the question live means the list is right at the moment
+ * it is read, and a product leaves it by being fixed rather than by someone
+ * remembering to resolve a flag.
+ *
+ * `onlyImageForProduct` is the number that decides what can be done about
+ * each row. 201 of the 202 have no other photograph, so deleting the image
+ * does not clean up a product — it takes it off the shop, because
+ * PUBLIC_PRODUCT_WHERE needs a picture. The screen has to say that before
+ * offering the button, which is why this is counted here rather than left
+ * to whoever is looking.
+ *
+ * Owner-only, and enforced at the page rather than here: a seller cannot
+ * act on this and does not need to carry it.
+ */
+export type CompetitorImageRow = {
+  productId: string;
+  title: string;
+  sku: string;
+  slug: string;
+  isPublished: boolean;
+  stockQty: number;
+  liveOnSite: boolean;
+  totalImages: number;
+  images: { id: string; url: string; host: string; onlyImageForProduct: boolean }[];
+};
+
+export async function getCompetitorImageProducts(): Promise<CompetitorImageRow[]> {
+  // Every image, filtered in JS: isBlockedImageHost is a hand-written host
+  // matcher, not something the query planner can express, and 3,362 rows is
+  // a cheap read on a page only the owner opens.
+  const images = await db.productImage.findMany({
+    select: {
+      id: true,
+      url: true,
+      productId: true,
+      product: {
+        select: {
+          title: true,
+          sku: true,
+          slug: true,
+          isPublished: true,
+          stockQty: true,
+          _count: { select: { images: true } },
+        },
+      },
+    },
+  });
+
+  const byProduct = new Map<string, CompetitorImageRow>();
+  for (const img of images) {
+    if (!isBlockedImageHost(img.url)) continue;
+    const total = img.product._count.images;
+    const row = byProduct.get(img.productId) ?? {
+      productId: img.productId,
+      title: img.product.title,
+      sku: img.product.sku,
+      slug: img.product.slug,
+      isPublished: img.product.isPublished,
+      stockQty: img.product.stockQty,
+      liveOnSite: img.product.isPublished && img.product.stockQty > 0 && total > 0,
+      totalImages: total,
+      images: [],
+    };
+    row.images.push({
+      id: img.id,
+      url: img.url,
+      host: img.url.replace(/^https?:\/\//i, "").split("/")[0],
+      onlyImageForProduct: total === 1,
+    });
+    byProduct.set(img.productId, row);
+  }
+
+  // The ones that would go dark first — those are the decision, the rest is
+  // tidying.
+  return [...byProduct.values()].sort(
+    (a, b) => Number(b.liveOnSite) - Number(a.liveOnSite) || a.title.localeCompare(b.title, "he"),
+  );
 }
