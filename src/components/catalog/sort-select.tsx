@@ -33,8 +33,13 @@ export function SortSelect({ query = "" }: { query?: string }) {
         router.push(`${pathname}?${params.toString()}`);
       }}
     >
-      <SelectTrigger className="h-9 w-[180px] text-sm">
-        <SelectValue />
+      <SelectTrigger className="h-9 w-[190px] text-sm" aria-label="מיון">
+        {/* The label is given, not left to Radix: on the server-rendered
+            page the trigger otherwise paints empty until hydration. */}
+        <SelectValue>
+          <span className="text-muted-foreground">מיון: </span>
+          {OPTIONS.find((o) => o.value === current)?.label}
+        </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {OPTIONS.map((o) => (

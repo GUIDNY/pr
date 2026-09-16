@@ -209,3 +209,34 @@ export async function countLiveProductsInCategory(slug: string): Promise<number>
     },
   });
 }
+
+export type SubcategoryTile = { slug: string; name: string; count: number; imageUrl: string | null };
+
+/**
+ * A department's sub-categories, each with its live count and one of its
+ * own product photographs — the row a shopper narrows a shelf with before
+ * touching a filter. Children with nothing live are left out; a tile that
+ * leads to an empty grid is a promise the shelf cannot keep.
+ */
+export async function getSubcategoryTiles(departmentSlug: string): Promise<SubcategoryTile[]> {
+  const department = await db.category.findUnique({
+    where: { slug: departmentSlug },
+    select: { children: { select: { id: true, slug: true, name: true }, orderBy: { sortOrder: "asc" } } },
+  });
+  if (!department) return [];
+  const tiles = await Promise.all(
+    department.children.map(async (c): Promise<SubcategoryTile> => {
+      const where = { ...PUBLIC_PRODUCT_WHERE, categoryId: c.id };
+      const [count, pick] = await Promise.all([
+        db.product.count({ where }),
+        db.product.findFirst({
+          where,
+          orderBy: [{ isBestSeller: "desc" }, { ratingAvg: "desc" }],
+          select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
+        }),
+      ]);
+      return { slug: c.slug, name: c.name, count, imageUrl: pick?.images[0]?.url ?? null };
+    }),
+  );
+  return tiles.filter((t) => t.count > 0);
+}

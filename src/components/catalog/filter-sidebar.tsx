@@ -222,7 +222,7 @@ function FacetSection({
               {/* The count is the point of the whole rebuild: it turns a
                   guess into a choice, and it is the reason an option that
                   leads nowhere is never printed. */}
-              <span className={cn("ms-1", isSelected ? "text-brand/70" : "text-muted-foreground")}>{opt.count}</span>
+              <span className={cn("ms-1 text-[11px] tabular-nums", isSelected ? "text-brand/70" : "text-muted-foreground")}>({opt.count})</span>
             </button>
           );
         })}
