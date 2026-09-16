@@ -42,6 +42,22 @@ export async function migrateImagesBatchAction(hosts?: string[]) {
     size: BATCH_SIZE,
   });
 
+  /* Logged, not just returned.
+     Three runs have now reported "0 migrated" and each time the reason had
+     to be guessed at from the outside, because the only record of what
+     happened was a toast in somebody's browser. The distinction that
+     matters is invisible from there: a batch that attempted nothing is a
+     query or configuration problem, and a batch that attempted four and
+     failed four is a problem with those four hosts. This line says which,
+     in a place that can be read without asking anyone to click again. */
+  console.log(
+    `[image-migration] hosts=${hosts?.join(",") ?? "all"} configured=${result.configured} ` +
+      `attempted=${result.attempted} migrated=${result.migrated} remaining=${result.remaining}`,
+  );
+  for (const f of result.failed) {
+    if ("reason" in f) console.log(`[image-migration] FAILED ${f.reason} :: ${f.from}`);
+  }
+
   if (result.migrated > 0) {
     await logAudit({
       actorId: session.sub,

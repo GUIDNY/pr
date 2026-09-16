@@ -37,8 +37,13 @@ export function ImageMigrationPanel({ groups }: { groups: Group[] }) {
     for (;;) {
       const result = await migrateImagesBatchAction(group.hosts);
       if (!result.configured) {
-        toast.error("אחסון התמונות לא מוגדר — חסר SUPABASE_SERVICE_ROLE_KEY");
-        break;
+        toast.error("אחסון התמונות לא מוגדר — חסר SUPABASE_URL או SUPABASE_SERVICE_ROLE_KEY");
+        setRunning(null);
+        // Returning rather than breaking: the success toast below would
+        // otherwise follow the error with "0 תמונות הועברו", which reads
+        // like the run simply had nothing to do and buries the actual
+        // reason it did nothing.
+        return;
       }
       migrated += result.migrated;
       setDone(migrated);
@@ -46,14 +51,19 @@ export function ImageMigrationPanel({ groups }: { groups: Group[] }) {
       if (result.failed.length > 0) {
         setFailures((prev) => [...prev, ...(result.failed as { url: string; reason: string }[])].slice(0, 100));
       }
-      if (result.attempted === 0) break;
+      if (result.attempted === 0) {
+        // Nothing matched the query at all — which is either "finished" or
+        // "the filter is wrong", and those look identical from here.
+        if (migrated === 0) toast.info("לא נמצאו תמונות להעברה");
+        break;
+      }
       if (result.migrated === 0) {
         setStopped(true);
         break;
       }
     }
     setRunning(null);
-    toast.success(`${migrated} תמונות הועברו לשרת שלנו`);
+    if (migrated > 0) toast.success(`${migrated} תמונות הועברו לשרת שלנו`);
   }
 
   return (
