@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Check, ListChecks, MousePointerClick, Sparkles } from "lucide-react";
-import { getFinderCategoryCards } from "@/lib/queries/finder";
+import { getFinderCategoryCards, getPublicProductCount } from "@/lib/queries/finder";
 import { AskAlfredButton } from "@/components/finder/ask-alfred-button";
 
 export const metadata = { title: "עזרו לי לבחור" };
@@ -20,8 +20,9 @@ const STEPS = [
  * the chat one tap away rather than a dead end.
  */
 export default async function FinderLandingPage() {
-  const cards = await getFinderCategoryCards();
-  const total = cards.reduce((n, c) => n + c.productCount, 0);
+  // The banner names the shop's whole range; each card names its own.
+  // Summing the three cards read as "the shop has 507 products".
+  const [cards, total] = await Promise.all([getFinderCategoryCards(), getPublicProductCount()]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 lg:py-12">
@@ -42,8 +43,8 @@ export default async function FinderLandingPage() {
             </span>
             <h1 className="text-3xl leading-tight font-black text-balance sm:text-4xl">לא בטוחים מה לבחור?</h1>
             <p className="text-primary-foreground/80 max-w-lg text-base">
-              כמה שאלות קצרות על הבית והתקציב, ואלפרד יסנן מתוך {total.toLocaleString("he-IL")} מוצרים במלאי את
-              אלה שבאמת מתאימים לכם, עם הסבר למה.
+              כמה שאלות קצרות על הבית והתקציב, ואלפרד יסנן מתוך יותר מ‑{Math.floor(total / 100) * 100} מוצרים
+              במלאי את אלה שבאמת מתאימים לכם, עם הסבר למה.
             </p>
             <ul className="text-primary-foreground/85 flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
               {["חצי דקה", "רק מוצרים במלאי", "בלי התחייבות"].map((f) => (

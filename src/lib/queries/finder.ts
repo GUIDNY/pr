@@ -10,6 +10,11 @@ export type FinderCategoryCard = FinderConfig & {
   imageUrl: string | null;
 };
 
+/** Every product on the shelf right now — the shop's range, not the finder's. */
+export async function getPublicProductCount(): Promise<number> {
+  return db.product.count({ where: PUBLIC_PRODUCT_WHERE });
+}
+
 export async function getFinderCategoryCards(): Promise<FinderCategoryCard[]> {
   return Promise.all(
     FINDER_CATEGORIES.map(async (config) => {
