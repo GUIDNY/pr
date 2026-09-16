@@ -181,3 +181,31 @@ export async function getCategoryTilesWithImages(): Promise<CategoryTile[]> {
 
   return tiles.filter((t): t is CategoryTile => t !== null);
 }
+
+/**
+ * How many live products a category page will actually show.
+ *
+ * Its own plus its children's, through the public predicate — the same
+ * scope the page itself renders, so the answer is the number of cards a
+ * visitor will see rather than the number of rows in the table.
+ *
+ * Exists for one caller: the page's metadata, which needs to know whether
+ * it is about to serve an empty shelf. Six categories were reaching Google
+ * as ordinary indexable pages with nothing on them — not because anyone
+ * chose to hide their products, but because those products have no
+ * photograph or no stock, which is the same reason a large part of this
+ * catalog is invisible.
+ */
+export async function countLiveProductsInCategory(slug: string): Promise<number> {
+  const category = await db.category.findUnique({
+    where: { slug },
+    select: { id: true, children: { select: { id: true } } },
+  });
+  if (!category) return 0;
+  return db.product.count({
+    where: {
+      ...PUBLIC_PRODUCT_WHERE,
+      categoryId: { in: [category.id, ...category.children.map((c) => c.id)] },
+    },
+  });
+}

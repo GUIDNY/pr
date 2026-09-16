@@ -52,6 +52,7 @@ import {
   SCHEMA_AVAILABILITY_FALLBACK,
   SCHEMA_OUT_OF_STOCK,
   SCHEMA_CURRENCY,
+  validGtin,
   feedDescription,
 } from "@/lib/feeds/google-merchant";
 import { absoluteUrl } from "@/lib/site-url";
@@ -178,6 +179,15 @@ export async function ProductPageView({
         // The manufacturer's model number, never the internal sku — the two
         // are different fields here and schema.org's mpn means the former.
         mpn: product.model ?? undefined,
+        /* The barcode, when there is one. Empty on every row today — the
+           supplier sheets carry no barcode column — so this is the same
+           plumbing the feed grew, put here at the same time for the reason
+           the availability table is shared: Google cross-checks a feed item
+           against the structured data on the page it links to, and an
+           identifier present in one and missing from the other is a
+           disagreement it reports. Validated by the same function the feed
+           validates with, so the two cannot disagree about what counts. */
+        gtin13: validGtin(product.gtin13) ?? undefined,
         color: product.colorName ?? undefined,
         image: product.images.map((img) => img.url),
         brand: { "@type": "Brand", name: product.brand.name },
@@ -193,6 +203,35 @@ export async function ProductPageView({
           availability: isSoldOut
             ? SCHEMA_OUT_OF_STOCK
             : (SCHEMA_AVAILABILITY[product.stockStatus as StockStatus] ?? SCHEMA_AVAILABILITY_FALLBACK),
+          /* What it costs to get here and how long it takes.
+             Missing entirely until now, which Merchant Center reports as a
+             missing shipping rate and which a shopper sees as a listing
+             price that grows at the checkout. The numbers come from the
+             same computeDeliveryFee and the same product field the page
+             itself renders three paragraphs further down, so the structured
+             data cannot promise a delivery the visible page contradicts.
+
+             handlingTime 0-1 and transitTime up to deliveryDays: the
+             product carries one number for "arrives within N days", and
+             splitting it as all-transit is the honest reading — it is what
+             the page says to a customer. */
+          shippingDetails: {
+            "@type": "OfferShippingDetails",
+            shippingRate: {
+              "@type": "MonetaryAmount",
+              value: computeDeliveryFee(product.price).toFixed(2),
+              currency: SCHEMA_CURRENCY,
+            },
+            shippingDestination: {
+              "@type": "DefinedRegion",
+              addressCountry: BUSINESS.country,
+            },
+            deliveryTime: {
+              "@type": "ShippingDeliveryTime",
+              handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
+              transitTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: product.deliveryDays, unitCode: "DAY" },
+            },
+          },
         },
         // Only when there is a real rating behind it. schema.org rejects an
         // aggregateRating with a zero reviewCount, and inventing one is the

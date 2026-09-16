@@ -183,6 +183,17 @@ model Product {
   description          String?
   price                Float
   compareAtPrice       Float?
+  // The barcode. Empty on every row today: the supplier price sheets carry
+  // no barcode column, and the values will come from the ERP and the
+  // importers as a separate import. The plumbing is here first so that
+  // import is one UPDATE rather than a schema change plus a feed change
+  // plus a JSON-LD change under time pressure.
+  //
+  // A string, not a number: an EAN-13 can begin with a zero, and a leading
+  // zero is exactly the digit a numeric column drops. Google matches this
+  // against its own product catalogue, so a 12-digit value is not a
+  // near-miss, it is a rejected item.
+  gtin13               String?
   installmentMonths    Int?
   warrantyMonths       Int       @default(12)
   deliveryDays         Int       @default(7)

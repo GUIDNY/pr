@@ -32,6 +32,7 @@ export async function GET() {
       description: true,
       shortDescription: true,
       model: true,
+      gtin13: true,
       colorName: true,
       price: true,
       compareAtPrice: true,

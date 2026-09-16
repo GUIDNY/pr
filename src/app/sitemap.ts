@@ -79,11 +79,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     newest(scopeOf(id).map((cid) => ownNewest.get(cid))) ??
     newest(scopeOf(id).map((cid) => anyNewest.get(cid)));
 
-  // A category with no products at all — not hidden ones, none — is an empty
-  // page, and offering an empty page spends the crawl budget the products
-  // need. Same call as the empty brands. It is still in the navigation and
-  // still reachable; it simply is not advertised until it has something.
-  const hasAnything = (id: string) => scopeOf(id).some((cid) => anyNewest.has(cid));
+  /* A category is advertised when it has something a visitor can actually
+     buy — not when it has rows.
+
+     This used to ask whether the category had any product at all, hidden
+     ones included, and the gap between those two questions was six
+     categories: אביזרי AV with ten products, מתקנים לרמקולים with seven,
+     מיקרופונים with six, and three more. Every one of those products is
+     unphotographed or out of stock, so all six were offered to Google as
+     pages with an empty grid on them.
+
+     ownNewest is the visible-product map — published, photographed — and
+     it already rolls up to parents, so a department still qualifies on its
+     children's stock. anyNewest stays for dating: a category that drops
+     out of the sitemap today keeps a real date from a real row for when it
+     comes back, which is better than inventing one.
+
+     The page itself also carries noindex while it is empty; see its
+     generateMetadata. Two mechanisms because they answer different
+     crawlers: this one stops the page being offered, that one stops it
+     being kept if it was found some other way. */
+  const hasSomethingToSell = (id: string) => scopeOf(id).some((cid) => ownNewest.has(cid));
 
   // The homepage's rails are deals, best sellers and featured products, so
   // the catalog's newest change is what dates it. Not the homepage sections
@@ -143,7 +159,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "yearly",
       priority: 0.3,
     },
-    ...categories.filter((c) => hasAnything(c.id)).map((c) => ({
+    ...categories.filter((c) => hasSomethingToSell(c.id)).map((c) => ({
       url: `${BASE_URL}/category/${c.slug}`,
       lastModified: categoryLastModified(c.id),
       changeFrequency: "daily" as const,

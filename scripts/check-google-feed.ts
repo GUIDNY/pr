@@ -24,6 +24,7 @@ function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
     description: null,
     shortDescription: "תיאור קצר תקין.",
     model: "MODEL-1",
+    gtin13: null,
     colorName: null,
     price: 100,
     compareAtPrice: null,
@@ -52,6 +53,16 @@ const rows: FeedProduct[] = [
   }),
   product({ sku: "ONSALE", price: 7200, compareAtPrice: 8400 }),
   product({ sku: "NOMODEL", model: null }),
+  // The barcodes are empty today and will arrive from the ERP, which is
+  // exactly the import that writes a UPC-A into an EAN-13 column. These
+  // four rows are the shapes that arrive with it.
+  product({ sku: "GTIN", gtin13: "7290012345678" }),
+  product({ sku: "GTINONLY", gtin13: "7290012345678", model: null }),
+  product({ sku: "GTINBAD", gtin13: "729001234567", model: null }),
+  product({ sku: "GTINSPACED", gtin13: "7290-0123-45678" }),
+  // Delivery is free above the threshold, so the shipping cost a feed item
+  // quotes genuinely differs per item.
+  product({ sku: "FREESHIP", price: 9900 }),
   product({ sku: "BACKORDER", stockStatus: "SPECIAL_ORDER" }),
   product({ sku: "GONE", stockStatus: "DISCONTINUED" }),
   product({ sku: "REVIEW", stockStatus: "NEEDS_REVIEW" }),
@@ -81,7 +92,7 @@ check("no control characters", !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/
 for (const excluded of ["GONE", "REVIEW", "SHOWROOM"]) {
   check(`${excluded} is kept out of the feed`, !items.has(excluded));
 }
-for (const included of ["PLAIN", "HTMLDESC", "ONSALE", "NOMODEL", "BACKORDER"]) {
+for (const included of ["PLAIN", "HTMLDESC", "ONSALE", "NOMODEL", "BACKORDER", "GTIN", "GTINONLY", "GTINBAD", "GTINSPACED", "FREESHIP"]) {
   check(`${included} is in the feed`, items.has(included));
 }
 
@@ -104,12 +115,35 @@ check("a sale shows the old price as g:price", onSale.includes("<g:price>8400.00
 check("a sale shows the live price as g:sale_price", onSale.includes("<g:sale_price>7200.00 ILS</g:sale_price>"));
 check("a full-price item has no g:sale_price", !(items.get("PLAIN") ?? "").includes("g:sale_price"));
 
-// This catalog has no barcodes, so brand + mpn is the identifier. A product
-// with no manufacturer model number has to say so explicitly, or Google
-// rejects it for a missing identifier it was never going to have.
+/* Identifiers. A GTIN is the strongest signal Google takes; brand + mpn is
+   the accepted substitute; identifier_exists=no is the admission that there
+   is neither — and sending that on an item which does have brand + mpn
+   throws away a match, which is why it is conditional on both being absent
+   rather than on the barcode alone. */
 check("mpn comes from the model number", (items.get("PLAIN") ?? "").includes("<g:mpn>MODEL-1</g:mpn>"));
-check("no model declares identifier_exists=no", (items.get("NOMODEL") ?? "").includes("<g:identifier_exists>no</g:identifier_exists>"));
+check("no identifier at all declares identifier_exists=no", (items.get("NOMODEL") ?? "").includes("<g:identifier_exists>no</g:identifier_exists>"));
 check("no model sends no mpn", !(items.get("NOMODEL") ?? "").includes("<g:mpn>"));
+
+check("a barcode is sent as g:gtin", (items.get("GTIN") ?? "").includes("<g:gtin>7290012345678</g:gtin>"));
+check("a barcode does not replace the mpn", (items.get("GTIN") ?? "").includes("<g:mpn>MODEL-1</g:mpn>"));
+check("having a barcode never declares identifier_exists=no", !(items.get("GTIN") ?? "").includes("identifier_exists"));
+// The case the conditional exists for: an item with a barcode and no model
+// still has an identifier, and must not disclaim one.
+check("barcode without a model still has an identifier", !(items.get("GTINONLY") ?? "").includes("identifier_exists"));
+
+// A 12-digit UPC-A in an EAN-13 column is a rejected item, not a near miss.
+check("a 12-digit code is not sent as a gtin", !(items.get("GTINBAD") ?? "").includes("<g:gtin>"));
+check("a rejected code falls back to identifier_exists", (items.get("GTINBAD") ?? "").includes("<g:identifier_exists>no</g:identifier_exists>"));
+check("separators are stripped rather than sent", (items.get("GTINSPACED") ?? "").includes("<g:gtin>7290012345678</g:gtin>"));
+
+/* Shipping. Without it the rate shown in a listing is whatever the account
+   is configured with, which is not necessarily what this checkout charges. */
+for (const sku of ["PLAIN", "FREESHIP"]) {
+  check(`${sku} carries a shipping block`, (items.get(sku) ?? "").includes("<g:shipping>"));
+  check(`${sku} names the country`, (items.get(sku) ?? "").includes("<g:country>IL</g:country>"));
+}
+check("below the threshold quotes the delivery fee", (items.get("PLAIN") ?? "").includes("<g:price>49.00 ILS</g:price>"));
+check("above the threshold quotes free delivery", (items.get("FREESHIP") ?? "").includes("<g:price>0.00 ILS</g:price>"));
 
 check("special order maps to backorder", (items.get("BACKORDER") ?? "").includes("<g:availability>backorder</g:availability>"));
 check("in stock maps to in_stock", (items.get("PLAIN") ?? "").includes("<g:availability>in_stock</g:availability>"));
