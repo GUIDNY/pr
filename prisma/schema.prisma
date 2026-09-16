@@ -175,6 +175,20 @@ model Product {
   slug                 String    @unique
   model                String? // the manufacturer's own model number (e.g. "HBG578ES3") — NOT the internal sku. Indexed: /api/integrations/products' ?hasModel=false filter and exact-model lookups both scan this.
   colorName            String? // e.g. "רוז גולד" — a real, structured field, not scraped/guessed; distinguishes same-capacity variants that differ only by finish (each with its own real manufacturer model number, e.g. M-LR8 vs M-LB8)
+  // Ties the colour variants of one appliance together, so the product page
+  // can offer the other finishes. Set deliberately — by the grouping script
+  // or by hand — and never derived at read time.
+  //
+  // It has to be a stored column rather than a query over similar titles,
+  // because the titles that look alike are mostly NOT variants: of 68 groups
+  // that collapse to the same text once colour words are removed, 51 are the
+  // same product entered twice. Matching on appearance would offer a shopper
+  // a "second colour" that is the identical appliance, and it would do it
+  // silently, on a page where the wrong click is a wrong order.
+  //
+  // Each variant stays a full product with its own slug, sku, price, stock
+  // and images. This groups them; it does not merge them.
+  variantGroupId       String?
   brandId              String
   brand                Brand     @relation(fields: [brandId], references: [id])
   categoryId           String
@@ -270,6 +284,7 @@ model Product {
   @@index([sourceId, sourceRowKey])
   @@index([isTemporarySku])
   @@index([model])
+  @@index([variantGroupId])
 }
 
 // Every address this product has ever been reachable at, so a renamed

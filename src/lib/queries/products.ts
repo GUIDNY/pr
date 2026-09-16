@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { normalizeFacetValue } from "@/lib/facet-value";
 import { db } from "@/lib/db";
+import { colorInTitle } from "@/lib/catalog/variant-colors";
 import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
@@ -382,6 +383,94 @@ export async function getCurrentSlugForLegacyBrandSlug(slug: string): Promise<st
   });
   const current = record?.brand.slug ?? null;
   return current && current !== slug ? current : null;
+}
+
+export type ColorVariant = {
+  slug: string;
+  color: string;
+  price: number;
+  imageUrl: string | null;
+  isCurrent: boolean;
+};
+
+/**
+ * The other finishes of the appliance on this page.
+ *
+ * Reads Product.variantGroupId and nothing else — no matching on titles at
+ * read time. The grouping is a decision taken once, by
+ * scripts/group-color-variants.ts against a rule that refuses anything
+ * ambiguous; a page that re-derived it would be free to disagree with the
+ * script, and the disagreement would be invisible until a customer ordered
+ * the wrong colour.
+ *
+ * Gated on PUBLIC_PRODUCT_WHERE like every other customer-facing query. A
+ * finish that is out of stock or has no photograph is not offered at all,
+ * which is this shop's rule for a product anywhere else on the site and has
+ * no reason to change because the product is small and round. The picker is
+ * navigation: each colour is its own product with its own URL, price, stock
+ * and photographs, and choosing one goes there.
+ *
+ * The current product is always included and always marked, even when it
+ * fails that gate — an admin previewing an unpublished product, or a page
+ * still reachable while sold out, should see which swatch it is looking at
+ * rather than a row of colours with none of them selected.
+ */
+export async function getColorVariants(product: {
+  id: string;
+  slug: string;
+  title: string;
+  price: number;
+  variantGroupId: string | null;
+  images: { url: string }[];
+}): Promise<ColorVariant[]> {
+  if (!product.variantGroupId) return [];
+
+  const siblings = await db.product.findMany({
+    where: {
+      ...PUBLIC_PRODUCT_WHERE,
+      variantGroupId: product.variantGroupId,
+      id: { not: product.id },
+    },
+    select: {
+      slug: true,
+      title: true,
+      price: true,
+      images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } },
+    },
+    orderBy: { price: "asc" },
+  });
+
+  const rows: ColorVariant[] = [
+    {
+      slug: product.slug,
+      color: colorInTitle(product.title) ?? "נוכחי",
+      price: product.price,
+      imageUrl: product.images[0]?.url ?? null,
+      isCurrent: true,
+    },
+    ...siblings.map((s) => ({
+      slug: s.slug,
+      color: colorInTitle(s.title) ?? s.title,
+      price: s.price,
+      imageUrl: s.images[0]?.url ?? null,
+      isCurrent: false,
+    })),
+  ];
+
+  /* One swatch per colour. A group can legitimately hold two live rows of
+     the same finish — the catalogue has a white AL-65 under two SKUs — and
+     two identical swatches side by side is a shopper being asked to choose
+     between the same thing twice. The current product wins its own colour;
+     otherwise the cheaper one does, which is the order they arrive in. */
+  const seen = new Set<string>();
+  const unique = rows.filter((r) => {
+    if (seen.has(r.color)) return false;
+    seen.add(r.color);
+    return true;
+  });
+
+  // One colour is not a choice.
+  return unique.length > 1 ? unique : [];
 }
 
 export async function getRelatedProducts(categoryId: string, excludeId: string, take = 4) {

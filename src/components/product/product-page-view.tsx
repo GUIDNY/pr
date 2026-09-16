@@ -37,6 +37,7 @@ import { CompareButton } from "@/components/product/compare-button";
 import { ProductReviewFlagButton } from "@/components/product/product-review-flag-button";
 import { PurchasePanel } from "@/components/product/purchase-panel";
 import { MobileBuyBar } from "@/components/product/mobile-buy-bar";
+import { ColorVariantPicker } from "@/components/product/color-variant-picker";
 import { ConsultSection } from "@/components/product/consult-section";
 import { ProductRail } from "@/components/home/product-rail";
 import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
@@ -45,6 +46,7 @@ import {
   getRelatedProducts,
   getCategoryAttributesFor,
   getProductsByBrandSlug,
+  getColorVariants,
 } from "@/lib/queries/products";
 import { getProductReviewFlag } from "@/lib/queries/admin-inventory";
 import {
@@ -56,6 +58,7 @@ import {
   feedDescription,
 } from "@/lib/feeds/google-merchant";
 import { absoluteUrl } from "@/lib/site-url";
+import { colorInTitle } from "@/lib/catalog/variant-colors";
 import { formatDate, formatPrice } from "@/lib/format";
 import type { StockStatus } from "@/lib/enums";
 import { BUSINESS } from "@/lib/business";
@@ -102,9 +105,10 @@ export async function ProductPageView({
   const offSiteForVisitors = !product.isPublished || product.images.length === 0;
   if (offSiteForVisitors && !isAdminViewer) notFound();
 
-  const [related, brandProductsResult] = await Promise.all([
+  const [related, brandProductsResult, colorVariants] = await Promise.all([
     getRelatedProducts(product.categoryId, product.id, 4),
     getProductsByBrandSlug(product.brand.slug, { pageSize: 8 }),
+    getColorVariants(product),
   ]);
   const brandProducts = brandProductsResult.products.filter((p) => p.id !== product.id);
   // Only fetched for admins — every other visitor never needs the full
@@ -170,6 +174,12 @@ export async function ProductPageView({
   // at an unpublished or photo-less product is being shown a preview, and
   // marking it up as a live offer would advertise something the store has
   // deliberately not put on sale.
+  /* One answer for "what colour is this", shared by the picker above and
+     the structured data below. colorName is the field a person filled in;
+     the title is where the answer actually lives for most of the catalogue,
+     because the supplier sheets have no colour column. */
+  const feedColor = product.colorName ?? colorInTitle(product.title);
+
   const productJsonLd = offSiteForVisitors
     ? null
     : {
@@ -192,7 +202,15 @@ export async function ProductPageView({
            disagreement it reports. Validated by the same function the feed
            validates with, so the two cannot disagree about what counts. */
         gtin13: validGtin(product.gtin13) ?? undefined,
-        color: product.colorName ?? undefined,
+        /* Colour and the group it varies within, kept identical to what the
+           feed sends for this SKU — same fields, same fallback, same
+           pairing. Google compares an item's feed entry against the
+           structured data on the page it links to, so a colour stated in
+           one and absent from the other is a disagreement it reports, and
+           a group id on a page that names no colour is the same invalid
+           shape the feed refuses to emit. */
+        color: feedColor ?? undefined,
+        inProductGroupWithID: feedColor ? (product.variantGroupId ?? undefined) : undefined,
         image: product.images.map((img) => img.url),
         brand: { "@type": "Brand", name: product.brand.name },
         offers: {
@@ -384,6 +402,10 @@ export async function ProductPageView({
               size="lg"
             />
           )}
+
+          {/* After the price and before the stock line, because a finish can
+              carry its own price and the choice is made between the two. */}
+          <ColorVariantPicker variants={colorVariants} />
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <StockBadge status={isSoldOut ? "OUT_OF_STOCK" : (product.stockStatus as StockStatus)} />

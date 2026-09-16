@@ -26,6 +26,7 @@ function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
     model: "MODEL-1",
     gtin13: null,
     colorName: null,
+    variantGroupId: null,
     price: 100,
     compareAtPrice: null,
     stockStatus: "IN_STOCK",
@@ -67,6 +68,31 @@ const rows: FeedProduct[] = [
   product({ sku: "GONE", stockStatus: "DISCONTINUED" }),
   product({ sku: "REVIEW", stockStatus: "NEEDS_REVIEW" }),
   product({ sku: "SHOWROOM", stockStatus: "DISPLAY_ONLY" }),
+  /* Variants. Two finishes of one appliance, grouped — the pair Google is
+     meant to show as a single listing with a colour choice. The colour of
+     the second comes from its title alone, which is the common case here:
+     the supplier sheets have no colour column, so colorName is empty on
+     most of the catalogue. */
+  product({
+    sku: "VARBLACK",
+    title: "מיקרוגל מכני לקאזה LaCasa LC20MGB 20 ליטר 700W - שחור",
+    colorName: "שחור",
+    variantGroupId: "vg_testgroup000001",
+  }),
+  product({
+    sku: "VARWHITE",
+    title: "מיקרוגל מכני לקאזה LaCasa LC20MGB 20 ליטר 700W - לבן",
+    variantGroupId: "vg_testgroup000001",
+  }),
+  /* The case the whole condition exists for: grouped, but nothing names a
+     colour. Google rejects every member of an item group that does not
+     differ by a variant attribute, so this one must go out ungrouped
+     rather than go out broken. */
+  product({
+    sku: "VARNOCOLOR",
+    title: "מוצר בלי צבע בכותרת",
+    variantGroupId: "vg_testgroup000002",
+  }),
 ];
 
 const xml = renderGoogleMerchantFeed(rows);
@@ -92,7 +118,7 @@ check("no control characters", !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/
 for (const excluded of ["GONE", "REVIEW", "SHOWROOM"]) {
   check(`${excluded} is kept out of the feed`, !items.has(excluded));
 }
-for (const included of ["PLAIN", "HTMLDESC", "ONSALE", "NOMODEL", "BACKORDER", "GTIN", "GTINONLY", "GTINBAD", "GTINSPACED", "FREESHIP"]) {
+for (const included of ["PLAIN", "HTMLDESC", "ONSALE", "NOMODEL", "BACKORDER", "GTIN", "GTINONLY", "GTINBAD", "GTINSPACED", "FREESHIP", "VARBLACK", "VARWHITE", "VARNOCOLOR"]) {
   check(`${included} is in the feed`, items.has(included));
 }
 
@@ -123,6 +149,23 @@ check("a full-price item has no g:sale_price", !(items.get("PLAIN") ?? "").inclu
 check("mpn comes from the model number", (items.get("PLAIN") ?? "").includes("<g:mpn>MODEL-1</g:mpn>"));
 check("no identifier at all declares identifier_exists=no", (items.get("NOMODEL") ?? "").includes("<g:identifier_exists>no</g:identifier_exists>"));
 check("no model sends no mpn", !(items.get("NOMODEL") ?? "").includes("<g:mpn>"));
+
+/* Variants. item_group_id is what makes two items one listing with a colour
+   choice instead of two listings competing for the same query — and it is
+   only valid when every member carries a variant attribute. Google rejects
+   an entire item group whose members do not differ by one, so the pairing
+   of the two tags below is the rule, not a tidy-up. */
+const varBlack = items.get("VARBLACK") ?? "";
+const varWhite = items.get("VARWHITE") ?? "";
+const varNone = items.get("VARNOCOLOR") ?? "";
+check("a grouped variant sends its group id", varBlack.includes("<g:item_group_id>vg_testgroup000001</g:item_group_id>"));
+check("both members of a group send the same group id", varWhite.includes("<g:item_group_id>vg_testgroup000001</g:item_group_id>"));
+check("colorName is used when it is set", varBlack.includes("<g:color>שחור</g:color>"));
+check("the title supplies the colour when colorName is empty", varWhite.includes("<g:color>לבן</g:color>"));
+check("the two variants differ by colour", varBlack.includes("<g:color>שחור<") && varWhite.includes("<g:color>לבן<"));
+check("a group with no colour sends no group id", !varNone.includes("g:item_group_id"));
+check("a group with no colour sends no colour", !varNone.includes("<g:color>"));
+check("an ungrouped item sends no group id", !(items.get("PLAIN") ?? "").includes("g:item_group_id"));
 
 check("a barcode is sent as g:gtin", (items.get("GTIN") ?? "").includes("<g:gtin>7290012345678</g:gtin>"));
 check("a barcode does not replace the mpn", (items.get("GTIN") ?? "").includes("<g:mpn>MODEL-1</g:mpn>"));

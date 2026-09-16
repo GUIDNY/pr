@@ -34,6 +34,7 @@ export async function GET() {
       model: true,
       gtin13: true,
       colorName: true,
+      variantGroupId: true,
       price: true,
       compareAtPrice: true,
       stockStatus: true,

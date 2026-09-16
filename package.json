@@ -18,6 +18,8 @@
     "check:content": "tsx scripts/check-product-content.ts",
     "check:guards": "tsx scripts/check-import-guards.ts",
     "scan:labels": "tsx scripts/check-energy-labels.ts",
+    "check:variants": "tsx scripts/group-color-variants.ts",
+    "fix:variants": "tsx scripts/group-color-variants.ts --write",
     "check:categories": "tsx scripts/check-category-rules.ts",
     "fix:categories": "NODE_OPTIONS=--conditions=react-server tsx scripts/classify-categories.ts",
     "check:rowkeys": "tsx scripts/check-source-row-key.ts",

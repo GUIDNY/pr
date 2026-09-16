@@ -1,6 +1,7 @@
 import { SITE_URL } from "@/lib/site-url";
 import { BUSINESS } from "@/lib/business";
 import { computeDeliveryFee } from "@/lib/delivery";
+import { colorInTitle } from "@/lib/catalog/variant-colors";
 import type { StockStatus } from "@/lib/enums";
 
 // The product feed Google Merchant Center fetches once a day.
@@ -155,6 +156,7 @@ export type FeedProduct = {
   model: string | null;
   gtin13: string | null;
   colorName: string | null;
+  variantGroupId: string | null;
   price: number;
   compareAtPrice: number | null;
   stockStatus: string;
@@ -227,7 +229,23 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
     if (p.model) lines.push(tag("g:mpn", p.model));
     if (!gtin && !p.model) lines.push(tag("g:identifier_exists", "no"));
 
-    if (p.colorName) lines.push(tag("g:color", p.colorName));
+    /* Colour, and the grouping that makes it mean something.
+    
+       colorName first because it is the structured field a person filled
+       in; the title is the fallback, and it carries the answer for most of
+       the grouped products because the sheet never had a colour column.
+    
+       item_group_id is what turns two separate items into one listing with
+       a colour choice in Shopping, instead of two listings competing with
+       each other for the same query. It is sent ONLY alongside a colour,
+       and that is a rule of Google's, not a preference: items sharing an
+       item_group_id must differ by at least one variant attribute, so a
+       group whose members carry no colour is a group of rejected items.
+       The condition below is the whole safeguard — never loosen one half
+       of it without the other. */
+    const color = p.colorName ?? colorInTitle(p.title);
+    if (color) lines.push(tag("g:color", color));
+    if (color && p.variantGroupId) lines.push(tag("g:item_group_id", p.variantGroupId));
 
     /* Shipping. Without it Merchant Center falls back to whatever rate is
        configured in the account — or warns that there is none — and the
