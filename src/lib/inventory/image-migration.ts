@@ -87,7 +87,15 @@ export function isSelfHosted(url: string): boolean {
  */
 export const HOSTS_THAT_REFUSE_US = ["prec.co.il"];
 
-export type MigrationCandidate = { id: string; url: string; productId: string };
+export type MigrationCandidate = {
+  id: string;
+  url: string;
+  productId: string;
+  /** Whatever provenance the row already carries. Read so the migration
+      can record where a picture came from without overwriting an answer
+      the enrichment agent already gave. */
+  sourceImageUrl: string | null;
+};
 
 /**
  * What is left to move.
@@ -143,7 +151,7 @@ export async function findImagesToMigrate(opts: {
         ? { OR: opts.hosts.map((h) => ({ url: { contains: h, mode: "insensitive" as const } })) }
         : {}),
     },
-    select: { id: true, url: true, productId: true },
+    select: { id: true, url: true, productId: true, sourceImageUrl: true },
     orderBy: { id: "asc" },
     // Still wider than `take`: the blocked hosts are the one filter left in
     // JS, and a run of them should not return a short batch.
@@ -308,10 +316,29 @@ export async function migrateOneImage(image: MigrationCandidate): Promise<Migrat
 
   try {
     const url = await uploadProductImage(`migrated/${image.productId}/${image.id}.webp`, output, "image/webp");
-    // Written last, and only after the upload returned a URL: the row keeps
-    // pointing at the working hotlink until there is something better to
-    // point at.
-    await db.productImage.update({ where: { id: image.id }, data: { url } });
+    /* Written last, and only after the upload returned a URL: the row keeps
+       pointing at the working hotlink until there is something better to
+       point at.
+
+       The old address goes into sourceImageUrl on the way past, which is
+       the difference between a migration and a one-way door. Every other
+       failure in this file leaves the row untouched, but the one thing
+       that cannot be caught here is a host answering 200 with a picture
+       that is not the product — a watermark, a placeholder, a "no image"
+       graphic. sharp decodes those perfectly happily, so the row is
+       updated and, without this, the only record of what the photograph
+       used to be is gone. With it, putting one back is an UPDATE.
+
+       Never over an answer that is already there: sourceImageUrl on an
+       enriched image records the page a real photograph was found on, and
+       that is worth more than this. */
+    await db.productImage.update({
+      where: { id: image.id },
+      data: {
+        url,
+        ...(image.sourceImageUrl ? {} : { sourceImageUrl: image.url, sourceDomain: host }),
+      },
+    });
     return { id: image.id, ok: true, from: image.url, to: url, bytes: output.length };
   } catch (e) {
     return { id: image.id, ok: false, from: image.url, reason: e instanceof Error ? e.message : "שגיאת העלאה" };
