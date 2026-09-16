@@ -13,6 +13,7 @@ const TABS = [
   // item. The page checks the role itself; this only decides who sees the
   // tab, exactly as the banners link does in the sidebar.
   { href: "/admin/inventory/competitor-images", label: "תמונות ממתחרים", ownerOnly: true },
+  { href: "/admin/inventory/image-migration", label: "העברת תמונות", ownerOnly: true },
   { href: "/admin/inventory/urgent-critical", label: "טיפול דחוף" },
   { href: "/admin/inventory/changes", label: "שינויים אחרונים" },
   { href: "/admin/inventory/history", label: "היסטוריית סנכרון" },
