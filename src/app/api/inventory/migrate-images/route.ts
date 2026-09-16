@@ -16,13 +16,22 @@ import {
  * already lives, so the credential never leaves the dashboard and never
  * passes through a chat, a laptop or a shell.
  *
- * What this is FOR is the trickle, not the backlog. The sheet creates new
- * products with new hotlinks every time it is synced, so without something
- * like this the catalogue drifts back to where it started; a daily pass
- * keeps it at zero once it gets there. Clearing the existing 2,600 is a
- * different shape of job — see the note on the time budget below — and the
- * owner's screen at /admin/inventory/image-migration does that in one
- * sitting.
+ * It does the backlog and the trickle, and the schedule is what makes it
+ * do the first. A run is capped at 45 seconds, which is about ten images,
+ * so once a night clears 2,600 of them in roughly 257 nights — a schedule
+ * that reads like a plan and is not one. Every five minutes through the
+ * small hours is 72 runs, and the same backlog is gone in four.
+ *
+ * Both halves matter. The sheet creates new products carrying new hotlinks
+ * on every sync, so without a standing pass the catalogue drifts back to
+ * where it started however thoroughly it is cleared once; and a run with
+ * nothing to do costs one query, because an empty batch breaks the loop
+ * immediately. So the frequency that clears the backlog is also free to
+ * leave in place afterwards.
+ *
+ * The owner's screen at /admin/inventory/image-migration still does the
+ * same work in one sitting, for anyone who would rather watch it happen
+ * than wait for the night.
  *
  * Deliberately no `hosts` filter here: the cron's job is "whatever is left",
  * and blocked hosts are excluded inside the library where no caller can
