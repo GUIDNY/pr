@@ -391,6 +391,9 @@ export type ColorVariant = {
   price: number;
   imageUrl: string | null;
   isCurrent: boolean;
+  /** Whether `color` is a real colour this product stated, rather than the
+      placeholder used when neither colorName nor the title names one. */
+  named: boolean;
 };
 
 /**
@@ -415,10 +418,35 @@ export type ColorVariant = {
  * still reachable while sold out, should see which swatch it is looking at
  * rather than a row of colours with none of them selected.
  */
+/**
+ * What a swatch is called.
+ *
+ * colorName first: it is the structured field, it is what an admin edits,
+ * and a person who has written "נירוסטה מושחרת" there has said something
+ * the title may not. The title is the fallback because the supplier sheets
+ * have no colour column, so that field is empty on most of the catalogue
+ * and the answer really is sitting in the name.
+ *
+ * Never the whole title. An earlier version fell back to it, which on a
+ * product whose title names no colour put a sixty-character sentence into
+ * a 64px chip. A swatch that cannot be named is named by its position —
+ * still a choice a shopper can make, because the picture beside it is the
+ * actual answer.
+ */
+function swatchOf(
+  p: { slug: string; title: string; colorName: string | null; price: number },
+  fallback: string
+): { slug: string; color: string; price: number; named: boolean } {
+  const given = p.colorName?.trim();
+  const color = (given && given.length > 0 ? given : colorInTitle(p.title)) ?? null;
+  return { slug: p.slug, color: color ?? fallback, price: p.price, named: color !== null };
+}
+
 export async function getColorVariants(product: {
   id: string;
   slug: string;
   title: string;
+  colorName: string | null;
   price: number;
   variantGroupId: string | null;
   images: { url: string }[];
@@ -434,6 +462,7 @@ export async function getColorVariants(product: {
     select: {
       slug: true,
       title: true,
+      colorName: true,
       price: true,
       images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } },
     },
@@ -459,19 +488,11 @@ export async function getColorVariants(product: {
   const currentImage = product.images[0]?.url ?? null;
 
   const rows: ColorVariant[] = [
-    {
-      slug: product.slug,
-      color: colorInTitle(product.title) ?? "נוכחי",
-      price: product.price,
-      imageUrl: currentImage,
-      isCurrent: true,
-    },
+    { ...swatchOf(product, "הגוון הנוכחי"), imageUrl: currentImage, isCurrent: true },
     ...siblings.map((s) => {
       const url = s.images[0]?.url ?? null;
       return {
-        slug: s.slug,
-        color: colorInTitle(s.title) ?? s.title,
-        price: s.price,
+        ...swatchOf(s, "גוון אחר"),
         imageUrl: url && url !== currentImage ? url : null,
         isCurrent: false,
       };
@@ -485,6 +506,12 @@ export async function getColorVariants(product: {
      otherwise the cheaper one does, which is the order they arrive in. */
   const seen = new Set<string>();
   const unique = rows.filter((r) => {
+    /* Only a colour that was actually named can prove two swatches are the
+       same colour. Two unnamed finishes both fall back to the same
+       placeholder, and collapsing on that would silently hide one real
+       variant behind another — the opposite of the duplicate this is here
+       to remove. */
+    if (!r.named) return true;
     if (seen.has(r.color)) return false;
     seen.add(r.color);
     return true;
