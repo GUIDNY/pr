@@ -27,7 +27,22 @@ export function organizationSchema() {
     // one standing in for the other.
     legalName: BUSINESS.legalName,
     url: SITE_URL,
-    logo: absoluteUrl("/brand/logo.png"),
+    /* The same artwork, at an address Google has not already cached.
+       The file at /brand/logo.png has been the Buy Today mark for a while —
+       nothing is wrong with the picture. What is wrong is that Google
+       fetched that URL once, while it still held the A&I Electronics mark,
+       and a stable URL gives it no reason to look again; the old logo is
+       still what a search result shows.
+
+       So the bytes move to a new name and this line follows them. Every
+       other reference — the header, the footer, the email template, the
+       payment page — keeps /brand/logo.png and is unaffected: those are
+       served through next/image or read by a mail client, neither of which
+       has this problem. This one field is the one Google reads.
+
+       Do not rename this back, and do not point it at /brand/logo.png
+       again "to tidy up" — that is the cached address. */
+    logo: absoluteUrl("/brand/logo-buytoday-v2.png"),
     email: BUSINESS.email,
     description:
       "חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.",
