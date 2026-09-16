@@ -29,7 +29,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // or no publish flag really does 404.
     db.product.findMany({
       where: { isPublished: true, images: { some: {} } },
-      select: { slug: true, updatedAt: true, categoryId: true, brandId: true },
+      // stockQty is read but not filtered on: the product URLs below still
+      // want the sold-out ones, and the category gate further down wants
+      // only the sellable ones. One query, two rollups.
+      select: { slug: true, updatedAt: true, categoryId: true, brandId: true, stockQty: true },
     }),
     db.category.findMany({ select: { id: true, slug: true, parentId: true } }),
     // Every product, visible or not, only to date the categories that have
@@ -55,6 +58,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   for (const p of products) {
     const current = ownNewest.get(p.categoryId);
     if (!current || p.updatedAt > current) ownNewest.set(p.categoryId, p.updatedAt);
+  }
+
+  /* The sellable rollup, which is a different question from the one above.
+     ownNewest deliberately includes sold-out products, because a sold-out
+     product still has a page that answers 200 and its URL belongs in this
+     file. A category page is not like that: it renders the public
+     predicate, stock included, so a category whose every product is out of
+     stock shows an empty grid however well photographed they are.
+
+     Gating the categories on ownNewest was not enough for exactly that
+     reason — four of the six empty categories are published and
+     photographed and simply have nothing on the shelf, so they stayed
+     advertised while their own pages had already started saying noindex.
+     The sitemap and the page were telling Google opposite things. */
+  const sellableNewest = new Map<string, Date>();
+  for (const p of products) {
+    if (p.stockQty <= 0) continue;
+    const current = sellableNewest.get(p.categoryId);
+    if (!current || p.updatedAt > current) sellableNewest.set(p.categoryId, p.updatedAt);
   }
 
   const childrenOf = new Map<string, string[]>();
@@ -99,7 +121,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      generateMetadata. Two mechanisms because they answer different
      crawlers: this one stops the page being offered, that one stops it
      being kept if it was found some other way. */
-  const hasSomethingToSell = (id: string) => scopeOf(id).some((cid) => ownNewest.has(cid));
+  const hasSomethingToSell = (id: string) => scopeOf(id).some((cid) => sellableNewest.has(cid));
 
   // The homepage's rails are deals, best sellers and featured products, so
   // the catalog's newest change is what dates it. Not the homepage sections
