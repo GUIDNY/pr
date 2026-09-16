@@ -27,6 +27,11 @@ export default async function ImageMigrationPage() {
       <ImageMigrationPanel
         groups={[
           {
+            key: "all",
+            label: "כל השאר",
+            note: `${everything} תמונות חיצוניות. מארחים חסומים לא נכללים, וגם לא prec.co.il — הוא מסרב לבקשות שלנו.`,
+          },
+          {
             key: "prec",
             label: "האתר הישן — prec.co.il",
             /* First, and separately from the rest, because this one is not
@@ -35,12 +40,11 @@ export default async function ImageMigrationPage() {
                products: the day that site is switched off they leave the
                shop, since a product with no picture is not shown at all. */
             hosts: ["prec.co.il"],
-            note: `${prec} תמונות. האתר הישן של החברה — אם הוא ייסגר, המוצרים האלה נעלמים מהחנות.`,
-          },
-          {
-            key: "all",
-            label: "כל השאר",
-            note: `${everything} תמונות חיצוניות. מארחים חסומים לא נכללים, וגם לא prec.co.il — הוא מסרב לבקשות שלנו.`,
+            blocked: true,
+            note:
+              `${prec} תמונות. האתר הישן של החברה — אם הוא ייסגר, המוצרים האלה נעלמים מהחנות. ` +
+              `כרגע הוא חוסם את הבקשות שלנו (Cloudflare), אז ריצה כאן תיכשל עד שתיפתח הרשאה בצד שלו. ` +
+              `הכפתור נשאר כדי לבדוק אם נפתח.`,
           },
         ]}
       />

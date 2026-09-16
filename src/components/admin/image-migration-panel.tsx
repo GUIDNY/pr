@@ -17,7 +17,16 @@ import { migrateImagesBatchAction } from "@/actions/admin-image-migration";
  * be abandoned safely at any point. Every image migrated before that stays
  * migrated.
  */
-type Group = { key: string; label: string; hosts?: string[]; note: string };
+type Group = {
+  key: string;
+  label: string;
+  hosts?: string[];
+  note: string;
+  /** Known to refuse us. The button stays — that is how anyone finds out
+      the block has been lifted — but it is marked, because the first two
+      runs of this screen were both spent on it by accident. */
+  blocked?: boolean;
+};
 
 export function ImageMigrationPanel({ groups }: { groups: Group[] }) {
   const [running, setRunning] = useState<string | null>(null);
@@ -88,11 +97,23 @@ export function ImageMigrationPanel({ groups }: { groups: Group[] }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         {groups.map((group) => (
-          <div key={group.key} className="border-border bg-card rounded-xl border p-4">
-            <p className="font-semibold">{group.label}</p>
+          <div
+            key={group.key}
+            className={`rounded-xl border p-4 ${
+              group.blocked ? "border-warning/40 bg-warning/5" : "border-border bg-card"
+            }`}
+          >
+            <p className="font-semibold">
+              {group.label}
+              {group.blocked && (
+                <span className="bg-warning/20 text-warning-foreground ms-2 rounded-full px-2 py-0.5 text-xs font-medium">
+                  חסום
+                </span>
+              )}
+            </p>
             <p className="text-muted-foreground mt-1 text-sm">{group.note}</p>
             <Button
-              variant="brand"
+              variant={group.blocked ? "outline" : "brand"}
               className="mt-3"
               disabled={running !== null}
               onClick={() => run(group)}
