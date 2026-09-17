@@ -158,6 +158,14 @@ export async function Footer() {
               </Link>
             </li>
             <li>
+              {/* The second page Merchant Center looks for from the footer,
+                  and for the same reason: a shopper must be able to find what
+                  delivery costs without starting a checkout. */}
+              <Link href="/shipping" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                מדיניות משלוחים
+              </Link>
+            </li>
+            <li>
               <Link href="/privacy" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 מדיניות פרטיות
               </Link>

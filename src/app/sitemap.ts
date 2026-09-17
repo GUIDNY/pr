@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { SITE_URL as BASE_URL } from "@/lib/site-url";
 import { hasDerivedHashSuffix } from "@/lib/derived-slug";
 import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
+import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
+import { TERMS_UPDATED } from "@/lib/content/terms";
 
 // One catalog this size (products + categories + articles) comfortably
 // fits under the 50k-URL-per-file cap a sitemap.xml is allowed, so this
@@ -164,8 +166,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
        commit, which is its own reason to name the surviving one here
        explicitly rather than leave an engine to pick. */
     {
+      url: `${BASE_URL}/shipping`,
+      lastModified: SHIPPING_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+    {
       url: `${BASE_URL}/terms`,
-      lastModified: RETURNS_POLICY_UPDATED,
+      // Its own date. This was RETURNS_POLICY_UPDATED, so revising the terms
+      // told a crawler nothing had changed.
+      lastModified: TERMS_UPDATED,
       changeFrequency: "yearly",
       priority: 0.4,
     },

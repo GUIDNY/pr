@@ -23,6 +23,11 @@ import type { ArticleBlock } from "@/lib/queries/articles";
  */
 export const TERMS_UPDATED_AT = "17 בספטמבר 2026";
 
+/** The same day as a Date, for the sitemap. It used to date this URL with
+    RETURNS_POLICY_UPDATED — a different document's timestamp — so a revision
+    to the terms told crawlers nothing had changed. */
+export const TERMS_UPDATED = new Date("2026-09-17T00:00:00Z");
+
 export const TERMS_TITLE = "תנאי שימוש ותקנון Buy Today";
 
 export const TERMS_BLOCKS: ArticleBlock[] = [
