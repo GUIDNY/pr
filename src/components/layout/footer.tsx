@@ -171,6 +171,17 @@ export async function Footer() {
               </Link>
             </li>
             <li>
+              {/* A legal right most people do not know they have, so it is
+                  named in the footer rather than left at §25 of the terms.
+                  The same reasoning as the two Merchant Center pages above,
+                  arrived at from the other direction: those are findable
+                  because Google looks for them, this one because a customer
+                  with an old fridge in the way has to be able to. */}
+              <Link href="/old-product-removal" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                פינוי מוצר ישן
+              </Link>
+            </li>
+            <li>
               <Link href="/accessibility" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 הצהרת נגישות
               </Link>

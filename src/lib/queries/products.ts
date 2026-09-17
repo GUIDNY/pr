@@ -1,4 +1,5 @@
 import "server-only";
+import { RECYCLING_ROW_SELECT } from "@/lib/recycling";
 import { cache } from "react";
 import { normalizeFacetValue } from "@/lib/facet-value";
 import { db } from "@/lib/db";
@@ -344,7 +345,13 @@ export const getProductBySlug = cache(async (slug: string) => {
     where: { slug },
     include: {
       brand: { include: { images: { orderBy: { sortOrder: "asc" } } } },
-      category: { include: { parent: true } },
+      /* The category's parent for the breadcrumb, and its recycling group so
+         the page can say whether this purchase carries a free removal of the
+         old one. Both come off the same row, so neither costs a query. */
+      category: { include: { parent: true, recyclingCategory: { select: RECYCLING_ROW_SELECT } } },
+      /* The per-product override, which wins over the category's answer —
+         see resolveRemovalGroup. */
+      recyclingCategory: { select: RECYCLING_ROW_SELECT },
       images: { orderBy: { sortOrder: "asc" } },
       attributeValues: { include: { attribute: true }, orderBy: { attribute: { sortOrder: "asc" } } },
       reviews: { where: { isApproved: true }, orderBy: { createdAt: "desc" } },

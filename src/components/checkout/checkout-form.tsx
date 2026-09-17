@@ -22,6 +22,8 @@ import { saveCheckoutContactAction } from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
 import { cartHasBulky } from "@/lib/bulky";
+import { RemovalSection } from "@/components/checkout/removal-section";
+import { asksExceptionalQuestions } from "@/lib/recycling";
 import {
   DELIVERY_CARRIER,
   FREE_DELIVERY_THRESHOLD,
@@ -117,6 +119,19 @@ export function CheckoutForm({
      how a paid-for cart gets abandoned. */
   const [stranded, setStranded] = useState<{ orderId: string; orderNumber: string; reason: string } | null>(null);
 
+  /* THE OLD APPLIANCE, kept beside `form` rather than inside it.
+     `form` is the checkout schema's shape — what an order is made of — and
+     this is a set of answers about lines in the basket, keyed by product.
+     Folding one into the other would mean a payload whose shape depends on
+     what happens to be in the cart. */
+  const [removalWanted, setRemovalWanted] = useState<Record<string, boolean>>({});
+  const [removalReasons, setRemovalReasons] = useState<string[]>([]);
+  const [removalNotes, setRemovalNotes] = useState("");
+  const [removalAck, setRemovalAck] = useState(false);
+  /* Only after a failed attempt. Marking the confirmation red before anybody
+     has tried to pay is telling somebody off for not having got there yet. */
+  const [removalAckError, setRemovalAckError] = useState(false);
+
   const [form, setForm] = useState({
     fullName: defaultName ?? "",
     email: defaultEmail ?? "",
@@ -162,6 +177,35 @@ export function CheckoutForm({
   const needsAddress = requiresAddress(deliveryMethod);
   const deliveryFee = deliveryMethod === "DELIVERY" ? cart.deliveryFee : 0;
   const orderTotal = Math.max(0, cart.subtotal - cart.discount + deliveryFee);
+
+  /* Which lines carry a removal offer, and what the customer has said about
+     them. All derived from the cart and the state above, never stored — a
+     basket can change in another tab, and a stored list of "lines that can
+     have their old one taken" would outlive the line it names. */
+  const removableItems = cart.items
+    .filter((i) => i.removal)
+    .map((i) => ({ productId: i.productId, title: i.title, removal: i.removal! }));
+  const requestedRemovals = removableItems.filter((i) => removalWanted[i.productId]);
+  /* The access questions are about the property, so they are asked once for
+     the order — and only when something being collected from a home could
+     actually produce an exceptional removal. Derived, so choosing collection
+     from the branch drops them rather than leaving stale answers attached. */
+  const asksRemovalAccess = requestedRemovals.some((i) =>
+    asksExceptionalQuestions(i.removal, deliveryMethod),
+  );
+  const effectiveRemovalReasons = asksRemovalAccess ? removalReasons : [];
+  /* A ticked removal with no confirmation is an incomplete order, in exactly
+     the sense the address is: it is a promise the shop cannot act on. It
+     therefore holds the payment form shut rather than failing at the button —
+     see readyToPay below. */
+  const removalReady = requestedRemovals.length === 0 || removalAck;
+  /* Hoisted out of the sync effect's dependency array below. The arrays are
+     rebuilt every render, so their identities would fire it on every
+     keystroke; these are the two things that actually change, and the lint
+     rule that insists a dependency be a plain name is what makes that
+     visible rather than buried in the array. */
+  const requestedRemovalKey = requestedRemovals.map((i) => i.productId).join(",");
+  const removalReasonKey = effectiveRemovalReasons.join(",");
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => {
@@ -278,6 +322,7 @@ export function CheckoutForm({
     !payment &&
     !stranded &&
     form.paymentMethod === "DEMO_CARD" &&
+    removalReady &&
     detailsCompleteFor(form);
 
   useEffect(() => {
@@ -317,6 +362,14 @@ export function CheckoutForm({
         apartment: form.apartment,
         deliveryNotes: form.deliveryNotes,
         deliveryMethod,
+        /* Only once the confirmation is ticked. An unconfirmed removal is
+           not a half-saved one — the action treats it as no request at all,
+           which is what stops a half-filled form leaving a van booked
+           against a condition nobody agreed to. */
+        removalProductIds: removalAck && requestedRemovalKey ? requestedRemovalKey.split(",") : [],
+        removalReasons: removalReasonKey ? removalReasonKey.split(",") : [],
+        removalNotes: removalNotes.trim() || undefined,
+        removalAcknowledged: removalAck,
       }).catch(() => {});
     }, 700);
     return () => clearTimeout(timer);
@@ -332,10 +385,22 @@ export function CheckoutForm({
     form.apartment,
     form.deliveryNotes,
     deliveryMethod,
+    removalAck,
+    removalNotes,
+    requestedRemovalKey,
+    removalReasonKey,
   ]);
 
   function submit() {
     setErrors({});
+    /* Refused here as well as held shut above, because submit() is also
+       reachable from the staff test panel and from the auto-open timer. */
+    if (!removalReady) {
+      setRemovalAckError(true);
+      toast.error("יש לאשר את תנאי הכנת המוצר לפינוי");
+      return;
+    }
+    setRemovalAckError(false);
     startTransition(async () => {
       /* The radio still says DEMO_CARD — it is one "credit card" option to the
          customer either way — but with the gateway on, the order is a PELECARD
@@ -347,6 +412,14 @@ export function CheckoutForm({
         ...form,
         paymentMethod:
           payViaGateway && form.paymentMethod === "DEMO_CARD" ? "PELECARD" : form.paymentMethod,
+        /* Product ids and nothing else. The server looks up what each one is
+           and which old appliance it entitles its buyer to — a browser that
+           could name the equipment group could name a fridge's removal on a
+           cable, and the carrier would be the one to find out. */
+        removalProductIds: requestedRemovals.map((i) => i.productId),
+        removalReasons: effectiveRemovalReasons,
+        removalNotes: removalNotes.trim() || undefined,
+        removalAcknowledged: removalAck,
       };
       const result = await createOrderAction(payload as CheckoutInput);
       if (!result.success) {
@@ -557,6 +630,33 @@ export function CheckoutForm({
             </p>
           )}
         </section>
+
+        {/* After the delivery method and inside the same fieldset, both
+            deliberately. After, because what the shop can promise about the
+            old appliance depends on where the new one is going. Inside,
+            because once a payment is open the order already exists and
+            carries these answers — a tick that lands after that would be a
+            promise made to a form and to nobody else. For the shoppers whose
+            details stay live while paying, the sync effect above carries the
+            change through to the order. */}
+        <RemovalSection
+          items={removableItems}
+          deliveryMethod={deliveryMethod}
+          wanted={removalWanted}
+          onToggle={(productId, next) =>
+            setRemovalWanted((w) => ({ ...w, [productId]: next }))
+          }
+          reasons={removalReasons}
+          onReasonsChange={setRemovalReasons}
+          notes={removalNotes}
+          onNotesChange={setRemovalNotes}
+          acknowledged={removalAck}
+          onAcknowledgedChange={(next) => {
+            setRemovalAck(next);
+            if (next) setRemovalAckError(false);
+          }}
+          ackError={removalAckError}
+        />
 
         </fieldset>
 

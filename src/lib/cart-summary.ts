@@ -1,6 +1,7 @@
 import "server-only";
 import { computeCartSubtotal, computeDeliveryFee, resolveCoupon } from "@/lib/pricing";
 import { isBulkyCategory } from "@/lib/bulky";
+import { resolveRemovalGroup, type RecyclingRow, type RemovalGroup } from "@/lib/recycling";
 
 type CartWithItems = {
   id: string;
@@ -22,7 +23,12 @@ type CartWithItems = {
       // see lib/bulky.ts. Carried on the item rather than recomputed at the
       // checkout, so the cart and the checkout cannot reach different
       // answers about the same basket.
-      category: { slug: string; parent: { slug: string } | null };
+      category: { slug: string; parent: { slug: string } | null; recyclingCategory: RecyclingRow | null };
+      // Which old appliance buying this one entitles the customer to hand
+      // over. Resolved once here so the cart, the checkout and the order all
+      // read the same answer — see lib/recycling.ts.
+      recyclingOptOut: boolean;
+      recyclingCategory: RecyclingRow | null;
       images: { url: string; alt: string | null }[];
     };
   }[];
@@ -50,6 +56,9 @@ export type CartSummary = {
     /** Too big for a צ'יטה collection point. Collecting it from the Hadera
         counter is still fine. */
     isBulky: boolean;
+    /** The old appliance this line entitles its buyer to hand over, or null
+        when this product's category is not mapped to an equipment group. */
+    removal: RemovalGroup | null;
   }[];
   itemCount: number;
   subtotal: number;
@@ -76,6 +85,7 @@ export async function buildCartSummary(cart: CartWithItems): Promise<CartSummary
     stockStatus: i.product.stockStatus,
     maxQuantity: i.product.stockStatus === "OUT_OF_STOCK" ? 0 : Math.max(1, Math.min(i.product.stockQty, 10)),
     isBulky: isBulkyCategory(i.product.category.slug, i.product.category.parent?.slug ?? null),
+    removal: resolveRemovalGroup(i.product),
   }));
 
   const subtotal = computeCartSubtotal(items);

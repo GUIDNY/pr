@@ -8,6 +8,13 @@ import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
 import { computeDeliveryFee, requiresAddress } from "@/lib/delivery";
 import { cartHasBulky, isBulkyCategory } from "@/lib/bulky";
+import {
+  REMOVAL_ORDERING_ENABLED,
+  RECYCLING_ROW_SELECT,
+  asksExceptionalQuestions,
+  initialRemovalStatus,
+  resolveRemovalGroup,
+} from "@/lib/recycling";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
 import { rememberOrder, browserPlacedOrder } from "@/lib/order-receipts";
@@ -166,15 +173,76 @@ export async function createOrderAction(input: CheckoutInput) {
     },
   });
 
+  /* One lookup for the whole basket rather than one per line. It used to be
+     a findUnique inside the loop for the sku alone; the removal data needs
+     the same rows, and a five-line order was five round trips to Supabase in
+     Sydney at the moment the customer is watching a spinner. */
+  const productRows = await db.product.findMany({
+    where: { id: { in: summary.items.map((i) => i.productId) } },
+    select: {
+      id: true,
+      sku: true,
+      recyclingOptOut: true,
+      recyclingCategory: { select: RECYCLING_ROW_SELECT },
+      category: { select: { recyclingCategory: { select: RECYCLING_ROW_SELECT } } },
+    },
+  });
+  const productById = new Map(productRows.map((p) => [p.id, p]));
+
+  /* WHAT THE CUSTOMER ASKED TO HAVE TAKEN AWAY, re-derived here and not
+     believed from the form.
+
+     The browser sends product ids and nothing else. Which old appliance each
+     one entitles its buyer to hand over is read from the catalogue, so a
+     replayed form cannot attach a fridge's removal to a cable — and the
+     person who would discover that is the driver, on the doorstep, with no
+     room on the van.
+
+     The whole block is skipped while REMOVAL_ORDERING_ENABLED is off. The
+     checkout renders no checkbox then, so nothing should arrive; if
+     something does, it is a form from another build or a replay, and
+     recording a request the shop has no carrier for is the exact failure the
+     switch exists to prevent. */
+  const askedForRemoval = new Set(REMOVAL_ORDERING_ENABLED ? (data.removalProductIds ?? []) : []);
+  const removalReasons = data.removalReasons ?? [];
+
   for (const item of summary.items) {
+    const product = productById.get(item.productId)!;
+    const group = resolveRemovalGroup(product);
+    const requested = group !== null && askedForRemoval.has(item.productId);
+    /* Exceptional only where the questions were actually put: a group that
+       is not a large appliance is never chargeable, and somebody collecting
+       from the Hadera counter was never asked about their stairs. Applying
+       the answers to every requested line regardless would mark a kettle for
+       coordination because a fridge on the same order sits on a sixth floor. */
+    const exceptional =
+      requested && asksExceptionalQuestions(group!, deliveryMethod) && removalReasons.length > 0;
+
     await db.orderItem.create({
       data: {
         orderId: order.id,
         productId: item.productId,
         titleSnap: item.title,
-        skuSnap: (await db.product.findUnique({ where: { id: item.productId }, select: { sku: true } }))!.sku,
+        skuSnap: product.sku,
         priceSnap: item.price,
         quantity: item.quantity,
+        /* Snapshotted on every eligible line, requested or not. What the
+           customer was offered is worth knowing even when they said no —
+           otherwise "nobody wants this" and "we never asked" look identical
+           in the data. */
+        recyclingKeySnap: group?.key ?? null,
+        recyclingLabelSnap: group?.label ?? null,
+        removalRequested: requested,
+        removalExceptional: exceptional,
+        /* The access answers and the note are about the property rather than
+           the appliance, so they are asked once and copied onto each
+           requested line. Copied rather than left on the order, so that a
+           person looking at one line never has to know to look elsewhere for
+           the reason it needs a phone call. */
+        removalReasons: exceptional ? JSON.stringify(removalReasons) : null,
+        removalNotes: requested ? (data.removalNotes ?? null) : null,
+        removalAcknowledged: requested ? data.removalAcknowledged === true : false,
+        removalStatus: requested ? initialRemovalStatus(deliveryMethod, exceptional) : "NOT_REQUESTED",
       },
     });
   }
@@ -371,6 +439,14 @@ export async function updatePendingOrderDetailsAction(
     apartment?: string;
     deliveryNotes?: string;
     deliveryMethod?: "DELIVERY" | "PICKUP_POINT" | "PICKUP";
+    /* The removal answers follow the fields for the same reason the address
+       does: the order exists while the customer is still looking at the page
+       that made it, and a tick that lands after it was created would be a
+       promise made to a form and to nobody else. */
+    removalProductIds?: string[];
+    removalReasons?: string[];
+    removalNotes?: string;
+    removalAcknowledged?: boolean;
   },
 ) {
   const session = await getSession();
@@ -415,6 +491,55 @@ export async function updatePendingOrderDetailsAction(
       ...(details.deliveryMethod ? { deliveryMethod: details.deliveryMethod } : {}),
     },
   });
+
+  /* And the old appliance, line by line. Re-derived from the catalogue here
+     exactly as it is at creation — this action is reachable by anyone holding
+     the order id, and "which equipment group is this" is not a question the
+     caller gets to answer.
+
+     Skipped entirely while ordering is switched off, so an old tab from a
+     build that still had the checkbox cannot write a request the shop has no
+     carrier for. */
+  if (REMOVAL_ORDERING_ENABLED && details.removalProductIds) {
+    const asked = new Set(details.removalProductIds);
+    const reasons = details.removalReasons ?? [];
+    const method = details.deliveryMethod ?? "DELIVERY";
+
+    const lines = await db.orderItem.findMany({
+      where: { orderId: order.id },
+      select: {
+        id: true,
+        productId: true,
+        product: {
+          select: {
+            recyclingOptOut: true,
+            recyclingCategory: { select: RECYCLING_ROW_SELECT },
+            category: { select: { recyclingCategory: { select: RECYCLING_ROW_SELECT } } },
+          },
+        },
+      },
+    });
+
+    for (const line of lines) {
+      const group = resolveRemovalGroup(line.product);
+      const requested = group !== null && asked.has(line.productId) && details.removalAcknowledged === true;
+      const exceptional =
+        requested && asksExceptionalQuestions(group!, method) && reasons.length > 0;
+      await db.orderItem.update({
+        where: { id: line.id },
+        data: {
+          recyclingKeySnap: group?.key ?? null,
+          recyclingLabelSnap: group?.label ?? null,
+          removalRequested: requested,
+          removalExceptional: exceptional,
+          removalReasons: exceptional ? JSON.stringify(reasons) : null,
+          removalNotes: requested ? (details.removalNotes ?? null) : null,
+          removalAcknowledged: requested,
+          removalStatus: requested ? initialRemovalStatus(method, exceptional) : "NOT_REQUESTED",
+        },
+      });
+    }
+  }
 
   if (order.addressId && details.city && details.street && details.houseNo) {
     await db.address.update({

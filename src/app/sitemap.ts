@@ -4,6 +4,7 @@ import { SITE_URL as BASE_URL } from "@/lib/site-url";
 import { hasDerivedHashSuffix } from "@/lib/derived-slug";
 import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
 import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
+import { REMOVAL_POLICY_UPDATED } from "@/lib/removal-policy";
 import { TERMS_UPDATED } from "@/lib/content/terms";
 
 // One catalog this size (products + categories + articles) comfortably
@@ -176,6 +177,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // Its own date. This was RETURNS_POLICY_UPDATED, so revising the terms
       // told a crawler nothing had changed.
       lastModified: TERMS_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.4,
+    },
+    {
+      /* Its own date, and its own entry rather than riding on the terms:
+         the right it describes is the reason somebody searches for it, and
+         a page a crawler has never been offered is a page that answers
+         nobody's search. */
+      url: `${BASE_URL}/old-product-removal`,
+      lastModified: REMOVAL_POLICY_UPDATED,
       changeFrequency: "yearly",
       priority: 0.4,
     },

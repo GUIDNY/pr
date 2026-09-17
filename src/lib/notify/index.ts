@@ -5,6 +5,8 @@ import { CHANNELS } from "./channels";
 import { messageFor } from "./messages";
 import { renderOrderEmail } from "./email-html";
 import type { Message, NotifyEvent } from "./types";
+import { removalTimingNote } from "@/lib/recycling";
+import type { DeliveryMethod } from "@/lib/delivery";
 
 export * from "./types";
 export { CHANNELS } from "./channels";
@@ -28,7 +30,20 @@ const ORDER_SELECT = {
   guestEmail: true,
   guestPhone: true,
   user: { select: { name: true, email: true, phone: true } },
-  items: { select: { titleSnap: true, quantity: true, priceSnap: true } },
+  items: {
+    select: {
+      titleSnap: true,
+      quantity: true,
+      priceSnap: true,
+      // What was promised about the old one, read off the order and never
+      // recomputed: the catalogue's mapping can be re-pointed next month and
+      // a receipt has to keep saying what the customer actually agreed to.
+      removalRequested: true,
+      recyclingLabelSnap: true,
+      removalStatus: true,
+      removalFee: true,
+    },
+  },
 } as const;
 
 type OrderRow = {
@@ -47,7 +62,15 @@ type OrderRow = {
   trackingUrl: string | null;
   guestName: string | null;
   user: { name: string } | null;
-  items: { titleSnap: string; quantity: number; priceSnap: number }[];
+  items: {
+    titleSnap: string;
+    quantity: number;
+    priceSnap: number;
+    removalRequested: boolean;
+    recyclingLabelSnap: string | null;
+    removalStatus: string;
+    removalFee: number | null;
+  }[];
 };
 
 /**
@@ -87,6 +110,15 @@ export function buildMessage(order: OrderRow, event: NotifyEvent): Message {
     deliveryToCustomer: toCustomer,
     address: shipAddress(order),
     items: order.items.map((i) => ({ title: i.titleSnap, quantity: i.quantity, price: i.priceSnap })),
+    removals: order.items
+      .filter((i) => i.removalRequested && i.recyclingLabelSnap)
+      .map((i) => ({
+        label: i.recyclingLabelSnap!,
+        title: i.titleSnap,
+        status: i.removalStatus,
+        fee: i.removalFee,
+      })),
+    removalTiming: removalTimingNote(order.deliveryMethod as DeliveryMethod),
     courierName: order.courierName,
     trackingNumber: order.trackingNumber,
     trackingUrl: order.trackingUrl,

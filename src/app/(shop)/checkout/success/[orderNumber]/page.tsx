@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle2, MapPin, Package, Truck, UserPlus } from "lucide-react";
+import { CheckCircle2, MapPin, Package, Recycle, Truck, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { OrderTimeline } from "@/components/order/order-timeline";
 import { getOrderByNumber, getLatestPaymentForOrder } from "@/lib/queries/orders";
@@ -13,6 +13,14 @@ import { formatPrice, formatDateTime } from "@/lib/format";
 import type { OrderStatus, DeliveryMethod } from "@/lib/enums";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
 import { customerHasPaid } from "@/lib/order-signal";
+import {
+  REMOVAL_NOT_A_TRADESMAN,
+  REMOVAL_PAGE_PATH,
+  REMOVAL_PREPARATION,
+  removalCostLine,
+  removalTimingNote,
+} from "@/lib/recycling";
+import type { DeliveryMethod as DeliveryMethodValue } from "@/lib/delivery";
 
 export default async function CheckoutSuccessPage({ params }: { params: Promise<{ orderNumber: string }> }) {
   const { orderNumber } = await params;
@@ -46,6 +54,12 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
      is redirected back here — so the page reports whatever the database
      currently says and lets the panel below poll until it settles. This page
      never writes a payment status. */
+  /* The lines whose old appliance the shop agreed to take. Read off the
+     order rather than recomputed from the catalogue: the mapping can be
+     re-pointed next month and this receipt has to keep saying what was
+     actually promised. */
+  const removals = order.items.filter((i) => i.removalRequested);
+
   const payment = order.paymentMethod === "PELECARD" ? await getLatestPaymentForOrder(order.id) : null;
   const awaitingGateway = order.paymentMethod === "PELECARD";
 
@@ -112,6 +126,51 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
           </p>
         )}
       </div>
+
+      {/* THE OLD APPLIANCE, said back to the customer while they can still
+          act on it. The brief is explicit that a requested removal must
+          appear on the confirmation, and the reason is the paragraph under
+          it rather than the line above it: a fridge that has not been
+          emptied and unplugged by the time the van arrives is a removal that
+          does not happen, and this page is the last moment before the
+          delivery date when saying so costs nothing. */}
+      {removals.length > 0 && (
+        <div className="border-border mb-6 rounded-xl border p-5">
+          <h2 className="mb-3 flex items-center gap-2 font-semibold">
+            <Recycle className="text-brand size-4" /> פינוי מוצר ישן
+          </h2>
+          <ul className="divide-border divide-y">
+            {removals.map((item) => (
+              <li key={item.id} className="flex justify-between gap-3 py-2 text-sm">
+                <span>
+                  <span className="font-medium">{item.recyclingLabelSnap}</span>
+                  <span className="text-muted-foreground block text-xs">{item.titleSnap}</span>
+                </span>
+                <span className="text-muted-foreground shrink-0 text-xs">
+                  {removalCostLine(item.removalStatus, item.removalFee)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-muted-foreground mt-3 text-sm leading-relaxed">
+            {removalTimingNote(order.deliveryMethod as DeliveryMethodValue)}
+          </p>
+          <div className="border-border mt-3 border-t pt-3">
+            <p className="mb-1.5 text-sm font-medium">להכין לפני הגעת המוביל</p>
+            <ul className="text-muted-foreground flex list-disc flex-col gap-0.5 ps-5 text-xs leading-relaxed">
+              {REMOVAL_PREPARATION.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+              {REMOVAL_NOT_A_TRADESMAN}{" "}
+              <Link href={REMOVAL_PAGE_PATH} className="text-brand hover:underline">
+                לתנאי הפינוי המלאים
+              </Link>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* A guest leaves this page with an order number and nothing else: no
           account, and nothing on the page that offers one. Their name, email

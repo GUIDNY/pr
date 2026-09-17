@@ -3,8 +3,9 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { MetaViewContent } from "@/components/analytics/meta-events";
 import { breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
-import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw } from "lucide-react";
+import { Star, Truck, ShieldCheck, PackageCheck, Pencil, Recycle, RotateCcw } from "lucide-react";
 import { FREE_DELIVERY_THRESHOLD, computeDeliveryFee } from "@/lib/delivery";
+import { REMOVAL_PAGE_PATH, removalExampleLine, resolveRemovalGroup } from "@/lib/recycling";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -141,6 +142,10 @@ export async function ProductPageView({
   // For one unit of this product on its own — the same rule the cart
   // applies, stated before anything is in the cart.
   const deliveryFee = computeDeliveryFee(product.price);
+  /* Which old appliance buying this one entitles somebody to hand over, or
+     null when the shop has not mapped this category — see lib/recycling.ts
+     for why an unmapped category says nothing rather than guessing. */
+  const removal = resolveRemovalGroup(product);
 
   // ProductGallery is a Client Component, so whatever's in its `images`
   // prop gets serialized into the page's hydration payload for every
@@ -484,6 +489,28 @@ export async function ProductPageView({
                   <span>
                     <span className="font-semibold">אחריות יבואן רשמי</span>
                     <span className="text-muted-foreground"> · {product.warrantyMonths} חודשים</span>
+                  </span>
+                </li>
+              )}
+              {/* The old one goes away too, and most people do not know that.
+                  It sits in this list rather than in the "משלוח ואחריות" tab
+                  below for the same reason the delivery fee does: it is a
+                  fact about this purchase that changes the decision, and a
+                  fact behind a tab is a fact nobody reads.
+
+                  Only when the product actually maps to an equipment group —
+                  silence otherwise, never a generic "פינוי מוצר ישן". A
+                  promise on a TV bracket is a customer standing next to an
+                  old television the driver will not take. */}
+              {removal && (
+                <li className="flex items-start gap-2.5 px-3.5 py-2.5">
+                  <Recycle className="text-brand mt-0.5 size-4 shrink-0" />
+                  <span>
+                    <span className="font-semibold">פינוי מוצר ישן ללא עלות</span>
+                    <span className="text-muted-foreground"> · {removalExampleLine(removal)} </span>
+                    <Link href={REMOVAL_PAGE_PATH} className="text-brand underline-offset-2 hover:underline">
+                      לתנאי פינוי מוצר ישן
+                    </Link>
                   </span>
                 </li>
               )}

@@ -2,6 +2,7 @@ import type { NotifyEvent } from "./types";
 import { formatPrice } from "@/lib/format";
 import { SITE_URL } from "@/lib/site-url";
 import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
+import { REMOVAL_PREPARATION, removalCostLine } from "@/lib/recycling";
 
 /**
  * The order email, as HTML.
@@ -104,6 +105,12 @@ export type OrderForEmail = {
   deliveryToCustomer: boolean;
   address: string | null;
   items: { title: string; quantity: number; price: number }[];
+  /** The lines whose old appliance the shop agreed to take away, already
+      filtered — the email prints what it is given rather than deciding who
+      qualifies, the same as it does with the address. */
+  removals: { label: string; title: string; status: string; fee: number | null }[];
+  /** What happens and when, for the delivery method this order chose. */
+  removalTiming: string;
   courierName?: string | null;
   trackingNumber?: string | null;
   trackingUrl?: string | null;
@@ -181,6 +188,30 @@ export function renderOrderEmail(event: NotifyEvent, order: OrderForEmail): stri
   const ctaHref = hasCourierLink ? order.trackingUrl! : order.trackUrl;
   const ctaLabel = hasCourierLink ? "מעקב אצל השליח" : "מעקב אחרי ההזמנה";
 
+  /* THE OLD APPLIANCE, on the receipt.
+     The brief requires a requested removal to appear here, and the list
+     underneath is the reason why rather than an extra: a fridge still full
+     and still plugged in when the van arrives is a removal that does not
+     happen, and this mail is the thing the customer will have open the
+     evening before. Plain rows, no icons — the receipt above it is plain
+     rows too, and a mail client that drops a background colour must still
+     leave this readable. */
+  const removalBlock =
+    order.removals.length > 0
+      ? `<div style="background:${BRAND_TINT};border-radius:12px;padding:16px 18px;margin-top:20px;">
+            <div style="font-family:${FONT};font-size:15px;font-weight:700;color:${INK};padding-bottom:8px;">פינוי מוצר ישן</div>
+            ${order.removals
+              .map(
+                (r) =>
+                  `<div style="font-family:${FONT};font-size:14px;color:${INK};line-height:1.6;">${esc(r.label)} — ${esc(removalCostLine(r.status, r.fee))}<br><span style="color:${MUTED};font-size:13px;">${esc(r.title)}</span></div>`,
+              )
+              .join("")}
+            <div style="font-family:${FONT};font-size:13px;color:${MUTED};line-height:1.6;padding-top:10px;">${esc(order.removalTiming)}</div>
+            <div style="font-family:${FONT};font-size:13px;color:${INK};line-height:1.6;padding-top:10px;font-weight:600;">יש להכין את המוצר הישן לפני הגעת המוביל:</div>
+            <div style="font-family:${FONT};font-size:13px;color:${MUTED};line-height:1.6;">${esc(REMOVAL_PREPARATION.join(" · "))}</div>
+          </div>`
+      : "";
+
   const courierBlock =
     event === "SHIPPED" && (order.courierName || order.trackingNumber)
       ? `<div style="background:${BRAND_TINT};border-radius:12px;padding:16px 18px;margin-top:20px;">
@@ -249,8 +280,8 @@ export function renderOrderEmail(event: NotifyEvent, order: OrderForEmail): stri
         </table>
       </td></tr>
 ${
-  addressBlock || courierBlock
-    ? `      <tr><td style="padding:0 30px;">${addressBlock}${courierBlock}</td></tr>\n`
+  addressBlock || removalBlock || courierBlock
+    ? `      <tr><td style="padding:0 30px;">${addressBlock}${removalBlock}${courierBlock}</td></tr>\n`
     : ""
 }
       <tr><td align="center" style="text-align:center;padding:28px 30px 0;">
