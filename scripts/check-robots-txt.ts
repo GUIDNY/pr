@@ -124,6 +124,21 @@ check(
   !allowed("# hello\nUSER-AGENT: *\nDISALLOW: /x/   # trailing\n", "/x/y.jpg"),
 );
 
+/* The api. and services. subdomains of the same registrable domain serve
+   separate files, and a product sits on each. robots.txt is scoped to
+   scheme, host and port — nothing is inherited — so a cache keyed by
+   domain would apply one host's rules to the other. Asserted on the parser
+   level here; mayFetch keys its cache on parsed.host for the same reason. */
+const API_SUB = `
+User-agent: Googlebot
+Allow: /EzTI8yuzBwVAVlijEqzB7oHBcqBSltX6ZUenNnYJCNzK0/
+Disallow: /
+
+User-agent: *
+Disallow: /
+`;
+check("a sibling subdomain's own file is what applies to it", !allowed(API_SUB, "/anything/x.jpg"));
+
 if (failed > 0) {
   console.log(`\n${failed} failed`);
   process.exit(1);

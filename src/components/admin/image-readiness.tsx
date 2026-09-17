@@ -25,7 +25,8 @@ export function ImageReadiness({ rows }: { rows: ImageReadinessRow[] }) {
     <section className="border-border bg-card mb-6 rounded-2xl border p-4">
       <h2 className="text-base font-semibold">מוצרים חיים לפי התמונה הראשית</h2>
       <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-        {total} מוצרים על האתר, לפי השרת שמארח את התמונה הראשית של כל אחד — לא לפי כמה תמונות יש לו.
+        {total} מוצרים מפורסמים, לפי השרת שמארח את <strong>התמונה הראשית</strong> של כל אחד. רק היא נשלחת
+        כ-image_link בפיד, אז מוצר עם שש תמונות שהראשית שלו עדיין על שרת היצרן לא זז אצל גוגל.
       </p>
       {/* Said plainly because the opposite was believed here for a day: the
           products that are not showing in Merchant Center are mostly not

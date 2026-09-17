@@ -570,8 +570,21 @@ export type ImageReadinessRow = {
  * HOSTS_THAT_REFUSE_US draws in the migration library.
  */
 export async function getImageReadiness(): Promise<ImageReadinessRow[]> {
+  /* Published, not live-on-site, and the primary image only.
+    
+     The unit matters more than it looks, and three of us measured three
+     different true things before agreeing on this one: 110 images moved,
+     88 products with at least one image moved, 56 products whose PRIMARY
+     image moved. Only the last one tracks Merchant Center, because
+     image_link carries the primary image and nothing else — a product with
+     six photographs whose first is still on a manufacturer's server has not
+     moved at all as far as Google is concerned.
+    
+     Published rather than in-stock, because a sold-out product keeps its
+     page and comes back; its image is work already done or still owed
+     either way. */
   const rows = await db.product.findMany({
-    where: { isPublished: true, stockQty: { gt: 0 }, images: { some: {} } },
+    where: { isPublished: true, images: { some: {} } },
     select: { id: true, images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
   });
 

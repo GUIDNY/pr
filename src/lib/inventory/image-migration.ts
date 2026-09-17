@@ -212,7 +212,17 @@ export async function countImagesToMigrate(hosts?: string[], excludeHosts?: stri
 
 export type MigrationOutcome =
   | { id: string; ok: true; from: string; to: string; bytes: number }
-  | { id: string; ok: false; from: string; reason: string };
+  | {
+      id: string;
+      ok: false;
+      from: string;
+      reason: string;
+      /** A fact about today rather than about this image — a host that was
+          slow, a robots.txt we could not read. Kept out of the cooldown:
+          benching an image for three days because a server hiccuped once
+          is how a recoverable pause becomes a permanent one. */
+      transient?: boolean;
+    };
 
 /* Some of these hosts are slow — prec.co.il asks crawlers for a seven-second
    delay — and a batch that hangs on one image burns the whole request. */
@@ -283,7 +293,7 @@ function fetchHeaders(url: string): Record<string, string> {
     the next invocation does not spend its budget rediscovering it. */
 export async function migrateOneImage(image: MigrationCandidate): Promise<MigrationOutcome> {
   const outcome = await attemptMigration(image);
-  if (!outcome.ok) {
+  if (!outcome.ok && !outcome.transient) {
     /* Best-effort. A database hiccup here must not turn a failed image into
        a failed batch — the worst case is the row is retried sooner. */
     await db.productImage
@@ -314,12 +324,25 @@ async function attemptMigration(image: MigrationCandidate): Promise<MigrationOut
      any other — it is a reason, not a crash. Of the twenty-two largest
      hosts in this catalogue exactly two say no, so this declines almost
      nothing; those two need a sanctioned download rather than a fetch. */
-  if (!(await mayFetch(image.url))) {
+  const verdict = await mayFetch(image.url);
+  if (verdict === "deny") {
     return {
       id: image.id,
       ok: false,
       from: image.url,
       reason: `${host} ביקש שלא נמשוך (robots.txt) — נדרש אישור או הורדה מסודרת`,
+    };
+  }
+  if (verdict === "unreachable") {
+    /* We could not read the file, so we do not fetch — but nothing has been
+       learned about this image, and it must not spend three days on the
+       bench for it. The host is asked again on the next run. */
+    return {
+      id: image.id,
+      ok: false,
+      from: image.url,
+      reason: `${host} לא ענה ל-robots.txt — מדלגים הפעם, ננסה שוב`,
+      transient: true,
     };
   }
 

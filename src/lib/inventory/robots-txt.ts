@@ -14,9 +14,23 @@
  * stops us at two hosts, and those two are the ones that need a sanctioned
  * download rather than a crawler anyway.
  *
- * FAILS OPEN. No robots.txt, a 404, a 403, a timeout — the host is treated
- * as allowing. That is what the standard says and it is the honest reading:
- * silence is not refusal. Only an actual rule blocks an actual fetch.
+ * WHAT AN UNANSWERED REQUEST MEANS. A 404 or a 403 is "there are no rules
+ * here", and we proceed — silence is not refusal. A 5xx, a 429, a timeout
+ * or a dropped connection is NOT silence, and RFC 9309 says a fetcher must
+ * then assume a complete disallow; Google treats timeouts, DNS failures and
+ * severed connections as 5xx for exactly this purpose.
+ *
+ * That distinction is operational before it is legal, and it is the one
+ * this file originally got wrong. Hosts do not answer robots.txt with a
+ * tidy 404 — they get slow under load. Treating a timeout as permission
+ * means the moment a host starts struggling under our requests, the cron
+ * leans on it harder. That is the sequence that ends in a blocked address.
+ *
+ * Google holds a full stop for 12 hours, then falls back to the last good
+ * copy for 30 days. There is nowhere to keep a 30-day copy here — a cron
+ * invocation is a fresh process — so this keeps the conservative half: a
+ * host we could not read is left alone for the rest of the run, and asked
+ * again next time. One robots.txt request per host per run either way.
  *
  * A deliberately small parser. Groups, the most specific matching agent,
  * longest-match wins, Allow beats Disallow at equal length, `*` and `$`.
@@ -105,34 +119,56 @@ export function isAllowedByRules(rules: Rule[], path: string): boolean {
   return best ? best.allow : true;
 }
 
-/* One fetch per host per invocation. A serverless run is short and a cron
-   invocation is shorter; caching beyond it would mean holding a file we
-   cannot invalidate. */
-const cache = new Map<string, Rule[]>();
+/**
+ * The three answers, kept apart because they mean different things to the
+ * caller: "deny" is a decision the host made and is worth recording against
+ * the image, "unreachable" is a fact about today and must not be.
+ */
+export type RobotsVerdict = "allow" | "deny" | "unreachable";
 
-export async function mayFetch(url: string): Promise<boolean> {
+/* One fetch per host per invocation, keyed by HOST — not by registrable
+   domain. robots.txt is scoped to scheme, host and port, and subdomains
+   inherit nothing: api.electrolux-medialibrary.com serves its own file
+   separately from services.electrolux-medialibrary.com, and a product sits
+   on each. Keying by domain would apply one site's rules to another's. */
+const cache = new Map<string, Rule[] | "unreachable">();
+
+export async function mayFetch(url: string): Promise<RobotsVerdict> {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return false;
+    return "deny";
   }
 
   const key = parsed.host.toLowerCase();
-  let rules = cache.get(key);
+  let entry = cache.get(key);
 
-  if (rules === undefined) {
+  if (entry === undefined) {
     try {
       const res = await fetch(`${parsed.protocol}//${parsed.host}/robots.txt`, {
         signal: AbortSignal.timeout(8_000),
         headers: { "user-agent": `BuyTodayBot/1.0 (+https://buytoday.co.il)` },
       });
-      rules = res.ok ? rulesFor(parseRobotsTxt(await res.text())) : [];
+      if (res.ok) {
+        entry = rulesFor(parseRobotsTxt(await res.text()));
+      } else if (res.status === 429 || res.status >= 500) {
+        // Rate-limited or broken: not an absence of rules, an absence of an
+        // answer. 429 is singled out from the other 4xx deliberately — it
+        // is the host saying "later", which is the opposite of "no rules".
+        entry = "unreachable";
+      } else {
+        // Any other 4xx: there is no file, so there are no rules.
+        entry = [];
+      }
     } catch {
-      rules = [];
+      // Timeout, DNS, a severed connection. Google counts these as 5xx and
+      // so do we; this is the common case, not the exotic one.
+      entry = "unreachable";
     }
-    cache.set(key, rules);
+    cache.set(key, entry);
   }
 
-  return isAllowedByRules(rules, parsed.pathname + parsed.search);
+  if (entry === "unreachable") return "unreachable";
+  return isAllowedByRules(entry, parsed.pathname + parsed.search) ? "allow" : "deny";
 }
