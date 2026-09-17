@@ -5,7 +5,7 @@
   "crons": [
     {
       "path": "/api/inventory/migrate-images",
-      "schedule": "*/5 1-6 * * *"
+      "schedule": "*/5 22,23,0,1,2,3 * * *"
     }
   ]
 }
