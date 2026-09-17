@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { MapPin, Phone, ShieldCheck, Tag, Truck } from "lucide-react";
 import { BUSINESS } from "@/lib/business";
+import { formatPrice } from "@/lib/format";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import { SearchBar } from "@/components/layout/search-bar";
 import { MegaMenu } from "@/components/layout/mega-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -36,7 +38,12 @@ export async function Header() {
               <ShieldCheck className="text-brand size-3.5" /> <span className="hidden sm:inline">אחריות </span>יבואן רשמי
             </span>
             <span className="flex items-center gap-1">
-              <Truck className="text-brand size-3.5" /> משלוח חינם מעל ₪500
+              {/* From the constant, not typed. This line sat on every page
+                  of the shop promising ₪500 for an hour after the policy
+                  moved to ₪600 — the one place the threshold was written by
+                  hand instead of read, and therefore the one place that did
+                  not follow. */}
+              <Truck className="text-brand size-3.5" /> משלוח חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)}
             </span>
             <Link href="/page/branches" className="hover:text-primary-foreground hidden items-center gap-1 md:flex">
               <MapPin className="size-3.5" /> חנות בחדרה
