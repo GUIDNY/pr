@@ -25,8 +25,17 @@ export function ImageReadiness({ rows }: { rows: ImageReadinessRow[] }) {
     <section className="border-border bg-card mb-6 rounded-2xl border p-4">
       <h2 className="text-base font-semibold">מוצרים חיים לפי התמונה הראשית</h2>
       <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-        {total} מוצרים על האתר. מה שקובע אם גוגל מציג מוצר הוא אם השרת שמארח את התמונה הראשית שלו עונה
-        כשגוגל מבקש — לא כמה תמונות יש לו.
+        {total} מוצרים על האתר, לפי השרת שמארח את התמונה הראשית של כל אחד — לא לפי כמה תמונות יש לו.
+      </p>
+      {/* Said plainly because the opposite was believed here for a day: the
+          products that are not showing in Merchant Center are mostly not
+          rejected, they are queued behind a new account's first review.
+          A panel that implies otherwise sends someone to fix the wrong
+          thing. */}
+      <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+        זה <strong>לא</strong> המספר של מה שגוגל דוחה. רוב המוצרים שלא מוצגים ממתינים לסקירה ראשונית של
+        החשבון ולא נדחו כלל. מה שמופיע כאן הוא עמידות התמונות עצמן — נכון בלי קשר לתור, ורלוונטי לגוגל
+        תמונות ולדחיות שכן נוגעות לתמונה.
       </p>
 
       <ul className="mt-4 space-y-2">

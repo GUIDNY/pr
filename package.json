@@ -18,6 +18,7 @@
     "check:content": "tsx scripts/check-product-content.ts",
     "check:guards": "tsx scripts/check-import-guards.ts",
     "scan:labels": "tsx scripts/check-energy-labels.ts",
+    "check:robots": "tsx scripts/check-robots-txt.ts",
     "check:variants": "tsx scripts/group-color-variants.ts",
     "fix:variants": "tsx scripts/group-color-variants.ts --write",
     "check:categories": "tsx scripts/check-category-rules.ts",

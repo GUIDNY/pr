@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { db } from "@/lib/db";
 import { uploadProductImage, isProductImageStorageConfigured } from "@/lib/product-image-storage";
 import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
+import { mayFetch } from "@/lib/inventory/robots-txt";
 
 /**
  * Moving product photographs onto our own storage.
@@ -300,6 +301,26 @@ async function attemptMigration(image: MigrationCandidate): Promise<MigrationOut
   const host = hostOf(image.url);
   if (refusedThisRun.has(host)) {
     return { id: image.id, ok: false, from: image.url, reason: `${host} חוסם את הבקשות שלנו` };
+  }
+
+  /* Ask before taking. This ran for a day without consulting robots.txt,
+     against hosts that had one: Electrolux's media library disallows every
+     agent outright, and Monitor Audio disallows the exact path our file
+     sits on. We were sending a request that names itself BuyTodayBot and
+     ignoring the file that exists to answer it.
+    
+     Checked here rather than in the candidate query because it needs a
+     network call, and doing it per-image lets the outcome be recorded like
+     any other — it is a reason, not a crash. Of the twenty-two largest
+     hosts in this catalogue exactly two say no, so this declines almost
+     nothing; those two need a sanctioned download rather than a fetch. */
+  if (!(await mayFetch(image.url))) {
+    return {
+      id: image.id,
+      ok: false,
+      from: image.url,
+      reason: `${host} ביקש שלא נמשוך (robots.txt) — נדרש אישור או הורדה מסודרת`,
+    };
   }
 
   let input: Buffer;
