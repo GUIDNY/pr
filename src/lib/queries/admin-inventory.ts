@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import type { StockStatus } from "@/lib/enums";
 import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
+import { isSelfHosted } from "@/lib/inventory/image-migration";
 
 export async function getInventorySummary() {
   const latestRun = await db.inventorySyncRun.findFirst({
@@ -530,4 +531,88 @@ export async function getCompetitorImageProducts(): Promise<CompetitorImageRow[]
   return [...byProduct.values()].sort(
     (a, b) => Number(b.liveOnSite) - Number(a.liveOnSite) || a.title.localeCompare(b.title, "he"),
   );
+}
+
+export type ImageReadinessRow = {
+  key: "ours" | "migratable" | "prec" | "refusing" | "blocked";
+  label: string;
+  products: number;
+  note: string;
+};
+
+/**
+ * How many products on the shop Google can actually fetch a photograph for.
+ *
+ * Counted per PRODUCT and off its PRIMARY image, which is the only framing
+ * that answers the question being asked. "2,900 images left" sounds like the
+ * work; it is not. A product's second and third photographs cost it nothing
+ * in Merchant Center, an unpublished product costs nothing either, and one
+ * product with nine hotlinks is one problem rather than nine. What decides
+ * whether an item is shown is whether the image_link on the item Google
+ * fetches answers when Google asks.
+ *
+ * The buckets are not severity, they are WHO UNBLOCKS THEM, because that is
+ * what the number is for:
+ *
+ *  - ours / migratable — the cron. Nobody does anything.
+ *  - prec — a rule on someone else's Cloudflare account. A phone call.
+ *  - refusing — hosts that answer a datacenter address with 403. Measured,
+ *    not assumed: these are the ones our own runs were refused by, and
+ *    Google fetches from the same kind of address.
+ *  - blocked — competitors' servers. Never copied, by decision, and the
+ *    decision is the owner's on their own screen. Code will not move these
+ *    however long it runs.
+ *
+ * Hosts are matched by substring rather than read from
+ * blocked-image-hosts.ts for the refusing set, because "refuses us" is an
+ * observation about the world that we collect by running, while "blocked"
+ * is a rule we hold. Keeping them apart is the same distinction
+ * HOSTS_THAT_REFUSE_US draws in the migration library.
+ */
+export async function getImageReadiness(): Promise<ImageReadinessRow[]> {
+  const rows = await db.product.findMany({
+    where: { isPublished: true, stockQty: { gt: 0 }, images: { some: {} } },
+    select: { id: true, images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
+  });
+
+  const REFUSING = /c100|sel\.co\.il|payngo|yshalom|electricshop|shekem-electric/i;
+
+  const count = { ours: 0, migratable: 0, prec: 0, refusing: 0, blocked: 0 };
+  for (const r of rows) {
+    const url = r.images[0]?.url;
+    if (!url) continue;
+    if (isSelfHosted(url)) count.ours++;
+    else if (/prec\.co\.il/i.test(url)) count.prec++;
+    else if (isBlockedImageHost(url)) count.blocked++;
+    else if (REFUSING.test(url)) count.refusing++;
+    else count.migratable++;
+  }
+
+  return [
+    { key: "ours", label: "כבר אצלנו", products: count.ours, note: "גוגל מושך מהשרת שלנו. אלה מוכנים." },
+    {
+      key: "migratable",
+      label: "בדרך — הקרון מטפל",
+      products: count.migratable,
+      note: "מארחים שעונים לנו. עוברים אלינו לבד, בלי שאף אחד ילחץ על כלום.",
+    },
+    {
+      key: "prec",
+      label: "האתר הישן — צריך טלפון",
+      products: count.prec,
+      note: "prec.co.il מחזיר 403 לשרתים. נפתח בכלל Cloudflare בצד שלהם, לא בקוד שלנו.",
+    },
+    {
+      key: "refusing",
+      label: "מארחים שמסרבים",
+      products: count.refusing,
+      note: "אתרים שעונים 403 לכתובת של מרכז נתונים. גוגל מושך מאותו סוג כתובת, אז כנראה גם לו הם מסרבים.",
+    },
+    {
+      key: "blocked",
+      label: "תמונות של מתחרים — החלטה שלך",
+      products: count.blocked,
+      note: "לא מועתקות אלינו לעולם. צריך תצלום אחר, או הסרה. הלשונית הייעודית מציגה אותן.",
+    },
+  ];
 }

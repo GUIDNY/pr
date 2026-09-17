@@ -4,6 +4,8 @@ import { isSiteAdmin } from "@/lib/permissions";
 import { countImagesToMigrate, HOSTS_THAT_REFUSE_US } from "@/lib/inventory/image-migration";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { ImageMigrationPanel } from "@/components/admin/image-migration-panel";
+import { ImageReadiness } from "@/components/admin/image-readiness";
+import { getImageReadiness } from "@/lib/queries/admin-inventory";
 
 export const metadata = { title: "העברת תמונות | Buy Today Admin" };
 
@@ -16,14 +18,16 @@ export default async function ImageMigrationPage() {
   const session = await getSession();
   if (!session || !isSiteAdmin(session.role)) redirect("/admin/inventory");
 
-  const [prec, everything] = await Promise.all([
+  const [prec, everything, readiness] = await Promise.all([
     countImagesToMigrate(["prec.co.il"]),
     countImagesToMigrate(undefined, HOSTS_THAT_REFUSE_US),
+    getImageReadiness(),
   ]);
 
   return (
     <div>
       <InventoryTabs />
+      <ImageReadiness rows={readiness} />
       <ImageMigrationPanel
         groups={[
           {
