@@ -176,7 +176,20 @@ export async function findImagesToMigrate(opts: {
         : {}),
     },
     select: { id: true, url: true, productId: true, sourceImageUrl: true },
-    orderBy: { id: "asc" },
+    /* Primary images first, across the whole catalogue.
+      
+       The queue used to run in id order, which spends the same budget on a
+       product's fourth photograph as on its first — and only the first one
+       counts. Merchant Center reads image_link, image_link carries the
+       primary image, so a product with six pictures whose first is still on
+       a manufacturer's server has not moved at all as far as Google is
+       concerned. Of roughly 2,500 images left, about 1,100 are primaries.
+       Taking them first makes the number that matters move more than twice
+       as fast, for a change of sort order.
+      
+       id as the tiebreak keeps the sequence stable between runs, which is
+       what lets skipIds and the failure cooldown mean anything. */
+    orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
     // Still wider than `take`: the blocked hosts are the one filter left in
     // JS, and a run of them should not return a short batch.
     take: opts.take * 10,
