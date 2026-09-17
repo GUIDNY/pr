@@ -87,6 +87,26 @@ export function isSelfHosted(url: string): boolean {
  */
 export const HOSTS_THAT_REFUSE_US = ["prec.co.il"];
 
+/**
+ * How long a failed image is left out of the queue.
+ *
+ * A failure deliberately leaves the row untouched, so without writing the
+ * failure down the same image comes back in the very next batch. Inside one
+ * browser session that is handled by threading skipIds forward; a cron
+ * invocation has no previous session to thread from, so it restarted at the
+ * head of the queue every five minutes and spent its whole 45-second budget
+ * on the same handful of refusals. 60 runs in one night moved 67 images.
+ *
+ * Days rather than forever: hosts go down, certificates expire, a site is
+ * mid-deploy. Three days makes a permanent refusal cost one attempt a week
+ * instead of 288 a day, while a transient one still heals by itself.
+ */
+const FAILURE_COOLDOWN_DAYS = 3;
+
+function failureCutoff(): Date {
+  return new Date(Date.now() - FAILURE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+}
+
 export type MigrationCandidate = {
   id: string;
   url: string;
@@ -145,6 +165,9 @@ export async function findImagesToMigrate(opts: {
       AND: [
         { url: { not: { contains: "supabase.co" } } },
         { url: { not: { contains: "buytoday.co.il" } } },
+        // Tried recently and failed. Still in the catalogue, still hotlinked,
+        // just not worth another 23 seconds today.
+        { OR: [{ migrationFailedAt: null }, { migrationFailedAt: { lt: failureCutoff() } }] },
       ],
       ...(opts.skipIds?.length ? { id: { notIn: opts.skipIds } } : {}),
       ...(opts.hosts?.length
@@ -255,7 +278,21 @@ function fetchHeaders(url: string): Record<string, string> {
   };
 }
 
+/** The public entry point: run the migration, and write down a failure so
+    the next invocation does not spend its budget rediscovering it. */
 export async function migrateOneImage(image: MigrationCandidate): Promise<MigrationOutcome> {
+  const outcome = await attemptMigration(image);
+  if (!outcome.ok) {
+    /* Best-effort. A database hiccup here must not turn a failed image into
+       a failed batch — the worst case is the row is retried sooner. */
+    await db.productImage
+      .update({ where: { id: image.id }, data: { migrationFailedAt: new Date() } })
+      .catch(() => {});
+  }
+  return outcome;
+}
+
+async function attemptMigration(image: MigrationCandidate): Promise<MigrationOutcome> {
   if (isBlockedImageHost(image.url)) {
     return { id: image.id, ok: false, from: image.url, reason: "מארח חסום — לא מועתק" };
   }

@@ -381,8 +381,25 @@ model ProductImage {
   sourceImageUrl String?
   sourceDomain   String?
   capturedAt     DateTime?
+  /// When this image last failed to migrate onto our own storage.
+  ///
+  /// A failure leaves the row untouched — that is deliberate, so a product
+  /// keeps its working hotlink — but it also means the candidate query
+  /// returns the same image again, and the cron restarts at the front of
+  /// the queue on every invocation. 60 runs overnight moved 67 images:
+  /// each 45-second run spent its whole budget re-discovering the same
+  /// refusals at the head of the list. The browser loop never saw this
+  /// because it threads its skip-list forward across one long session.
+  ///
+  /// So a failure is written down. Anything that failed recently is left
+  /// out of the queue, which lets each run start where the last one
+  /// effectively finished. A timestamp rather than a boolean so it expires:
+  /// a host that was down comes back, and the retry costs one attempt a few
+  /// days later instead of four every five minutes.
+  migrationFailedAt DateTime?
 
   @@index([productId])
+  @@index([migrationFailedAt])
 }
 
 model ProductAttributeValue {
