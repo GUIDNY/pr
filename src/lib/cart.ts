@@ -11,7 +11,16 @@ const cartInclude = {
   items: {
     include: {
       product: {
-        include: { brand: true, images: { orderBy: { sortOrder: "asc" as const }, take: 1 } },
+        include: {
+          brand: true,
+          /* The leaf and its department, because whether an order can go to
+             a collection point is decided by category — see lib/bulky.ts —
+             and the answer has to be the same in the cart, the checkout and
+             the order that is written. Loading it here is what makes that
+             one lookup rather than three. */
+          category: { include: { parent: true } },
+          images: { orderBy: { sortOrder: "asc" as const }, take: 1 },
+        },
       },
     },
     orderBy: { createdAt: "asc" as const },

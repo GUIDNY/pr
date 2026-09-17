@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { CreditCard, Home, MapPin, ShieldCheck, Truck, Store, Lock, RotateCcw, Wallet } from "lucide-react";
+import { CreditCard, Home, MapPin, PackageOpen, ShieldCheck, Truck, Store, Lock, RotateCcw, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/or
 import { saveCheckoutContactAction } from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
+import { cartHasBulky } from "@/lib/bulky";
 import {
   DELIVERY_CARRIER,
   FREE_DELIVERY_THRESHOLD,
@@ -142,8 +143,24 @@ export function CheckoutForm({
      quoted fee only ever applies to the door. computeDeliveryFee says the
      same thing from the same constants — this mirrors the rule rather than
      re-deriving it, and createOrder computes the charge itself. */
-  const needsAddress = requiresAddress(form.deliveryMethod);
-  const deliveryFee = form.deliveryMethod === "DELIVERY" ? cart.deliveryFee : 0;
+  /* A fridge cannot be left at a shop counter. One bulky line decides for the
+     whole basket, because the carrier delivers the order rather than the
+     line — see lib/bulky.ts for which categories count and why the rule
+     errs towards bulky. Collecting from our own counter in Hadera stays
+     available: that is a shop with a loading area, not a locker. */
+  const hasBulky = cartHasBulky(cart.items);
+
+  /* Derived, not corrected after the fact. A basket can become bulky after
+     the choice was made — another tab adds a fridge, the page is restored
+     from history — and an effect that reset the stored choice would render
+     once with a method the carrier cannot honour before fixing itself. This
+     cannot: there is no moment where the selected method is one the order
+     would refuse. createOrder applies the same rule, so the screen and the
+     charge agree. */
+  const deliveryMethod: DeliveryMethod =
+    hasBulky && form.deliveryMethod === "PICKUP_POINT" ? "DELIVERY" : form.deliveryMethod;
+  const needsAddress = requiresAddress(deliveryMethod);
+  const deliveryFee = deliveryMethod === "DELIVERY" ? cart.deliveryFee : 0;
   const orderTotal = Math.max(0, cart.subtotal - cart.discount + deliveryFee);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
@@ -299,7 +316,7 @@ export function CheckoutForm({
         houseNo: form.houseNo,
         apartment: form.apartment,
         deliveryNotes: form.deliveryNotes,
-        deliveryMethod: form.deliveryMethod,
+        deliveryMethod,
       }).catch(() => {});
     }, 700);
     return () => clearTimeout(timer);
@@ -314,7 +331,7 @@ export function CheckoutForm({
     form.houseNo,
     form.apartment,
     form.deliveryNotes,
-    form.deliveryMethod,
+    deliveryMethod,
   ]);
 
   function submit() {
@@ -439,7 +456,7 @@ export function CheckoutForm({
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">2. משלוח</h2>
           <RadioGroup
-            value={form.deliveryMethod}
+            value={deliveryMethod}
             onValueChange={(v) => update("deliveryMethod", v as DeliveryMethod)}
             className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
           >
@@ -460,17 +477,22 @@ export function CheckoutForm({
                 </span>
               </span>
             </Label>
-            <Label
-              htmlFor="delivery-point"
-              className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
-            >
-              <RadioGroupItem value="PICKUP_POINT" id="delivery-point" />
-              <MapPin className="size-4" />
-              <span>
-                <span className="block">נקודת איסוף</span>
-                <span className="text-success block text-xs font-medium">חינם</span>
-              </span>
-            </Label>
+            {/* Absent rather than disabled when the basket is bulky: a
+                greyed-out radio invites a click and then explains itself,
+                and the sentence under the group already says why. */}
+            {!hasBulky && (
+              <Label
+                htmlFor="delivery-point"
+                className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+              >
+                <RadioGroupItem value="PICKUP_POINT" id="delivery-point" />
+                <MapPin className="size-4" />
+                <span>
+                  <span className="block">נקודת איסוף</span>
+                  <span className="text-success block text-xs font-medium">חינם</span>
+                </span>
+              </Label>
+            )}
             <Label
               htmlFor="delivery-pickup"
               className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
@@ -484,7 +506,17 @@ export function CheckoutForm({
             </Label>
           </RadioGroup>
 
-          {form.deliveryMethod === "PICKUP_POINT" && (
+          {hasBulky && (
+            <p className="text-muted-foreground mb-3 flex items-start gap-2 text-sm leading-relaxed">
+              <PackageOpen className="mt-0.5 size-4 shrink-0" />
+              <span>
+                ההזמנה כוללת מוצר גדול שלא ניתן למסור בנקודת איסוף. אפשר לקבל אותו עד הבית או לאסוף מהחנות
+                בחדרה.
+              </span>
+            </p>
+          )}
+
+          {deliveryMethod === "PICKUP_POINT" && (
             <p className="text-muted-foreground mb-3 flex items-start gap-2 text-sm leading-relaxed">
               <MapPin className="mt-0.5 size-4 shrink-0" />
               <span>
@@ -519,7 +551,7 @@ export function CheckoutForm({
               </div>
             </div>
           )}
-          {form.deliveryMethod === "PICKUP" && (
+          {deliveryMethod === "PICKUP" && (
             <p className="text-muted-foreground flex items-center gap-2 text-sm">
               <Home className="size-4" /> ניתן לאסוף מהסניף הקרוב, פרטים יישלחו לאחר ההזמנה.
             </p>
@@ -846,7 +878,7 @@ export function CheckoutForm({
           <div className="flex justify-between">
             {/* Named by the method chosen, so the free line says which free
                 thing it is — three options make "משלוח: חינם" ambiguous. */}
-            <span className="text-muted-foreground">{DELIVERY_METHOD_LABELS[form.deliveryMethod]}</span>
+            <span className="text-muted-foreground">{DELIVERY_METHOD_LABELS[deliveryMethod]}</span>
             <span className="tabular-nums">{deliveryFee === 0 ? "חינם" : formatPrice(deliveryFee)}</span>
           </div>
         </div>

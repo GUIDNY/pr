@@ -1,5 +1,6 @@
 import "server-only";
 import { computeCartSubtotal, computeDeliveryFee, resolveCoupon } from "@/lib/pricing";
+import { isBulkyCategory } from "@/lib/bulky";
 
 type CartWithItems = {
   id: string;
@@ -17,6 +18,11 @@ type CartWithItems = {
       stockStatus: string;
       stockQty: number;
       brand: { name: string };
+      // Needed to decide whether the order can go to a collection point —
+      // see lib/bulky.ts. Carried on the item rather than recomputed at the
+      // checkout, so the cart and the checkout cannot reach different
+      // answers about the same basket.
+      category: { slug: string; parent: { slug: string } | null };
       images: { url: string; alt: string | null }[];
     };
   }[];
@@ -41,6 +47,9 @@ export type CartSummary = {
     lineTotal: number;
     stockStatus: string;
     maxQuantity: number;
+    /** Too big for a צ'יטה collection point. Collecting it from the Hadera
+        counter is still fine. */
+    isBulky: boolean;
   }[];
   itemCount: number;
   subtotal: number;
@@ -66,6 +75,7 @@ export async function buildCartSummary(cart: CartWithItems): Promise<CartSummary
     lineTotal: i.product.price * i.quantity,
     stockStatus: i.product.stockStatus,
     maxQuantity: i.product.stockStatus === "OUT_OF_STOCK" ? 0 : Math.max(1, Math.min(i.product.stockQty, 10)),
+    isBulky: isBulkyCategory(i.product.category.slug, i.product.category.parent?.slug ?? null),
   }));
 
   const subtotal = computeCartSubtotal(items);
