@@ -52,10 +52,18 @@ export const BUSINESS = {
      to it is one edit rather than five, and the one that gets missed is
      always the legal page nobody reads until they need it.
 
-     Temporary, and known to be. It is a personal mailbox standing in until
-     the domain has one; see the note in the reply thread. Changing it then
-     is this line. */
-  email: "aiasafidan@gmail.com",
+     The personal mailbox that stood in while the business had none is gone:
+     the terms name this address in three places — who we are, how to send a
+     cancellation notice, and how to reach us — and a legal document naming
+     one address while the footer prints another is the disagreement that
+     matters most, because the page a customer reaches for is the one they
+     read when something has gone wrong.
+
+     Not on buytoday.co.il, and that is worth knowing rather than fixing
+     here: Google matches the address on this site against the Business
+     Profile and the Merchant Center account, so the day mail moves to the
+     shop's own domain, this line moves with it and so do those two. */
+  email: "prelect@prelect.co.il",
 
   whatsapp: "055-307-3072",
   /** wa.me takes digits only, international, with no plus and no leading zero. */
