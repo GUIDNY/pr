@@ -159,7 +159,55 @@ export async function findImagesToMigrate(opts: {
      with hosts=["prec.co.il"], a JS-side filter would scan a page of
      images from other hosts and return nothing while prec images sat
      further down the table. */
-  const rows = await db.productImage.findMany({
+  /* Paged, and the paging is the fix for a real outage of this function.
+    
+     The blocked-host rule is the one filter that cannot go into SQL — it is
+     a hand-curated list matched against the host, not a LIKE. So a page is
+     fetched and then narrowed in JS, and the old code fetched ONE page ten
+     times the batch size and trusted that to be enough. It was not: order
+     the table by sortOrder and the competitors' images arrive in a
+     contiguous run far longer than forty rows. Every row in the page was
+     filtered out, the function returned empty, and the caller reads empty
+     as "the queue is finished" — so a run reported "nothing left to
+     migrate" with 2,542 images left to migrate.
+    
+     This is the same shape as the bug already described above, and the
+     lesson survived only as a comment. Now the function keeps turning pages
+     until it has a full batch or the table genuinely runs out, so an empty
+     return means empty. */
+  const PAGE = Math.max(opts.take * 10, 100);
+  /* A ceiling so a pathological filter cannot scan forever. 40 pages is
+     4,000 rows, comfortably more than the whole table, so reaching it means
+     everything left is filtered out — which is an empty queue by another
+     name. */
+  const MAX_PAGES = 40;
+
+  const out: MigrationCandidate[] = [];
+  for (let page = 0; page < MAX_PAGES && out.length < opts.take; page++) {
+    const rows = await fetchPage(opts, page * PAGE, PAGE);
+    for (const row of rows) {
+      if (out.length >= opts.take) break;
+      // `contains` matches anywhere in the URL, so a host filter can still
+      // catch a path; check the host itself.
+      if (isSelfHosted(row.url)) continue;
+      if (isBlockedImageHost(row.url)) continue;
+      const host = hostOf(row.url);
+      if (opts.excludeHosts?.some((h) => host.includes(h.toLowerCase()))) continue;
+      if (opts.hosts?.length && !opts.hosts.some((h) => host.includes(h.toLowerCase()))) continue;
+      out.push(row);
+    }
+    // Short page means the table is exhausted, whatever the filter left us.
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+async function fetchPage(
+  opts: { hosts?: string[]; skipIds?: string[] },
+  skip: number,
+  take: number,
+): Promise<{ id: string; url: string; productId: string; sourceImageUrl: string | null }[]> {
+  return db.productImage.findMany({
     where: {
       // Spelled out as two negated conditions rather than NOT: [a, b],
       // whose meaning depends on knowing how Prisma combines a list there.
@@ -190,24 +238,9 @@ export async function findImagesToMigrate(opts: {
        id as the tiebreak keeps the sequence stable between runs, which is
        what lets skipIds and the failure cooldown mean anything. */
     orderBy: [{ sortOrder: "asc" }, { id: "asc" }],
-    // Still wider than `take`: the blocked hosts are the one filter left in
-    // JS, and a run of them should not return a short batch.
-    take: opts.take * 10,
+    skip,
+    take,
   });
-
-  const out: MigrationCandidate[] = [];
-  for (const row of rows) {
-    if (out.length >= opts.take) break;
-    // `contains` matches anywhere in the URL, so a host filter can still
-    // catch a path; check the host itself.
-    if (isSelfHosted(row.url)) continue;
-    if (isBlockedImageHost(row.url)) continue;
-    const host = row.url.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
-    if (opts.excludeHosts?.some((h) => host.includes(h.toLowerCase()))) continue;
-    if (opts.hosts?.length && !opts.hosts.some((h) => host.includes(h.toLowerCase()))) continue;
-    out.push(row);
-  }
-  return out;
 }
 
 export async function countImagesToMigrate(hosts?: string[], excludeHosts?: string[]): Promise<number> {
