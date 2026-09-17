@@ -290,11 +290,12 @@ export const USER_ROLES = ["CUSTOMER", "ADMIN", "STAFF", "SELLER"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 export const userRoleSchema = z.enum(USER_ROLES);
 
-export const DELIVERY_METHODS = ["DELIVERY", "PICKUP"] as const;
+export const DELIVERY_METHODS = ["DELIVERY", "PICKUP_POINT", "PICKUP"] as const;
 export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
 
 export const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = {
   DELIVERY: "משלוח עד הבית",
+  PICKUP_POINT: "איסוף מנקודת איסוף",
   PICKUP: "איסוף עצמי מהסניף",
 };
 

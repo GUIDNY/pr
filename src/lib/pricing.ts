@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 
-export { FREE_DELIVERY_THRESHOLD, STANDARD_DELIVERY_FEE, computeDeliveryFee } from "@/lib/delivery";
+export { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE, computeDeliveryFee } from "@/lib/delivery";
 
 export type CartLine = { productId: string; price: number; quantity: number; categoryId: string; brandId: string };
 

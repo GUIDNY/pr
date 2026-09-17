@@ -16,6 +16,7 @@
 // Run: npx tsx scripts/check-google-feed.ts
 import { renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
 import { SITE_URL } from "../src/lib/site-url";
+import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE } from "../src/lib/delivery";
 
 function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
   return {
@@ -185,8 +186,19 @@ for (const sku of ["PLAIN", "FREESHIP"]) {
   check(`${sku} carries a shipping block`, (items.get(sku) ?? "").includes("<g:shipping>"));
   check(`${sku} names the country`, (items.get(sku) ?? "").includes("<g:country>IL</g:country>"));
 }
-check("below the threshold quotes the delivery fee", (items.get("PLAIN") ?? "").includes("<g:price>49.00 ILS</g:price>"));
+/* Asserted against the constants rather than a typed number, so the day the
+   policy changes this guard moves with it instead of failing for being
+   out of date — which is what it just did when the fee went 49 → 40 and the
+   threshold 500 → 600. What must not drift is the feed agreeing with the
+   checkout, and both now read the same two values. */
+check(
+  "below the threshold quotes the delivery fee",
+  (items.get("PLAIN") ?? "").includes(`<g:price>${HOME_DELIVERY_FEE.toFixed(2)} ILS</g:price>`),
+);
 check("above the threshold quotes free delivery", (items.get("FREESHIP") ?? "").includes("<g:price>0.00 ILS</g:price>"));
+// The fixture only tests the threshold if it actually straddles it.
+check("the free-shipping fixture is above the threshold", 9900 >= FREE_DELIVERY_THRESHOLD);
+check("the paid-shipping fixture is below the threshold", 100 < FREE_DELIVERY_THRESHOLD);
 
 check("special order maps to backorder", (items.get("BACKORDER") ?? "").includes("<g:availability>backorder</g:availability>"));
 check("in stock maps to in_stock", (items.get("PLAIN") ?? "").includes("<g:availability>in_stock</g:availability>"));
