@@ -22,6 +22,12 @@ import {
  * that reads like a plan and is not one. Every five minutes through the
  * small hours is 72 runs, and the same backlog is gone in four.
  *
+ * Those hours are UTC. Vercel evaluates a cron schedule there and says so,
+ * which is easy to read past: written as 1-6 it ran 04:00 to 09:55 in
+ * Israel, tail landing in office hours, the opposite of the intent. The
+ * hour list in vercel.json is offset so the window really is the small
+ * hours where this shop and most of the hosts it fetches from live.
+ *
  * Both halves matter. The sheet creates new products carrying new hotlinks
  * on every sync, so without a standing pass the catalogue drifts back to
  * where it started however thoroughly it is cleared once; and a run with
