@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Phone } from "lucide-react";
+import { AlertTriangle, Phone, Recycle } from "lucide-react";
 import { getAdminOrders, getAdminOrderStatusCounts, getStaffUsers } from "@/lib/queries/admin-orders";
 import { OrdersFilterBar } from "@/components/admin/orders-filter-bar";
 import { OrdersStatusTabs } from "@/components/admin/orders-status-tabs";
@@ -189,7 +189,32 @@ export default async function AdminOrdersPage({
                         <span className="text-muted-foreground">{ageLabel(order.hoursInStatus)}</span>
                       )}
                     </TableCell>
-                    <TableCell>{order.items.length}</TableCell>
+                    <TableCell>
+                      {order.items.length}
+                      {/* A removal that has not reached the carrier, in the
+                          one place somebody scans a hundred orders at once.
+                          Red rather than a neutral chip: the customer was
+                          promised something the driver does not know about,
+                          and the moment it is discovered is on the doorstep.
+                          It turns into a quiet mark once the order page says
+                          the carrier was told. */}
+                      {order.items.some((i) => i.removalRequested) &&
+                        (order.items.some((i) => i.removalRequested && !i.removalHandedOffAt) ? (
+                          <span
+                            className="text-destructive ms-1.5 inline-flex items-center gap-0.5 align-middle text-xs font-medium"
+                            title="ההזמנה כוללת פינוי מוצר ישן שטרם הועבר למוביל"
+                          >
+                            <Recycle className="size-3.5" />
+                          </span>
+                        ) : (
+                          <span
+                            className="text-muted-foreground ms-1.5 inline-flex items-center align-middle"
+                            title="ההזמנה כוללת פינוי מוצר ישן שהועבר למוביל"
+                          >
+                            <Recycle className="size-3.5" />
+                          </span>
+                        ))}
+                    </TableCell>
                     <TableCell>
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${

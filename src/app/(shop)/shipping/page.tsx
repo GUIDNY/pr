@@ -179,8 +179,10 @@ export default function ShippingPage() {
           <h2 className="text-foreground mb-2 text-lg font-semibold">פינוי מוצר חשמלי ישן</h2>
           <p>
             ברכישת מוצר חשמלי או אלקטרוני לשימוש ביתי ניתן למסור לפינוי מוצר ישן דומה, ללא תשלום, בהתאם לחוק לטיפול
-            סביבתי בציוד חשמלי ואלקטרוני ובסוללות. הפרטים המלאים — לרבות הכנת המוצר הישן ומקרים של פינוי חריג —
-            מופיעים בסעיף 25 ב<Link href="/terms" className="text-brand hover:underline">תקנון</Link>.
+            סביבתי בציוד חשמלי ואלקטרוני ובסוללות. הפרטים המלאים — לרבות הכנת המוצר הישן, מקרים של פינוי חריג
+            והאופן שבו זה עובד בנקודת איסוף ובאיסוף עצמי — מופיעים ב
+            <Link href="/old-product-removal" className="text-brand hover:underline">עמוד פינוי מוצר ישן</Link>{" "}
+            ובסעיף 25 ב<Link href="/terms" className="text-brand hover:underline">תקנון</Link>.
           </p>
         </section>
 

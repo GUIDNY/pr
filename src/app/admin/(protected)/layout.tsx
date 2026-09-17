@@ -15,6 +15,7 @@ import {
   CreditCard,
   GalleryHorizontal,
   TicketPercent,
+  Recycle,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
@@ -46,6 +47,10 @@ const NAV = [
   { href: "/admin/deals", label: "מוצרים במבצע", icon: TagIcon, catalog: true },
   { href: "/admin/promotions", label: "קופונים והנחות עגלה", icon: TicketPercent, catalog: true },
   { href: "/admin/suppliers", label: "ספקים", icon: Truck, catalog: true },
+  /* Where the shop decides what a customer may hand over when they buy a new
+     one. A settings screen rather than a constant in the repo, because the
+     brief asks that adding a category next month not be a deploy. */
+  { href: "/admin/recycling", label: "פינוי מוצר ישן", icon: Recycle, catalog: true },
   { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle, catalog: true },
   { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles, catalog: true },
   // The owner's alone — what the shop advertises about itself. The page

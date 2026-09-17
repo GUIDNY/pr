@@ -18,11 +18,14 @@ import {
   type OrderStatus,
   type DeliveryMethod,
   type PaymentStatus,
+  exceptionalReasonLabel,
 } from "@/lib/enums";
 import { requireBackOffice } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { getSellerOrderDetail } from "@/lib/queries/seller-orders";
 import { SellerOrderPage } from "@/components/admin/seller-order-page";
+import { OrderRemovalPanel } from "@/components/admin/order-removal-panel";
+import { removalHandoffText, toRemovalLines } from "@/lib/recycling";
 
 export default async function AdminOrderDetailPage({ params }: { params: Promise<{ orderNumber: string }> }) {
   /* Same address, two pages — see the orders list for why the URL is shared.
@@ -46,6 +49,32 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
   const customerEmail = order.user?.email ?? order.guestEmail;
   const shipping = orderShippingAddress(order);
 
+  /* THE OLD APPLIANCE. Built here rather than in the panel because the panel
+     is a client component and the reason labels, the address and the delivery
+     label all come off the server's own vocabulary — sending the raw reason
+     keys to the browser and translating them there would be a second copy of
+     the list in enums.ts. */
+  const removalLines = toRemovalLines(order.items, exceptionalReasonLabel);
+
+  const handoffText =
+    removalLines.length > 0
+      ? removalHandoffText({
+          orderNumber: order.orderNumber,
+          customerName,
+          phone: customerPhone,
+          address: shipping ? formatShippingAddress(shipping) : null,
+          methodLabel: DELIVERY_METHOD_LABELS[order.deliveryMethod as DeliveryMethod],
+          lines: removalLines.map((l) => ({
+            key: l.key,
+            label: l.label,
+            productTitle: l.productTitle,
+            exceptional: l.exceptional,
+            reasonLabels: l.reasonLabels,
+            notes: l.notes,
+          })),
+        })
+      : "";
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -67,6 +96,13 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
+          {/* Above the items on purpose. A removal is a second job attached
+              to the same visit, done by a different person, and the way it
+              fails is that nobody notices it is there. */}
+          {removalLines.length > 0 && (
+            <OrderRemovalPanel orderId={order.id} lines={removalLines} handoffText={handoffText} />
+          )}
+
           <div className="border-border bg-card rounded-xl border p-5">
             <h2 className="mb-3 flex items-center gap-2 font-semibold">
               <Package className="size-4" /> פריטי הזמנה
@@ -79,6 +115,17 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                       {item.titleSnap}
                     </Link>
                     <p className="text-muted-foreground text-xs">מק&quot;ט: {item.skuSnap} · כמות: {item.quantity}</p>
+                    {/* Said on the line as well as in the panel above. The
+                        panel is where the removal is worked; this is what
+                        stops somebody scanning the items and packing the
+                        order without knowing one of them has an old one
+                        coming back. */}
+                    {item.removalRequested && (
+                      <p className="text-brand text-xs font-medium">
+                        פינוי {item.recyclingLabelSnap ?? "מוצר ישן"}
+                        {item.removalExceptional ? " · חריג" : ""}
+                      </p>
+                    )}
                   </div>
                   <span className="font-semibold tabular-nums">{formatPrice(item.priceSnap * item.quantity)}</span>
                 </li>

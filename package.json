@@ -41,7 +41,8 @@
     "seed:guides": "tsx scripts/seed-buying-guides.ts",
     "check:recycling": "tsx scripts/recycling-categories.ts",
     "fix:recycling": "tsx scripts/recycling-categories.ts --write",
-    "sql:recycling": "tsx scripts/recycling-categories.ts --sql"
+    "sql:recycling": "tsx scripts/recycling-categories.ts --sql",
+    "check:removal": "tsx scripts/check-removal-rules.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

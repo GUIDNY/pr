@@ -8,6 +8,8 @@ import { SITE_URL } from "@/lib/site-url";
 import { NOTIFY_EVENTS, type NotifyEvent, type NotifyChannel } from "@/lib/notify/types";
 import { courierTrackingUrl } from "@/lib/couriers";
 import { channelReadiness } from "@/lib/notify";
+import { removalHandoffText, toRemovalLines, type RemovalLine } from "@/lib/recycling";
+import { DELIVERY_METHOD_LABELS, exceptionalReasonLabel, type DeliveryMethod } from "@/lib/enums";
 
 /**
  * The orders queue as a salesperson needs it.
@@ -32,6 +34,9 @@ export type SellerOrderSummary = {
   customerPhone: string | null;
   delivery: { toCustomer: boolean; address: string | null; fee: number };
   itemCount: number;
+  /** How many old appliances this order has to collect. On the summary, so
+      the queue card can say so before anybody opens the order. */
+  removalCount: number;
   problems: OrderProblem[];
 };
 
@@ -67,6 +72,11 @@ export type SellerOrderDetail = SellerOrderSummary & {
     /** True once this message is one the order has actually reached. */
     due: boolean;
   }[];
+  /** The requested removals, ready for the panel. */
+  removals: RemovalLine[];
+  /** What gets pasted into the carrier's booking. Built on the server, where
+      the address and the delivery label already are. */
+  removalHandoff: string;
   previousStatus: string | null;
   /** Which channels can send right now — not what was true when a past message went. */
   readiness: { id: NotifyChannel; configured: boolean; missing: string[] }[];
@@ -97,6 +107,20 @@ const LIST_SELECT = {
       quantity: true,
       priceSnap: true,
       product: { select: { stockQty: true } },
+      /* The old appliance. On the list select rather than only the detail
+         one, because the card in the queue is where somebody decides what to
+         pick up next, and a removal changes what they have to book. */
+      id: true,
+      recyclingKeySnap: true,
+      recyclingLabelSnap: true,
+      removalRequested: true,
+      removalExceptional: true,
+      removalReasons: true,
+      removalNotes: true,
+      removalAcknowledged: true,
+      removalFee: true,
+      removalStatus: true,
+      removalHandedOffAt: true,
     },
   },
 } as const;
@@ -155,6 +179,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
 
   const summary = toSummary(row);
   const live = row.payments.find((p) => p.status === "AUTHORIZED" || p.status === "CAPTURED");
+  const removals: RemovalLine[] = toRemovalLines(row.items, exceptionalReasonLabel);
 
   return {
     ...summary,
@@ -214,6 +239,25 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
       at: n.createdAt,
     })),
     updates: buildUpdates(row, summary),
+    removals,
+    removalHandoff:
+      removals.length > 0
+        ? removalHandoffText({
+            orderNumber: row.orderNumber,
+            customerName: summary.customerName,
+            phone: summary.customerPhone,
+            address: summary.delivery.address,
+            methodLabel: DELIVERY_METHOD_LABELS[row.deliveryMethod as DeliveryMethod],
+            lines: removals.map((l) => ({
+              key: l.key,
+              label: l.label,
+              productTitle: l.productTitle,
+              exceptional: l.exceptional,
+              reasonLabels: l.reasonLabels,
+              notes: l.notes,
+            })),
+          })
+        : "",
     previousStatus: row.statusHistory[0]?.fromStatus ?? null,
     readiness: channelReadiness(),
     canDelete: !row.payments.some(
@@ -298,7 +342,24 @@ type ListRow = {
   guestName: string | null;
   guestPhone: string | null;
   user: { name: string; phone: string | null } | null;
-  items: { titleSnap: string; skuSnap: string; quantity: number; priceSnap: number; product: { stockQty: number } | null }[];
+  items: {
+    id: string;
+    titleSnap: string;
+    skuSnap: string;
+    quantity: number;
+    priceSnap: number;
+    product: { stockQty: number } | null;
+    recyclingKeySnap: string | null;
+    recyclingLabelSnap: string | null;
+    removalRequested: boolean;
+    removalExceptional: boolean;
+    removalReasons: string | null;
+    removalNotes: string | null;
+    removalAcknowledged: boolean;
+    removalFee: number | null;
+    removalStatus: string;
+    removalHandedOffAt: Date | null;
+  }[];
 };
 
 function toSummary(row: ListRow): SellerOrderSummary {
@@ -322,6 +383,27 @@ function toSummary(row: ListRow): SellerOrderSummary {
   }
   if (!row.guestPhone && !row.user?.phone) {
     problems.push({ severity: "block", text: "אין טלפון ליצירת קשר" });
+  }
+
+  /* A removal the carrier has not been told about. Same severity as an order
+     with no address, and for the same reason: the customer was promised
+     something the person doing the work does not know about, and the moment
+     it is discovered is on the doorstep. It clears when somebody marks it
+     handed off on the order page. */
+  const removalsToHandOff = row.items.filter((i) => i.removalRequested && !i.removalHandedOffAt);
+  if (removalsToHandOff.length > 0) {
+    problems.push({
+      severity: "block",
+      text: `פינוי ${removalsToHandOff.map((i) => i.recyclingLabelSnap ?? "מוצר ישן").join(", ")} — עדיין לא הועבר למוביל`,
+    });
+  }
+  /* And one that needs a phone call before the van is booked: the access
+     questions were answered yes, or the new one is going to a collection
+     point where the courier cannot take the old one. A warning rather than a
+     block, because the order itself can go ahead. */
+  const needsCall = row.items.filter((i) => i.removalStatus === "NEEDS_COORDINATION");
+  if (needsCall.length > 0) {
+    problems.push({ severity: "warn", text: "פינוי דורש תיאום טלפוני עם הלקוח" });
   }
 
   // Stock is read now, not from the order. What matters to whoever is picking
@@ -349,6 +431,7 @@ function toSummary(row: ListRow): SellerOrderSummary {
     customerPhone: row.guestPhone ?? row.user?.phone ?? null,
     delivery: { toCustomer, address: address || null, fee: row.deliveryFee },
     itemCount: row.items.reduce((sum, i) => sum + i.quantity, 0),
+    removalCount: row.items.filter((i) => i.removalRequested).length,
     problems,
   };
 }

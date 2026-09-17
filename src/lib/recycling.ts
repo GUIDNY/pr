@@ -252,3 +252,141 @@ export const RECYCLING_ROW_SELECT = {
   exceptionalFee: true,
   isEnabled: true,
 } as const;
+
+/** The equipment group as a carrier's system wants to read it: "refrigerator"
+    becomes "Refrigerator", "washing_machine" becomes "Washing Machine". The
+    key is already the English name, which is why it was chosen in English —
+    it is the one field of this feature that leaves the building. */
+export function removalTypeForCarrier(key: string): string {
+  return key
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/**
+ * What gets handed to the carrier, as text somebody can paste.
+ *
+ * THE POINT OF IT. The brief is unambiguous: there must be no situation where
+ * the customer ticked the box on the website and the driver never heard about
+ * it. There is no API into צ'יטה here — a removal reaches them inside the
+ * booking a person makes, the same way a delivery does. So what the software
+ * can honestly do is put the exact words in one place, at the moment the
+ * booking is made, and then record that it went; the admin marks the order
+ * handed off, and until it does the order carries a warning.
+ *
+ * English keywords and Hebrew detail on purpose. OLD PRODUCT REMOVAL and
+ * EXCEPTIONAL are what a dispatcher scans for and what an integration would
+ * key on later; the address and the note are for the person driving.
+ */
+export function removalHandoffText(input: {
+  orderNumber: string;
+  customerName: string;
+  phone: string | null;
+  address: string | null;
+  methodLabel: string;
+  lines: {
+    key: string;
+    label: string;
+    productTitle: string;
+    exceptional: boolean;
+    reasonLabels: string[];
+    notes: string | null;
+  }[];
+}): string {
+  const out: string[] = [
+    `OLD PRODUCT REMOVAL: YES`,
+    `הזמנה: ${input.orderNumber}`,
+    `לקוח: ${input.customerName}${input.phone ? ` · ${input.phone}` : ""}`,
+    `אופן אספקה: ${input.methodLabel}`,
+  ];
+  if (input.address) out.push(`כתובת: ${input.address}`);
+  out.push("");
+
+  for (const line of input.lines) {
+    out.push(`TYPE: ${removalTypeForCarrier(line.key)} (${line.label})`);
+    out.push(`נרכש: ${line.productTitle}`);
+    out.push(`EXCEPTIONAL: ${line.exceptional ? "YES" : "NO"}`);
+    if (line.reasonLabels.length > 0) out.push(`  ${line.reasonLabels.join(" · ")}`);
+    if (line.notes) out.push(`הערת לקוח: ${line.notes}`);
+    out.push("");
+  }
+
+  out.push("הלקוח אישר שהמוצר הישן יהיה ריק, מנותק ונגיש לפינוי.");
+  return out.join("\n");
+}
+
+/**
+ * One requested removal, as every back-office screen needs it.
+ *
+ * Shaped here rather than in the panel that renders it, because two screens
+ * build it from two different queries — the manager's order page and the
+ * seller's — and a second copy of this mapping is a second place for the
+ * reason labels to be forgotten.
+ */
+export type RemovalLine = {
+  id: string;
+  /** The new product this line bought. */
+  productTitle: string;
+  /** "מקרר" — what the customer was told they could hand over. */
+  label: string;
+  /** "refrigerator" — what the carrier is told. */
+  key: string;
+  exceptional: boolean;
+  reasonLabels: string[];
+  notes: string | null;
+  acknowledged: boolean;
+  fee: number | null;
+  status: string;
+  handedOffAt: string | null;
+};
+
+/** The ticked access questions, as stored. Defensive rather than trusting:
+    the column is JSON in a String column, and a row written by hand or by an
+    older build must not be able to take an order screen down. */
+export function parseRemovalReasons(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** The removal lines of an order, from the columns as Prisma returns them.
+    Takes the label lookup as an argument so this file keeps its promise of
+    importing nothing — enums.ts is where the reason wording lives. */
+export function toRemovalLines(
+  items: {
+    id: string;
+    titleSnap: string;
+    recyclingKeySnap: string | null;
+    recyclingLabelSnap: string | null;
+    removalRequested: boolean;
+    removalExceptional: boolean;
+    removalReasons: string | null;
+    removalNotes: string | null;
+    removalAcknowledged: boolean;
+    removalFee: number | null;
+    removalStatus: string;
+    removalHandedOffAt: Date | null;
+  }[],
+  reasonLabel: (key: string) => string,
+): RemovalLine[] {
+  return items
+    .filter((i) => i.removalRequested)
+    .map((i) => ({
+      id: i.id,
+      productTitle: i.titleSnap,
+      label: i.recyclingLabelSnap ?? "מוצר ישן",
+      key: i.recyclingKeySnap ?? "unknown",
+      exceptional: i.removalExceptional,
+      reasonLabels: parseRemovalReasons(i.removalReasons).map(reasonLabel),
+      notes: i.removalNotes,
+      acknowledged: i.removalAcknowledged,
+      fee: i.removalFee,
+      status: i.removalStatus,
+      handedOffAt: i.removalHandedOffAt?.toISOString() ?? null,
+    }));
+}

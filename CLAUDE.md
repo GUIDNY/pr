@@ -126,6 +126,32 @@ a whole tab to one broad category on purpose (the tabs mix sub-types with no per
 category column), so a product parked in a department has **no spec schema to fill at
 all**. Correcting its category is a prerequisite for specs, not a nicety.
 
+## Taking the old appliance away is a legal duty, and it is switched off
+
+Israeli law entitles somebody buying a new appliance to hand over an old one of the
+same kind, free, when the new one arrives. The feature that offers it is built and
+the switch is off: `REMOVAL_ORDERING_ENABLED` in `src/lib/recycling.ts` is `false`,
+so the product page, `/old-product-removal` and the checkout all explain the right
+and give the shop's phone number, and no checkbox records a request. Turning it on
+is that one constant and a push — but only once there is a carrier who actually
+receives the removal data and an arrangement with a recognised recycling
+corporation for the waste that comes back. A tick nobody acts on is the failure the
+whole feature exists to prevent.
+
+Which old appliance a product entitles its buyer to is **never guessed**. It comes
+from `RecyclingCategory` rows and the `recyclingCategoryId` on the product's
+category (or on the product itself, which wins). An unmapped category offers
+nothing at all, silently, and `/admin/recycling` lists what is unmapped so a person
+can decide — a blank there is a question, not a bug. 64 categories are mapped,
+covering about 96% of live products; the rest are wall mounts, cables and
+accessories that are not appliances, plus the products parked directly on the
+"מוצרי חשמל למטבח" department, which is a mixture with no single right answer.
+
+`scripts/recycling-seed-data.ts` only ever fills blanks. The database is the source
+of truth once it has run, because the admin screen edits those rows.
+
+`npm run check:removal` guards the rules without a database.
+
 ## Never invent product data
 
 Capacities, dimensions, energy ratings and the like must come from a real source, and

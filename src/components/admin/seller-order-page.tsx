@@ -12,6 +12,7 @@ import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/enums";
 import { NOTIFY_CHANNEL_LABELS, NOTIFY_EVENT_LABELS } from "@/lib/notify/types";
 import { stageOf } from "@/lib/order-stage";
 import { formatPrice, formatDateTime } from "@/lib/format";
+import { OrderRemovalPanel } from "@/components/admin/order-removal-panel";
 import {
   approveOrderAction, closeOrderAction, markShippedAction, logManualWhatsappAction,
   undoLastStatusAction, deleteOrderAction, resendNotificationAction,
@@ -200,6 +201,17 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
         </ul>
       )}
 
+      {/* ---- the old appliance ----
+           Full width and above the two columns. The seller is the person who
+           books the courier, so this is the screen where a removal either
+           reaches the van or does not — the panel is the same one the
+           manager's order page uses, and the actions behind it are open to
+           anyone in the back office because arranging a removal is getting an
+           order out of the door. */}
+      {order.removals.length > 0 && (
+        <OrderRemovalPanel orderId={order.id} lines={order.removals} handoffText={order.removalHandoff} />
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         {/* ---- customer and destination ---- */}
         <Panel title="הלקוח והיעד" icon={order.delivery.toCustomer ? Truck : Store}>
@@ -295,6 +307,14 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               </li>
             ))}
           </ul>
+          {/* Repeated on the goods list as well as in the panel above, so
+              whoever is picking the order knows one of these has an old one
+              coming back with it. */}
+          {order.removals.length > 0 && (
+            <p className="text-brand mt-2 text-xs font-medium">
+              פינוי: {order.removals.map((r) => r.label).join(" · ")}
+            </p>
+          )}
         </Panel>
 
         {/* ---- what the customer was told ---- */}
