@@ -51,24 +51,24 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  addresses         Address[]
-  orders            Order[]
-  cart              Cart?
-  favorites         Favorite[]
-  reviews           Review[]
-  supportRequests   SupportRequest[]
-  notes             OrderNote[]          @relation("NoteAuthor")
-  statusChanges     OrderStatusHistory[] @relation("StatusChangedBy")
-  assignedOrders    Order[]              @relation("AssignedEmployee")
-  auditLogs         AuditLog[]
-  passwordResets    PasswordResetToken[]
-  uploadedSources   InventorySource[]    @relation("SourceUploadedBy")
-  triggeredSyncRuns InventorySyncRun[]   @relation("SyncTriggeredBy")
-  resolvedAlerts    InventoryAlert[]     @relation("AlertResolvedBy")
-  cartFollowUps     Cart[]               @relation("CartFollowUp")
-  complaints        Complaint[]          @relation("ComplaintCustomer")
-  assignedComplaints Complaint[]         @relation("ComplaintAssignee")
-  complaintMessages ComplaintMessage[]   @relation("ComplaintMessageAuthor")
+  addresses          Address[]
+  orders             Order[]
+  cart               Cart?
+  favorites          Favorite[]
+  reviews            Review[]
+  supportRequests    SupportRequest[]
+  notes              OrderNote[]          @relation("NoteAuthor")
+  statusChanges      OrderStatusHistory[] @relation("StatusChangedBy")
+  assignedOrders     Order[]              @relation("AssignedEmployee")
+  auditLogs          AuditLog[]
+  passwordResets     PasswordResetToken[]
+  uploadedSources    InventorySource[]    @relation("SourceUploadedBy")
+  triggeredSyncRuns  InventorySyncRun[]   @relation("SyncTriggeredBy")
+  resolvedAlerts     InventoryAlert[]     @relation("AlertResolvedBy")
+  cartFollowUps      Cart[]               @relation("CartFollowUp")
+  complaints         Complaint[]          @relation("ComplaintCustomer")
+  assignedComplaints Complaint[]          @relation("ComplaintAssignee")
+  complaintMessages  ComplaintMessage[]   @relation("ComplaintMessageAuthor")
 }
 
 model Address {
@@ -144,6 +144,13 @@ model Category {
   seoTitle    String?
   seoDesc     String?
 
+  /// Which equipment group this category's products count as for the
+  /// old-appliance removal law. Null means the shop has not decided yet, and
+  /// a product under it is offered no removal at all — see lib/recycling.ts
+  /// for why silence is the right default here rather than a guess.
+  recyclingCategoryId String?
+  recyclingCategory   RecyclingCategory? @relation(fields: [recyclingCategoryId], references: [id], onDelete: SetNull)
+
   products   Product[]
   attributes CategoryAttribute[]
 
@@ -166,6 +173,64 @@ model CategoryAttribute {
   values ProductAttributeValue[]
 
   @@unique([categoryId, key])
+}
+
+/// An equipment group for the old-appliance removal the law entitles a buyer
+/// to: buy a new one of these, hand over an old one of the same kind, free.
+///
+/// A TABLE RATHER THAN A CONSTANT, unlike lib/bulky.ts next to it, and the
+/// difference is deliberate. Bulky is one yes/no the shop decides once about
+/// how a courier works. This carries the wording a customer reads on the
+/// checkbox ("פינוי מקרר ישן"), whether the exceptional-removal questions
+/// are asked, and a fee that does not exist yet and one day will — all of
+/// which the shop has to be able to change, for a category it adds next
+/// month, without a deploy.
+///
+/// `key` is the machine name that travels: it is snapshotted onto the order
+/// item and it is what goes to the carrier. `label` is the noun in the
+/// customer's sentence. They are separate because one of them is allowed to
+/// be reworded and the other is not.
+model RecyclingCategory {
+  id    String @id @default(cuid())
+  key   String @unique // refrigerator | washing_machine | television ...
+  label String // "מקרר" — the noun the customer sees, in every sentence about it
+
+  /// The whole phrase for the old one: "מקרר ישן", "מכונת כביסה ישנה",
+  /// "כיריים ישנות". Stored rather than built from `label` plus "ישן",
+  /// because Hebrew agrees the adjective with the noun and a checkbox
+  /// reading "פינוי מכונת כביסה ישן" is a shop that does not speak the
+  /// language its customers are reading in.
+  oldLabel String @default("")
+
+  /// Large electrical equipment in the sense the removal procedure uses: at
+  /// least one side longer than 50cm. It is what makes an exceptional
+  /// removal chargeable at all, so it is stored rather than inferred from
+  /// the catalogue's own "bulky" rule, which answers a different question
+  /// (whether a courier can leave it at a counter).
+  isLargeAppliance Boolean @default(false)
+
+  /// Whether the customer is asked the exceptional-removal questions — the
+  /// stairs, the crane, the dismantling. Separate from isLargeAppliance so a
+  /// group can be large without being interrogated, which is what the shop
+  /// will want for anything it has decided to absorb.
+  asksExceptional Boolean @default(false)
+
+  /// What an exceptional removal costs, once there is a price list. Null
+  /// means there is none, and the customer is told it goes to coordination
+  /// instead of being shown a number — never a zero, which would read as a
+  /// promise that it is free.
+  exceptionalFee Float?
+
+  /// Off means this group is not offered at the checkout at all. The way to
+  /// suspend removal for fridges without unmapping every fridge category.
+  isEnabled Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  categories Category[]
+  products   Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Product {
@@ -232,8 +297,20 @@ model Product {
   // set these without touching description/extraSpecsRaw at all).
   descriptionSourceUrl String?
   specSourceUrl        String?
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+
+  // ---- Old-appliance removal ----
+  /// Overrides whatever this product's category maps to. For the row that is
+  /// filed under "מוצרי חשמל למטבח" and is actually a microwave — the sheet
+  /// maps a whole tab to one broad category, so those exist in numbers.
+  recyclingCategoryId String?
+  recyclingCategory   RecyclingCategory? @relation(fields: [recyclingCategoryId], references: [id], onDelete: SetNull)
+  /// Takes this one product out of the offer even though its category is
+  /// mapped. Spare parts, accessories and display items that sit in an
+  /// appliance category without being an appliance.
+  recyclingOptOut     Boolean            @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // ---- Inventory sync (Excel/ERP source of truth) ----
   isTemporarySku         Boolean          @default(false) // sku is a sequential placeholder (0001, 0002…), not from the source
@@ -367,20 +444,20 @@ model TempSkuCounter {
 }
 
 model ProductImage {
-  id             String    @id @default(cuid())
-  productId      String
-  product        Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url            String
-  alt            String?
-  sortOrder      Int       @default(0)
+  id                String    @id @default(cuid())
+  productId         String
+  product           Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url               String
+  alt               String?
+  sortOrder         Int       @default(0)
   // Provenance for images written by /api/integrations/product-enrich —
   // admin-only, never rendered on the public product page. Null for images
   // added through the admin UI (drag-and-drop upload or a plain URL), which
   // have no "source page" to record.
-  sourcePageUrl  String?
-  sourceImageUrl String?
-  sourceDomain   String?
-  capturedAt     DateTime?
+  sourcePageUrl     String?
+  sourceImageUrl    String?
+  sourceDomain      String?
+  capturedAt        DateTime?
   /// When this image last failed to migrate onto our own storage.
   ///
   /// A failure leaves the row untouched — that is deliberate, so a product
@@ -568,10 +645,10 @@ model Order {
   statusHistory OrderStatusHistory[]
   notes         OrderNote[]
   notifications OrderNotification[]
+  complaints    Complaint[]
 
   @@index([status])
   @@index([userId])
-  complaints         Complaint[]
 }
 
 /// Every message the shop sent a customer about an order, and every one it
@@ -612,6 +689,42 @@ model OrderItem {
   skuSnap   String
   priceSnap Float
   quantity  Int
+
+  // ---- Old-appliance removal, per line ----
+  // Per line and not per order, because the entitlement is per line: an order
+  // with a fridge and a television earns the removal of a fridge and of a
+  // television, and one checkbox for the pair could only ever mean one of
+  // them. The customer is asked once per eligible line and the answers live
+  // where they were given.
+  //
+  // Snapshotted like titleSnap and priceSnap above, and for the same reason:
+  // the catalogue's mapping can be re-pointed next month, and what the
+  // carrier was told to collect must stay what the customer was offered.
+  recyclingKeySnap    String? // "refrigerator" — the machine name that travels
+  recyclingLabelSnap  String? // "מקרר" — the word the customer actually read
+  removalRequested    Boolean   @default(false)
+  /// The customer answered yes to at least one of the access questions, so
+  /// this cannot be promised free — it goes to coordination. Never set from
+  /// the shop's own guess about the address.
+  removalExceptional  Boolean   @default(false)
+  /// JSON array of the access-question keys that were ticked, so the person
+  /// ringing to coordinate knows whether to bring a crane or a second pair
+  /// of hands rather than asking again.
+  removalReasons      String?
+  removalNotes        String?
+  /// The customer confirmed the old appliance will be empty, disconnected
+  /// and reachable. Recorded because it is the condition the free removal
+  /// rests on, and "we told them" is not the same as "they agreed".
+  removalAcknowledged Boolean   @default(false)
+  /// What an exceptional removal was actually charged, once there is a price
+  /// list and somebody agreed to it. Null while it is still a conversation.
+  removalFee          Float?
+  removalStatus       String    @default("NOT_REQUESTED")
+  // NOT_REQUESTED | REQUESTED | NEEDS_COORDINATION | CONFIRMED | COMPLETED | FAILED | CANCELLED
+  /// When the removal reached the carrier. The one field that answers the
+  /// question the whole feature turns on: did the person driving the van
+  /// know. Null on a requested removal is a hole, and the admin says so.
+  removalHandedOffAt  DateTime?
 
   @@index([orderId])
 }
@@ -927,33 +1040,33 @@ model ChatbotSettings {
 // severity — and widening it to carry conversations would leave both jobs
 // half done.
 model Complaint {
-  id            String  @id @default(cuid())
+  id           String  @id @default(cuid())
   // A human number for the staff to say out loud to each other. Internal
   // only: it is never sent to the customer, which is the whole point.
-  ticketNumber  Int     @unique @default(autoincrement())
+  ticketNumber Int     @unique @default(autoincrement())
   // The customer's WhatsApp number, international, no plus — 972501234567.
   // The only identity the bot knows, so every lookup starts here.
-  waId          String
-  customerName  String?
-  userId        String?
-  user          User?   @relation("ComplaintCustomer", fields: [userId], references: [id])
-  orderId       String?
-  order         Order?  @relation(fields: [orderId], references: [id])
-  channel       String  @default("WHATSAPP")
+  waId         String
+  customerName String?
+  userId       String?
+  user         User?   @relation("ComplaintCustomer", fields: [userId], references: [id])
+  orderId      String?
+  order        Order?  @relation(fields: [orderId], references: [id])
+  channel      String  @default("WHATSAPP")
 
-  category      String  @default("OTHER")
-  severity      String  @default("MEDIUM")
-  status        String  @default("OPEN")
-  subject       String
+  category String @default("OTHER")
+  severity String @default("MEDIUM")
+  status   String @default("OPEN")
+  subject  String
 
-  assignedToId  String?
-  assignedTo    User?   @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
+  assignedToId String?
+  assignedTo   User?   @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
 
-  firstMessageAt DateTime @default(now())
-  lastMessageAt  DateTime @default(now())
+  firstMessageAt DateTime  @default(now())
+  lastMessageAt  DateTime  @default(now())
   resolvedAt     DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   messages ComplaintMessage[]
 
@@ -963,29 +1076,29 @@ model Complaint {
 }
 
 model ComplaintMessage {
-  id          String    @id @default(cuid())
-  complaintId String
-  complaint   Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
-  role        String // CUSTOMER | BOT | STAFF | SYSTEM
-  body        String
-  authorId    String?
-  author      User?     @relation("ComplaintMessageAuthor", fields: [authorId], references: [id])
+  id               String    @id @default(cuid())
+  complaintId      String
+  complaint        Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  role             String // CUSTOMER | BOT | STAFF | SYSTEM
+  body             String
+  authorId         String?
+  author           User?     @relation("ComplaintMessageAuthor", fields: [authorId], references: [id])
   // WhatsApp's own message id. Unique, which is what makes the ingest
   // endpoint idempotent: n8n retries, and a retry must not double the thread.
-  waMessageId String?   @unique
-  mediaMime   String?
+  waMessageId      String?   @unique
+  mediaMime        String?
   // Path inside the private complaint-media bucket. Never a URL: WhatsApp's
   // own media links expire in minutes and need a bearer token, so a stored
   // URL is a dead link by the time anyone opens the complaint.
   mediaStoragePath String?
   // JSON array of what was removed from `body` before it was saved, e.g.
   // ["credit_card"]. The removed values themselves are not stored anywhere.
-  redactedFields String?
+  redactedFields   String?
   // Everything is internal today. The flag exists so that if a customer-
   // facing view is ever built, what may be shown is a decision someone makes
   // per message rather than a default that leaks the lot.
-  internalOnly Boolean @default(true)
-  createdAt   DateTime @default(now())
+  internalOnly     Boolean   @default(true)
+  createdAt        DateTime  @default(now())
 
   @@index([complaintId])
   @@index([createdAt])

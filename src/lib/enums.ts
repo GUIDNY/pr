@@ -479,3 +479,83 @@ export type BotIntent = (typeof BOT_INTENTS)[number];
 // of the story, and a thread with the calm parts removed misleads whoever
 // reads it.
 export const COMPLAINT_OPENING_INTENTS: BotIntent[] = ["complaint", "human_request"];
+
+// ---------- Old-appliance removal ----------
+
+/**
+ * Where a requested removal has got to.
+ *
+ * NOT_REQUESTED is the default on every line, including the ones that were
+ * never eligible, so the column is never null and a query for "removals to
+ * arrange" is one predicate rather than two. REQUESTED is the customer's tick
+ * and nothing more — it is not a promise yet.
+ *
+ * NEEDS_COORDINATION is the one that carries weight. It means somebody has to
+ * ring the customer before the van is booked, either because the access
+ * questions were answered yes or because the delivery is not to a door. A
+ * removal must never go from REQUESTED to CONFIRMED by itself when it is in
+ * that state; that is the difference between a free removal and a driver
+ * turning up to a sixth floor with no lift.
+ */
+export const REMOVAL_STATUSES = [
+  "NOT_REQUESTED",
+  "REQUESTED",
+  "NEEDS_COORDINATION",
+  "CONFIRMED",
+  "COMPLETED",
+  "FAILED",
+  "CANCELLED",
+] as const;
+export type RemovalStatus = (typeof REMOVAL_STATUSES)[number];
+export const removalStatusSchema = z.enum(REMOVAL_STATUSES);
+
+export const REMOVAL_STATUS_LABELS: Record<RemovalStatus, string> = {
+  NOT_REQUESTED: "לא התבקש",
+  REQUESTED: "התבקש",
+  NEEDS_COORDINATION: "דורש תיאום",
+  CONFIRMED: "אושר",
+  COMPLETED: "בוצע",
+  FAILED: "לא בוצע",
+  CANCELLED: "בוטל",
+};
+
+export const REMOVAL_STATUS_COLORS: Record<RemovalStatus, string> = {
+  NOT_REQUESTED: "bg-muted text-muted-foreground",
+  REQUESTED: "bg-brand/15 text-brand",
+  NEEDS_COORDINATION: "bg-warning/15 text-warning-foreground",
+  CONFIRMED: "bg-accent text-accent-foreground",
+  COMPLETED: "bg-success/15 text-success",
+  FAILED: "bg-destructive/15 text-destructive",
+  CANCELLED: "bg-destructive/15 text-destructive",
+};
+
+/**
+ * The access questions that make a removal exceptional.
+ *
+ * A closed list rather than a free-text box, because the answer decides
+ * whether the shop may charge — and "the customer wrote something about
+ * stairs" is not a basis for a charge anybody could defend. The keys are
+ * stored on the order line; the labels are what the customer read.
+ *
+ * UNSURE is on the list on purpose and is not a non-answer. Somebody who
+ * cannot tell whether their lift reaches their floor is exactly the order
+ * that should be rung before the van is booked, and leaving it off would push
+ * them into ticking nothing — which reads as a clean free removal and is the
+ * one outcome nobody can recover on the doorstep.
+ */
+export const EXCEPTIONAL_REMOVAL_REASONS = [
+  { key: "STAIRS_3_PLUS", label: "יש 3 קומות או יותר ללא מעלית מתאימה" },
+  { key: "CRANE", label: "נדרש מנוף כדי להוציא את המוצר הישן" },
+  { key: "DISMANTLE", label: "צריך לפרק חלק מהמוצר הישן כדי להוציא אותו" },
+  { key: "ACCESS", label: "יש מגבלת גישה חריגה" },
+  { key: "UNSURE", label: "לא בטוח" },
+] as const;
+export type ExceptionalRemovalReason = (typeof EXCEPTIONAL_REMOVAL_REASONS)[number]["key"];
+export const EXCEPTIONAL_REMOVAL_REASON_KEYS = EXCEPTIONAL_REMOVAL_REASONS.map((r) => r.key) as readonly ExceptionalRemovalReason[];
+export const exceptionalRemovalReasonSchema = z.enum(
+  EXCEPTIONAL_REMOVAL_REASONS.map((r) => r.key) as [ExceptionalRemovalReason, ...ExceptionalRemovalReason[]],
+);
+
+export function exceptionalReasonLabel(key: string): string {
+  return EXCEPTIONAL_REMOVAL_REASONS.find((r) => r.key === key)?.label ?? key;
+}
