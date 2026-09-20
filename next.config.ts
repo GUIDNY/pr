@@ -55,6 +55,13 @@ const nextConfig: NextConfig = {
 
          One address each now, all three in the same shape. The CMS row is
          still what /terms renders — only the URL moved. */
+      /* /about has never existed — the page has always been the CMS row at
+         /page/about — but it is the address people type and link to, and it
+         answered 404. A redirect rather than a move: /page/about is what is
+         indexed and what the footer points at, and renaming a live URL for
+         tidiness is exactly the trade that produced the 223 redirects now
+         living in proxy.ts. This costs nothing and changes nothing. */
+      { source: "/about", destination: "/page/about", permanent: true },
       { source: "/page/returns", destination: "/returns", permanent: true },
       { source: "/page/privacy", destination: "/privacy", permanent: true },
       { source: "/page/terms", destination: "/terms", permanent: true },

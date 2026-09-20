@@ -23,7 +23,7 @@ import { TERMS_UPDATED } from "@/lib/content/terms";
 // sitemap that claims everything changed this morning is one Google learns
 // to discount wholesale.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [products, categories, allProducts, articles, brands] = await Promise.all([
+  const [products, categories, allProducts, articles, brands, aboutPage] = await Promise.all([
     // Not PUBLIC_PRODUCT_WHERE: that requires stock, and a sold-out product
     // still has a page. Since it answers 200, its URL belongs here — dropping
     // it is how the URL leaves Google's index and comes back with nothing.
@@ -44,6 +44,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     db.product.findMany({ select: { updatedAt: true, categoryId: true } }),
     db.article.findMany({ where: { isPublished: true }, select: { slug: true, updatedAt: true } }),
     db.brand.findMany({ where: { isActive: true }, select: { id: true, slug: true } }),
+    /* The about page, for its real date. It is the one static page whose
+       content lives in a CmsPage row rather than in this repo, so unlike the
+       policies below it has no constant to read a date from — and inventing
+       today's would tell a crawler it changed on every build. */
+    db.cmsPage.findUnique({ where: { slug: "about" }, select: { updatedAt: true } }),
   ]);
 
   const newest = (dates: (Date | undefined)[]): Date | undefined => {
@@ -228,6 +233,34 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: RETURNS_POLICY_UPDATED,
       changeFrequency: "yearly",
       priority: 0.3,
+    },
+    /* Who the shop is and how to reach it — the two pages that were missing
+       while every other static page was here.
+
+       Worth naming the omission rather than quietly fixing it: the policies
+       were added because Merchant Center looks for them by name, and the
+       list grew one requirement at a time from there. Nothing ever demanded
+       "about" and "contact", so nothing added them — and they are the two a
+       person checks before handing a shop their card, and the two Google
+       reads for the business behind the domain. An address a crawler has
+       never been offered is an address that answers nobody's search.
+
+       /page/about keeps its address. It is indexed there, the footer links
+       there, and moving a URL for tidiness is how the last 223 redirects
+       happened. /about 308s to it — see next.config.ts. */
+    {
+      url: `${BASE_URL}/page/about`,
+      // The row's own updatedAt, since this page's text is in the database
+      // rather than in this repo. Falls back only if the row is missing.
+      lastModified: aboutPage?.updatedAt ?? RETURNS_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+    {
+      url: `${BASE_URL}/contact`,
+      lastModified: RETURNS_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.5,
     },
     ...categories
       .filter((c) => sellableInScope(c.id) >= LISTING_MIN_PRODUCTS)
