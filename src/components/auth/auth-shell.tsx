@@ -26,10 +26,12 @@ const PERKS = [
  */
 export function AuthShell({ mode, children }: { mode: "login" | "register"; children: React.ReactNode }) {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-4 lg:py-10">
-      <div className="bg-card overflow-hidden rounded-3xl shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.05)] lg:grid lg:min-h-[640px] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        {/* ---- the shop's panel ---- */}
-        <aside className="bg-primary text-primary-foreground relative overflow-hidden">
+    <div className="mx-auto max-w-5xl px-4 py-3 lg:py-10">
+      <div className="lg:bg-card lg:overflow-hidden lg:rounded-3xl lg:shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.05)] lg:grid lg:min-h-[560px] lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+        {/* ---- the shop's panel: desktop only. On a phone the page is the
+            form and nothing else — signing in should feel like a second,
+            and a banner above it is a second it does not have. ---- */}
+        <aside className="bg-primary text-primary-foreground relative hidden overflow-hidden lg:block">
           <div
             aria-hidden
             className="absolute inset-0"
@@ -38,17 +40,7 @@ export function AuthShell({ mode, children }: { mode: "login" | "register"; chil
                 "radial-gradient(ellipse 70% 80% at 100% 0%, oklch(0.42 0.12 264 / 0.9), transparent), radial-gradient(ellipse 50% 60% at 0% 100%, oklch(0.658 0.209 39.1 / 0.35), transparent)",
             }}
           />
-          {/* phone: one short band */}
-          <div className="relative flex items-center gap-3 px-5 py-4 lg:hidden">
-            <Image src="/brand/logo.png" alt="Buy Today" width={512} height={512} className="size-10 rounded-[22%]" />
-            <div className="min-w-0 flex-1">
-              <p className="text-base leading-tight font-black">{mode === "login" ? "ברוכים השבים" : "חשבון חדש ב-Buy Today"}</p>
-              <p className="text-primary-foreground/75 text-xs">הזמנות, מועדפים וקופה מהירה, במקום אחד</p>
-            </div>
-            <Image src="/mascot/alfred-face.png" alt="" width={44} height={44} className="size-11 rounded-full object-cover ring-2 ring-white/20" />
-          </div>
-          {/* desktop: the full panel */}
-          <div className="relative hidden h-full flex-col justify-between p-10 lg:flex">
+          <div className="relative flex h-full flex-col justify-between p-9">
             <div className="flex items-center gap-3">
               <Image src="/brand/logo.png" alt="Buy Today" width={512} height={512} className="size-11 rounded-[22%]" />
               <div>
@@ -93,9 +85,15 @@ export function AuthShell({ mode, children }: { mode: "login" | "register"; chil
         </aside>
 
         {/* ---- the form ---- */}
-        <div className="flex flex-col px-5 py-6 sm:px-10 sm:py-10 lg:justify-center">
+        <div className="flex flex-col py-2 sm:px-10 sm:py-8 lg:justify-center">
           <div className="mx-auto w-full max-w-md">
-            <nav aria-label="התחברות או הרשמה" className="bg-muted mb-6 grid grid-cols-2 rounded-xl p-1 text-sm font-semibold">
+            {/* On a phone the mark sits small beside the switch; on a
+                desktop the panel already carries it. */}
+            <div className="mb-4 flex items-center gap-3 lg:hidden">
+              <Image src="/brand/logo.png" alt="Buy Today" width={512} height={512} className="size-9 rounded-[22%]" />
+              <p className="text-lg leading-tight font-black">{mode === "login" ? "ברוכים השבים" : "חשבון חדש"}</p>
+            </div>
+            <nav aria-label="התחברות או הרשמה" className="bg-muted mb-5 grid grid-cols-2 rounded-xl p-1 text-sm font-semibold">
               {(
                 [
                   ["login", "התחברות", "/login"],
@@ -116,12 +114,6 @@ export function AuthShell({ mode, children }: { mode: "login" | "register"; chil
               ))}
             </nav>
             {children}
-            <p className="text-muted-foreground mt-6 text-center text-xs lg:hidden">
-              נתקעתם?{" "}
-              <a href={BUSINESS.phoneHref} className="text-brand font-semibold hover:underline">
-                {BUSINESS.phone}
-              </a>
-            </p>
           </div>
         </div>
       </div>

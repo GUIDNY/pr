@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "@/actions/auth";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 /* What the social sign-in routes can bounce back with. Each says what
    happened and what to do about it — "שגיאה" on its own leaves somebody
@@ -113,31 +114,28 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
 
   return (
     <div>
-        <div className="mb-5">
-          <h1 className="text-2xl font-black tracking-tight">התחברות לחשבון</h1>
-          <p className="text-muted-foreground mt-1 text-sm">עם כתובת המייל או מספר הטלפון, או בלחיצה אחת דרך Google או Apple</p>
-        </div>
+        <h1 className="sr-only">התחברות לחשבון</h1>
 
         {(showGoogle || showApple || showAppleNative || showGoogleNative) && (
           <>
-            <div className="flex flex-col gap-2.5">
-              {showGoogle && <GoogleButton />}
-              {showApple && <AppleButton />}
+            {/* The one-tap ways first, and on a phone side by side: two
+                short buttons read as "pick one", two tall ones as a list
+                to work through. */}
+            <div className={cn("grid gap-2", showGoogle && showApple ? "grid-cols-2 sm:grid-cols-1" : "grid-cols-1")}>
+              {showGoogle && <GoogleButton compact={showApple} />}
+              {showApple && <AppleButton compact={showGoogle} />}
               {showGoogleNative && <GoogleNativeButton />}
               {showAppleNative && <AppleNativeButton />}
             </div>
-            {/* A real separator rather than the word "or" floating between
-                two stacks — the rule is what tells you these are two ways to
-                do one thing, not two steps. */}
-            <div className="my-5 flex items-center gap-3">
+            <div className="my-4 flex items-center gap-3">
               <span className="bg-border h-px flex-1" />
-              <span className="text-muted-foreground text-xs font-medium">או עם מייל וסיסמה</span>
+              <span className="text-muted-foreground text-xs">או</span>
               <span className="bg-border h-px flex-1" />
             </div>
           </>
         )}
 
-        <form onSubmit={submit} className="flex flex-col gap-4">
+        <form onSubmit={submit} className="flex flex-col gap-3">
           <div>
             <Label htmlFor="identifier" className="mb-1.5">
               אימייל או טלפון
@@ -159,9 +157,12 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
           </div>
 
           <div>
-            <Label htmlFor="password" className="mb-1.5">
-              סיסמה
-            </Label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <Label htmlFor="password">סיסמה</Label>
+              <Link href="/forgot-password" className="text-muted-foreground hover:text-foreground text-xs hover:underline">
+                שכחתם?
+              </Link>
+            </div>
             {/* The reveal toggle is not a nicety on a phone keyboard: a
                 mistyped password that cannot be seen is the most common
                 reason somebody gives up here. */}
@@ -203,23 +204,10 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
             </p>
           )}
 
-          <div className="-mt-1 flex justify-end">
-            <Link href="/forgot-password" className="text-muted-foreground text-xs hover:text-foreground hover:underline">
-              שכחתם סיסמה?
-            </Link>
-          </div>
-
-          <Button type="submit" variant="brand" size="lg" disabled={isPending} className="h-12 text-base font-bold">
+          <Button type="submit" variant="brand" size="lg" disabled={isPending} className="mt-1 h-12 text-base font-bold">
             {isPending ? "מתחבר…" : "התחברות"}
           </Button>
         </form>
-
-        <p className="text-muted-foreground mt-5 text-center text-sm">
-          אין לכם חשבון?{" "}
-          <Link href="/register" className="text-brand font-bold hover:underline">
-            הרשמה בחצי דקה
-          </Link>
-        </p>
     </div>
   );
 }

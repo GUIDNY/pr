@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { registerAction } from "@/actions/auth";
 
 export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, googleNativeEnabled }: { googleEnabled: boolean; appleEnabled: boolean; appleNativeEnabled: boolean; googleNativeEnabled: boolean }) {
@@ -80,22 +81,19 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
 
   return (
     <div>
-      <div className="mb-5">
-        <h1 className="text-2xl font-black tracking-tight">יצירת חשבון</h1>
-        <p className="text-muted-foreground mt-1 text-sm">חצי דקה, ומכאן כל הזמנה לוקחת שתי לחיצות</p>
-      </div>
+      <h1 className="sr-only">יצירת חשבון</h1>
 
       {(showGoogle || showApple || showAppleNative || showGoogleNative) && (
         <>
-          <div className="flex flex-col gap-2.5">
-            {showGoogle && <GoogleButton />}
-            {showApple && <AppleButton />}
-              {showGoogleNative && <GoogleNativeButton />}
-              {showAppleNative && <AppleNativeButton />}
+          <div className={cn("grid gap-2", showGoogle && showApple ? "grid-cols-2 sm:grid-cols-1" : "grid-cols-1")}>
+            {showGoogle && <GoogleButton compact={showApple} />}
+            {showApple && <AppleButton compact={showGoogle} />}
+            {showGoogleNative && <GoogleNativeButton />}
+            {showAppleNative && <AppleNativeButton />}
           </div>
-          <div className="my-5 flex items-center gap-3">
+          <div className="my-4 flex items-center gap-3">
             <span className="bg-border h-px flex-1" />
-            <span className="text-muted-foreground text-xs font-medium">או עם סיסמה</span>
+            <span className="text-muted-foreground text-xs">או</span>
             <span className="bg-border h-px flex-1" />
           </div>
         </>
