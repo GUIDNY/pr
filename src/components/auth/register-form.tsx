@@ -8,7 +8,6 @@ import { GoogleButton } from "@/components/auth/google-button";
 import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
 import { GoogleNativeButton, useGoogleNativeAvailable } from "@/components/auth/google-native-button";
 import { AppleButton } from "@/components/auth/apple-button";
-import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,12 +79,10 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
   }
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <div className="mb-6 text-center">
-        <span className="bg-brand/10 text-brand mx-auto mb-3 flex size-12 items-center justify-center rounded-full">
-          <UserPlus className="size-5" />
-        </span>
-        <h1 className="text-2xl font-bold">יצירת חשבון</h1>
+    <div>
+      <div className="mb-5">
+        <h1 className="text-2xl font-black tracking-tight">יצירת חשבון</h1>
+        <p className="text-muted-foreground mt-1 text-sm">חצי דקה, ומכאן כל הזמנה לוקחת שתי לחיצות</p>
       </div>
 
       {(showGoogle || showApple || showAppleNative || showGoogleNative) && (

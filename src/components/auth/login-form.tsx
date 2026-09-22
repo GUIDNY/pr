@@ -3,8 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import { Eye, EyeOff, Phone } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useIsNativeApp } from "@/lib/native-app";
 import { GoogleButton } from "@/components/auth/google-button";
 import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
@@ -16,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "@/actions/auth";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
-import { BUSINESS } from "@/lib/business";
 
 /* What the social sign-in routes can bounce back with. Each says what
    happened and what to do about it — "שגיאה" on its own leaves somebody
@@ -114,20 +112,10 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col px-4 py-10 sm:py-16">
-      <div className="border-border bg-card rounded-2xl border p-6 shadow-sm sm:p-8">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <Image
-            src="/brand/logo.png"
-            alt="Buy Today"
-            width={512}
-            height={512}
-            className="mb-4 size-12 rounded-[22%]"
-          />
+    <div>
+        <div className="mb-5">
           <h1 className="text-2xl font-black tracking-tight">התחברות לחשבון</h1>
-          <p className="text-muted-foreground mt-1.5 text-sm">
-אפשר להתחבר עם כתובת המייל או עם מספר הטלפון
-          </p>
+          <p className="text-muted-foreground mt-1 text-sm">עם כתובת המייל או מספר הטלפון, או בלחיצה אחת דרך Google או Apple</p>
         </div>
 
         {(showGoogle || showApple || showAppleNative || showGoogleNative) && (
@@ -143,7 +131,7 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
                 do one thing, not two steps. */}
             <div className="my-5 flex items-center gap-3">
               <span className="bg-border h-px flex-1" />
-              <span className="text-muted-foreground text-xs font-medium">או עם סיסמה</span>
+              <span className="text-muted-foreground text-xs font-medium">או עם מייל וסיסמה</span>
               <span className="bg-border h-px flex-1" />
             </div>
           </>
@@ -215,33 +203,23 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
             </p>
           )}
 
+          <div className="-mt-1 flex justify-end">
+            <Link href="/forgot-password" className="text-muted-foreground text-xs hover:text-foreground hover:underline">
+              שכחתם סיסמה?
+            </Link>
+          </div>
+
           <Button type="submit" variant="brand" size="lg" disabled={isPending} className="h-12 text-base font-bold">
             {isPending ? "מתחבר…" : "התחברות"}
           </Button>
         </form>
 
-        <div className="border-border mt-6 flex flex-col gap-3 border-t pt-5 text-center">
-          <Link href="/forgot-password" className="text-muted-foreground text-sm hover:underline">
-            שכחתם סיסמה?
+        <p className="text-muted-foreground mt-5 text-center text-sm">
+          אין לכם חשבון?{" "}
+          <Link href="/register" className="text-brand font-bold hover:underline">
+            הרשמה בחצי דקה
           </Link>
-          <p className="text-sm">
-            <span className="text-muted-foreground">אין לכם חשבון? </span>
-            <Link href="/register" className="text-brand font-bold hover:underline">
-              הרשמה
-            </Link>
-          </p>
-        </div>
-      </div>
-
-      {/* Still here alongside the reset link: somebody who has lost the
-          mailbox as well as the password has nothing a form can give them. */}
-      <p className="text-muted-foreground mt-5 text-center text-sm">
-        נתקעתם?{" "}
-        <a href={BUSINESS.phoneHref} className="text-brand font-semibold hover:underline">
-          <Phone className="ms-1 inline size-3.5" />
-          {BUSINESS.phone}
-        </a>
-      </p>
+        </p>
     </div>
   );
 }
