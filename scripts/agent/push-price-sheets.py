@@ -42,7 +42,7 @@ from pathlib import Path
 
 # THE ONE LINE TO FILL IN. Drag the מחירון folder onto a Terminal window and
 # paste what appears. It will look like /Volumes/something/מחירון.
-SHEETS_DIR = Path(os.environ.get("BUYTODAY_SHEETS_DIR", "/Volumes/CHANGE-ME/מחירון"))
+SHEETS_DIR = Path(os.environ.get("BUYTODAY_SHEETS_DIR", "/Volumes/מחירון"))
 
 SITE = os.environ.get("BUYTODAY_SITE", "https://buytoday.co.il")
 
@@ -50,16 +50,28 @@ SITE = os.environ.get("BUYTODAY_SITE", "https://buytoday.co.il")
 # in a git repository is a secret that has already leaked.
 SECRET = os.environ.get("BUYTODAY_AGENT_SECRET", "")
 
-# The exact three names the parser keys its per-tab category map by, in
-# src/lib/inventory/sheet-map.ts. A file whose name is not on this list is
-# ignored rather than guessed at: the server derives the source key from the
-# name, and a white-goods sheet filed under electronics would import 1,100
-# products into the wrong categories.
-EXPECTED = [
-    "מחירון מלאי אלקטרוניקה.xlsx",
-    "מחירון ליין קטן.xlsx",
-    "מחירון ליין לבן מסכים.xlsx",
-]
+# Source key -> the start of its filename.
+#
+# A PREFIX AND NOT THE WHOLE NAME, and that is not laziness. The three
+# workbooks uploaded by hand in September are recorded in the database as
+# "מחירון מלאי אלקטרוניקה6.9.xlsx" — the same sheets with the date stuck on
+# the end — while the ones on the share today carry no date. Whoever exports
+# them does it both ways. Matching the whole name would have recognised
+# nothing on the first dated run and reported a clean pass with no import,
+# which is exactly the silent nothing-happened this job exists to end.
+#
+# The keys are the ones in src/lib/inventory/sheet-map.ts, and they are what
+# gets sent — the server validates the key and never has to read a name whose
+# shape it cannot rely on.
+#
+# The three prefixes do not overlap: "מחירון ליין קטן" and
+# "מחירון ליין לבן מסכים" diverge at the fourth word. If a fourth sheet is
+# ever added, check that before adding it here.
+SOURCES = {
+    "electronics": "מחירון מלאי אלקטרוניקה",
+    "small-appliances": "מחירון ליין קטן",
+    "white-goods-screens": "מחירון ליין לבן מסכים",
+}
 
 # How long a file must have been still before it is read. Excel writes through
 # a temp file and renames over the original, and the folder shows A15BDAD5.tmp
@@ -95,6 +107,37 @@ def fingerprint(path: Path) -> dict:
     return {"size": st.st_size, "mtime": st.st_mtime, "sha256": digest.hexdigest()}
 
 
+def resolve(present: dict[str, Path]) -> dict[str, Path]:
+    """Which file on the share is which source.
+
+    Only .xlsx, and never Excel's own scratch: the folder holds A15BDAD5.tmp
+    and 3.tmp next to the workbooks, and names beginning "~$" are Excel's lock
+    files. Reading either gets bytes that are not a workbook.
+
+    When two files match the same prefix — the plain one and a dated copy left
+    behind — the newest wins and the run says so. Picking silently would mean
+    importing last month's sheet on the day somebody saves a new one beside
+    the old.
+    """
+    chosen: dict[str, Path] = {}
+    for key, prefix in SOURCES.items():
+        matches = [
+            p
+            for name, p in present.items()
+            if name.startswith(prefix)
+            and name.lower().endswith(".xlsx")
+            and not name.startswith("~$")
+        ]
+        if not matches:
+            continue
+        matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        if len(matches) > 1:
+            others = ", ".join(p.name for p in matches[1:])
+            log(f"WARN   {key}: several files match — using {matches[0].name}, ignoring {others}")
+        chosen[key] = matches[0]
+    return chosen
+
+
 def load_state() -> dict:
     try:
         return json.loads(STATE.read_text(encoding="utf-8"))
@@ -107,16 +150,19 @@ def save_state(state: dict) -> None:
     STATE.write_text(json.dumps(state, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def build_multipart(files: list[tuple[str, bytes]]) -> tuple[bytes, str]:
-    """A multipart body by hand, because the alternative is a dependency."""
+def build_multipart(files: list[tuple[str, str, bytes]]) -> tuple[bytes, str]:
+    """A multipart body by hand, because the alternative is a dependency.
+
+    The part is named after the SOURCE KEY, not "file". That is what makes the
+    upload independent of whatever the export decided to call the workbook
+    today — see SOURCES. The filename rides along for display only.
+    """
     boundary = uuid.uuid4().hex
     ctype = mimetypes.types_map.get(".xlsx", "application/octet-stream")
     body = bytearray()
-    for name, data in files:
+    for key, name, data in files:
         body += f"--{boundary}\r\n".encode()
-        # filename* / RFC 5987 so the Hebrew name survives the trip; the
-        # server matches on it to decide which source this is.
-        body += b'Content-Disposition: form-data; name="file"; filename="'
+        body += f'Content-Disposition: form-data; name="{key}"; filename="'.encode()
         body += name.encode("utf-8")
         body += b'"\r\n'
         body += f"Content-Type: {ctype}\r\n\r\n".encode()
@@ -171,13 +217,15 @@ def main() -> int:
         return 2
 
     present = {p.name: p for p in SHEETS_DIR.iterdir() if p.is_file()}
-    missing = [n for n in EXPECTED if n not in present]
+    chosen = resolve(present)
+
+    missing = [k for k in SOURCES if k not in chosen]
     if missing:
         # Not fatal — one sheet may genuinely be away being edited — but it is
         # never normal, and it is the difference between "no changes today"
         # and "we stopped seeing a third of the catalogue".
-        log(f"WARN   not in the folder: {', '.join(missing)}")
-    if len(missing) == len(EXPECTED):
+        log(f"WARN   no file found for: {', '.join(missing)}")
+    if len(chosen) == 0:
         log("ERROR  none of the three sheets are there — refusing to call this a clean run")
         return 2
 
@@ -185,32 +233,31 @@ def main() -> int:
     now = time.time()
     scratch = Path(tempfile.mkdtemp(prefix="buytoday-sheets-"))
     before: dict[str, dict] = {}
-    to_send: list[tuple[str, bytes]] = []
+    to_send: list[tuple[str, str, bytes]] = []
 
     try:
-        for name in EXPECTED:
-            path = present.get(name)
-            if path is None:
-                continue
-
+        for key, path in chosen.items():
             age = now - path.stat().st_mtime
             if age < SETTLE_SECONDS:
-                log(f"SKIP   {name} — saved {int(age)}s ago, waiting for it to settle")
+                log(f"SKIP   {path.name} — saved {int(age)}s ago, waiting for it to settle")
                 continue
 
             fp = fingerprint(path)
-            before[name] = fp
+            before[key] = {**fp, "path": str(path)}
 
-            if not args.force and state.get(name, {}).get("sha256") == fp["sha256"]:
-                log(f"SAME   {name}")
+            # Keyed by source, not by filename: the name changes when somebody
+            # appends a date, and state keyed on the name would call a renamed
+            # but identical file new every single run.
+            if not args.force and state.get(key, {}).get("sha256") == fp["sha256"]:
+                log(f"SAME   {key}  ({path.name})")
                 continue
 
             # Copied out once; everything after this works on our copy, so a
             # retry never re-reads the original.
-            local = scratch / f"{abs(hash(name))}.xlsx"
+            local = scratch / f"{key}.xlsx"
             shutil.copyfile(path, local)
-            to_send.append((name, local.read_bytes()))
-            log(f"NEW    {name}  {fp['size']:,} bytes  {fp['sha256'][:12]}")
+            to_send.append((key, path.name, local.read_bytes()))
+            log(f"NEW    {key}  {path.name}  {fp['size']:,} bytes  {fp['sha256'][:12]}")
 
         if not to_send:
             log("nothing changed — no upload, no sync")
@@ -229,8 +276,8 @@ def main() -> int:
         # Only the files the server confirmed. A partial 207 must not mark a
         # rejected file as sent, or it is never retried.
         for row in payload.get("results", []):
-            if row.get("ok") and row.get("filename") in before:
-                state[row["filename"]] = before[row["filename"]]
+            if row.get("ok") and row.get("key") in before:
+                state[row["key"]] = before[row["key"]]
         save_state(state)
 
         if not payload.get("anyChanged") and not args.force:
@@ -255,14 +302,15 @@ def main() -> int:
         because the one rule this script has is that it does not write to
         those files, and a rule nobody checks is a rule that is already
         broken somewhere."""
-        for name, fp in before.items():
-            path = present.get(name)
-            if path is None or not path.exists():
-                log(f"VIOLATION  {name} is gone after this run")
+        for key, fp in before.items():
+            path = Path(fp["path"])
+            if not path.exists():
+                log(f"VIOLATION  {path.name} is gone after this run")
                 continue
             after = fingerprint(path)
-            if after != fp:
-                log(f"VIOLATION  {name} changed during this run: {fp} -> {after}")
+            expected = {k: v for k, v in fp.items() if k != "path"}
+            if after != expected:
+                log(f"VIOLATION  {path.name} changed during this run: {expected} -> {after}")
 
 
 if __name__ == "__main__":
