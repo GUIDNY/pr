@@ -41,6 +41,36 @@ presses sync in the admin when the supplier sends a new sheet.
 `slug` is never written by anything after creation — it is public in the product URL,
 so renaming a product must not break links already shared.
 
+## The source price sheets are read-only. Never write to them.
+
+The three price lists on the company's file server — מחירון מלאי אלקטרוניקה,
+מחירון ליין קטן, מחירון ליין לבן מסכים — are the company's own record, maintained
+in the ERP and exported for everyone who needs them. This shop is one consumer of
+that export among several.
+
+**Nothing in this project may modify, rename, move, delete or re-save any of them,
+under any circumstances.** Not to mark a row as processed, not to normalise a
+header, not to fix a typo in a title, not "just to re-save it as a cleaner xlsx".
+A corrected value belongs in this database, where the field-ownership table above
+says it belongs; the sheet is never the place to write a correction back to.
+
+What that rules out in practice, because these are the ways it happens by accident:
+
+- opening a workbook with a library in write mode. `openpyxl.load_workbook()`
+  followed by any `save()` rewrites the whole file and drops the formatting the
+  parser depends on — the highlighted brand headers and the yellow section
+  dividers are load-bearing (see brand attribution below).
+- driving Excel or LibreOffice to convert or export. Both rewrite on close.
+- the "move it to a processed/ folder when done" pattern. The file stays where it
+  is; what has been seen is recorded on our side, by hash.
+- reading the original repeatedly. Anything that fetches a sheet copies the bytes
+  once to local scratch and works on the copy from there.
+
+Any agent that pushes these files to the site reads with `open(path, "rb")` and
+nothing else, and records the file's sha256 before and after its own run so that a
+violation is caught rather than trusted. The server never has a route back to that
+share at all, which is the one guarantee that holds without anybody remembering it.
+
 ## Brand attribution is derived, and it has been wrong before
 
 `Product.brandId` is not typed into the sheet per row. It comes out of
