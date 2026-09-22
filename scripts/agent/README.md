@@ -15,7 +15,7 @@ job.
   ──────────────────────                        ──────
   launchd, 07:30 + 15:30
      │
-     ├─ reads  /Volumes/…/מחירון/*.xlsx   (read-only, always)
+     ├─ reads  /Volumes/מחירון/*.xlsx     (read-only, always)
      ├─ sha256, skips what has not changed
      │
      ├─ POST /api/inventory/source  ───────────►  stores the copies,
@@ -48,8 +48,8 @@ moved. See CLAUDE.md.
 3. Copy `com.buytoday.pricesheets.plist` to `~/Library/LaunchAgents/` and
    fill in the three `CHANGE-ME` values — the script's path, the folder, and
    that same secret. Then `chmod 600` it: it holds the secret.
-4. Find the folder path by dragging the `מחירון` folder onto a Terminal
-   window.
+4. The folder is `/Volumes/מחירון` and is already the default, so there is
+   nothing to change unless the share is ever remounted under another name.
 5. **Dry run first**, which reads and hashes and sends nothing:
    ```
    BUYTODAY_SHEETS_DIR="/Volumes/…/מחירון" python3 push-price-sheets.py --dry-run
@@ -60,6 +60,21 @@ moved. See CLAUDE.md.
 7. `launchctl load ~/Library/LaunchAgents/com.buytoday.pricesheets.plist`
 
 The log is at `~/Library/Logs/buytoday-sync.log`.
+
+## Filenames move, so the agent does not rely on them
+
+The workbooks are matched by the **start** of their name, not the whole
+thing. The three copies uploaded by hand in September are recorded as
+`מחירון מלאי אלקטרוניקה6.9.xlsx` — the same sheets with the date stuck on the
+end — while the ones on the share today carry no date. Whoever exports them
+does it both ways, and an exact match would have recognised nothing on the
+first dated run and called it a clean pass with no import.
+
+So the agent resolves which sheet is which and sends the **source key**, and
+the server validates that key against its own list rather than reading a name
+whose shape it cannot rely on. `.tmp` files and Excel's `~$` lock files are
+never read. When two files match the same prefix — the plain one and a dated
+copy left behind — the newest wins and the log names the one it ignored.
 
 ## What it will and will not change
 

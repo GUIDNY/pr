@@ -68,30 +68,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "גוף הבקשה אינו multipart/form-data" }, { status: 400 });
   }
 
-  /* One request carries all three sheets. They are a set — the sync merges
-     every active source in one pass — so uploading them one request at a
-     time opens a window where the catalogue is half old and half new. */
-  const files = form.getAll("file").filter((f): f is File => f instanceof File);
-  if (files.length === 0) {
-    return NextResponse.json({ error: "לא צורף קובץ" }, { status: 400 });
-  }
+  /* ONE PART PER SOURCE, NAMED AFTER THE SOURCE — the part for the
+     electronics sheet is called "electronics".
 
+     The obvious alternative was to send every file under one "file" field
+     and have this end match each one against the known filenames. It would
+     have failed on the first real run: the three workbooks that were
+     uploaded by hand in September are recorded as "מחירון מלאי
+     אלקטרוניקה6.9.xlsx" — the same sheets with the date stuck on the end —
+     while the ones sitting on the share today carry no date at all. An exact
+     match would have recognised none of them and reported a clean run with
+     nothing imported, which is the failure this whole job exists to end.
+
+     So the agent resolves the key, because it is the side that can see the
+     folder and knows that a name may have a date on it. This end validates
+     the key against the list rather than trusting it: a part named anything
+     that is not one of the three is ignored. The filename still travels, for
+     display in the sources screen and for nothing else. */
   const session = await getSession();
   const results: Record<string, unknown>[] = [];
   let anyChanged = false;
 
-  for (const file of files) {
-    /* The source key comes from the filename, matched against the list the
-       parser already keys its per-tab category map by. Deriving it rather
-       than asking the agent to send it means the agent cannot quietly file
-       the white-goods sheet under electronics — and the mapping is already
-       the contract between the file server and this code. */
-    const known = INVENTORY_SOURCES.find((s) => s.filename === file.name);
-    if (!known) {
-      results.push({ filename: file.name, ok: false, error: "שם קובץ לא מוכר" });
-      continue;
-    }
+  const parts = INVENTORY_SOURCES.map((known) => ({ known, value: form.get(known.key) })).filter(
+    (p): p is { known: (typeof INVENTORY_SOURCES)[number]; value: File } => p.value instanceof File,
+  );
 
+  if (parts.length === 0) {
+    return NextResponse.json(
+      { error: `לא צורף קובץ. שדות אפשריים: ${INVENTORY_SOURCES.map((s) => s.key).join(", ")}` },
+      { status: 400 },
+    );
+  }
+
+  for (const { known, value: file } of parts) {
     try {
       const bytes = Buffer.from(await file.arrayBuffer());
       const result = await ingestSourceFile({

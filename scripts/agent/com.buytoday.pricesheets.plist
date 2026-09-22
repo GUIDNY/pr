@@ -29,9 +29,10 @@
 
   <key>EnvironmentVariables</key>
   <dict>
-    <!-- FILL IN: drag the מחירון folder onto a Terminal window and paste -->
+    <!-- The share mounts as /Volumes/מחירון and the workbooks sit directly
+         in it. Confirmed on the Mac; change only if the mount name changes. -->
     <key>BUYTODAY_SHEETS_DIR</key>
-    <string>/Volumes/CHANGE-ME/מחירון</string>
+    <string>/Volumes/מחירון</string>
 
     <!-- FILL IN: the same value set as INVENTORY_AGENT_SECRET in Vercel.
          It lives here and nowhere else — not in the script, which is in a
