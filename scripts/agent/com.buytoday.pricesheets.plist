@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The price-sheet agent, twice a day.
+
+  launchd rather than cron, and the difference is the one that matters on a
+  Mac that sleeps: StartCalendarInterval fires on wake for a time that passed
+  while the machine was asleep, and cron simply misses it. A shop's computer
+  is asleep at some point most days.
+
+  Install:
+    cp com.buytoday.pricesheets.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.buytoday.pricesheets.plist
+
+  Run it once by hand before trusting the schedule:
+    launchctl start com.buytoday.pricesheets
+    tail -f ~/Library/Logs/buytoday-sync.log
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.buytoday.pricesheets</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <!-- FILL IN: wherever this file ended up on the Mac -->
+    <string>/Users/CHANGE-ME/buytoday/push-price-sheets.py</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- FILL IN: drag the מחירון folder onto a Terminal window and paste -->
+    <key>BUYTODAY_SHEETS_DIR</key>
+    <string>/Volumes/CHANGE-ME/מחירון</string>
+
+    <!-- FILL IN: the same value set as INVENTORY_AGENT_SECRET in Vercel.
+         It lives here and nowhere else — not in the script, which is in a
+         git repository. Keep this file at chmod 600. -->
+    <key>BUYTODAY_AGENT_SECRET</key>
+    <string>CHANGE-ME</string>
+
+    <key>BUYTODAY_SITE</key>
+    <string>https://buytoday.co.il</string>
+  </dict>
+
+  <key>StartCalendarInterval</key>
+  <array>
+    <!-- Before the shop opens, and mid-afternoon. Both are guesses until
+         somebody says otherwise; the only real constraint is that a run
+         finishes before anybody relies on the numbers. -->
+    <dict>
+      <key>Hour</key><integer>7</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+    <dict>
+      <key>Hour</key><integer>15</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+  </array>
+
+  <!-- The script writes its own log; these catch anything that dies before
+       it gets that far, which is where a missing python3 or a bad path
+       shows up. -->
+  <key>StandardOutPath</key>
+  <string>/tmp/buytoday-sync.out</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/buytoday-sync.err</string>
+
+  <!-- Deliberately absent: RunAtLoad. Loading this plist should not fire a
+       sync — installing something and having it immediately import 1,700
+       rows is how a first install becomes an incident. Start it by hand
+       once, read the log, then leave it to the schedule. -->
+</dict>
+</plist>
