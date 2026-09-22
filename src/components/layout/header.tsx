@@ -59,8 +59,12 @@ export async function Header() {
             {/* On a phone the number lives one tap away in the drawer and
                 on the product page; three facts in one 390px line wrapped
                 to two, and a strip that wraps is a strip that shouts. */}
-            <a href={BUSINESS.phoneHref} className="hover:text-primary-foreground hidden items-center gap-1 font-medium whitespace-nowrap sm:flex">
-              <Phone className="size-3.5" /> {BUSINESS.phone}
+            {/* The mobile, not the service line. BUSINESS.phone stays what
+                it is everywhere else — the number of record on the Business
+                Profile, in the JSON-LD and in the terms — and this is the
+                one place the shop would rather a tap reached a handset. */}
+            <a href={BUSINESS.mobileHref} className="hover:text-primary-foreground hidden items-center gap-1 font-medium whitespace-nowrap sm:flex">
+              <Phone className="size-3.5" /> {BUSINESS.mobile}
             </a>
             {/* Staff only, and empty for everyone else — see BackOfficeLink. */}
             <BackOfficeLink />

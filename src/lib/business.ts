@@ -65,6 +65,20 @@ export const BUSINESS = {
      shop's own domain, this line moves with it and so do those two. */
   email: "prelect@prelect.co.il",
 
+  /* The mobile the shop answers, and the number the HEADER offers to call.
+     Not a replacement for `phone` above: that one is the service line on the
+     Business Profile and in the JSON-LD, it is what Google matches against
+     Merchant Center, and it is named in the terms and on every legal page.
+     Changing it there would break the match this file exists to protect.
+
+     The header is a different job — it is the one line a visitor decides on,
+     and the shop would rather that tap reach a mobile than a switchboard.
+     Same digits as WhatsApp below, because it is the same handset; kept as
+     its own pair so that a future change to one does not silently move the
+     other. */
+  mobile: "055-307-3072",
+  mobileHref: "tel:055-307-3072",
+
   whatsapp: "055-307-3072",
   /** wa.me takes digits only, international, with no plus and no leading zero. */
   whatsappHref: "https://wa.me/972553073072",
