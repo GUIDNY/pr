@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { runFullSync } from "@/lib/inventory/sync";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
@@ -13,12 +12,6 @@ import { canManageCatalog } from "@/lib/permissions";
 // — orders of magnitude faster than driving the same sync from a developer
 // machine on the other side of the network.
 export const maxDuration = 300;
-
-/* How long a run may be in flight before a new one is allowed to assume it
-   died. Vercel kills the function at maxDuration, and a killed run leaves its
-   row saying RUNNING forever — so this cannot be "until it finishes", or one
-   crash would block every sync afterwards with no way to tell. */
-const STALE_RUN_MINUTES = 10;
 
 export async function GET(request: Request) {
   const auth = request.headers.get("authorization");
@@ -34,41 +27,21 @@ export async function GET(request: Request) {
     }
   }
 
-  /* ONE SYNC AT A TIME.
-   
-     Nothing enforced this before, and nothing needed to: a sync happened when
-     a person pressed a button, and a person does not press it twice in the
-     same minute. With an agent calling this on a schedule that stops being
-     true — two runs overlap the first time an upload lands while the previous
-     scan is still walking 1,700 rows, and they write the same products from
-     two different copies of the same sheet. The second one wins by accident.
-   
-     Refused rather than queued. A sync that was skipped costs nothing: the
-     next one reads the same file and reaches the same place. A sync that
-     interleaves with another costs a catalogue nobody can explain. */
-  const inFlight = await db.inventorySyncRun.findFirst({
-    where: {
-      status: "RUNNING",
-      startedAt: { gt: new Date(Date.now() - STALE_RUN_MINUTES * 60_000) },
-    },
-    select: { id: true, startedAt: true },
-    orderBy: { startedAt: "desc" },
-  });
-  if (inFlight) {
+  /* One sync at a time — the guard is inside runFullSync, not here, so the
+     admin's own button is covered by it too. This end only has to turn the
+     answer into a status code. */
+  const run = await runFullSync("SCHEDULED");
+
+  if (run.status === "SKIPPED") {
+    // 409, not 200: the caller asked for something that did not happen, and
+    // an agent that read this as success would report a green run on a day
+    // nothing was imported.
     return NextResponse.json(
-      {
-        status: "SKIPPED",
-        reason: "סנכרון אחר עדיין רץ",
-        runningSince: inFlight.startedAt,
-      },
-      // 409, not 200: the caller asked for something that did not happen, and
-      // an agent that reads this as success would report a green run on a day
-      // nothing was imported.
+      { status: run.status, reason: run.errorMessage, runningSince: run.startedAt },
       { status: 409 },
     );
   }
 
-  const run = await runFullSync("SCHEDULED");
   return NextResponse.json({
     status: run.status,
     rowsScanned: run.rowsScanned,
