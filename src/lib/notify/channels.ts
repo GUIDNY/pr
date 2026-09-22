@@ -171,24 +171,81 @@ export const smsChannel: Channel = {
 };
 
 /**
- * WhatsApp.
+ * WhatsApp, through Meta's Cloud API.
  *
- * The one with a rule that is not technical. Meta only allows a business to
- * open a conversation using a template it has approved in advance, so
- * "ההזמנה שלך יצאה" has to exist as an approved template with named
- * variables before it can be sent to a customer who has not messaged first.
- * That approval is a form and a wait, not a line of code, and no key makes
- * it unnecessary.
+ * The rule that is not technical: a business may open a conversation only
+ * with a template Meta approved in advance. The four are in WhatsApp
+ * Manager — order_received, payment_approved, order_shipped,
+ * order_delivered, Hebrew, numbered slots — and messages.ts fills their
+ * slots. Two variables switch it on: the phone number's ID and a system
+ * user token. A template name that differs from the default is set per
+ * event, e.g. WHATSAPP_TEMPLATE_ORDER_SHIPPED.
+ *
+ * Meta answers a template with the wrong number of slots with an error,
+ * not a silent drop, and the error lands in the order's notification log
+ * where it can be read.
  */
+const WHATSAPP_TEMPLATE_DEFAULTS: Record<string, string> = {
+  ORDER_RECEIVED: "order_received",
+  PAYMENT_APPROVED: "payment_approved",
+  SHIPPED: "order_shipped",
+  DELIVERED: "order_delivered",
+};
+
+/** An Israeli number as the API wants it: digits only, country code first. */
+export function whatsappRecipient(phone: string): string | null {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("972")) return digits;
+  if (digits.startsWith("0") && digits.length >= 9) return "972" + digits.slice(1);
+  if (digits.length >= 8) return digits;
+  return null;
+}
+
 export const whatsappChannel: Channel = {
   id: "WHATSAPP",
-  configured: () =>
-    missingFrom(["WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_TOKEN", "WHATSAPP_TEMPLATE_NAMESPACE"])
-      .length === 0,
-  missing: () =>
-    missingFrom(["WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_TOKEN", "WHATSAPP_TEMPLATE_NAMESPACE"]),
-  async send(): Promise<SendResult> {
-    return { ok: false, error: "וואטסאפ עסקי עוד לא חובר (נדרשים גם תבניות מאושרות מ-Meta)" };
+  configured: () => missingFrom(["WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_TOKEN"]).length === 0,
+  missing: () => missingFrom(["WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_TOKEN"]),
+  async send(to: string, message: Message): Promise<SendResult> {
+    if (!message.template) return { ok: false, error: "להודעה הזאת אין תבנית וואטסאפ" };
+    const recipient = whatsappRecipient(to);
+    if (!recipient) return { ok: false, error: `מספר טלפון לא תקין: ${to}` };
+    const name = env(`WHATSAPP_TEMPLATE_${message.template.event}`) ?? WHATSAPP_TEMPLATE_DEFAULTS[message.template.event];
+    const language = env("WHATSAPP_TEMPLATE_LANG") ?? "he";
+    const version = env("WHATSAPP_API_VERSION") ?? "v22.0";
+    try {
+      const res = await fetch(`https://graph.facebook.com/${version}/${env("WHATSAPP_PHONE_NUMBER_ID")}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env("WHATSAPP_TOKEN")}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          to: recipient,
+          type: "template",
+          template: {
+            name,
+            language: { code: language },
+            components: [
+              {
+                type: "body",
+                // Meta refuses newlines and runs of spaces inside a slot.
+                parameters: message.template.params.map((text) => ({ type: "text", text: text.replace(/\s+/g, " ").trim() })),
+              },
+            ],
+          },
+        }),
+      });
+      if (res.ok) return { ok: true };
+      const detail = await res.text().catch(() => "");
+      let reason = detail.slice(0, 300);
+      try {
+        const parsed = JSON.parse(detail) as { error?: { message?: string; error_data?: { details?: string } } };
+        reason = parsed.error?.error_data?.details ?? parsed.error?.message ?? reason;
+      } catch {
+        /* not JSON — keep the raw text */
+      }
+      return { ok: false, error: `Meta ${res.status}: ${reason}` };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "WhatsApp send failed" };
+    }
   },
 };
 
