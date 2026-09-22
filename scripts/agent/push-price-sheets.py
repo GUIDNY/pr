@@ -212,11 +212,33 @@ def main() -> int:
     spreadsheets in it, and a run that finds nothing reports success. That is
     the shape of the failure that goes unnoticed for a fortnight, so it is
     checked first and it is fatal."""
-    if not SHEETS_DIR.is_dir():
+    """A share that is not mounted looks exactly like a folder with no
+    spreadsheets in it, and a run that finds nothing reports success. That is
+    the shape of the failure that goes unnoticed for a fortnight.
+
+    Two ways it fails and they need catching together. is_dir() answers False
+    when the mount is gone — and answers TRUE, then refuses the listing, when
+    macOS has the folder but will not let this process read it. That second
+    case is not hypothetical: a LaunchAgent gets no Full Disk Access unless
+    somebody grants it, and until they do, iterdir raises PermissionError.
+    Caught here so the log says which of the two it is, rather than printing
+    a traceback into a file nobody reads."""
+    try:
+        entries = list(SHEETS_DIR.iterdir())
+    except FileNotFoundError:
         log(f"ERROR  folder not reachable: {SHEETS_DIR}  (is the share mounted?)")
         return 2
+    except PermissionError:
+        log(f"ERROR  no permission to read {SHEETS_DIR}")
+        log("       macOS is blocking this process, not the folder. Grant Full Disk")
+        log("       Access to /bin/zsh and /usr/bin/python3 in System Settings →")
+        log("       Privacy & Security, then reload the LaunchAgent.")
+        return 2
+    except OSError as err:
+        log(f"ERROR  cannot read {SHEETS_DIR}: {err}")
+        return 2
 
-    present = {p.name: p for p in SHEETS_DIR.iterdir() if p.is_file()}
+    present = {p.name: p for p in entries if p.is_file()}
     chosen = resolve(present)
 
     missing = [k for k in SOURCES if k not in chosen]
