@@ -260,7 +260,12 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;
 export type InventoryAlertSeverity = (typeof INVENTORY_ALERT_SEVERITIES)[number];
 
-export const SYNC_RUN_STATUSES = ["RUNNING", "SUCCESS", "FAILED", "NO_CHANGES"] as const;
+// SKIPPED is the one that is not an outcome of reading the sheets: it means
+// another run was already in flight and this one stood down. It exists so
+// that "nothing was imported" and "nothing had changed" stop looking alike
+// in the history, which is the difference between a quiet day and a sync
+// that has been refusing to start for a week.
+export const SYNC_RUN_STATUSES = ["RUNNING", "SUCCESS", "FAILED", "NO_CHANGES", "SKIPPED"] as const;
 export type SyncRunStatus = (typeof SYNC_RUN_STATUSES)[number];
 
 export const SYNC_RUN_STATUS_LABELS: Record<SyncRunStatus, string> = {
@@ -268,6 +273,7 @@ export const SYNC_RUN_STATUS_LABELS: Record<SyncRunStatus, string> = {
   SUCCESS: "הסתיים בהצלחה",
   FAILED: "נכשל",
   NO_CHANGES: "לא נמצאו שינויים",
+  SKIPPED: "דולג — סנכרון אחר רץ",
 };
 
 export const SYNC_TRIGGERS = ["MANUAL", "SCHEDULED"] as const;
