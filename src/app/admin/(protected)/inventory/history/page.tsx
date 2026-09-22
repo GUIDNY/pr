@@ -12,6 +12,12 @@ const STATUS_STYLES: Record<SyncRunStatus, string> = {
   SUCCESS: "bg-success/15 text-success",
   FAILED: "bg-destructive/15 text-destructive",
   NO_CHANGES: "bg-muted text-muted-foreground",
+  /* Amber rather than grey. A stood-down run is not a quiet day — it means
+     something was already running, and a column of these means a sync that
+     has not actually run in a week. It never reaches this table today (a
+     skipped attempt is not written to the history) but the map has to be
+     total, and if that ever changes this is the colour it should wear. */
+  SKIPPED: "bg-warning/15 text-warning-foreground",
 };
 
 export default async function InventoryHistoryPage() {
