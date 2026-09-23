@@ -1157,3 +1157,27 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
   height: auto !important;
   object-fit: contain;
 }
+
+/* ---- Four tiles that line up ----
+   Their tile is a column with justify-content:space-between, which puts the
+   mark hard against the top and the caption hard against the bottom. That is
+   fine while every tile has both. bit ships without a caption, so its row
+   became a mark floating at the top of an empty box with a hole under it,
+   sitting beside three tiles whose marks were a centimetre lower. Nothing was
+   the wrong size by then — they were at the wrong HEIGHT, which reads the same
+   from across a room.
+
+   Centred with a gap instead: a tile with a caption and a tile without both
+   settle in the middle, and the marks land on one line. */
+.tab-button.pay-btn {
+  justify-content: center !important;
+  gap: 6px;
+}
+
+/* And bit gets the caption the other three have. :empty is doing real work —
+   it adds the word only when their markup left the element blank, so if they
+   ever fill it in, ours steps aside instead of printing it twice. The name is
+   the brand's own and needs no licence; the logo above it is untouched. */
+#btnGamaPayBit h4:empty::after {
+  content: "bit";
+}
