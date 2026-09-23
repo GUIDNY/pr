@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 
+function safeEqual(a: string, b: string): boolean {
+  const x = Buffer.from(a);
+  const y = Buffer.from(b);
+  return x.length === y.length && timingSafeEqual(x, y);
+}
+
 /**
  * What Meta tells us after we hand it a WhatsApp message.
  *
@@ -13,12 +19,14 @@ import { db } from "@/lib/db";
  * written onto the order's notification row so the order page says what
  * actually happened rather than "sent".
  *
- * Set up once in the Meta app: Webhooks → WhatsApp → callback URL
- * https://buytoday.co.il/api/whatsapp/webhook, the verify token from
- * WHATSAPP_WEBHOOK_VERIFY_TOKEN, and the "messages" field subscribed.
- * WHATSAPP_APP_SECRET, when set, is used to check Meta's signature on
- * every delivery; without it the payload is trusted, which is fine for
- * status rows and nothing else is done with it.
+ * Two ways in, because a Meta app has one callback URL and this shop's
+ * already points at the n8n service bot: n8n's WhatsApp trigger sees the
+ * same status stream and forwards it here with the shop's internal key
+ * (x-internal-key: INTERNAL_API_KEY, as the complaints ingest already
+ * takes). Or Meta posts directly — GET answers its verification with
+ * WHATSAPP_WEBHOOK_VERIFY_TOKEN, and WHATSAPP_APP_SECRET, when set, checks
+ * its signature. The body may be Meta's full envelope, the `value` object
+ * n8n emits, a bare `{ statuses: [...] }`, or one status on its own.
  */
 export const dynamic = "force-dynamic";
 
@@ -44,15 +52,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const raw = await request.text();
 
-  const secret = process.env.WHATSAPP_APP_SECRET;
-  if (secret) {
+  // Forwarded by n8n with the internal key, or posted by Meta with its
+  // signature. One of the two has to hold.
+  const internalKey = process.env.INTERNAL_API_KEY;
+  const fromN8n = !!internalKey && internalKey.length >= 32 && safeEqual(request.headers.get("x-internal-key") ?? "", internalKey);
+  if (!fromN8n) {
+    const secret = process.env.WHATSAPP_APP_SECRET;
+    if (!secret) return new Response("unauthorized", { status: 401 });
     const header = request.headers.get("x-hub-signature-256") ?? "";
     const expected = "sha256=" + createHmac("sha256", secret).update(raw).digest("hex");
-    const a = Buffer.from(header);
-    const b = Buffer.from(expected);
-    if (a.length !== b.length || !timingSafeEqual(a, b)) {
-      return new Response("bad signature", { status: 401 });
-    }
+    if (!safeEqual(header, expected)) return new Response("bad signature", { status: 401 });
   }
 
   let payload: unknown;
@@ -68,12 +77,17 @@ export async function POST(request: Request) {
     errors?: { code?: number; title?: string; message?: string; error_data?: { details?: string } }[];
   };
   const statuses: Status[] = [];
-  const entries = (payload as { entry?: { changes?: { value?: { statuses?: Status[] } }[] }[] })?.entry ?? [];
-  for (const entry of entries) {
-    for (const change of entry.changes ?? []) {
-      for (const s of change.value?.statuses ?? []) statuses.push(s);
-    }
-  }
+  const collect = (node: unknown) => {
+    if (!node || typeof node !== "object") return;
+    const n = node as { entry?: unknown[]; changes?: unknown[]; value?: unknown; statuses?: Status[]; id?: string; status?: string };
+    if (Array.isArray(n.statuses)) statuses.push(...n.statuses);
+    else if (typeof n.id === "string" && typeof n.status === "string" && !n.entry && !n.value) statuses.push(n as Status);
+    for (const e of n.entry ?? []) collect(e);
+    for (const c of n.changes ?? []) collect(c);
+    if (n.value) collect(n.value);
+  };
+  if (Array.isArray(payload)) payload.forEach(collect);
+  else collect(payload);
 
   for (const s of statuses) {
     if (!s.id || !s.status) continue;
