@@ -597,9 +597,13 @@ model OrderNotification {
   error     String?
   sentAt    DateTime?
   createdAt DateTime  @default(now())
+  // The provider's own id for the message (WhatsApp's wamid), so a delivery
+  // status that arrives later on the webhook finds its row.
+  providerMessageId String?
 
   @@unique([orderId, channel, event])
   @@index([orderId])
+  @@index([providerMessageId])
 }
 
 model OrderItem {

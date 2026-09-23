@@ -233,7 +233,12 @@ export const whatsappChannel: Channel = {
           },
         }),
       });
-      if (res.ok) return { ok: true };
+      if (res.ok) {
+        // Meta's id for the message. Its delivery status arrives later, on
+        // the webhook, keyed by this id — "accepted" is not "delivered".
+        const body = (await res.json().catch(() => null)) as { messages?: { id?: string }[] } | null;
+        return { ok: true, providerMessageId: body?.messages?.[0]?.id };
+      }
       const detail = await res.text().catch(() => "");
       let reason = detail.slice(0, 300);
       try {

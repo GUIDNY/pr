@@ -54,7 +54,7 @@ export type Message = {
   template?: { event: NotifyEvent; params: string[] };
 };
 
-export type SendResult = { ok: true } | { ok: false; error: string };
+export type SendResult = { ok: true; providerMessageId?: string } | { ok: false; error: string };
 
 /**
  * A way of reaching somebody.

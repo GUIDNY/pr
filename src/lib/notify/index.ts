@@ -204,7 +204,7 @@ export async function notifyOrder(
       if (result.ok) {
         await db.orderNotification.update({
           where: { id: claimed.id },
-          data: { status: "SENT", sentAt: new Date() },
+          data: { status: "SENT", sentAt: new Date(), providerMessageId: result.providerMessageId ?? null },
         });
       } else {
         await mark(claimed.id, "FAILED", result.error);
