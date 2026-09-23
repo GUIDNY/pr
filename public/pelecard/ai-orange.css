@@ -804,10 +804,29 @@ textarea.red-field,
    #cancelBtn is a confirmed id — the white outlined button on the live page is
    ours — so excluding it is safe, and it is the only thing in this row that
    must not be orange. */
-.form-group-submit button:not(#cancelBtn),
-.form-group-submit input[type="submit"]:not(#cancelBtn),
-.form-group-submit input[type="button"]:not(#cancelBtn),
-.form-group-submit a.btn:not(#cancelBtn) {
+/* EXCEPT A WALLET'S OWN BUTTON, which is the one thing in this row that must
+   keep somebody else's design.
+
+   The rule above is deliberately blind to class — "whatever sits in the submit
+   row is the brand button" — and that was right while the only things there
+   were Pelecard's. The wallets changed it. Apple publish their button as a
+   fixed set of styles and forbid recolouring it; Google say the same about
+   theirs. An orange button carrying Apple's mark is not a design choice, it is
+   a breach of the terms the integration was approved under.
+
+   .apple-pay-button is theirs, read from variant-he-4.css. The substring
+   guards beside it are a hedge for the buttons a wallet's own script injects
+   under a name we cannot see from here — Google's, above all, which renders
+   itself and which our !important was already repainting orange. Each argument
+   is a simple selector, which is what keeps the whole list valid; a complex one
+   inside :not() invalidates every rule it is written in.
+
+   Costing nothing if they match nothing is the point. If a wallet never puts a
+   button here, the page looks exactly as it did. */
+.form-group-submit button:not(#cancelBtn):not(.apple-pay-button):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]),
+.form-group-submit input[type="submit"]:not(#cancelBtn):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]),
+.form-group-submit input[type="button"]:not(#cancelBtn):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]),
+.form-group-submit a.btn:not(#cancelBtn):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]) {
   background: #F7590C !important;
   background-color: var(--ai-brand) !important;
   border: none !important;
@@ -820,8 +839,8 @@ textarea.red-field,
   border-radius: var(--ai-radius);
   cursor: pointer;
 }
-.form-group-submit button:not(#cancelBtn):hover,
-.form-group-submit input[type="submit"]:not(#cancelBtn):hover {
+.form-group-submit button:not(#cancelBtn):not(.apple-pay-button):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]):hover,
+.form-group-submit input[type="submit"]:not(#cancelBtn):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]):hover {
   background: #E74600 !important;
   background-color: var(--ai-brand-hover) !important;
 }
