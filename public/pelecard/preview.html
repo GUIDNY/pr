@@ -64,43 +64,51 @@
 
   <form onsubmit="return false">
 
-    <!-- The wallet row, September 2026. Structure and class names read from
-         their own variant-he-4.css: a .tab-button.pay-btn per method, an icon
-         box, and an h4 caption. The ids are theirs too.
+    <!-- THE WALLET ROW, COPIED FROM THE GATEWAY'S OWN HTML — not read off a
+         screenshot and not inferred from their stylesheet. The recipe for
+         fetching it again is in the wallet section of ai-orange.css; it takes
+         about a minute and it is the first thing to do before changing any of
+         this. An earlier version of this block guessed at one wrapper where
+         there are two, so the row looked right here and stacked into a column
+         on the live site — a harness that cannot fail is worse than no harness,
+         and it is why a wrong fix shipped twice.
 
-         EACH TILE SITS IN ITS OWN BOOTSTRAP COLUMN, and modelling that is the
-         whole point of this block. Their sheet carries `.mobile-four`, which
-         puts a left padding on the box AROUND a tile — there is no such box
-         unless every tile has one. The first version of this harness put the
-         four buttons straight into a flex div with inline styles, so the row
-         looked right here and stacked into a column on the live site: the
-         harness was not reproducing the thing that breaks. No inline styles
-         below for the same reason — if the row is a row, it is our stylesheet
-         that made it one. -->
-    <div class="row" id="payMethodsTabs">
-      <div class="col-xs-3 mobile-four">
-        <button type="button" id="btnTabCrediCard" class="tab-button pay-btn tab-button-selected">
-          <span class="buttonIcon" style="font:20px Arial">&#128179;</span>
-          <h4>כרטיס אשראי</h4>
-        </button>
+         Apple Pay's column carries display:none from their server and their
+         script reveals it in Safari, where window.ApplePaySession exists. It
+         is left visible here because the four-tile case is the one that has to
+         fit, and it is the one nobody on a desktop ever sees. -->
+    <div id="walletButtonsHolder" class="form-group buttonWrapper">
+      <div class="col-sm-2 mobile-four text-2-line">
+        <div class="pay-logo-col">
+          <button class="tab-button pay-btn active tab-button-selected" id="btnTabCrediCard">
+            <img data-id="creditcard" src="https://gateway21.pelecard.biz/Content/images/cradit.png" alt="תשלום בכרטיס אשראי" class="buttonIcon">
+            <h4 data-id="creditcard">כרטיס אשראי</h4>
+          </button>
+        </div>
       </div>
-      <div class="col-xs-3 mobile-four">
-        <button type="button" id="btnGamaPayBit" class="tab-button pay-btn">
-          <span class="buttonIcon" style="font:700 22px Arial;color:#12284C">bit</span>
-          <h4></h4>
-        </button>
+      <div id="gamaBitTab" class="col-sm-2 mobile-four text-2-line">
+        <div class="pay-logo-col">
+          <button id="btnGamaPayBit" class="tab-button pay-btn active">
+            <img data-id="gamabit" src="https://gateway21.pelecard.biz/Content/images/bit.png" alt="שלם עם bit" class="buttonIcon ">
+            <h4 data-id="gamabit"></h4>
+          </button>
+        </div>
       </div>
-      <div class="col-xs-3 mobile-four">
-        <button type="button" id="googlePayTabBtn" class="tab-button pay-btn">
-          <span class="buttonIcon" style="font:600 15px Arial;letter-spacing:-.5px">G&nbsp;Pay</span>
-          <h4>Google Pay</h4>
-        </button>
+      <div id="applePayTab" class="col-sm-2 mobile-four text-2-line">
+        <div class="pay-logo-col">
+          <button id="applePayTabBtn" lang="he" class="tab-button pay-btn active ">
+            <img data-id="applePay" src="https://gateway21.pelecard.biz/Content/images/applepay.png" alt="שלם עם Apple Pay" class="buttonIcon ">
+            <h4 data-id="applePay">Apple Pay</h4>
+          </button>
+        </div>
       </div>
-      <div class="col-xs-3 mobile-four">
-        <button type="button" id="applePayTabBtn" class="tab-button pay-btn">
-          <span class="buttonIcon" style="font:600 15px Arial">&#63743;Pay</span>
-          <h4>Apple Pay</h4>
-        </button>
+      <div id="googlePayTab" class="col-sm-2 mobile-four text-2-line">
+        <div class="pay-logo-col">
+          <button id="googlePayTabBtn" lang="he" class="tab-button pay-btn active ">
+            <img data-id="googlePay" src="https://gateway21.pelecard.biz/Content/images/googlepay.png" alt="שלם עם Google Pay" class="buttonIcon ">
+            <h4 data-id="googlePay">Google Pay</h4>
+          </button>
+        </div>
       </div>
     </div>
 
