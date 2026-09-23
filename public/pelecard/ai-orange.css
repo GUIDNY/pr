@@ -506,7 +506,26 @@ input[type="number"]::-webkit-inner-spin-button {
 #dateContainer select,
 #dateContainer > div:has(select) > select {
   flex: 1 1 0 !important;
-  min-width: 0 !important;
+  /* A floor wide enough for a four-digit year and the dropdown arrow.
+     min-width:0 is the usual partner to flex-basis:0 — it lets an item shrink
+     past its own content instead of forcing the row to overflow — and here
+     that permission is the bug: the year renders as "025", which is "2025"
+     with the first digit cut off the left, because the box is RTL and clips
+     that end. A select clips in silence: no overflow, no scrollbar, just a
+     wrong-looking value sitting next to Pelecard's "expiry is invalid"
+     message, which makes their correct complaint read as our broken field.
+
+     Written without having measured the live page, which is worth admitting:
+     preview.html reproduces the old card-only layout and gives these 131px
+     there, so the squeeze comes from something in the live DOM that the
+     harness does not have — the wallet row above them, most likely. This is
+     the fix that is safe under either answer. At 131px it changes nothing;
+     at 52px it is the difference between a readable year and a wrong one.
+
+     5.5rem holds the longest option comfortably and still leaves both selects
+     and their separator inside 320px, so nothing overflows at the narrow end
+     either. */
+  min-width: 5.5rem !important;
   width: auto !important;
 }
 #IdAndCvvRow > * {
