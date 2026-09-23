@@ -26,6 +26,36 @@ export const FREE_DELIVERY_THRESHOLD = 600;
     are three standard methods now and two of them are free. */
 export const HOME_DELIVERY_FEE = 40;
 
+/**
+ * How long a normal parcel takes, in business days.
+ *
+ * THE NUMBER THE SHOP PUBLISHES. /shipping states it as a promise, so every
+ * other place that quotes a delivery time has to quote this and not its own
+ * figure — which is exactly what went wrong: the product card and the product
+ * page read Product.deliveryDays, and that column is 7 on all 2,097 rows
+ * because 7 is its schema default and nothing has ever written to it. The
+ * shop was promising 3 days on its policy page and 7 days on every product
+ * card, about the same parcel, and a delivery estimate is a field Google
+ * checks against both the feed and the page.
+ *
+ * Large items are the exception /shipping already names: a fridge goes by
+ * carrier or straight from the importer, on its own terms, said on the
+ * product page rather than here.
+ */
+export const STANDARD_DELIVERY_DAYS = 3;
+
+/** The schema default of Product.deliveryDays. A row still carrying it has
+    not been given a real answer, so it gets the shop's standard rather than
+    a number nobody chose. The day the ERP starts filling that column, this
+    starts deferring to it — which is why the check is against the default
+    rather than the column being dropped. */
+const DELIVERY_DAYS_UNSET = 7;
+
+/** What to tell a shopper about this product, in business days. */
+export function deliveryDaysFor(product: { deliveryDays: number }): number {
+  return product.deliveryDays === DELIVERY_DAYS_UNSET ? STANDARD_DELIVERY_DAYS : product.deliveryDays;
+}
+
 /** Named on the checkout and the shipping policy. A shopper choosing a
     pickup point is agreeing to be contacted by a company whose name they
     should have seen first. */

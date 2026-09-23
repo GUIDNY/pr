@@ -4,7 +4,7 @@ import { MetaViewContent } from "@/components/analytics/meta-events";
 import { breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
 import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw } from "lucide-react";
-import { FREE_DELIVERY_THRESHOLD, computeDeliveryFee } from "@/lib/delivery";
+import { FREE_DELIVERY_THRESHOLD, computeDeliveryFee, deliveryDaysFor } from "@/lib/delivery";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -465,14 +465,14 @@ export async function ProductPageView({
                   {deliveryFee === 0 ? (
                     <>
                       <span className="font-semibold">משלוח עד הבית חינם</span>
-                      <span className="text-muted-foreground"> · מגיע תוך {product.deliveryDays} ימים</span>
+                      <span className="text-muted-foreground"> · מגיע תוך {deliveryDaysFor(product)} ימי עסקים</span>
                     </>
                   ) : (
                     <>
                       <span className="font-semibold">משלוח עד הבית {formatPrice(deliveryFee)}</span>
                       <span className="text-muted-foreground">
                         {" "}
-                        · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · תוך {product.deliveryDays} ימים
+                        · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · תוך {deliveryDaysFor(product)} ימי עסקים
                       </span>
                     </>
                   )}
