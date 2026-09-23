@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { CreditCard, Home, MapPin, PackageOpen, ShieldCheck, Truck, Store, Lock, RotateCcw, Wallet } from "lucide-react";
+import { CreditCard, Home, MapPin, PackageOpen, ShieldCheck, Truck, Store, Lock, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { CheckoutTestPanel } from "@/components/checkout/checkout-test-panel";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
+import SiApplepay from "@icons-pack/react-simple-icons/icons/SiApplepay";
+import SiGooglepay from "@icons-pack/react-simple-icons/icons/SiGooglepay";
 import { useCartStore } from "@/stores/cart-store";
 import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
 import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/orders";
@@ -578,46 +580,55 @@ export function CheckoutForm({
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">3. תשלום</h2>
 
-          {/* Card is the only way to pay now. Cash on delivery is gone from
-              the checkout — not from the codebase: CASH_ON_DELIVERY stays a
-              value the order schema accepts and the admin can render, because
-              orders already placed that way still have to open. Deleting the
-              value would break the history rather than close the option.
+          {/* WHAT THE SHOP ACCEPTS — and it is no longer a chooser.
+              Cash on delivery is gone from the checkout but not from the
+              codebase: CASH_ON_DELIVERY stays a value the schema accepts and
+              the admin renders, because orders already placed that way still
+              have to open. Deleting it would break the history rather than
+              close the option.
 
-              THE MARKS ARE NOT DRAWN HERE, and that is not laziness. Apple's
-              guidelines require their own supplied Apple Pay artwork and forbid
-              a redrawn or modified one; Google publishes its buttons the same
-              way. A hand-traced Apple logo on a live shop is a trademark
-              problem for the sake of a placeholder, so these carry a wallet
-              glyph and the name until the integration brings the official
-              assets with it.
+              This was three tiles that looked like a selector, with the two
+              wallets dashed out and labelled בקרוב. The comment that used to
+              sit here warned that the promise had to become true or it would
+              be one the checkout keeps making and breaking. It became true in
+              September — Google Pay, bit and card all render inside Pelecard's
+              own form, with their own marks, and that form is where the choice
+              is actually made. Which left this row telling a customer that two
+              live payment methods were still coming, directly above the row
+              offering them.
 
-              Apple Pay and Google Pay are placeholders and behave like it.
-              They are buttons that cannot be pressed, marked בקרוב, and they
-              are here because a payment step that shows one way to pay reads
-              as a shop that only takes one — while the same step showing three
-              with two marked "coming" reads as a shop that is adding them. The
-              cost of that impression is that it has to become true; if these
-              are still here unimplemented in six months they are a promise the
-              checkout keeps making and breaking. */}
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="border-brand bg-brand/5 flex items-center gap-3 rounded-lg border p-3">
-              <CreditCard className="size-4 shrink-0" />
-              <span className="text-sm font-medium">כרטיס אשראי</span>
-            </div>
-            {["Apple Pay", "Google Pay"].map((wallet) => (
-              <div
-                key={wallet}
-                aria-disabled
-                className="border-input text-muted-foreground flex cursor-not-allowed items-center justify-between gap-2 rounded-lg border border-dashed p-3 opacity-70"
-              >
-                <span className="flex items-center gap-2">
-                  <Wallet className="size-4 shrink-0" />
-                  <span className="text-sm font-medium tracking-tight">{wallet}</span>
-                </span>
-                <span className="bg-muted rounded-full px-2 py-0.5 text-[10px] font-semibold">בקרוב</span>
-              </div>
-            ))}
+              So it says what it is: the methods accepted, in one line, chosen
+              one step further down. Choosing twice on one page is worse than
+              not choosing here at all.
+
+              THE MARKS ARE THE REAL ONES NOW. Apple and Google both require
+              their own supplied artwork and forbid a redrawn or recoloured
+              version, which is why this carried a generic wallet glyph while
+              the integration was pending — a hand-traced Apple logo on a live
+              shop is a trademark problem for the sake of a placeholder. These
+              come from simple-icons, already a dependency of the footer, and
+              are shipped unmodified.
+
+              bit is the exception and stays a word. The set does carry a
+              "SiBit", and it belongs to Bit.dev — a developer tool in a purple
+              that has nothing to do with the Israeli payment app. A wrong logo
+              is worse than none, and a brand's NAME in plain text is the part
+              nobody needs a licence for. */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span className="text-muted-foreground text-xs">מקבלים:</span>
+            <span className="border-input flex h-9 items-center gap-1.5 rounded-lg border px-2.5">
+              <CreditCard className="size-4 shrink-0" aria-hidden />
+              <span className="text-xs font-medium">כרטיס אשראי</span>
+            </span>
+            <span className="border-input flex h-9 items-center rounded-lg border px-2.5" title="Apple Pay">
+              <SiApplepay className="h-5 w-auto" aria-label="Apple Pay" />
+            </span>
+            <span className="border-input flex h-9 items-center rounded-lg border px-2.5" title="Google Pay">
+              <SiGooglepay className="h-5 w-auto" aria-label="Google Pay" />
+            </span>
+            <span className="border-input flex h-9 items-center rounded-lg border px-2.5">
+              <span className="text-sm font-bold tracking-tight">bit</span>
+            </span>
           </div>
 
 
