@@ -1181,3 +1181,45 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
 #btnGamaPayBit h4:empty::after {
   content: "bit";
 }
+
+/* ---- The tile row, at every width ----
+   On a phone the four tiles stacked one per line: a column of 90px squares
+   running down the page above the fields, pushing the card number below the
+   fold. Not their doing — ours. The narrow-width rules below give every div
+   inside a form group width:100%, which is right for a field and wrong for
+   the box holding a row of tiles, and it caught the container.
+
+   The container is addressed structurally rather than by name, because its
+   name is not visible from here and the last four rounds of this were spent
+   guessing at their markup: "whatever element directly contains these tiles".
+   That selector scores 0-2-0 through :has(), which is what lets it outrank the
+   0-1-1 of `.form-group div` without another !important arms race.
+
+   Wrapping rather than scrolling: four 84px tiles and their gaps fit two to a
+   line at 320px, which is a shape a thumb can hit. A row that scrolls sideways
+   hides payment methods behind a gesture nobody performs. */
+*:has(> .tab-button.pay-btn) {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  align-items: stretch;
+  gap: 8px;
+  width: 100% !important;
+  max-width: none !important;
+  float: none !important;
+}
+
+@media (max-width: 560px) {
+  .tab-button.pay-btn {
+    width: 84px !important;
+    min-width: 84px !important;
+    max-width: 84px !important;
+    height: 84px !important;
+    flex: 0 0 auto !important;
+    padding: 10px 4px !important;
+  }
+  .tab-button.pay-btn h4 { font-size: 11px; }
+  .tab-button.pay-btn .buttonIcon { height: 28px !important; }
+  .tab-button.pay-btn .buttonIcon img,
+  .tab-button.pay-btn .buttonIcon svg { max-height: 24px !important; }
+}
