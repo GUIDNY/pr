@@ -64,6 +64,24 @@
 
   <form onsubmit="return false">
 
+    <!-- The wallet row, September 2026. Structure and class names read from
+         their own variant-he-4.css: a .tab-button.pay-btn per method, an icon
+         box, and an h4 caption. The ids are theirs too. -->
+    <div id="payMethodsTabs" style="display:flex;justify-content:center;gap:8px;margin:0 0 18px">
+      <button type="button" id="googlePayTabBtn" class="tab-button pay-btn">
+        <span class="buttonIcon" style="font:600 15px Arial;letter-spacing:-.5px">G&nbsp;Pay</span>
+        <h4>Google Pay</h4>
+      </button>
+      <button type="button" id="btnGamaPayBit" class="tab-button pay-btn tab-button-selected">
+        <span class="buttonIcon" style="font:700 22px Arial;color:#12284C">bit</span>
+        <h4>&nbsp;</h4>
+      </button>
+      <button type="button" id="btnTabCrediCard" class="tab-button pay-btn">
+        <span class="buttonIcon" style="font:20px Arial">&#128179;</span>
+        <h4>כרטיס אשראי</h4>
+      </button>
+    </div>
+
     <!-- Pelecard's real structure, read from the live DOM: a Bootstrap .row of
          .col-sm-6 columns, a .form-group per field, and the field itself inside
          a .control-value_old. #dateContainer is that value box for the expiry —

@@ -1039,3 +1039,73 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
   #dateContainer { display: flex !important; }
   #dateContainer select { flex: 1 1 0 !important; width: auto !important; }
 }
+
+/* =========================  PAYMENT METHOD TILES  =========================
+   The wallets arrived in September and brought a row of tiles with them —
+   Google Pay, bit, credit card — drawn in Pelecard's own palette: a #f5f5f5
+   square that turns a navy #12284C when chosen. Navy is not a colour this shop
+   uses anywhere, so the one row where a customer picks how to pay was the one
+   row that did not look like the shop.
+
+   Every selector here is READ FROM THEIR STYLESHEET rather than guessed —
+   gateway21.pelecard.biz/Content/Css/variant-he-4.css, which this file already
+   imports. That is where .tab-button.pay-btn, .tab-button-selected and the
+   per-wallet ids come from. The header of this file records what guessing at
+   their names cost the last time, and their own sheet was sitting behind an
+   @import the whole while.
+
+   Their geometry is left alone: 90x90, the column layout, the icon box. The
+   tiles are a good shape and fighting it would be redecorating for its own
+   sake. What changes is the language — our surface, our radius, our ink, and
+   the brand orange with its tint for the chosen one, which is exactly how the
+   shop's own delivery and payment choices render one step higher up the same
+   page. A customer should not be able to tell where our checkout stops and
+   theirs starts.
+
+   No wallet MARK is touched. Google, Apple and bit each publish rules about
+   their own artwork, and a shop recolouring somebody else's logo is a shop
+   breaking them — so the icon box keeps whatever they put in it. */
+.tab-button.pay-btn {
+  background-color: #F7F5F3 !important;
+  background-color: var(--ai-surface) !important;
+  color: #1A1614 !important;
+  color: var(--ai-ink) !important;
+  border: 2px solid #E4E1DF !important;
+  border-color: var(--ai-line) !important;
+  border-radius: 14px !important;
+  border-radius: var(--ai-radius-lg) !important;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+
+.tab-button.pay-btn:hover,
+.tab-button.pay-btn:focus-visible {
+  border-color: #F7590C !important;
+  border-color: var(--ai-brand) !important;
+}
+
+/* The chosen one, dressed like the shop's own selected option: brand border
+   over the faint brand tint, rather than their navy. */
+.tab-button.pay-btn.tab-button-selected {
+  background-color: #FEF1EA !important;
+  background-color: var(--ai-brand-tint) !important;
+  border-color: #F7590C !important;
+  border-color: var(--ai-brand) !important;
+}
+
+/* The caption under each mark. Theirs is 12px in a font the page does not
+   otherwise use; this is the shop's, at the size its own small labels run. */
+.tab-button.pay-btn h4 {
+  font-family: Heebo, "Segoe UI", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1A1614;
+  color: var(--ai-ink);
+  margin: 0;
+}
+
+/* The row they sit in. Their markup gives it no spacing of its own, so the
+   tiles ran into the fields above and below them. */
+#payMethodsTabs,
+.tab-button.pay-btn ~ .tab-button.pay-btn {
+  margin-inline-start: 8px;
+}
