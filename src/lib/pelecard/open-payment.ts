@@ -125,11 +125,37 @@ export async function openPelecardPayment(
          because the wallet has already authenticated. That their page shows it
          on the wallet tabs anyway is theirs to fix, not ours to work around by
          weakening the card lane. */
+      /* WHAT THEIR FORM ASKS FOR, and the answer is "nothing it can be told".
+         Pelecard accept a VALUE for these fields, not only show-or-hide, and a
+         filled field is what both of the previous versions were reaching for.
+
+         It asked for all of them empty first: the name, the id, the email and
+         the phone, every one already typed into step 1 of our own checkout a
+         moment earlier. The same customer answering the same questions twice,
+         and it is the second time that gets abandoned.
+
+         So they were hidden — and that broke bit. Their form makes the phone
+         REQUIRED on the bit tab, because that number is where bit sends the
+         payment request. With nothing to send to, a ₪8,579 payment came back
+         as error 599 and the customer's phone never rang. Hiding a field does
+         not tell you what the field was for.
+
+         Filling them is the version that serves both: bit has its number, the
+         customer types nothing, and the details on their page are the ones the
+         order already carries rather than a second copy that can disagree with
+         it. Empty strings fall back to hidden, which is these fields' own
+         default and the right answer when we have nothing to offer.
+
+         CVV stays Must, and is the one field we genuinely cannot supply. A
+         card-not-present transaction without it authorises worse, and a wallet
+         has already authenticated its holder — that their page still shows the
+         box on the wallet tabs is theirs to fix, not a reason to weaken the
+         card lane. */
       Cvv2Field: "must",
       CustomerIdField: "Hide",
-      CardHolderName: "Hide",
-      EmailField: "Hide",
-      TelField: "Hide",
+      CardHolderName: order.guestName || "Hide",
+      EmailField: order.guestEmail || "Hide",
+      TelField: order.guestPhone || "Hide",
       MaxPayments: 1, // until there is an instalments agreement with Pelecard
       MinPayments: 1,
       FirstPayment: "auto",
