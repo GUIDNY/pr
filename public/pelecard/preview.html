@@ -66,20 +66,42 @@
 
     <!-- The wallet row, September 2026. Structure and class names read from
          their own variant-he-4.css: a .tab-button.pay-btn per method, an icon
-         box, and an h4 caption. The ids are theirs too. -->
-    <div id="payMethodsTabs" style="display:flex;justify-content:center;gap:8px;margin:0 0 18px">
-      <button type="button" id="googlePayTabBtn" class="tab-button pay-btn">
-        <span class="buttonIcon" style="font:600 15px Arial;letter-spacing:-.5px">G&nbsp;Pay</span>
-        <h4>Google Pay</h4>
-      </button>
-      <button type="button" id="btnGamaPayBit" class="tab-button pay-btn tab-button-selected">
-        <span class="buttonIcon" style="font:700 22px Arial;color:#12284C">bit</span>
-        <h4></h4>
-      </button>
-      <button type="button" id="btnTabCrediCard" class="tab-button pay-btn">
-        <span class="buttonIcon" style="font:20px Arial">&#128179;</span>
-        <h4>כרטיס אשראי</h4>
-      </button>
+         box, and an h4 caption. The ids are theirs too.
+
+         EACH TILE SITS IN ITS OWN BOOTSTRAP COLUMN, and modelling that is the
+         whole point of this block. Their sheet carries `.mobile-four`, which
+         puts a left padding on the box AROUND a tile — there is no such box
+         unless every tile has one. The first version of this harness put the
+         four buttons straight into a flex div with inline styles, so the row
+         looked right here and stacked into a column on the live site: the
+         harness was not reproducing the thing that breaks. No inline styles
+         below for the same reason — if the row is a row, it is our stylesheet
+         that made it one. -->
+    <div class="row" id="payMethodsTabs">
+      <div class="col-xs-3 mobile-four">
+        <button type="button" id="btnTabCrediCard" class="tab-button pay-btn tab-button-selected">
+          <span class="buttonIcon" style="font:20px Arial">&#128179;</span>
+          <h4>כרטיס אשראי</h4>
+        </button>
+      </div>
+      <div class="col-xs-3 mobile-four">
+        <button type="button" id="btnGamaPayBit" class="tab-button pay-btn">
+          <span class="buttonIcon" style="font:700 22px Arial;color:#12284C">bit</span>
+          <h4></h4>
+        </button>
+      </div>
+      <div class="col-xs-3 mobile-four">
+        <button type="button" id="googlePayTabBtn" class="tab-button pay-btn">
+          <span class="buttonIcon" style="font:600 15px Arial;letter-spacing:-.5px">G&nbsp;Pay</span>
+          <h4>Google Pay</h4>
+        </button>
+      </div>
+      <div class="col-xs-3 mobile-four">
+        <button type="button" id="applePayTabBtn" class="tab-button pay-btn">
+          <span class="buttonIcon" style="font:600 15px Arial">&#63743;Pay</span>
+          <h4>Apple Pay</h4>
+        </button>
+      </div>
     </div>
 
     <!-- Pelecard's real structure, read from the live DOM: a Bootstrap .row of

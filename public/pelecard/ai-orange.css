@@ -1122,13 +1122,6 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
   margin: 0;
 }
 
-/* The row they sit in. Their markup gives it no spacing of its own, so the
-   tiles ran into the fields above and below them. */
-#payMethodsTabs,
-.tab-button.pay-btn ~ .tab-button.pay-btn {
-  margin-inline-start: 8px;
-}
-
 /* ---- The marks inside the tiles, at one size ----
    Their own sheet sizes the icon box per wallet — 75% of the tile for Google,
    Apple and card, 90% for bit — and then a later rule resets it to auto. What
@@ -1183,43 +1176,102 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
 }
 
 /* ---- The tile row, at every width ----
-   On a phone the four tiles stacked one per line: a column of 90px squares
-   running down the page above the fields, pushing the card number below the
-   fold. Not their doing — ours. The narrow-width rules below give every div
-   inside a form group width:100%, which is right for a field and wrong for
-   the box holding a row of tiles, and it caught the container.
+   On a phone the four tiles came down the page one per line: a column of
+   squares above the fields, pushing the card number below the fold. Ours, not
+   theirs, and the first attempt at it made the column *neater* instead of
+   removing it, which is worth recording.
 
-   The container is addressed structurally rather than by name, because its
-   name is not visible from here and the last four rounds of this were spent
-   guessing at their markup: "whatever element directly contains these tiles".
-   That selector scores 0-2-0 through :has(), which is what lets it outrank the
-   0-1-1 of `.form-group div` without another !important arms race.
+   Their markup, read off their own sheet rather than guessed: `.mobile-four`
+   sets a left padding on the box around a tile, so each tile sits in its own
+   Bootstrap column inside a row. The narrow-width block above hands every
+   column in a row `flex: 1 1 100%` — correct for a card-number field, fatal
+   for four columns that are meant to share one line. The first fix aimed at
+   "whatever directly contains a tile", which is that column and not the row,
+   so it centred each tile on the full-width line it should not have had.
 
-   Wrapping rather than scrolling: four 84px tiles and their gaps fit two to a
-   line at 320px, which is a shape a thumb can hit. A row that scrolls sideways
-   hides payment methods behind a gesture nobody performs. */
-*:has(> .tab-button.pay-btn) {
+   So: two rules, and neither names a class. A box holding ONE tile shrinks to
+   it; a box holding SEVERAL tiles, or several such boxes, becomes the row that
+   wraps them. The pair is mutually exclusive by construction, which is what
+   makes it safe to write without seeing the tree — if they drop the columns
+   and put the tiles straight in the row tomorrow, the same two rules still
+   land the right way round.
+
+   Specificity is deliberate, since the rules they have to beat carry
+   !important: :has() takes the score of its argument, so the row selectors
+   reach 0-4-0 and the column selector 0-6-0, against the 0-3-0 of
+   `.row > [class*="col-"][class*="col-"]`. No new !important arms race.
+
+   Wrapping rather than scrolling: four 84px tiles and their gaps fit on one
+   line at 400px and two to a line at 320px, which is a shape a thumb can hit.
+   A row that scrolls sideways hides payment methods behind a gesture nobody
+   performs. */
+
+/* The box around a single tile: shrink to the tile. */
+*:has(> .tab-button.pay-btn):not(:has(> .tab-button.pay-btn ~ .tab-button.pay-btn)) {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  float: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin: 0 !important;
+}
+
+/* The row: holds the tiles directly, or holds the boxes that do. */
+*:has(> .tab-button.pay-btn ~ .tab-button.pay-btn),
+*:has(> * > .tab-button.pay-btn):not(:has(> .tab-button.pay-btn)) {
   display: flex !important;
+  flex-direction: row !important;
   flex-wrap: wrap !important;
   justify-content: center !important;
-  align-items: stretch;
-  gap: 8px;
+  align-items: stretch !important;
+  gap: 8px !important;
   width: 100% !important;
   max-width: none !important;
   float: none !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  /* Their markup gives the row no spacing of its own, so the tiles ran into
+     the field above and the one below. */
+  margin: 0 0 16px !important;
 }
 
 @media (max-width: 560px) {
+  /* FOUR ACROSS, WHATEVER THE WIDTH — the line is divided rather than measured.
+     The first pass gave each tile a fixed 84px, which fitted a 400px phone by
+     four pixels and wrapped the fourth tile onto a line of its own at 390. A
+     width picked here is a guess about a viewport nobody in this repo can see;
+     a flex basis of 0 with equal grow is the same answer at every width, and
+     it cannot overflow. Both the tile and the box around it are named, because
+     whichever of the two is the row's child is the one that has to divide.
+
+     The payment methods are the first thing on this form and there are four of
+     them. Four on one line is a row a thumb reads at a glance; three and one
+     is a mistake, and one per line is the column this whole block exists to
+     undo. */
+  *:has(> .tab-button.pay-btn):not(:has(> .tab-button.pay-btn ~ .tab-button.pay-btn)),
   .tab-button.pay-btn {
-    width: 84px !important;
-    min-width: 84px !important;
-    max-width: 84px !important;
-    height: 84px !important;
-    flex: 0 0 auto !important;
-    padding: 10px 4px !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    /* And no wider than it is tall: a 560px screen divides into four 123px
+       tiles, which is a landscape box with a 22px logo adrift in it. */
+    max-width: 96px !important;
   }
-  .tab-button.pay-btn h4 { font-size: 11px; }
-  .tab-button.pay-btn .buttonIcon { height: 28px !important; }
+  .tab-button.pay-btn {
+    width: 100% !important;
+    height: 84px !important;
+    padding: 10px 3px !important;
+  }
+  /* The caption has to survive a 68px tile at 320px — "כרטיס אשראי" is the
+     long one and it wraps to two lines there rather than pushing past the
+     border. */
+  .tab-button.pay-btn h4 {
+    font-size: 10px !important;
+    line-height: 11px !important;
+    word-break: break-word;
+  }
+  .tab-button.pay-btn .buttonIcon { height: 26px !important; }
   .tab-button.pay-btn .buttonIcon img,
-  .tab-button.pay-btn .buttonIcon svg { max-height: 24px !important; }
+  .tab-button.pay-btn .buttonIcon svg { max-height: 22px !important; }
 }
