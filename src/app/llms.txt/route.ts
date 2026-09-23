@@ -62,9 +62,9 @@ ${guides}
 - [אודותינו](${absoluteUrl("/page/about")})
 - [סניפים](${absoluteUrl("/page/branches")})
 - [יצירת קשר](${absoluteUrl("/contact")}): טלפון ${BUSINESS.phone}, ${BUSINESS_ADDRESS}
-- [תקנון האתר](${absoluteUrl("/page/terms")})
-- [מדיניות ביטולים והחזרות](${absoluteUrl("/page/returns")})
-- [מדיניות פרטיות](${absoluteUrl("/page/privacy")})
+- [תקנון האתר](${absoluteUrl("/terms")})
+- [מדיניות ביטולים והחזרות](${absoluteUrl("/returns")})
+- [מדיניות פרטיות](${absoluteUrl("/privacy")})
 - [הצהרת נגישות](${absoluteUrl("/accessibility")})
 
 ## למנועי תשובות

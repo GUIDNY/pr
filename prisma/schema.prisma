@@ -16,6 +16,24 @@ datasource db {
   provider = "postgresql"
 }
 
+/// One-time links for "I forgot my password".
+///
+/// The token itself is never stored — only its SHA-256. What is emailed
+/// exists in the customer's inbox and nowhere else, so a copy of this table
+/// is a list of hashes and a hash cannot be pasted into a URL.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 // ---------- Identity ----------
 
 model User {
@@ -23,6 +41,11 @@ model User {
   email        String   @unique
   phone        String?
   passwordHash String
+  /// Whether the owner has chosen a password. False for accounts created
+  /// through Google: passwordHash holds random bytes so the column is
+  /// satisfied, and nothing anybody can type will match it. The account page
+  /// reads this to offer "set a password" instead of "change password".
+  hasPassword  Boolean  @default(true)
   name         String
   role         String   @default("CUSTOMER") // CUSTOMER | ADMIN | STAFF
   createdAt    DateTime @default(now())
@@ -38,6 +61,7 @@ model User {
   statusChanges     OrderStatusHistory[] @relation("StatusChangedBy")
   assignedOrders    Order[]              @relation("AssignedEmployee")
   auditLogs         AuditLog[]
+  passwordResets    PasswordResetToken[]
   uploadedSources   InventorySource[]    @relation("SourceUploadedBy")
   triggeredSyncRuns InventorySyncRun[]   @relation("SyncTriggeredBy")
   resolvedAlerts    InventoryAlert[]     @relation("AlertResolvedBy")
@@ -151,6 +175,20 @@ model Product {
   slug                 String    @unique
   model                String? // the manufacturer's own model number (e.g. "HBG578ES3") — NOT the internal sku. Indexed: /api/integrations/products' ?hasModel=false filter and exact-model lookups both scan this.
   colorName            String? // e.g. "רוז גולד" — a real, structured field, not scraped/guessed; distinguishes same-capacity variants that differ only by finish (each with its own real manufacturer model number, e.g. M-LR8 vs M-LB8)
+  // Ties the colour variants of one appliance together, so the product page
+  // can offer the other finishes. Set deliberately — by the grouping script
+  // or by hand — and never derived at read time.
+  //
+  // It has to be a stored column rather than a query over similar titles,
+  // because the titles that look alike are mostly NOT variants: of 68 groups
+  // that collapse to the same text once colour words are removed, 51 are the
+  // same product entered twice. Matching on appearance would offer a shopper
+  // a "second colour" that is the identical appliance, and it would do it
+  // silently, on a page where the wrong click is a wrong order.
+  //
+  // Each variant stays a full product with its own slug, sku, price, stock
+  // and images. This groups them; it does not merge them.
+  variantGroupId       String?
   brandId              String
   brand                Brand     @relation(fields: [brandId], references: [id])
   categoryId           String
@@ -159,6 +197,17 @@ model Product {
   description          String?
   price                Float
   compareAtPrice       Float?
+  // The barcode. Empty on every row today: the supplier price sheets carry
+  // no barcode column, and the values will come from the ERP and the
+  // importers as a separate import. The plumbing is here first so that
+  // import is one UPDATE rather than a schema change plus a feed change
+  // plus a JSON-LD change under time pressure.
+  //
+  // A string, not a number: an EAN-13 can begin with a zero, and a leading
+  // zero is exactly the digit a numeric column drops. Google matches this
+  // against its own product catalogue, so a 12-digit value is not a
+  // near-miss, it is a rejected item.
+  gtin13               String?
   installmentMonths    Int?
   warrantyMonths       Int       @default(12)
   deliveryDays         Int       @default(7)
@@ -235,6 +284,7 @@ model Product {
   @@index([sourceId, sourceRowKey])
   @@index([isTemporarySku])
   @@index([model])
+  @@index([variantGroupId])
 }
 
 // Every address this product has ever been reachable at, so a renamed
@@ -331,8 +381,25 @@ model ProductImage {
   sourceImageUrl String?
   sourceDomain   String?
   capturedAt     DateTime?
+  /// When this image last failed to migrate onto our own storage.
+  ///
+  /// A failure leaves the row untouched — that is deliberate, so a product
+  /// keeps its working hotlink — but it also means the candidate query
+  /// returns the same image again, and the cron restarts at the front of
+  /// the queue on every invocation. 60 runs overnight moved 67 images:
+  /// each 45-second run spent its whole budget re-discovering the same
+  /// refusals at the head of the list. The browser loop never saw this
+  /// because it threads its skip-list forward across one long session.
+  ///
+  /// So a failure is written down. Anything that failed recently is left
+  /// out of the queue, which lets each run start where the last one
+  /// effectively finished. A timestamp rather than a boolean so it expires:
+  /// a host that was down comes back, and the retry costs one attempt a few
+  /// days later instead of four every five minutes.
+  migrationFailedAt DateTime?
 
   @@index([productId])
+  @@index([migrationFailedAt])
 }
 
 model ProductAttributeValue {

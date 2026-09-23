@@ -30,12 +30,48 @@ const nextConfig: NextConfig = {
         destination: "https://buytoday.co.il/:path",
         permanent: true,
       },
+      /* מדיחי כלים stopped being a department of its own — its three
+         sub-categories moved under כביסה, ייבוש ומדיחים (see
+         category-tree.ts for why). The address does not get to disappear
+         with it: it is a public category URL, it is in the sitemap Google
+         has already fetched, and the dishwasher buying guide links to it.
+         `permanent: true` emits 308, not 301 — Next's default, and the
+         right one: 308 is the permanent redirect that preserves the
+         method, and Google consolidates ranking through it exactly as it
+         does through a 301. Verified against the live deployment before
+         the categories were moved in the database. */
+      {
+        source: "/category/dishwashers",
+        destination: "/category/laundry",
+        permanent: true,
+      },
+      /* The policies had two addresses each. /returns and /privacy are real
+         pages in app/(shop); /page/returns and /page/privacy were CMS rows
+         saying the same thing in fewer words and with a different contact
+         address on them — two live policies per subject, disagreeing, both
+         indexable. The terms had the opposite problem: only the CMS address
+         existed, so /terms answered 404 while the footer linked to
+         /page/terms.
+
+         One address each now, all three in the same shape. The CMS row is
+         still what /terms renders — only the URL moved. */
+      { source: "/page/returns", destination: "/returns", permanent: true },
+      { source: "/page/privacy", destination: "/privacy", permanent: true },
+      { source: "/page/terms", destination: "/terms", permanent: true },
     ];
   },
   turbopack: {
     root: path.join(__dirname),
   },
   outputFileTracingRoot: path.join(__dirname),
+  // Server actions are capped at 1MB by default, which is smaller than a
+  // phone photograph. The back office uploads product and banner images
+  // through actions (the browser shrinks them first, but not below this).
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
   images: {
     remotePatterns: [
       // Product images increasingly come from wherever a manufacturer's own

@@ -5,7 +5,9 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
   return (
     <>
       <Header />
-      <main id="main-content" className="flex-1">{children}</main>
+      {/* pb-16 below sm: is the phone's bottom tab bar (MobileBottomNav),
+          so the last thing on a page is never under it. */}
+      <main id="main-content" className="flex-1 pb-16 sm:pb-0">{children}</main>
       <Footer />
     </>
   );

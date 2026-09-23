@@ -34,6 +34,36 @@ export async function getNavigableCategoryTree(): Promise<NavigableDepartment[]>
     .map((d) => ({ slug: d.slug, name: d.name, children: d.children }));
 }
 
+export type DepartmentCount = { slug: string; name: string; count: number };
+
+/**
+ * Every department with something to sell, with its live product count,
+ * in catalogue order — the homepage's vertical department menu. Counted
+ * through the public predicate so the number beside "מקררים" is the
+ * number of fridges a visitor can actually open.
+ */
+export async function getDepartmentCounts(): Promise<DepartmentCount[]> {
+  const departments = await db.category.findMany({
+    where: { parentId: null },
+    select: { id: true, slug: true, name: true, sortOrder: true, children: { select: { id: true } } },
+    orderBy: { sortOrder: "asc" },
+  });
+  const counted = await Promise.all(
+    departments.map(async (d) => ({
+      slug: d.slug,
+      name: d.name,
+      count: await db.product.count({
+        where: { ...PUBLIC_PRODUCT_WHERE, categoryId: { in: [d.id, ...d.children.map((c) => c.id)] } },
+      }),
+    })),
+  );
+  // A department with one or two live products is a line in a menu that
+  // says "1" beside it, which reads as a shop running out rather than a
+  // shop with range. It stays reachable through the mega menu and the
+  // chips; it just does not get a line here until it has something in it.
+  return counted.filter((d) => d.count >= 5);
+}
+
 export type CategoryTile = { slug: string; name: string; imageUrl: string };
 
 /**
@@ -150,4 +180,63 @@ export async function getCategoryTilesWithImages(): Promise<CategoryTile[]> {
   );
 
   return tiles.filter((t): t is CategoryTile => t !== null);
+}
+
+/**
+ * How many live products a category page will actually show.
+ *
+ * Its own plus its children's, through the public predicate — the same
+ * scope the page itself renders, so the answer is the number of cards a
+ * visitor will see rather than the number of rows in the table.
+ *
+ * Exists for one caller: the page's metadata, which needs to know whether
+ * it is about to serve an empty shelf. Six categories were reaching Google
+ * as ordinary indexable pages with nothing on them — not because anyone
+ * chose to hide their products, but because those products have no
+ * photograph or no stock, which is the same reason a large part of this
+ * catalog is invisible.
+ */
+export async function countLiveProductsInCategory(slug: string): Promise<number> {
+  const category = await db.category.findUnique({
+    where: { slug },
+    select: { id: true, children: { select: { id: true } } },
+  });
+  if (!category) return 0;
+  return db.product.count({
+    where: {
+      ...PUBLIC_PRODUCT_WHERE,
+      categoryId: { in: [category.id, ...category.children.map((c) => c.id)] },
+    },
+  });
+}
+
+export type SubcategoryTile = { slug: string; name: string; count: number; imageUrl: string | null };
+
+/**
+ * A department's sub-categories, each with its live count and one of its
+ * own product photographs — the row a shopper narrows a shelf with before
+ * touching a filter. Children with nothing live are left out; a tile that
+ * leads to an empty grid is a promise the shelf cannot keep.
+ */
+export async function getSubcategoryTiles(departmentSlug: string): Promise<SubcategoryTile[]> {
+  const department = await db.category.findUnique({
+    where: { slug: departmentSlug },
+    select: { children: { select: { id: true, slug: true, name: true }, orderBy: { sortOrder: "asc" } } },
+  });
+  if (!department) return [];
+  const tiles = await Promise.all(
+    department.children.map(async (c): Promise<SubcategoryTile> => {
+      const where = { ...PUBLIC_PRODUCT_WHERE, categoryId: c.id };
+      const [count, pick] = await Promise.all([
+        db.product.count({ where }),
+        db.product.findFirst({
+          where,
+          orderBy: [{ isBestSeller: "desc" }, { ratingAvg: "desc" }],
+          select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
+        }),
+      ]);
+      return { slug: c.slug, name: c.name, count, imageUrl: pick?.images[0]?.url ?? null };
+    }),
+  );
+  return tiles.filter((t) => t.count > 0);
 }

@@ -1,9 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Phone, MapPin, ShieldCheck, Truck, CreditCard, Share2 } from "lucide-react";
+import { Phone, MapPin, ShieldCheck, Truck, CreditCard, MessageCircle } from "lucide-react";
+/* The official marks, from Simple Icons. lucide-react dropped every brand
+   glyph before v1.31, so these cannot come from the same import as the icons
+   beside them.
+
+   Imported per icon rather than from the package root: that barrel re-exports
+   around three thousand components, and while the package sets
+   sideEffects:false so a production build shakes the rest out, the subpath
+   costs nothing and keeps dev compiles from walking all of them. */
+import SiInstagram from "@icons-pack/react-simple-icons/icons/SiInstagram";
+import SiFacebook from "@icons-pack/react-simple-icons/icons/SiFacebook";
 import { ConsentSettingsLink } from "@/components/layout/consent-settings-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
-import { BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
+import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 
 export async function Footer() {
   const departments = (await getNavigableCategoryTree()).slice(0, 6);
@@ -57,15 +67,31 @@ export async function Footer() {
           <p className="text-primary-foreground/60 mt-3 text-sm leading-relaxed">
             חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. קשת נרחבת של מוצרים במחירים תחרותיים.
           </p>
+          {/* Was one button, captioned "עמוד הפייסבוק שלנו", pointing at
+              https://www.facebook.com/ — Facebook's own front page. A visitor
+              who pressed it was told the shop had a page and then handed
+              somebody else's, which is worse than offering nothing, and
+              schema.ts left sameAs out for exactly that reason. Both
+              addresses are real now and live in BUSINESS, so the footer and
+              the structured data cannot drift apart. */}
           <div className="mt-4 flex items-center gap-3">
             <a
-              href="https://www.facebook.com/"
+              href={BUSINESS.instagram}
               target="_blank"
               rel="noreferrer noopener"
-              aria-label="עמוד הפייסבוק שלנו"
+              aria-label="Buy Today באינסטגרם"
               className="bg-primary-foreground/10 hover:bg-primary-foreground/20 flex size-9 items-center justify-center rounded-full transition-colors"
             >
-              <Share2 className="size-4" />
+              <SiInstagram aria-hidden className="size-4" />
+            </a>
+            <a
+              href={BUSINESS.facebook}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="Buy Today בפייסבוק"
+              className="bg-primary-foreground/10 hover:bg-primary-foreground/20 flex size-9 items-center justify-center rounded-full transition-colors"
+            >
+              <SiFacebook aria-hidden className="size-4" />
             </a>
           </div>
         </div>
@@ -118,7 +144,7 @@ export async function Footer() {
               </Link>
             </li>
             <li>
-              <Link href="/page/terms" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+              <Link href="/terms" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 תקנון האתר
               </Link>
             </li>
@@ -132,6 +158,14 @@ export async function Footer() {
               </Link>
             </li>
             <li>
+              {/* The second page Merchant Center looks for from the footer,
+                  and for the same reason: a shopper must be able to find what
+                  delivery costs without starting a checkout. */}
+              <Link href="/shipping" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                מדיניות משלוחים
+              </Link>
+            </li>
+            <li>
               <Link href="/privacy" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 מדיניות פרטיות
               </Link>
@@ -141,15 +175,27 @@ export async function Footer() {
                 הצהרת נגישות
               </Link>
             </li>
+            {/* Next to the privacy policy on purpose: withdrawing consent has
+                to be findable in the same place someone goes to read what
+                they agreed to. It renders its own <li>, because inside the
+                iOS app it renders nothing at all and an empty row would be
+                left behind. */}
+            <ConsentSettingsLink />
             <li>
-              {/* Next to the privacy policy on purpose: withdrawing consent has
-                  to be findable in the same place someone goes to read what
-                  they agreed to. */}
-              <ConsentSettingsLink />
+              <a href={BUSINESS.phoneHref} className="text-primary-foreground/60 hover:text-primary-foreground flex items-center gap-1.5 text-sm">
+                <Phone className="size-3.5" /> {BUSINESS.phone}
+              </a>
             </li>
             <li>
-              <a href="tel:04-6639510" className="text-primary-foreground/60 hover:text-primary-foreground flex items-center gap-1.5 text-sm">
-                <Phone className="size-3.5" /> 04-6639510
+              {/* A separate line, because it is a separate number answered in
+                  a separate place. */}
+              <a
+                href={BUSINESS.whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary-foreground/60 hover:text-primary-foreground flex items-center gap-1.5 text-sm"
+              >
+                <MessageCircle className="size-3.5" /> {BUSINESS.whatsapp}
               </a>
             </li>
           </ul>
@@ -158,7 +204,11 @@ export async function Footer() {
 
       <div className="border-primary-foreground/10 border-t px-4 py-4">
         <div className="text-primary-foreground/50 mx-auto flex max-w-7xl flex-col items-center justify-between gap-2 text-xs sm:flex-row">
-          <span>© {new Date().getFullYear()} Buy Today. כל הזכויות שמורות.</span>
+          {/* The registered company beside the trading name: a shop that says
+              who is legally behind it reads as one that expects to be found. */}
+          <span>
+            © {new Date().getFullYear()} Buy Today · {BUSINESS.legalName}. כל הזכויות שמורות.
+          </span>
           {/* Was "ישראל", which is not an address — it told a visitor
               wondering whether this is a real shop with a real counter
               exactly nothing. */}

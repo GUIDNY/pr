@@ -47,6 +47,19 @@
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
+	<!-- Google's sign-in sheet hands control back through this scheme. It is
+	     the iOS OAuth client id with its parts reversed, and Google matches it
+	     exactly: without it the sheet closes and nothing comes back, with no
+	     error anywhere. Changing the client id means changing this too. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.266126052426-k9bkhbip4dgcfkrfd6bji46kqqtvuveh</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>

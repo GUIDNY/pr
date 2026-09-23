@@ -14,11 +14,6 @@ const PHONE_E164 = BUSINESS.phoneE164;
 
 /**
  * Who the shop is. One per site, on the homepage.
- *
- * No `sameAs`. The only social link in the footer points at
- * https://www.facebook.com/ — Facebook's own homepage, a placeholder nobody
- * filled in — and declaring that as the shop's profile is worse than
- * declaring nothing. It goes in the day a real page exists.
  */
 export function organizationSchema() {
   return {
@@ -32,8 +27,23 @@ export function organizationSchema() {
     // one standing in for the other.
     legalName: BUSINESS.legalName,
     url: SITE_URL,
-    logo: absoluteUrl("/brand/logo.png"),
-    email: "info@prec.co.il",
+    /* The same artwork, at an address Google has not already cached.
+       The file at /brand/logo.png has been the Buy Today mark for a while —
+       nothing is wrong with the picture. What is wrong is that Google
+       fetched that URL once, while it still held the A&I Electronics mark,
+       and a stable URL gives it no reason to look again; the old logo is
+       still what a search result shows.
+
+       So the bytes move to a new name and this line follows them. Every
+       other reference — the header, the footer, the email template, the
+       payment page — keeps /brand/logo.png and is unaffected: those are
+       served through next/image or read by a mail client, neither of which
+       has this problem. This one field is the one Google reads.
+
+       Do not rename this back, and do not point it at /brand/logo.png
+       again "to tidy up" — that is the cached address. */
+    logo: absoluteUrl("/brand/logo-buytoday-v2.png"),
+    email: BUSINESS.email,
     description:
       "חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.",
     contactPoint: {
@@ -42,7 +52,7 @@ export function organizationSchema() {
       contactType: "customer service",
       areaServed: "IL",
       availableLanguage: ["he"],
-      email: "info@prec.co.il",
+      email: BUSINESS.email,
     },
     // The shop's real street address, which is what lets Google tie this site
     // to the Business Profile and the Merchant Center account rather than
@@ -55,10 +65,19 @@ export function organizationSchema() {
       addressLocality: BUSINESS.city,
       addressCountry: BUSINESS.country,
     },
-    // sameAs is still deliberately absent. The only social link in the footer
-    // points at Facebook's own homepage — a placeholder nobody filled in —
-    // and declaring that as the shop's profile is worse than declaring
-    // nothing.
+    /* The other places this same business exists. sameAs is how Google is
+       told that the Instagram account, the Facebook page and this domain are
+       one entity rather than three unrelated ones — the same consolidation
+       the name, phone and address above are doing against the Business
+       Profile and Merchant Center.
+
+       It was deliberately empty until now, because the only social link in
+       the footer pointed at Facebook's own homepage and declaring a
+       placeholder as the shop's profile is worse than declaring nothing.
+       These come from BUSINESS, which is also what the footer renders, so a
+       claim made here is a link a visitor can actually follow. Nothing goes
+       in this list that is not a profile the shop controls. */
+    sameAs: [BUSINESS.instagram, BUSINESS.facebook],
   };
 }
 

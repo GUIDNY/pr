@@ -11,27 +11,33 @@ import type { CategoryTile } from "@/lib/queries/categories";
 // hand-corrected miscategorized ones).
 export function CategoryGrid({ tiles }: { tiles: CategoryTile[] }) {
   if (tiles.length === 0) return null;
+  // Two rows on a desktop, three on a phone (the grid hides the tenth
+  // tile onward below sm:). The full list ran to five desktop rows of
+  // tiles between the visitor and the first product rail; the department
+  // menu and the mega menu already reach every category, so this is a
+  // sampler, not the index.
+  const shown = tiles.slice(0, 18);
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-6 sm:py-10">
-      <h2 className="mb-4 text-xl font-bold sm:mb-6 sm:text-2xl">כל הקטגוריות</h2>
+      <h2 className="mb-4 text-xl font-bold sm:mb-6 sm:text-2xl">קנייה לפי קטגוריה</h2>
       {/* Desktop deliberately denser/smaller than mobile — 6 then 9 columns
           instead of 4 then 6, closer to a compact icon-grid than big
           tiles. Mobile's own 3-column size is untouched. */}
-      <div className="grid grid-cols-3 gap-x-2 gap-y-5 sm:grid-cols-6 sm:gap-x-3 sm:gap-y-6 lg:grid-cols-9">
-        {tiles.map((tile) => (
+      <div className="grid grid-cols-3 gap-x-2 gap-y-5 sm:grid-cols-6 sm:gap-x-3 sm:gap-y-6 lg:grid-cols-9 [&>*:nth-child(n+10)]:hidden sm:[&>*:nth-child(n+10)]:flex">
+        {shown.map((tile) => (
           <Link
             key={tile.slug}
             href={`/category/${tile.slug}`}
             className="group/tile flex flex-col items-center gap-1.5 text-center sm:gap-2"
           >
-            <div className="relative aspect-square w-full">
+            <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-white p-2 shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.05)] transition-shadow group-hover/tile:shadow-md">
               <Image
                 src={tile.imageUrl}
                 alt=""
                 fill
                 sizes="(min-width: 1024px) 110px, (min-width: 640px) 140px, 120px"
-                className="object-contain transition-transform duration-300 group-hover/tile:scale-105"
+                className="object-contain p-2 transition-transform duration-300 group-hover/tile:scale-105"
               />
             </div>
             <span className="line-clamp-2 text-xs leading-tight font-medium">{tile.name}</span>

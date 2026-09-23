@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
+import { BANNERS_SECTION_KEY, parseStoredBanners, showsOnDesktop, showsOnPhone, type Banner } from "@/lib/banners";
 
 export async function getHomepageSection(key: string) {
   const row = await db.homepageSection.findUnique({ where: { key } });
@@ -66,13 +67,30 @@ export async function getFeaturedBrands(take = 40) {
     where: { isActive: true },
     include: { _count: { select: { products: { where: PUBLIC_PRODUCT_WHERE } } } },
   });
+  // Logos first, then by how much of the shop each brand is. The strip
+  // sits directly under the hero as evidence that this is a real
+  // appliance shop, and a Samsung or Bosch mark carries that in a glance
+  // where a wordmark for a brand nobody has heard of carries nothing —
+  // so the marquee should open on the marks, not reach them on its third
+  // loop.
   return brands
     .filter((b) => b._count.products >= FEATURED_BRAND_MIN_PRODUCTS)
-    .sort((a, b) => b._count.products - a._count.products)
+    .sort((a, b) => Number(Boolean(b.logoUrl)) - Number(Boolean(a.logoUrl)) || b._count.products - a._count.products)
     .slice(0, take)
     .map((b) => ({ name: b.name, slug: b.slug, logoUrl: b.logoUrl }));
 }
 
 export async function getCmsPage(slug: string) {
   return db.cmsPage.findUnique({ where: { slug } });
+}
+
+/** The homepage banners the admin has switched on, in the admin's order. */
+export async function getPromoBanners(): Promise<Banner[]> {
+  const row = await db.homepageSection.findUnique({ where: { key: BANNERS_SECTION_KEY } });
+  if (!row || !row.isActive) return [];
+  try {
+    return parseStoredBanners(JSON.parse(row.payload)).filter((b) => b.isActive && (showsOnPhone(b) || showsOnDesktop(b)));
+  } catch {
+    return [];
+  }
 }

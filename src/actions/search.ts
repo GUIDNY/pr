@@ -1,8 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
+import { rankedSearchIds, inRankedOrder } from "@/lib/queries/products";
 
 export type SearchResult = {
   id: string;
@@ -16,37 +15,38 @@ export type SearchResult = {
   imageUrl: string | null;
 };
 
+/**
+ * The suggestions under the search box — the header's and the homepage
+ * hero's, which are the same SearchBar component.
+ *
+ * This held its own copy of the query rather than calling one: the same OR
+ * across words, the same missing ORDER BY, the same `take: 8`. So when the
+ * ranking was fixed in queries/products.ts, /search started answering
+ * correctly and the box on the homepage went on returning coffee machines
+ * for "מכונת כביסה" — the copy nobody remembered was there, on the surface
+ * every visitor touches first.
+ *
+ * It now asks the shared ranker for ids and loads only the columns this row
+ * needs (categoryName, which the product card does not carry). Different
+ * shape, one definition of what "matches" and "comes first" mean.
+ */
 export async function searchProductsAction(query: string): Promise<SearchResult[]> {
   const q = query.trim();
   if (q.length < 2) return [];
-  const { text, maxPrice } = parseShoppingQuery(q);
-  const words = splitSearchWords(text);
+
+  const ids = await rankedSearchIds(q, 8);
+  if (ids.length === 0) return [];
 
   const rows = await db.product.findMany({
-    where: {
-      ...PUBLIC_PRODUCT_WHERE,
-      ...(maxPrice !== null ? { price: { lte: maxPrice } } : {}),
-      ...(words.length > 0
-        ? {
-            OR: words.flatMap((w) => [
-              { title: { contains: w, mode: "insensitive" as const } },
-              { sku: { contains: w, mode: "insensitive" as const } },
-              { model: { contains: w, mode: "insensitive" as const } },
-              { brand: { name: { contains: w, mode: "insensitive" as const } } },
-              { category: { name: { contains: w, mode: "insensitive" as const } } },
-            ]),
-          }
-        : {}),
-    },
+    where: { id: { in: ids } },
     include: {
       brand: true,
       category: { include: { parent: true } },
       images: { take: 1, orderBy: { sortOrder: "asc" } },
     },
-    take: 8,
   });
 
-  return rows.map((p) => ({
+  return inRankedOrder(ids, rows).map((p) => ({
     id: p.id,
     slug: p.slug,
     title: p.title,

@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { SITE_URL as BASE_URL } from "@/lib/site-url";
 import { hasDerivedHashSuffix } from "@/lib/derived-slug";
 import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
+import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
+import { TERMS_UPDATED } from "@/lib/content/terms";
 
 // One catalog this size (products + categories + articles) comfortably
 // fits under the 50k-URL-per-file cap a sitemap.xml is allowed, so this
@@ -29,7 +31,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // or no publish flag really does 404.
     db.product.findMany({
       where: { isPublished: true, images: { some: {} } },
-      select: { slug: true, updatedAt: true, categoryId: true, brandId: true },
+      // stockQty is read but not filtered on: the product URLs below still
+      // want the sold-out ones, and the category gate further down wants
+      // only the sellable ones. One query, two rollups.
+      select: { slug: true, updatedAt: true, categoryId: true, brandId: true, stockQty: true },
     }),
     db.category.findMany({ select: { id: true, slug: true, parentId: true } }),
     // Every product, visible or not, only to date the categories that have
@@ -57,6 +62,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (!current || p.updatedAt > current) ownNewest.set(p.categoryId, p.updatedAt);
   }
 
+  /* The sellable rollup, which is a different question from the one above.
+     ownNewest deliberately includes sold-out products, because a sold-out
+     product still has a page that answers 200 and its URL belongs in this
+     file. A category page is not like that: it renders the public
+     predicate, stock included, so a category whose every product is out of
+     stock shows an empty grid however well photographed they are.
+
+     Gating the categories on ownNewest was not enough for exactly that
+     reason — four of the six empty categories are published and
+     photographed and simply have nothing on the shelf, so they stayed
+     advertised while their own pages had already started saying noindex.
+     The sitemap and the page were telling Google opposite things. */
+  const sellableNewest = new Map<string, Date>();
+  for (const p of products) {
+    if (p.stockQty <= 0) continue;
+    const current = sellableNewest.get(p.categoryId);
+    if (!current || p.updatedAt > current) sellableNewest.set(p.categoryId, p.updatedAt);
+  }
+
   const childrenOf = new Map<string, string[]>();
   for (const c of categories) {
     if (!c.parentId) continue;
@@ -79,11 +103,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     newest(scopeOf(id).map((cid) => ownNewest.get(cid))) ??
     newest(scopeOf(id).map((cid) => anyNewest.get(cid)));
 
-  // A category with no products at all — not hidden ones, none — is an empty
-  // page, and offering an empty page spends the crawl budget the products
-  // need. Same call as the empty brands. It is still in the navigation and
-  // still reachable; it simply is not advertised until it has something.
-  const hasAnything = (id: string) => scopeOf(id).some((cid) => anyNewest.has(cid));
+  /* A category is advertised when it has something a visitor can actually
+     buy — not when it has rows.
+
+     This used to ask whether the category had any product at all, hidden
+     ones included, and the gap between those two questions was six
+     categories: אביזרי AV with ten products, מתקנים לרמקולים with seven,
+     מיקרופונים with six, and three more. Every one of those products is
+     unphotographed or out of stock, so all six were offered to Google as
+     pages with an empty grid on them.
+
+     ownNewest is the visible-product map — published, photographed — and
+     it already rolls up to parents, so a department still qualifies on its
+     children's stock. anyNewest stays for dating: a category that drops
+     out of the sitemap today keeps a real date from a real row for when it
+     comes back, which is better than inventing one.
+
+     The page itself also carries noindex while it is empty; see its
+     generateMetadata. Two mechanisms because they answer different
+     crawlers: this one stops the page being offered, that one stops it
+     being kept if it was found some other way. */
+  const hasSomethingToSell = (id: string) => scopeOf(id).some((cid) => sellableNewest.has(cid));
 
   // The homepage's rails are deals, best sellers and featured products, so
   // the catalog's newest change is what dates it. Not the homepage sections
@@ -119,7 +159,39 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "yearly",
       priority: 0.5,
     },
-    ...categories.filter((c) => hasAnything(c.id)).map((c) => ({
+    /* The other two policies, which were never offered. /returns was here
+       alone because Merchant Center looks for it by name — but a shop's
+       terms and its privacy policy are the pages a person checks before
+       handing over a card, and both existed at two addresses until this
+       commit, which is its own reason to name the surviving one here
+       explicitly rather than leave an engine to pick. */
+    {
+      url: `${BASE_URL}/shipping`,
+      lastModified: SHIPPING_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+    {
+      url: `${BASE_URL}/terms`,
+      // Its own date. This was RETURNS_POLICY_UPDATED, so revising the terms
+      // told a crawler nothing had changed.
+      lastModified: TERMS_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.4,
+    },
+    {
+      url: `${BASE_URL}/privacy`,
+      lastModified: RETURNS_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.4,
+    },
+    {
+      url: `${BASE_URL}/accessibility`,
+      lastModified: RETURNS_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.3,
+    },
+    ...categories.filter((c) => hasSomethingToSell(c.id)).map((c) => ({
       url: `${BASE_URL}/category/${c.slug}`,
       lastModified: categoryLastModified(c.id),
       changeFrequency: "daily" as const,

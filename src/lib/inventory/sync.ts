@@ -1150,6 +1150,11 @@ export type { SyncTrigger };
 // action and the scheduled Vercel Cron endpoint call. Swapping Excel for
 // Priority ERP later means replacing how bytes are fetched here; the parse
 // -> normalize -> diff -> apply pipeline underneath doesn't change.
+/* How long a run may be in flight before the next one may assume it died.
+   Long enough that a real 1,700-row sync is never interrupted, short enough
+   that one killed invocation does not block the schedule all day. */
+const STALE_SYNC_MINUTES = 10;
+
 export async function runFullSync(
   trigger: SyncTrigger,
   triggeredById?: string,
@@ -1163,6 +1168,54 @@ export async function runFullSync(
   } = await import("./google-sheets-source");
   const { normalizeRow, findDuplicates } = await import("./normalizer");
   const { createHash } = await import("crypto");
+
+  /* ONE SYNC AT A TIME, and the guard lives here rather than in the route
+     that calls it.
+
+     It started in the route, which covered the cron and the agent and missed
+     the one caller a person actually uses: the button in the admin goes
+     straight to this function. Two runs then walk the same 1,700 rows from
+     two copies of the same sheet and write the same products, and the later
+     write wins by accident. Putting it at the entrance is the only version
+     nobody has to remember.
+
+     Nothing enforced this before and nothing needed to — a person does not
+     press a button twice in the same minute. It stops being true the moment
+     an agent calls this on a schedule.
+
+     STALE_SYNC_MINUTES rather than "until it finishes": Vercel kills a
+     function at its maxDuration and a killed run leaves its row saying
+     RUNNING forever, so an unbounded rule would block every sync afterwards
+     with no way to tell it from a real one.
+
+     Refused, not queued. A skipped sync costs nothing — the next one reads
+     the same file and reaches the same place. An interleaved one costs a
+     catalogue nobody can explain. */
+  const inFlight = await db.inventorySyncRun.findFirst({
+    where: {
+      status: "RUNNING",
+      startedAt: { gt: new Date(Date.now() - STALE_SYNC_MINUTES * 60_000) },
+    },
+    orderBy: { startedAt: "desc" },
+  });
+  if (inFlight) {
+    /* Returned in the shape of a run, and deliberately NOT written to the
+       history: a stood-down attempt is not a sync, and a history filling
+       with them would bury the runs that did something. The caller reports
+       it; the log keeps it. */
+    return {
+      ...inFlight,
+      id: inFlight.id,
+      status: "SKIPPED" as const,
+      errorMessage: `סנכרון אחר התחיל ב-${inFlight.startedAt.toISOString()} ועדיין רץ`,
+      rowsScanned: 0,
+      productsAdded: 0,
+      productsUpdated: 0,
+      productsMissing: 0,
+      priceChanges: 0,
+      stockChanges: 0,
+    };
+  }
 
   const syncRun = await db.inventorySyncRun.create({
     data: { trigger, triggeredById, status: "RUNNING", sourceIds: "[]" },

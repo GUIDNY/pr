@@ -1,3 +1,11 @@
 {
-  "regions": ["syd1"]
+  "regions": [
+    "syd1"
+  ],
+  "crons": [
+    {
+      "path": "/api/inventory/migrate-images",
+      "schedule": "*/5 22,23,0,1,2,3 * * *"
+    }
+  ]
 }

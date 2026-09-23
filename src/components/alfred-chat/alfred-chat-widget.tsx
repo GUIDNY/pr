@@ -7,10 +7,25 @@ import Link from "next/link";
 import { X, Send } from "lucide-react";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { showsBottomNav, ALFRED_OPEN_EVENT } from "@/lib/bottom-nav";
 
 type ChatTurn = { role: "user" | "model"; text: string };
 type ProductHit = { title: string; slug: string; price: number; imageUrl: string | null; stockStatus: string };
-type Message = ChatTurn & { products?: ProductHit[]; failed?: boolean };
+type Message = ChatTurn & { products?: ProductHit[]; failed?: boolean; id?: string };
+
+/* Openers, and they are doing more than filling space.
+ *
+ * An empty chat box asks the visitor to invent a question, and most people
+ * decline — they close it. These four are the ones Alfred answers well: two
+ * policy questions he has real settings for, and two product searches, one
+ * of them with a budget in it because that is the trick most people would
+ * never guess he can do. Whoever taps one learns what this box is for. */
+const SUGGESTIONS = [
+  "אני מחפש מקרר",
+  "מכונת כביסה עד 2500 ₪",
+  "מה זמן המשלוח?",
+  "מה כוללת האחריות?",
+];
 
 const GREETING: Message = {
   role: "model",
@@ -18,14 +33,11 @@ const GREETING: Message = {
 };
 
 export function AlfredChatWidget() {
-  // The home page already gives Alfred two prominent touchpoints of its
-  // own (the hero search panel and the dedicated Alfred section below it)
-  // — a third floating avatar competing for attention on top of those was
-  // exactly the kind of mobile clutter this redesign pass is removing.
-  // Every other mobile page keeps the launcher exactly as before; desktop
-  // is untouched everywhere, including the home page.
   const pathname = usePathname();
-  const isHome = pathname === "/";
+  // Where the phone's tab bar shows, Alfred is one of its tabs and the
+  // bubble stays out of the way; where it does not (the product page,
+  // the checkout) the bubble is the only door and stays.
+  const hasTab = showsBottomNav(pathname);
   // Alfred sells to customers. In the back office he is a face floating over
   // the order someone is working on, and his answers are useless there.
   const isAdmin = pathname.startsWith("/admin");
@@ -33,36 +45,104 @@ export function AlfredChatWidget() {
   const [messages, setMessages] = useState<Message[]>([GREETING]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
+  /* Distinct from isSending: the dots belong to the gap before the first
+     word arrives. Once text is streaming, the text itself is the progress
+     indicator and dots underneath it would be saying the same thing twice. */
+  const [awaitingReply, setAwaitingReply] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, open, isSending]);
+  }, [messages, open, awaitingReply]);
 
-  async function send() {
-    const text = input.trim();
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(ALFRED_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(ALFRED_OPEN_EVENT, onOpen);
+  }, []);
+
+  /* The reply is read as it is written, not waited for.
+   *
+   * The endpoint answers with one JSON object per line: the product cards
+   * first (they were known before the model started) and then the sentence
+   * in pieces. Each piece is appended to the last bubble, so the customer
+   * watches an answer appear instead of watching three dots for five
+   * seconds. Same answer, same cost — only the waiting is gone.
+   *
+   * A failure before the stream opens is still ordinary JSON with a status,
+   * which is why res.ok is checked before a reader is ever asked for. */
+  async function send(preset?: string) {
+    const text = (preset ?? input).trim();
     if (!text || isSending) return;
     const history = messages.map(({ role, text }) => ({ role, text }));
     setMessages((prev) => [...prev, { role: "user", text }]);
     setInput("");
     setIsSending(true);
+    setAwaitingReply(true);
+
+    const fail = (msg: string) =>
+      setMessages((prev) => [...prev, { role: "model", text: msg, failed: true }]);
+
     try {
       const res = await fetch("/api/alfred-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text, history }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setMessages((prev) => [...prev, { role: "model", text: data.error ?? "משהו השתבש, נסו שוב.", failed: true }]);
-      } else {
-        setMessages((prev) => [...prev, { role: "model", text: data.reply, products: data.products }]);
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        fail(data.error ?? "משהו השתבש, נסו שוב.");
+        return;
+      }
+
+      /* The bubble is created empty and filled in place from here on, and
+         it is found by id rather than by position. An index captured from
+         inside a state updater is a promise about a list that has not
+         settled yet — under React's double-invoked updaters it can be
+         captured twice, and every delta would then land in the wrong
+         bubble. An id is true whatever the list does. */
+      const id = crypto.randomUUID();
+      setMessages((prev) => [...prev, { role: "model", text: "", id }]);
+
+      const apply = (patch: (m: Message) => Message) =>
+        setMessages((prev) => prev.map((m) => (m.id === id ? patch(m) : m)));
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // Only whole lines: a chunk can cut one in half anywhere.
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          let event: { type?: string; text?: string; products?: ProductHit[] };
+          try {
+            event = JSON.parse(line);
+          } catch {
+            continue;
+          }
+          if (event.type === "products" && event.products) {
+            apply((m) => ({ ...m, products: event.products }));
+          } else if (event.type === "delta" && event.text) {
+            setAwaitingReply(false);
+            apply((m) => ({ ...m, text: m.text + event.text }));
+          }
+        }
       }
     } catch {
-      setMessages((prev) => [...prev, { role: "model", text: "לא הצלחתי להתחבר כרגע. נסו שוב בעוד רגע.", failed: true }]);
+      fail("לא הצלחתי להתחבר כרגע. נסו שוב בעוד רגע.");
     } finally {
       setIsSending(false);
+      setAwaitingReply(false);
     }
   }
 
@@ -77,20 +157,20 @@ export function AlfredChatWidget() {
         className={cn(
           "floating-launcher border-border bg-background fixed bottom-24 start-4 z-50 flex size-14 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105 lg:bottom-6",
           open && "scale-0 opacity-0",
-          isHome && "max-sm:hidden"
+          hasTab && "max-sm:hidden"
         )}
       >
-        <Image src="/mascot/alfred-chat.png" alt="" width={56} height={56} className="size-full rounded-full object-cover" />
+        <Image src="/mascot/alfred-face.png" alt="" width={56} height={56} className="size-full rounded-full object-cover" />
       </button>
 
       <div
         className={cn(
-          "floating-launcher border-border bg-background fixed bottom-24 start-4 z-50 flex h-[min(32rem,70vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 lg:bottom-6",
+          "floating-launcher border-border bg-background fixed bottom-20 start-4 z-50 flex h-[min(32rem,70vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 lg:bottom-6",
           open ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
         )}
       >
         <div className="bg-primary text-primary-foreground flex items-center gap-3 px-4 py-3">
-          <Image src="/mascot/alfred-chat.png" alt="" width={36} height={36} className="size-9 rounded-full object-cover" />
+          <Image src="/mascot/alfred-face.png" alt="" width={36} height={36} className="size-9 rounded-full object-cover" />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-bold">אלפרד</p>
             <p className="text-primary-foreground/70 text-xs">שירות לקוחות Buy Today</p>
@@ -141,7 +221,21 @@ export function AlfredChatWidget() {
               )}
             </div>
           ))}
-          {isSending && (
+          {messages.length === 1 && !isSending && (
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => send(s)}
+                  className="border-border hover:border-brand/50 hover:text-brand rounded-full border px-3 py-1.5 text-xs transition-colors"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+          {awaitingReply && (
             <div className="flex items-start">
               <div className="bg-muted flex items-center gap-1 rounded-2xl rounded-ss-md px-3.5 py-2.5">
                 <span className="bg-muted-foreground/50 size-1.5 animate-bounce rounded-full [animation-delay:-0.3s]" />
@@ -171,7 +265,7 @@ export function AlfredChatWidget() {
           />
           <button
             type="button"
-            onClick={send}
+            onClick={() => send()}
             disabled={isSending || !input.trim()}
             aria-label="שלח"
             className="bg-brand text-brand-foreground flex size-9 shrink-0 items-center justify-center rounded-full disabled:opacity-40"

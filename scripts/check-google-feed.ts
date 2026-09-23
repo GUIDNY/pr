@@ -16,6 +16,7 @@
 // Run: npx tsx scripts/check-google-feed.ts
 import { renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
 import { SITE_URL } from "../src/lib/site-url";
+import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE } from "../src/lib/delivery";
 
 function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
   return {
@@ -24,7 +25,9 @@ function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
     description: null,
     shortDescription: "תיאור קצר תקין.",
     model: "MODEL-1",
+    gtin13: null,
     colorName: null,
+    variantGroupId: null,
     price: 100,
     compareAtPrice: null,
     stockStatus: "IN_STOCK",
@@ -52,10 +55,45 @@ const rows: FeedProduct[] = [
   }),
   product({ sku: "ONSALE", price: 7200, compareAtPrice: 8400 }),
   product({ sku: "NOMODEL", model: null }),
+  // The barcodes are empty today and will arrive from the ERP, which is
+  // exactly the import that writes a UPC-A into an EAN-13 column. These
+  // four rows are the shapes that arrive with it.
+  product({ sku: "GTIN", gtin13: "7290012345678" }),
+  product({ sku: "GTINONLY", gtin13: "7290012345678", model: null }),
+  product({ sku: "GTINBAD", gtin13: "729001234567", model: null }),
+  product({ sku: "GTINSPACED", gtin13: "7290-0123-45678" }),
+  // Delivery is free above the threshold, so the shipping cost a feed item
+  // quotes genuinely differs per item.
+  product({ sku: "FREESHIP", price: 9900 }),
   product({ sku: "BACKORDER", stockStatus: "SPECIAL_ORDER" }),
   product({ sku: "GONE", stockStatus: "DISCONTINUED" }),
   product({ sku: "REVIEW", stockStatus: "NEEDS_REVIEW" }),
   product({ sku: "SHOWROOM", stockStatus: "DISPLAY_ONLY" }),
+  /* Variants. Two finishes of one appliance, grouped — the pair Google is
+     meant to show as a single listing with a colour choice. The colour of
+     the second comes from its title alone, which is the common case here:
+     the supplier sheets have no colour column, so colorName is empty on
+     most of the catalogue. */
+  product({
+    sku: "VARBLACK",
+    title: "מיקרוגל מכני לקאזה LaCasa LC20MGB 20 ליטר 700W - שחור",
+    colorName: "שחור",
+    variantGroupId: "vg_testgroup000001",
+  }),
+  product({
+    sku: "VARWHITE",
+    title: "מיקרוגל מכני לקאזה LaCasa LC20MGB 20 ליטר 700W - לבן",
+    variantGroupId: "vg_testgroup000001",
+  }),
+  /* The case the whole condition exists for: grouped, but nothing names a
+     colour. Google rejects every member of an item group that does not
+     differ by a variant attribute, so this one must go out ungrouped
+     rather than go out broken. */
+  product({
+    sku: "VARNOCOLOR",
+    title: "מוצר בלי צבע בכותרת",
+    variantGroupId: "vg_testgroup000002",
+  }),
 ];
 
 const xml = renderGoogleMerchantFeed(rows);
@@ -81,7 +119,7 @@ check("no control characters", !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/
 for (const excluded of ["GONE", "REVIEW", "SHOWROOM"]) {
   check(`${excluded} is kept out of the feed`, !items.has(excluded));
 }
-for (const included of ["PLAIN", "HTMLDESC", "ONSALE", "NOMODEL", "BACKORDER"]) {
+for (const included of ["PLAIN", "HTMLDESC", "ONSALE", "NOMODEL", "BACKORDER", "GTIN", "GTINONLY", "GTINBAD", "GTINSPACED", "FREESHIP", "VARBLACK", "VARWHITE", "VARNOCOLOR"]) {
   check(`${included} is in the feed`, items.has(included));
 }
 
@@ -104,12 +142,63 @@ check("a sale shows the old price as g:price", onSale.includes("<g:price>8400.00
 check("a sale shows the live price as g:sale_price", onSale.includes("<g:sale_price>7200.00 ILS</g:sale_price>"));
 check("a full-price item has no g:sale_price", !(items.get("PLAIN") ?? "").includes("g:sale_price"));
 
-// This catalog has no barcodes, so brand + mpn is the identifier. A product
-// with no manufacturer model number has to say so explicitly, or Google
-// rejects it for a missing identifier it was never going to have.
+/* Identifiers. A GTIN is the strongest signal Google takes; brand + mpn is
+   the accepted substitute; identifier_exists=no is the admission that there
+   is neither — and sending that on an item which does have brand + mpn
+   throws away a match, which is why it is conditional on both being absent
+   rather than on the barcode alone. */
 check("mpn comes from the model number", (items.get("PLAIN") ?? "").includes("<g:mpn>MODEL-1</g:mpn>"));
-check("no model declares identifier_exists=no", (items.get("NOMODEL") ?? "").includes("<g:identifier_exists>no</g:identifier_exists>"));
+check("no identifier at all declares identifier_exists=no", (items.get("NOMODEL") ?? "").includes("<g:identifier_exists>no</g:identifier_exists>"));
 check("no model sends no mpn", !(items.get("NOMODEL") ?? "").includes("<g:mpn>"));
+
+/* Variants. item_group_id is what makes two items one listing with a colour
+   choice instead of two listings competing for the same query — and it is
+   only valid when every member carries a variant attribute. Google rejects
+   an entire item group whose members do not differ by one, so the pairing
+   of the two tags below is the rule, not a tidy-up. */
+const varBlack = items.get("VARBLACK") ?? "";
+const varWhite = items.get("VARWHITE") ?? "";
+const varNone = items.get("VARNOCOLOR") ?? "";
+check("a grouped variant sends its group id", varBlack.includes("<g:item_group_id>vg_testgroup000001</g:item_group_id>"));
+check("both members of a group send the same group id", varWhite.includes("<g:item_group_id>vg_testgroup000001</g:item_group_id>"));
+check("colorName is used when it is set", varBlack.includes("<g:color>שחור</g:color>"));
+check("the title supplies the colour when colorName is empty", varWhite.includes("<g:color>לבן</g:color>"));
+check("the two variants differ by colour", varBlack.includes("<g:color>שחור<") && varWhite.includes("<g:color>לבן<"));
+check("a group with no colour sends no group id", !varNone.includes("g:item_group_id"));
+check("a group with no colour sends no colour", !varNone.includes("<g:color>"));
+check("an ungrouped item sends no group id", !(items.get("PLAIN") ?? "").includes("g:item_group_id"));
+
+check("a barcode is sent as g:gtin", (items.get("GTIN") ?? "").includes("<g:gtin>7290012345678</g:gtin>"));
+check("a barcode does not replace the mpn", (items.get("GTIN") ?? "").includes("<g:mpn>MODEL-1</g:mpn>"));
+check("having a barcode never declares identifier_exists=no", !(items.get("GTIN") ?? "").includes("identifier_exists"));
+// The case the conditional exists for: an item with a barcode and no model
+// still has an identifier, and must not disclaim one.
+check("barcode without a model still has an identifier", !(items.get("GTINONLY") ?? "").includes("identifier_exists"));
+
+// A 12-digit UPC-A in an EAN-13 column is a rejected item, not a near miss.
+check("a 12-digit code is not sent as a gtin", !(items.get("GTINBAD") ?? "").includes("<g:gtin>"));
+check("a rejected code falls back to identifier_exists", (items.get("GTINBAD") ?? "").includes("<g:identifier_exists>no</g:identifier_exists>"));
+check("separators are stripped rather than sent", (items.get("GTINSPACED") ?? "").includes("<g:gtin>7290012345678</g:gtin>"));
+
+/* Shipping. Without it the rate shown in a listing is whatever the account
+   is configured with, which is not necessarily what this checkout charges. */
+for (const sku of ["PLAIN", "FREESHIP"]) {
+  check(`${sku} carries a shipping block`, (items.get(sku) ?? "").includes("<g:shipping>"));
+  check(`${sku} names the country`, (items.get(sku) ?? "").includes("<g:country>IL</g:country>"));
+}
+/* Asserted against the constants rather than a typed number, so the day the
+   policy changes this guard moves with it instead of failing for being
+   out of date — which is what it just did when the fee went 49 → 40 and the
+   threshold 500 → 600. What must not drift is the feed agreeing with the
+   checkout, and both now read the same two values. */
+check(
+  "below the threshold quotes the delivery fee",
+  (items.get("PLAIN") ?? "").includes(`<g:price>${HOME_DELIVERY_FEE.toFixed(2)} ILS</g:price>`),
+);
+check("above the threshold quotes free delivery", (items.get("FREESHIP") ?? "").includes("<g:price>0.00 ILS</g:price>"));
+// The fixture only tests the threshold if it actually straddles it.
+check("the free-shipping fixture is above the threshold", 9900 >= FREE_DELIVERY_THRESHOLD);
+check("the paid-shipping fixture is below the threshold", 100 < FREE_DELIVERY_THRESHOLD);
 
 check("special order maps to backorder", (items.get("BACKORDER") ?? "").includes("<g:availability>backorder</g:availability>"));
 check("in stock maps to in_stock", (items.get("PLAIN") ?? "").includes("<g:availability>in_stock</g:availability>"));

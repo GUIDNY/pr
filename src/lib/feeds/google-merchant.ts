@@ -1,4 +1,7 @@
 import { SITE_URL } from "@/lib/site-url";
+import { BUSINESS } from "@/lib/business";
+import { computeDeliveryFee } from "@/lib/delivery";
+import { colorInTitle } from "@/lib/catalog/variant-colors";
 import type { StockStatus } from "@/lib/enums";
 
 // The product feed Google Merchant Center fetches once a day.
@@ -124,6 +127,19 @@ function tag(name: string, value: string, indent = "    "): string {
   return `${indent}<${name}>${xmlEscape(value)}</${name}>`;
 }
 
+/* An EAN-13 and nothing else.
+   Google accepts several GTIN lengths, but this column is declared as
+   EAN-13 and mixing UPC-A into it is the error an ERP import actually
+   makes. Digits only, exactly thirteen: separators and check-digit-free
+   14-digit codes are dropped rather than sent and rejected per item.
+   Returns null for anything it will not vouch for, so the caller falls
+   back to mpn instead of advertising a broken identifier. */
+export function validGtin(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const digits = value.replace(/[\s-]/g, "");
+  return /^\d{13}$/.test(digits) ? digits : null;
+}
+
 function money(amount: number): string {
   return `${amount.toFixed(2)} ${CURRENCY}`;
 }
@@ -138,7 +154,9 @@ export type FeedProduct = {
   description: string | null;
   shortDescription: string | null;
   model: string | null;
+  gtin13: string | null;
   colorName: string | null;
+  variantGroupId: string | null;
   price: number;
   compareAtPrice: number | null;
   stockStatus: string;
@@ -189,18 +207,70 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
       lines.push(tag("g:price", money(p.price)));
     }
 
-    // No GTINs anywhere in this catalog — the supplier sheets carry no
-    // barcode column. brand + mpn is the accepted substitute, and the
-    // manufacturer's own model number is a real field here (Product.model,
-    // never the internal sku). Without one Google has to be told the item
-    // genuinely has no identifier, or it rejects it for a missing one.
-    if (p.model) {
-      lines.push(tag("g:mpn", p.model));
-    } else {
-      lines.push(tag("g:identifier_exists", "no"));
-    }
+    /* Identifiers, strongest first.
+       A GTIN is what Google matches against its own catalogue, so it goes
+       whenever there is one. brand + mpn is the accepted substitute, and
+       the manufacturer's own model number is a real field here
+       (Product.model, never the internal sku).
 
-    if (p.colorName) lines.push(tag("g:color", p.colorName));
+       identifier_exists only when there is NEITHER, which is the whole
+       reason it is not sent unconditionally: declaring "this product has no
+       identifier" on an item that does carry brand + mpn throws away a
+       match Google would otherwise make. Every row has an empty gtin13
+       today, so in practice this still resolves to mpn — it just stops
+       doing so the day the barcodes land.
+
+       Validated, not trusted: a 12- or 14-digit value, or one with a
+       hyphen in it, is a rejected item rather than a near miss, and the
+       ERP import that fills this column is the kind of place a UPC-A gets
+       written into an EAN-13 field. */
+    const gtin = validGtin(p.gtin13);
+    if (gtin) lines.push(tag("g:gtin", gtin));
+    if (p.model) lines.push(tag("g:mpn", p.model));
+    if (!gtin && !p.model) lines.push(tag("g:identifier_exists", "no"));
+
+    /* Colour, and the grouping that makes it mean something.
+    
+       colorName first because it is the structured field a person filled
+       in; the title is the fallback, and it carries the answer for most of
+       the grouped products because the sheet never had a colour column.
+    
+       item_group_id is what turns two separate items into one listing with
+       a colour choice in Shopping, instead of two listings competing with
+       each other for the same query. It is sent ONLY alongside a colour,
+       and that is a rule of Google's, not a preference: items sharing an
+       item_group_id must differ by at least one variant attribute, so a
+       group whose members carry no colour is a group of rejected items.
+       The condition below is the whole safeguard — never loosen one half
+       of it without the other. */
+    const color = p.colorName ?? colorInTitle(p.title);
+    if (color) lines.push(tag("g:color", color));
+    if (color && p.variantGroupId) lines.push(tag("g:item_group_id", p.variantGroupId));
+
+    /* Shipping. Without it Merchant Center falls back to whatever rate is
+       configured in the account — or warns that there is none — and the
+       price a shopper is shown in a listing is then not the price at this
+       checkout.
+
+       Sent per item rather than as an account-level rate because the cost
+       genuinely differs per item here: delivery is free above the
+       threshold, so an expensive product really does ship for nothing.
+       computeDeliveryFee is the same function the cart and the checkout
+       total call, so the feed cannot quote a number the basket contradicts.
+
+       One caveat worth stating: the threshold applies to the whole basket,
+       and this is a single-item view of it. A ₪300 product shows ₪49 here
+       and ships free when bought alongside another. Quoting the
+       single-item cost is the conservative direction — the shopper is
+       never charged more than the listing said. */
+    lines.push(
+      [
+        '    <g:shipping>',
+        `      <g:country>${BUSINESS.country}</g:country>`,
+        `      <g:price>${xmlEscape(money(computeDeliveryFee(p.price)))}</g:price>`,
+        "    </g:shipping>",
+      ].join("\n"),
+    );
 
     const productType = [p.category.parent?.name, p.category.name].filter(Boolean).join(" > ");
     if (productType) lines.push(tag("g:product_type", productType));

@@ -44,6 +44,14 @@ export type Message = {
    * that reach a phone ignore this field entirely.
    */
   html?: string;
+  /**
+   * The WhatsApp form of the same message: which approved template says
+   * it, and the values for its numbered slots, in order. Meta lets a
+   * business open a conversation only with a template it approved in
+   * advance, so the free text above cannot be sent there — this is the
+   * same sentence, cut to the template's shape.
+   */
+  template?: { event: NotifyEvent; params: string[] };
 };
 
 export type SendResult = { ok: true } | { ok: false; error: string };

@@ -304,6 +304,13 @@ export type PelecardDiagnosis = {
   configured: boolean;
   sellsToCustomers: boolean;
   guestLane: CheckoutLane;
+  /* Which of the two things a customer's card actually does. Reported here
+     because it is invisible everywhere else and it is the difference between
+     money arriving and money being frozen — and because an environment
+     variable only reaches a running deployment through a new build, so
+     "I set it" and "it is on" are genuinely different claims. This is where
+     somebody checks the second one before putting a card through. */
+  holdThenCapture: boolean;
   /** The single sentence that names what to change, or says nothing is wrong. */
   blocker: string | null;
 };
@@ -342,6 +349,10 @@ export function diagnosePelecard(): PelecardDiagnosis {
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL?.trim() || null,
     killSwitch,
     configured,
+    /* Read straight from the environment rather than imported from client.ts:
+       config.ts is what client.ts is built on, and importing back the other
+       way is a cycle. One string comparison is not worth one. */
+    holdThenCapture: process.env.PELECARD_HOLD_THEN_CAPTURE === "1",
     sellsToCustomers: pelecardEnabled(),
     guestLane,
     blocker,

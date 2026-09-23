@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { DEPARTMENTS_OPEN_EVENT } from "@/lib/bottom-nav";
 import Link from "next/link";
-import { Menu, Phone, MapPin, Tag, Truck } from "lucide-react";
+import { Menu, Phone, MapPin, Tag, Truck, User, Heart, LayoutGrid } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -13,20 +14,48 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import type { NavigableDepartment } from "@/lib/queries/categories";
 import { BackOfficeLink } from "@/components/layout/back-office-link";
+import { BUSINESS } from "@/lib/business";
 
-export function MobileNav({ departments }: { departments: NavigableDepartment[] }) {
+export function MobileNav({
+  departments,
+  variant = "icon",
+}: {
+  departments: NavigableDepartment[];
+  // "icon": the round hamburger in the header. "tab": a labelled tab in
+  // the phone's bottom bar — same drawer, second door.
+  variant?: "icon" | "tab";
+}) {
   const [open, setOpen] = useState(false);
+
+  // Only the tab-bar instance answers the event: the header's hamburger is
+  // a second instance on the same phone screen, and one drawer is enough.
+  useEffect(() => {
+    if (variant !== "tab") return;
+    const onOpen = () => setOpen(true);
+    window.addEventListener(DEPARTMENTS_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(DEPARTMENTS_OPEN_EVENT, onOpen);
+  }, [variant]);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <button
-          type="button"
-          aria-label="פתח תפריט"
-          className="hover:bg-muted flex size-11 items-center justify-center rounded-full lg:hidden"
-        >
-          <Menu className="size-5" />
-        </button>
+        {variant === "tab" ? (
+          <button
+            type="button"
+            className="text-muted-foreground flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium"
+          >
+            <LayoutGrid className="size-5" strokeWidth={1.75} />
+            מחלקות
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="פתח תפריט"
+            className="hover:bg-muted flex size-10 shrink-0 items-center justify-center rounded-full lg:hidden"
+          >
+            <Menu className="size-5" />
+          </button>
+        )}
       </SheetTrigger>
       <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-sm">
         <SheetHeader className="border-b px-5 py-4">
@@ -68,6 +97,18 @@ export function MobileNav({ departments }: { departments: NavigableDepartment[] 
               <BackOfficeLink />
             </div>
             <ul className="flex flex-col gap-3 text-sm">
+              {/* The phone header is one row with no room for these two
+                  icons, so the drawer carries them. */}
+              <li>
+                <Link href="/account" onClick={() => setOpen(false)} className="flex items-center gap-2">
+                  <User className="size-4" /> החשבון שלי
+                </Link>
+              </li>
+              <li>
+                <Link href="/account/favorites" onClick={() => setOpen(false)} className="flex items-center gap-2">
+                  <Heart className="size-4" /> מועדפים
+                </Link>
+              </li>
               <li>
                 <Link href="/deals" onClick={() => setOpen(false)} className="flex items-center gap-2">
                   <Tag className="text-brand size-4" /> מבצעים
@@ -84,8 +125,8 @@ export function MobileNav({ departments }: { departments: NavigableDepartment[] 
                 </Link>
               </li>
               <li>
-                <a href="tel:04-6639510" className="flex items-center gap-2">
-                  <Phone className="size-4" /> 04-6639510
+                <a href={BUSINESS.phoneHref} className="flex items-center gap-2">
+                  <Phone className="size-4" /> {BUSINESS.phone}
                 </a>
               </li>
             </ul>

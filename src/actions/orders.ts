@@ -6,6 +6,8 @@ import { getSession, getCurrentUser } from "@/lib/auth";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
+import { computeDeliveryFee, requiresAddress } from "@/lib/delivery";
+import { cartHasBulky, isBulkyCategory } from "@/lib/bulky";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
 import { rememberOrder, browserPlacedOrder } from "@/lib/order-receipts";
@@ -29,7 +31,30 @@ export async function createOrderAction(input: CheckoutInput) {
   const summary = await buildCartSummary(cart);
   const session = await getSession();
 
-  const isDelivery = data.deliveryMethod === "DELIVERY";
+  /* An address is kept for the door AND for a pickup point, not only the
+     door. The carrier arranges the point with the customer afterwards and
+     needs to know roughly where they are; an order that arrives in the back
+     office with "נקודת איסוף" and no address is one nobody can act on.
+     Only collecting from our own counter has no address to record. */
+  /* A collection point cannot take a fridge, and the checkout hides the
+     option when the basket holds one — but the checkout is a form and a form
+     can be replayed. The order is where the money and the carrier booking
+     come from, so the rule is enforced here too rather than trusted to the
+     screen. Silently corrected rather than rejected: the customer chose a
+     free method and the two remaining ones are also free, so downgrading to
+     the door costs them nothing and loses no order. */
+  const basketIsBulky = cartHasBulky(
+    cart.items.map((i) => ({
+      isBulky: isBulkyCategory(i.product.category.slug, i.product.category.parent?.slug ?? null),
+    })),
+  );
+  const deliveryMethod =
+    data.deliveryMethod === "PICKUP_POINT" && basketIsBulky ? "DELIVERY" : data.deliveryMethod;
+
+  const keepsAddress = requiresAddress(deliveryMethod);
+
+  const deliveryFee = computeDeliveryFee(summary.subtotal - summary.discount, deliveryMethod);
+  const total = Math.max(0, summary.subtotal - summary.discount + deliveryFee);
 
   /* The address goes onto the order itself, below, for every delivery order.
      This block is now only about the customer's ADDRESS BOOK — a saved address
@@ -40,7 +65,7 @@ export async function createOrderAction(input: CheckoutInput) {
      the address survived at all, and a guest's delivery order reached the back
      office with nothing under "משלוח עד הבית". */
   let addressId: string | undefined;
-  if (isDelivery) {
+  if (keepsAddress) {
     if (session) {
       const address = await db.address.create({
         data: {
@@ -119,17 +144,21 @@ export async function createOrderAction(input: CheckoutInput) {
       guestPhone: data.phone,
       // Where this order is going, recorded on the order for everyone. A
       // pickup order has no address to record.
-      shipCity: isDelivery ? data.city : null,
-      shipStreet: isDelivery ? data.street : null,
-      shipHouseNo: isDelivery ? data.houseNo : null,
-      shipApartment: isDelivery ? data.apartment || null : null,
+      shipCity: keepsAddress ? data.city : null,
+      shipStreet: keepsAddress ? data.street : null,
+      shipHouseNo: keepsAddress ? data.houseNo : null,
+      shipApartment: keepsAddress ? data.apartment || null : null,
       addressId,
-      deliveryMethod: data.deliveryMethod,
+      deliveryMethod,
       status: orderStatus,
       subtotal: summary.subtotal,
       discountTotal: summary.discount,
-      deliveryFee: summary.deliveryFee,
-      total: summary.total,
+      /* Recomputed here rather than taken from the cart summary, which is
+         built before anybody has said how the order is coming to them. A
+         pickup order was being charged ₪49 to deliver something the customer
+         was driving to collect. */
+      deliveryFee,
+      total,
       couponCode: summary.couponCode,
       paymentStatus,
       paymentMethod: data.paymentMethod,
@@ -165,8 +194,9 @@ export async function createOrderAction(input: CheckoutInput) {
       data: {
         orderId: order.id,
         provider: "DEMO",
-        amount: summary.total,
-        amountAgorot: Math.round(summary.total * 100),
+        // The order's total, not the cart's: they differ on a pickup order.
+        amount: total,
+        amountAgorot: Math.round(total * 100),
         status: "AUTHORIZED",
         reference: last4 ? `DEMO-**** ${last4}` : "DEMO-COD",
         // The prefix is what tells the approval it may settle this one itself
@@ -340,7 +370,7 @@ export async function updatePendingOrderDetailsAction(
     houseNo?: string;
     apartment?: string;
     deliveryNotes?: string;
-    deliveryMethod?: "DELIVERY" | "PICKUP";
+    deliveryMethod?: "DELIVERY" | "PICKUP_POINT" | "PICKUP";
   },
 ) {
   const session = await getSession();

@@ -1,41 +1,24 @@
-"use client";
+import { getSession } from "@/lib/auth";
+import { isSiteAdmin } from "@/lib/permissions";
+import { InventoryTabsNav } from "@/components/admin/inventory-tabs-nav";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
-
-const TABS = [
-  { href: "/admin/inventory", label: "כל המוצרים", exact: true },
-  { href: "/admin/inventory/urgent", label: "טיפול", exact: true },
-  { href: "/admin/inventory/urgent-critical", label: "טיפול דחוף" },
-  { href: "/admin/inventory/changes", label: "שינויים אחרונים" },
-  { href: "/admin/inventory/history", label: "היסטוריית סנכרון" },
-  { href: "/admin/inventory/alerts", label: "התראות" },
-  { href: "/admin/inventory/enrichment", label: "העשרת מוצרים" },
-  { href: "/admin/inventory/sources", label: "מקורות נתונים" },
-];
-
-export function InventoryTabs() {
-  const pathname = usePathname();
-  return (
-    <div className="border-border mb-6 flex gap-1 overflow-x-auto border-b">
-      {TABS.map((tab) => {
-        const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);
-        return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className={cn(
-              "shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
-              active
-                ? "border-brand text-brand"
-                : "text-muted-foreground hover:text-foreground border-transparent"
-            )}
-          >
-            {tab.label}
-          </Link>
-        );
-      })}
-    </div>
-  );
+/**
+ * The inventory tab strip, which decides for itself who is looking.
+ *
+ * It used to take the answer as a prop, and that lasted exactly one commit:
+ * two owner-only tabs were added, the prop was passed on the two new pages
+ * that needed it, and the eight pages that already rendered `<InventoryTabs />`
+ * kept their default of false — so the new tabs appeared on the pages you
+ * reach only by already knowing the URL, and nowhere you would actually
+ * find them. They were invisible from /admin/inventory, which is where
+ * anyone looks.
+ *
+ * Reading the session here rather than accepting it means the ninth page
+ * cannot forget. The rendering half stays a client component because the
+ * active tab comes from usePathname; this half is a server component
+ * wrapped around it, which is the only reason the split exists.
+ */
+export async function InventoryTabs() {
+  const session = await getSession();
+  return <InventoryTabsNav owner={isSiteAdmin(session?.role)} />;
 }

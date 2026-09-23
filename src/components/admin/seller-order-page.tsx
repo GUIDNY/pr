@@ -36,6 +36,7 @@ import { COURIERS } from "@/lib/couriers";
  */
 export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
   const [pending, start] = useTransition();
+  const whatsappAuto = order.readiness.some((c) => c.id === "WHATSAPP" && c.configured);
   const [error, setError] = useState<string | null>(null);
   const [shipOpen, setShipOpen] = useState(false);
   const [courier, setCourier] = useState({ name: "", trackingNumber: "", trackingUrl: "" });
@@ -259,6 +260,18 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               <Field label={order.paymentStatus === "AUTHORIZED" ? "נתפס בכרטיס" : "נגבה בפועל"}>
                 {formatPrice(order.paid.heldAmount ?? order.paid.amount)}
               </Field>
+              {/* The card, as the customer knows it. The callback has stored
+                  these since the gateway went in and nothing displayed them,
+                  so the back office had a gateway reference — meaningless to
+                  the person on the other end of the phone — and nothing to
+                  say when somebody asks which card was charged. */}
+              {order.paid.cardLast4 && (
+                <Field label="כרטיס">
+                  <span dir="ltr">**** {order.paid.cardLast4}</span>
+                  {order.paid.clearerName ? ` · ${order.paid.clearerName}` : ""}
+                </Field>
+              )}
+              {order.paid.approvalNo && <Field label="מספר אישור">{order.paid.approvalNo}</Field>}
               {order.paid.capturedAt && <Field label="מועד גבייה">{formatDateTime(order.paid.capturedAt)}</Field>}
             </>
           ) : (
@@ -308,7 +321,9 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               </span>
             ))}
             <span className="text-muted-foreground w-full">
-              וואטסאפ נפתח אצלך מוכן לשליחה עד שמטא מאשרים את התבניות, ואז יישלח לבד גם הוא.
+              {order.readiness.find((c) => c.id === "WHATSAPP")?.configured
+                ? "וואטסאפ נשלח לבד עם כל עדכון, דרך ה-API של Meta. \"וואטסאפ ידני\" פותח את ההודעה אצלך, לגיבוי בלבד."
+                : "וואטסאפ נפתח אצלך מוכן לשליחה עד שמטא מאשרים את התבניות, ואז יישלח לבד גם הוא."}
             </span>
           </div>
           <ul className="flex flex-col gap-2">
@@ -340,13 +355,21 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
                   {update.due && (
                     <>
+                      {/* One button sends again on every connected channel —
+                          the API does the WhatsApp when it is connected. The
+                          wa.me link is the by-hand fallback, and it is named
+                          so once the API is on, because the two were being
+                          mistaken for each other. */}
                       <button
                         type="button"
                         disabled={pending}
                         onClick={() => run(() => resendNotificationAction(order.orderNumber, update.event))}
-                        className="border-border hover:bg-muted flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold disabled:opacity-50"
+                        className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold disabled:opacity-50 ${
+                          whatsappAuto ? "bg-success/15 text-success hover:bg-success/25" : "border-border hover:bg-muted border font-semibold"
+                        }`}
                       >
-                        <Mail className="size-3.5" /> שלח מייל
+                        {whatsappAuto ? <Send className="size-3.5" /> : <Mail className="size-3.5" />}
+                        {whatsappAuto ? "שלח שוב (מייל + וואטסאפ)" : "שלח מייל"}
                       </button>
                       {update.whatsappHref && (
                         <a
@@ -354,9 +377,13 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => void logManualWhatsappAction(order.orderNumber, update.event)}
-                          className="bg-success/15 text-success hover:bg-success/25 flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-bold"
+                          className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs ${
+                            whatsappAuto
+                              ? "border-border text-muted-foreground hover:text-foreground border font-semibold"
+                              : "bg-success/15 text-success hover:bg-success/25 font-bold"
+                          }`}
                         >
-                          <Send className="size-3.5" /> שלח וואטסאפ
+                          <Send className="size-3.5" /> {whatsappAuto ? "וואטסאפ ידני" : "שלח וואטסאפ"}
                         </a>
                       )}
                     </>

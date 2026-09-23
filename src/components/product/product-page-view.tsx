@@ -3,7 +3,8 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { MetaViewContent } from "@/components/analytics/meta-events";
 import { breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
-import { Star, Truck, ShieldCheck, PackageCheck, Pencil } from "lucide-react";
+import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw } from "lucide-react";
+import { FREE_DELIVERY_THRESHOLD, computeDeliveryFee } from "@/lib/delivery";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -36,6 +37,7 @@ import { CompareButton } from "@/components/product/compare-button";
 import { ProductReviewFlagButton } from "@/components/product/product-review-flag-button";
 import { PurchasePanel } from "@/components/product/purchase-panel";
 import { MobileBuyBar } from "@/components/product/mobile-buy-bar";
+import { ColorVariantPicker } from "@/components/product/color-variant-picker";
 import { ConsultSection } from "@/components/product/consult-section";
 import { ProductRail } from "@/components/home/product-rail";
 import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
@@ -44,6 +46,7 @@ import {
   getRelatedProducts,
   getCategoryAttributesFor,
   getProductsByBrandSlug,
+  getColorVariants,
 } from "@/lib/queries/products";
 import { getProductReviewFlag } from "@/lib/queries/admin-inventory";
 import {
@@ -51,11 +54,14 @@ import {
   SCHEMA_AVAILABILITY_FALLBACK,
   SCHEMA_OUT_OF_STOCK,
   SCHEMA_CURRENCY,
+  validGtin,
   feedDescription,
 } from "@/lib/feeds/google-merchant";
 import { absoluteUrl } from "@/lib/site-url";
-import { formatDate } from "@/lib/format";
+import { colorInTitle } from "@/lib/catalog/variant-colors";
+import { formatDate, formatPrice } from "@/lib/format";
 import type { StockStatus } from "@/lib/enums";
+import { BUSINESS } from "@/lib/business";
 
 /**
  * The product page itself, rendered identically for everyone except an admin.
@@ -99,9 +105,10 @@ export async function ProductPageView({
   const offSiteForVisitors = !product.isPublished || product.images.length === 0;
   if (offSiteForVisitors && !isAdminViewer) notFound();
 
-  const [related, brandProductsResult] = await Promise.all([
+  const [related, brandProductsResult, colorVariants] = await Promise.all([
     getRelatedProducts(product.categoryId, product.id, 4),
     getProductsByBrandSlug(product.brand.slug, { pageSize: 8 }),
+    getColorVariants(product),
   ]);
   const brandProducts = brandProductsResult.products.filter((p) => p.id !== product.id);
   // Only fetched for admins — every other visitor never needs the full
@@ -120,6 +127,10 @@ export async function ProductPageView({
   // a table of one because it happened to have a single CategoryAttribute.
   const allSpecRows = buildSpecRows(product.attributeValues, product.extraSpecsRaw, content.specs);
   const { specs: specRows, dimensions: dimensionRows } = splitDimensions(allSpecRows);
+  // Chips under the title: the first four real specs, skipping the rows
+  // that repeat the brand line or belong in the warranty block.
+  const KEY_SPEC_SKIP = new Set(["מותג", "דגם", "אחריות", "תוצרת", "מק\"ט", "יצרן"]);
+  const keySpecs = specRows.filter((r) => r.kind !== "boolean" && !KEY_SPEC_SKIP.has(r.label) && r.value.length <= 24).slice(0, 4);
   // The highlight strip is drawn from the same list the spec table shows in
   // full, so the two can never disagree — but not simply its first six rows:
   // a yes/no row ("סאב-ווופר אלחוטי") carries no meaning as a bare value.
@@ -127,6 +138,9 @@ export async function ProductPageView({
 
   const categoryIcon = product.category.parent?.icon ?? product.category.icon;
   const maxQuantity = Math.max(1, Math.min(product.stockQty, 10));
+  // For one unit of this product on its own — the same rule the cart
+  // applies, stated before anything is in the cart.
+  const deliveryFee = computeDeliveryFee(product.price);
 
   // ProductGallery is a Client Component, so whatever's in its `images`
   // prop gets serialized into the page's hydration payload for every
@@ -160,6 +174,12 @@ export async function ProductPageView({
   // at an unpublished or photo-less product is being shown a preview, and
   // marking it up as a live offer would advertise something the store has
   // deliberately not put on sale.
+  /* One answer for "what colour is this", shared by the picker above and
+     the structured data below. colorName is the field a person filled in;
+     the title is where the answer actually lives for most of the catalogue,
+     because the supplier sheets have no colour column. */
+  const feedColor = product.colorName ?? colorInTitle(product.title);
+
   const productJsonLd = offSiteForVisitors
     ? null
     : {
@@ -173,7 +193,24 @@ export async function ProductPageView({
         // The manufacturer's model number, never the internal sku — the two
         // are different fields here and schema.org's mpn means the former.
         mpn: product.model ?? undefined,
-        color: product.colorName ?? undefined,
+        /* The barcode, when there is one. Empty on every row today — the
+           supplier sheets carry no barcode column — so this is the same
+           plumbing the feed grew, put here at the same time for the reason
+           the availability table is shared: Google cross-checks a feed item
+           against the structured data on the page it links to, and an
+           identifier present in one and missing from the other is a
+           disagreement it reports. Validated by the same function the feed
+           validates with, so the two cannot disagree about what counts. */
+        gtin13: validGtin(product.gtin13) ?? undefined,
+        /* Colour and the group it varies within, kept identical to what the
+           feed sends for this SKU — same fields, same fallback, same
+           pairing. Google compares an item's feed entry against the
+           structured data on the page it links to, so a colour stated in
+           one and absent from the other is a disagreement it reports, and
+           a group id on a page that names no colour is the same invalid
+           shape the feed refuses to emit. */
+        color: feedColor ?? undefined,
+        inProductGroupWithID: feedColor ? (product.variantGroupId ?? undefined) : undefined,
         image: product.images.map((img) => img.url),
         brand: { "@type": "Brand", name: product.brand.name },
         offers: {
@@ -188,6 +225,35 @@ export async function ProductPageView({
           availability: isSoldOut
             ? SCHEMA_OUT_OF_STOCK
             : (SCHEMA_AVAILABILITY[product.stockStatus as StockStatus] ?? SCHEMA_AVAILABILITY_FALLBACK),
+          /* What it costs to get here and how long it takes.
+             Missing entirely until now, which Merchant Center reports as a
+             missing shipping rate and which a shopper sees as a listing
+             price that grows at the checkout. The numbers come from the
+             same computeDeliveryFee and the same product field the page
+             itself renders three paragraphs further down, so the structured
+             data cannot promise a delivery the visible page contradicts.
+
+             handlingTime 0-1 and transitTime up to deliveryDays: the
+             product carries one number for "arrives within N days", and
+             splitting it as all-transit is the honest reading — it is what
+             the page says to a customer. */
+          shippingDetails: {
+            "@type": "OfferShippingDetails",
+            shippingRate: {
+              "@type": "MonetaryAmount",
+              value: computeDeliveryFee(product.price).toFixed(2),
+              currency: SCHEMA_CURRENCY,
+            },
+            shippingDestination: {
+              "@type": "DefinedRegion",
+              addressCountry: BUSINESS.country,
+            },
+            deliveryTime: {
+              "@type": "ShippingDeliveryTime",
+              handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
+              transitTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: product.deliveryDays, unitCode: "DAY" },
+            },
+          },
         },
         // Only when there is a real rating behind it. schema.org rejects an
         // aggregateRating with a zero reviewCount, and inventing one is the
@@ -294,7 +360,7 @@ export async function ProductPageView({
             {isAdminViewer ? (
               <ProductTitleEditor productId={product.id} title={product.title} />
             ) : (
-              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{product.title}</h1>
+              <h1 className="mt-1 text-xl leading-snug font-bold sm:text-3xl sm:leading-tight">{product.title}</h1>
             )}
             <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-sm">
               <span>מק&quot;ט: {product.sku}</span>
@@ -306,6 +372,19 @@ export async function ProductPageView({
                 </span>
               )}
             </div>
+            {/* The four facts an appliance is bought on — capacity, spin,
+                energy class, the like — as chips under the title, so they
+                are read before the price rather than found in a tab. */}
+            {keySpecs.length > 0 && (
+              <ul className="mt-3 flex flex-wrap gap-1.5">
+                {keySpecs.map((row) => (
+                  <li key={row.label} className="bg-muted text-foreground rounded-lg px-2.5 py-1 text-xs">
+                    <span className="text-muted-foreground">{row.label}: </span>
+                    <span className="font-semibold">{row.value}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {isAdminViewer ? (
@@ -324,10 +403,20 @@ export async function ProductPageView({
             />
           )}
 
-          <div className="flex items-center gap-4">
+          {/* After the price and before the stock line, because a finish can
+              carry its own price and the choice is made between the two. */}
+          <ColorVariantPicker variants={colorVariants} />
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <StockBadge status={isSoldOut ? "OUT_OF_STOCK" : (product.stockStatus as StockStatus)} />
+            {/* The delivery cost said at the price, where the decision is
+                made — the one fee shoppers most often first meet at checkout. */}
+            {!isSoldOut && deliveryFee === 0 ? (
+              <span className="bg-success/10 text-success rounded px-2 py-0.5 text-xs font-semibold">משלוח חינם</span>
+            ) : null}
             <span className="text-muted-foreground flex items-center gap-1 text-sm">
-              <Truck className="size-4" /> משלוח תוך {product.deliveryDays} ימים
+              <Truck className="size-4" />
+              {deliveryFee === 0 ? `עד הבית תוך ${product.deliveryDays} ימים` : `משלוח ${formatPrice(deliveryFee)} · תוך ${product.deliveryDays} ימים`}
             </span>
           </div>
 
@@ -337,8 +426,8 @@ export async function ProductPageView({
               <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                 לא ניתן להזמין אותו כרגע. הדף נשאר כאן כדי שתוכלו לחזור אליו — ברגע שהמוצר יחזור למלאי הוא יהיה זמין
                 להזמנה שוב. אפשר להתקשר{" "}
-                <a href="tel:04-6639510" className="text-brand hover:underline">
-                  04-6639510
+                <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
+                  {BUSINESS.phone}
                 </a>{" "}
                 כדי לברר מתי הוא צפוי לחזור, או לראות מוצרים דומים בהמשך העמוד.
               </p>
@@ -360,11 +449,56 @@ export async function ProductPageView({
             {isAdminViewer && <ProductReviewFlagButton productId={product.id} initialFlag={reviewFlag} />}
           </div>
 
-          {/* The full warranty/delivery/payment trio used to repeat here
-              AND in the "משלוח ואחריות" tab below — same three facts twice
-              on one page. Warranty now lives as a badge on the gallery
-              photo itself instead (see ProductGallery); delivery/payment
-              stay covered by the tab, so nothing here duplicates it. */}
+          {/* What it will actually cost and what happens if it is wrong,
+              next to the button that commits to it. Unexpected delivery
+              charges are the largest single reason a purchase is abandoned
+              (39%), and most shoppers look for the return policy on the
+              product page and leave when they cannot find it — so the fee,
+              the delivery time, the warranty and the policy link sit here
+              rather than in a tab further down. Every line is a fact from
+              the shop's own configuration, not copy. */}
+          {!isSoldOut && (
+            <ul className="border-border bg-muted/40 divide-border divide-y rounded-xl border text-sm">
+              <li className="flex items-center gap-2.5 px-3.5 py-2.5">
+                <Truck className="text-brand size-4 shrink-0" />
+                <span>
+                  {deliveryFee === 0 ? (
+                    <>
+                      <span className="font-semibold">משלוח עד הבית חינם</span>
+                      <span className="text-muted-foreground"> · מגיע תוך {product.deliveryDays} ימים</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-semibold">משלוח עד הבית {formatPrice(deliveryFee)}</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · תוך {product.deliveryDays} ימים
+                      </span>
+                    </>
+                  )}
+                </span>
+              </li>
+              {product.warrantyMonths > 0 && (
+                <li className="flex items-center gap-2.5 px-3.5 py-2.5">
+                  <ShieldCheck className="text-brand size-4 shrink-0" />
+                  <span>
+                    <span className="font-semibold">אחריות יבואן רשמי</span>
+                    <span className="text-muted-foreground"> · {product.warrantyMonths} חודשים</span>
+                  </span>
+                </li>
+              )}
+              <li className="flex items-center gap-2.5 px-3.5 py-2.5">
+                <RotateCcw className="text-brand size-4 shrink-0" />
+                <span>
+                  <span className="font-semibold">ביטול והחזרה לפי חוק</span>
+                  <span className="text-muted-foreground"> · </span>
+                  <Link href="/returns" className="text-brand underline-offset-2 hover:underline">
+                    למדיניות המלאה
+                  </Link>
+                </span>
+              </li>
+            </ul>
+          )}
 
           <ConsultSection productTitle={product.title} />
         </div>
@@ -388,7 +522,9 @@ export async function ProductPageView({
                   { value: "overview", label: "סקירה כללית" },
                   { value: "specs", label: "מפרט טכני" },
                   { value: "delivery", label: "משלוח ואחריות" },
-                  { value: "reviews", label: `ביקורות (${product.reviews.length})` },
+                  // "(0)" advertises that nobody has reviewed it; the count
+                  // appears once there is one.
+                  { value: "reviews", label: product.reviews.length > 0 ? `ביקורות (${product.reviews.length})` : "ביקורות" },
                 ].map((tab) => (
                   <TabsTrigger
                     key={tab.value}

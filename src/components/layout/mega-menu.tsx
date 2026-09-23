@@ -2,41 +2,9 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
-import {
-  Tv,
-  Speaker,
-  Refrigerator,
-  WashingMachine,
-  Utensils,
-  Flame,
-  Coffee,
-  Sparkles,
-  Wind,
-  Thermometer,
-  Laptop,
-  Scissors,
-  Package,
-  type LucideIcon,
-} from "lucide-react";
 import type { NavigableDepartment } from "@/lib/queries/categories";
-import { DEPARTMENT_ICON_MAP } from "@/lib/department-icons";
+import { DepartmentIcon } from "@/components/home/department-icon";
 import { cn } from "@/lib/utils";
-
-const ICONS: Record<string, LucideIcon> = {
-  Tv,
-  Speaker,
-  Refrigerator,
-  WashingMachine,
-  Utensils,
-  Flame,
-  Coffee,
-  Sparkles,
-  Wind,
-  Thermometer,
-  Laptop,
-  Scissors,
-  Package,
-};
 
 export function MegaMenu({ departments }: { departments: NavigableDepartment[] }) {
   const [openSlug, setOpenSlug] = useState<string | null>(null);
@@ -58,20 +26,23 @@ export function MegaMenu({ departments }: { departments: NavigableDepartment[] }
       className="border-border relative border-t hidden lg:block"
       onMouseLeave={scheduleClose}
     >
-      <ul className="mx-auto flex max-w-7xl items-center gap-1 px-4">
+      {/* One line. With an icon beside each name and ten departments the
+          row wrapped every label onto two lines and the header grew to
+          three storeys; the names alone fit, and the icons still appear in
+          the panel that opens. justify-between spreads them across the
+          width instead of bunching at the start. */}
+      <ul className="mx-auto flex max-w-7xl items-center justify-between overflow-x-auto px-2">
         {departments.map((dept) => {
-          const Icon = ICONS[DEPARTMENT_ICON_MAP[dept.slug]] ?? Package;
           const isOpen = openSlug === dept.slug;
           return (
-            <li key={dept.slug} onMouseEnter={() => (cancelClose(), setOpenSlug(dept.slug))}>
+            <li key={dept.slug} className="shrink-0" onMouseEnter={() => (cancelClose(), setOpenSlug(dept.slug))}>
               <Link
                 href={`/category/${dept.slug}`}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium transition-colors",
-                  isOpen ? "text-brand" : "hover:text-brand"
+                  "relative block px-2.5 py-3 text-sm font-medium whitespace-nowrap transition-colors after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-full after:transition-opacity",
+                  isOpen ? "text-brand after:bg-brand after:opacity-100" : "hover:text-brand after:opacity-0"
                 )}
               >
-                <Icon className="size-4" />
                 {dept.name}
               </Link>
             </li>
@@ -99,10 +70,7 @@ export function MegaMenu({ departments }: { departments: NavigableDepartment[] }
               ))}
             </div>
             <div className="border-border bg-muted/50 flex flex-col justify-between rounded-lg border p-4">
-              {(() => {
-                const Icon = ICONS[DEPARTMENT_ICON_MAP[openDept.slug]] ?? Package;
-                return <Icon className="text-brand size-8" strokeWidth={1.5} />;
-              })()}
+              <DepartmentIcon slug={openDept.slug} size="lg" />
               <div>
                 <p className="mt-3 text-sm font-semibold">כל המוצרים ב{openDept.name}</p>
                 <Link

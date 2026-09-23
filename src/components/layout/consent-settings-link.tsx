@@ -1,6 +1,7 @@
 "use client";
 
 import { resetConsent, useConsent } from "@/lib/consent";
+import { useIsNativeApp } from "@/lib/native-app";
 
 /**
  * Withdrawing, or granting, after the fact.
@@ -18,15 +19,34 @@ import { resetConsent, useConsent } from "@/lib/consent";
 export function ConsentSettingsLink() {
   const consent = useConsent();
 
+  /* Absent inside the iOS app, together with the bar it reopens.
+   *
+   * There is nothing to settle there: the app loads no measurement tag at all
+   * (see cookie-notice.tsx for why, and what App Review said about it), so a
+   * link offering to change a choice nobody was asked to make would be the
+   * same misdescription in a quieter place — and it is the one place a
+   * reviewer looking for a cookie prompt would go next.
+   *
+   * It renders its own <li> so that hiding it removes the whole row rather
+   * than leaving a blank one in the footer's list. */
+  const inApp = useIsNativeApp();
+  if (inApp) return null;
+
   return (
-    <button
-      type="button"
-      onClick={resetConsent}
-      className="text-primary-foreground/60 hover:text-primary-foreground text-start text-sm underline-offset-2 hover:underline"
-    >
-      הגדרות פרטיות ועוגיות
-      {consent === "granted" && <span className="sr-only"> — כרגע אישרת מדידה ופרסום</span>}
-      {consent === "denied" && <span className="sr-only"> — כרגע לא אישרת מדידה ופרסום</span>}
-    </button>
+    <li>
+      <button
+        type="button"
+        onClick={resetConsent}
+        className="text-primary-foreground/60 hover:text-primary-foreground text-start text-sm underline-offset-2 hover:underline"
+      >
+        הגדרות פרטיות ועוגיות
+        {consent === "granted" && (
+          <span className="sr-only"> — כרגע אישרת מדידה ופרסום</span>
+        )}
+        {consent === "denied" && (
+          <span className="sr-only"> — כרגע לא אישרת מדידה ופרסום</span>
+        )}
+      </button>
+    </li>
   );
 }

@@ -1,5 +1,6 @@
 import type { Message, NotifyEvent } from "./types";
 import { formatPrice } from "@/lib/format";
+import { BUSINESS } from "@/lib/business";
 
 export type OrderForMessage = {
   orderNumber: string;
@@ -35,6 +36,8 @@ export function messageFor(event: NotifyEvent, order: OrderForMessage): Message 
           `היי ${name}, קיבלנו את הזמנה ${order.orderNumber} על סך ${formatPrice(order.total)}.\n` +
           `אנחנו בודקים אותה ומעדכנים אותך ברגע שהיא מאושרת.\n` +
           `למעקב: ${order.trackUrl}`,
+        // {{1}} name · {{2}} order number · {{3}} total
+        template: { event, params: [name, order.orderNumber, formatPrice(order.total)] },
       };
 
     case "PAYMENT_APPROVED":
@@ -46,6 +49,11 @@ export function messageFor(event: NotifyEvent, order: OrderForMessage): Message 
             ? "נעדכן אותך שוב כשהיא יוצאת למשלוח.\n"
             : "נעדכן אותך שוב כשהיא מוכנה לאיסוף.\n") +
           `למעקב: ${order.trackUrl}`,
+        // {{1}} name · {{2}} order number · {{3}} what happens next
+        template: {
+          event,
+          params: [name, order.orderNumber, order.deliveryToCustomer ? "יוצאת למשלוח" : "מוכנה לאיסוף"],
+        },
       };
 
     case "SHIPPED": {
@@ -63,6 +71,8 @@ export function messageFor(event: NotifyEvent, order: OrderForMessage): Message 
           `היי ${name}, הזמנה ${order.orderNumber} יצאה אליך` +
           (order.courierName ? ` עם ${order.courierName}` : "") +
           `.\n${tracking}`,
+        // {{1}} name · {{2}} order number · {{3}} the tracking line
+        template: { event, params: [name, order.orderNumber, tracking] },
       };
     }
 
@@ -71,7 +81,9 @@ export function messageFor(event: NotifyEvent, order: OrderForMessage): Message 
         subject: `ההזמנה הגיעה · ${order.orderNumber}`,
         body:
           `היי ${name}, הזמנה ${order.orderNumber} נמסרה. תודה שקנית אצלנו!\n` +
-          `אם משהו לא בסדר — פשוט השב להודעה הזאת או התקשר 04-6639510.`,
+          `אם משהו לא בסדר — פשוט השב להודעה הזאת או התקשר ${BUSINESS.phone}.`,
+        // {{1}} name · {{2}} order number
+        template: { event, params: [name, order.orderNumber] },
       };
   }
 }

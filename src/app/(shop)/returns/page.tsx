@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { RETURNS_POLICY_UPDATED_LABEL } from "@/lib/returns-policy";
+import { BUSINESS } from "@/lib/business";
 
 /* מדיניות ביטול והחזרות.
    
@@ -45,14 +46,14 @@ export default function ReturnsPage() {
           <ul className="flex list-inside list-disc flex-col gap-1">
             <li>
               בטלפון:{" "}
-              <a href="tel:04-6639510" className="text-brand hover:underline">
-                04-6639510
+              <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
+                {BUSINESS.phone}
               </a>
             </li>
             <li>
               בדוא&quot;ל:{" "}
-              <a href="mailto:info@prec.co.il" className="text-brand hover:underline">
-                info@prec.co.il
+              <a href={`mailto:${BUSINESS.email}`} className="text-brand hover:underline">
+                {BUSINESS.email}
               </a>
             </li>
             <li>
@@ -64,6 +65,15 @@ export default function ReturnsPage() {
             </li>
           </ul>
           <p className="mt-2">בפנייה יש לציין שם מלא, מספר הזמנה ופרטי המוצר.</p>
+          {/* The extended window. It was on the CMS copy of this policy and
+              not on this one, and it is not a detail: it is a statutory
+              right with a term eight times longer than the general one, and
+              a shop that does not state it is the shop that refuses it at
+              the counter. */}
+          <p className="mt-2">
+            אדם עם מוגבלות, אזרח ותיק או עולה חדש רשאי לבטל עסקה בתוך ארבעה חודשים ממועד ההזמנה, ובלבד
+            שההתקשרות בעסקה כללה שיחה בין הצדדים, לרבות שיחה אלקטרונית.
+          </p>
         </section>
 
         <section>
@@ -98,6 +108,18 @@ export default function ReturnsPage() {
           <p>ניתן להחליף מוצר באותם תנאים ובאותה תקופת זמן.</p>
         </section>
 
+        {/* Also carried only by the CMS copy. Worth stating plainly, because
+            the common reading of a cancellation policy is that it replaces
+            the warranty — it sits alongside it, and for an appliance the
+            warranty is the longer of the two by years. */}
+        <section>
+          <h2 className="text-foreground mb-2 text-lg font-semibold">אחריות היצרן</h2>
+          <p>
+            מדיניות זו אינה גורעת מזכויות הלקוח מכוח תעודת האחריות של היבואן, החלה בנוסף לזכות הביטול
+            ולתקופה הנקובה בה.
+          </p>
+        </section>
+
         <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">מקרים שבהם לא ניתן לבטל</h2>
           <p>
@@ -109,6 +131,13 @@ export default function ReturnsPage() {
         <section>
           <p>מדיניות זו מבוססת על חוק הגנת הצרכן, התשמ&quot;א-1981 ותקנותיו.</p>
           <p className="mt-2">אין באמור כדי לגרוע מזכויות הלקוח על פי כל דין.</p>
+          {/* Who the customer is actually contracting with. Merchant Center
+              reads this page before approving products and looks for a named
+              merchant on it; a policy that never says whose policy it is
+              also reads, to a customer, like one nobody has to honour. */}
+          <p className="text-muted-foreground mt-4 text-sm">
+            {BUSINESS.legalName} · ח.פ {BUSINESS.companyId} · {BUSINESS.street}, {BUSINESS.city}
+          </p>
         </section>
       </div>
     </div>

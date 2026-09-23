@@ -79,6 +79,21 @@ export function PelecardStatus({ diagnosis }: { diagnosis: PelecardDiagnosis }) 
             }
           />
           <Row label="הנתיב של אורח" ok={selling} value={selling ? "סליקה אמיתית" : "הדגמה"} />
+          {/* Both states are correct, so neither is a warning — but the two do
+              very different things to a customer's card, and until now the
+              only way to know which one was running was to buy something. An
+              environment variable also only reaches a deployment through a
+              new build, so "I set it" and "it is on" are different claims and
+              this is where the second one gets checked. */}
+          <Row
+            label="PELECARD_HOLD_THEN_CAPTURE"
+            ok
+            value={
+              diagnosis.holdThenCapture
+                ? "J5 — הכסף נתפס בכרטיס ונגבה באישור ההזמנה"
+                : "J4 — הכסף נגבה מיד בתשלום"
+            }
+          />
         </dl>
         <p className="text-muted-foreground mt-4 text-xs">
           לא מוצגים כאן ערכים של קרדנשלים — רק אם הם קיימים. מנהלים, סטאף וסוכנים נשארים בהדגמה תמיד, לפי

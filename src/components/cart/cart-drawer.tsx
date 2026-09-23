@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Minus, Plus, ShoppingCart, Trash2, X } from "lucide-react";
+import { Minus, Plus, ShoppingCart, Trash2, Truck, X } from "lucide-react";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import {
   Sheet,
   SheetContent,
@@ -156,6 +157,19 @@ export function CartDrawer() {
               )}
               {cart.couponError && <p className="text-destructive mb-2 text-xs">{cart.couponError}</p>}
 
+              {/* How far this basket is from free delivery, while it can
+                  still change. The fee line below states the charge; this
+                  says what removes it. */}
+              {cart.deliveryFee > 0 && cart.subtotal - cart.discount < FREE_DELIVERY_THRESHOLD && (
+                <p className="bg-brand/10 text-foreground mb-3 rounded-md px-3 py-2 text-xs">
+                  <Truck className="text-brand me-1.5 inline size-3.5 align-[-2px]" />
+                  עוד{" "}
+                  <span className="font-semibold tabular-nums">
+                    {formatPrice(FREE_DELIVERY_THRESHOLD - (cart.subtotal - cart.discount))}
+                  </span>{" "}
+                  והמשלוח עליכם חינם
+                </p>
+              )}
               <div className="flex flex-col gap-1.5 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">סכום ביניים</span>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { CategoryPageView } from "@/components/category/category-page-view";
 import { findCategoryBySlug } from "@/lib/category-tree";
+import { countLiveProductsInCategory } from "@/lib/queries/categories";
 
 // The canonical category page: no filter, no sort, no page number — which is
 // what a crawler asks for and what nearly every visitor lands on.
@@ -27,10 +28,30 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const found = findCategoryBySlug(slug);
   if (!found) return {};
   const name = found.sub?.name ?? found.department.name;
+
+  /* A category with nothing to show is not offered to an index.
+     Six of them were: the mega menu already hides a sub-category with no
+     live products, and the sitemap left out the ones with no products at
+     all — but a category holding ten products that are every one of them
+     unphotographed or out of stock passed both filters and reached Google
+     as an ordinary indexable page with an empty grid on it.
+
+     noindex rather than 410 or a redirect, and computed rather than
+     listed, because the condition is temporary in both directions: these
+     are real categories whose products are hidden for missing content, and
+     the moment one gets a photograph the page has something on it and
+     indexes itself again with no list for anyone to remember to edit.
+
+     follow stays on — the page still carries the breadcrumb and the
+     department's other categories, and there is no reason to stop a
+     crawler walking back out of it. */
+  const live = await countLiveProductsInCategory(slug);
+
   return {
     title: name,
     description: `${name} - מגוון רחב במחירים הטובים ביותר, משלוח עד הבית ואחריות יבואן רשמי.`,
     alternates: { canonical: `/category/${slug}` },
+    ...(live === 0 ? { robots: { index: false, follow: true } } : {}),
   };
 }
 
