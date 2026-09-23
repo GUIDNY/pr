@@ -33,6 +33,21 @@ import type { CheckoutInput } from "@/lib/order-schema";
 
 /** Everything an order needs before one can be created from this form. Asked
     in both directions: to open the card form, and to take it away again. */
+/**
+ * The published daily cap on a bit transfer, and the line above which this
+ * checkout warns rather than lets a customer find out from an error code.
+ *
+ * It is the payer's limit and not the shop's: cumulative across their day,
+ * raisable by some, and already partly spent by anyone who sent money this
+ * morning. So it can only ever be a hint — the number is right for most
+ * accounts and wrong for some, which is exactly why the warning says "if it is
+ * declined" instead of refusing to offer bit at all.
+ *
+ * Written down here rather than inline because it will move: it was ₪3,600
+ * until recently. When bit change it, this is the one line to change.
+ */
+const BIT_DAILY_CAP = 7000;
+
 function detailsCompleteFor(f: {
   fullName: string;
   email: string;
@@ -620,6 +635,27 @@ export function CheckoutForm({
                   נוצרה · פרטי הכרטיס מוזנים אצל חברת הסליקה ואינם עוברים דרך האתר
                 </span>
               </p>
+              {/* bit refuses a payment over the payer's daily cap and says so
+                  as "General error ... 599", which reads as a broken shop
+                  rather than as a limit. It cost us a real ₪8,579 attempt.
+
+                  A WARNING AND NOT A HIDDEN TILE, deliberately. The cap is the
+                  customer's, cumulative over their day, and it is not fixed:
+                  some raise it, and somebody who already sent ₪5,000 this
+                  morning will fail well under the number. Hiding bit above a
+                  threshold would turn away people who could have paid and
+                  still not save the ones who could not. Saying it out loud
+                  costs nothing and leaves the choice where it belongs.
+
+                  The threshold is the published consumer cap, which is what a
+                  shopper is most likely to be under. It is a hint, not a rule
+                  — nothing here blocks anything. */}
+              {cart.total > BIT_DAILY_CAP && (
+                <p className="border-warning/40 bg-warning/10 rounded-md border px-2.5 py-2 text-xs leading-relaxed">
+                  שימו לב: בתשלום ב־bit יש תקרה יומית (כ־{formatPrice(BIT_DAILY_CAP)} ברוב החשבונות), והסכום
+                  כאן גבוה ממנה. אם התשלום ב־bit נדחה — זו התקרה ולא תקלה באתר, ואפשר לשלם בכרטיס אשראי.
+                </p>
+              )}
               <PaymentFrame src={payment.url} />
               {/* A way back out. Without it, finishing the address is a one-way
                   door: the fieldset above locks the moment a payment exists,
