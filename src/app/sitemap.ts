@@ -62,7 +62,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     if (!current || p.updatedAt > current) ownNewest.set(p.categoryId, p.updatedAt);
   }
 
-  /* The sellable rollup, which is a different question from the one above.
+  /* The sellable rollup, which is a different question from the one above,
+     and a count rather than a date because the gate below needs to know how
+     many, not when.
+
      ownNewest deliberately includes sold-out products, because a sold-out
      product still has a page that answers 200 and its URL belongs in this
      file. A category page is not like that: it renders the public
@@ -74,11 +77,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      photographed and simply have nothing on the shelf, so they stayed
      advertised while their own pages had already started saying noindex.
      The sitemap and the page were telling Google opposite things. */
-  const sellableNewest = new Map<string, Date>();
+  const sellableCount = new Map<string, number>();
   for (const p of products) {
     if (p.stockQty <= 0) continue;
-    const current = sellableNewest.get(p.categoryId);
-    if (!current || p.updatedAt > current) sellableNewest.set(p.categoryId, p.updatedAt);
+    sellableCount.set(p.categoryId, (sellableCount.get(p.categoryId) ?? 0) + 1);
   }
 
   const childrenOf = new Map<string, string[]>();
@@ -123,7 +125,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      generateMetadata. Two mechanisms because they answer different
      crawlers: this one stops the page being offered, that one stops it
      being kept if it was found some other way. */
-  const hasSomethingToSell = (id: string) => scopeOf(id).some((cid) => sellableNewest.has(cid));
+  const sellableInScope = (id: string) =>
+    scopeOf(id).reduce((sum, cid) => sum + (sellableCount.get(cid) ?? 0), 0);
+
+  /* How many products a listing page needs before it is worth a crawl.
+     Two is the line: a page showing one or two products says almost
+     nothing the product pages do not say better, and it competes with them
+     for the same query. 55 brand pages and 13 category pages are under it.
+
+     Offered, not indexed — this file is a set of suggestions. Nothing here
+     adds noindex and nothing stops a crawler reaching these pages through
+     the menu, which is exactly the point: they stay part of the site and
+     stop being advertised as destinations. A page crosses back the moment
+     it has a third product in stock.
+
+     The number is one constant rather than two because a thin brand page
+     and a thin category page are thin for the same reason, and a threshold
+     that lives in two places is one that ends up meaning two things. */
+  const LISTING_MIN_PRODUCTS = 3;
 
   // The homepage's rails are deals, best sellers and featured products, so
   // the catalog's newest change is what dates it. Not the homepage sections
@@ -155,10 +174,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // keep, since it leaves the file entirely and returns the moment it has
   // stock again.
   const brandNewest = new Map<string, Date>();
+  const brandSellableCount = new Map<string, number>();
   for (const p of products) {
     if (p.stockQty <= 0) continue;
     const current = brandNewest.get(p.brandId);
     if (!current || p.updatedAt > current) brandNewest.set(p.brandId, p.updatedAt);
+    brandSellableCount.set(p.brandId, (brandSellableCount.get(p.brandId) ?? 0) + 1);
   }
 
   const catalogNewest = newest(products.map((p) => p.updatedAt));
@@ -208,19 +229,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "yearly",
       priority: 0.3,
     },
-    ...categories.filter((c) => hasSomethingToSell(c.id)).map((c) => ({
-      url: `${BASE_URL}/category/${c.slug}`,
-      lastModified: categoryLastModified(c.id),
-      changeFrequency: "daily" as const,
-      priority: 0.7,
-    })),
+    ...categories
+      .filter((c) => sellableInScope(c.id) >= LISTING_MIN_PRODUCTS)
+      .map((c) => ({
+        url: `${BASE_URL}/category/${c.slug}`,
+        lastModified: categoryLastModified(c.id),
+        changeFrequency: "daily" as const,
+        priority: 0.7,
+      })),
     ...brands
       // A brand still on an importer-generated address is left out until it
       // has a real one. 108 of the 147 are, and offering an address we are
       // about to redirect is worse than offering nothing: the crawl budget is
       // spent twice and Google holds both versions for weeks afterwards. This
       // is a condition, not a wait — each one appears the moment it is named.
-      .filter((b) => brandNewest.has(b.id) && !hasDerivedHashSuffix(b.slug))
+      .filter(
+        (b) =>
+          (brandSellableCount.get(b.id) ?? 0) >= LISTING_MIN_PRODUCTS && !hasDerivedHashSuffix(b.slug),
+      )
       .map((b) => ({
         url: `${BASE_URL}/brand/${b.slug}`,
         lastModified: brandNewest.get(b.id),
