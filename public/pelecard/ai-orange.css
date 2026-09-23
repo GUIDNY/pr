@@ -1128,3 +1128,32 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
 .tab-button.pay-btn ~ .tab-button.pay-btn {
   margin-inline-start: 8px;
 }
+
+/* ---- The marks inside the tiles, at one size ----
+   Their own sheet sizes the icon box per wallet — 75% of the tile for Google,
+   Apple and card, 90% for bit — and then a later rule resets it to auto. What
+   reaches the page is whatever each mark happens to be drawn at, so the row
+   came out with a huge bit, a middling Google and a tiny card side by side.
+   Three logos at three sizes reads as three different qualities of thing.
+
+   A cap on height with width left free keeps every mark's own proportions —
+   nothing is stretched, recoloured or redrawn, which is what Apple's and
+   Google's guidelines require and what makes this a layout change rather than
+   a branding one. Both element shapes are named because their markup is not
+   visible from here and a wallet may ship either. */
+.tab-button.pay-btn .buttonIcon {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  height: 34px !important;
+  overflow: hidden;
+}
+.tab-button.pay-btn .buttonIcon img,
+.tab-button.pay-btn .buttonIcon svg {
+  max-height: 30px !important;
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+}
