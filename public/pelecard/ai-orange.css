@@ -1288,10 +1288,16 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
    The app is a Capacitor WebView (capacitor.config.ts) with no
    NSAppTransportSecurity exception in Info.plist, so Apple's defaults apply to
    every request it makes: TLS 1.2 or better, forward secrecy, a SHA-256
-   certificate. A host that misses any of those is refused by the system before
-   a request is sent, which looks like a broken image and produces no error a
-   customer or a log would show. A browser applies none of that, which is why
-   this is visible in exactly one place.
+   certificate. A host that misses any of those is refused by the system
+   before a request is sent, which looks like a broken image and leaves nothing
+   in any log. A browser applies none of it, which is why this was visible in
+   exactly one place and invisible in every test.
+
+   Measured rather than assumed: Qualys rates gateway21 A+ — TLS 1.2 and 1.3,
+   forward secrecy with every client it simulates — and gateway20 B, with
+   TLS 1.0 and 1.1 still offered and at least one handshake that negotiates no
+   forward secrecy at all. The certificate is the same on both, so it is the
+   protocol that differs, not trust.
 
    Pointing the four marks at files served from the shop itself settles it
    without depending on which of those requirements gateway20 misses, or on
