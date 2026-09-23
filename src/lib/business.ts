@@ -18,6 +18,26 @@
  * breaks that match, so anything changed here has to be changed there too —
  * and the reverse.
  */
+/**
+ * The same company's other shop.
+ *
+ * פר אלקטרוניקה at prec.co.il is not a competitor and not a legacy site left
+ * running: it is this company, this catalogue and this counter, under the
+ * name it traded as before Buy Today. Google sees two commerce domains with
+ * one inventory and one street address, and an undeclared relationship there
+ * reads as two businesses posing as independent. Declared, it is ordinary.
+ *
+ * So it is stated in three places, deliberately: the Organization JSON-LD
+ * (sameAs), the footer, and the about page — machine, glance and sentence.
+ */
+export const SISTER_SITE = {
+  name: "פר אלקטרוניקה",
+  url: "https://www.prec.co.il/",
+  facebook: "https://www.facebook.com/PREC.CO.IL/",
+  /** Without the scheme and the trailing slash, for printing in a sentence. */
+  label: "prec.co.il",
+} as const;
+
 export const BUSINESS = {
   /** The trading name. What customers call the shop, and what the logo says. */
   name: "Buy Today",

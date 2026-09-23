@@ -43,7 +43,7 @@ export async function Header() {
                   moved to ₪600 — the one place the threshold was written by
                   hand instead of read, and therefore the one place that did
                   not follow. */}
-              <Truck className="text-brand size-3.5" /> משלוח חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)}
+              <Truck className="text-brand size-3.5" /> משלוח עד הבית חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)}
             </span>
             <Link href="/page/branches" className="hover:text-primary-foreground hidden items-center gap-1 md:flex">
               <MapPin className="size-3.5" /> חנות בחדרה

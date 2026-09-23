@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SHIPPING_POLICY_UPDATED_LABEL } from "@/lib/shipping-policy";
 import { BUSINESS, BUSINESS_ADDRESS } from "@/lib/business";
-import { DELIVERY_CARRIER, FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE } from "@/lib/delivery";
+import {
+  DELIVERY_CARRIER,
+  FREE_DELIVERY_THRESHOLD,
+  HOME_DELIVERY_FEE,
+  STANDARD_DELIVERY_DAYS,
+} from "@/lib/delivery";
 import { formatPrice } from "@/lib/format";
 
 /* מדיניות משלוחים ואספקה.
@@ -92,8 +97,8 @@ export default function ShippingPage() {
         <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">זמני אספקה</h2>
           <p>
-            מוצרים המתאימים למשלוח חבילות רגיל מסופקים בדרך כלל בתוך <strong className="text-foreground">עד 3 ימי
-            עסקים</strong>, אלא אם נכתב אחרת בדף המוצר או במהלך ההזמנה.
+            מוצרים המתאימים למשלוח חבילות רגיל מסופקים בדרך כלל בתוך <strong className="text-foreground">עד{" "}
+            {STANDARD_DELIVERY_DAYS} ימי עסקים</strong>, אלא אם נכתב אחרת בדף המוצר או במהלך ההזמנה.
           </p>
           <p className="mt-2">
             ימי עסקים אינם כוללים שבתות, חגים וימים שבהם המשק אינו פועל באופן רגיל. זמני האספקה עשויים להיות שונים

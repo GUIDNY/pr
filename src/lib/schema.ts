@@ -1,5 +1,5 @@
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
-import { BUSINESS } from "@/lib/business";
+import { BUSINESS, SISTER_SITE } from "@/lib/business";
 
 // Schema.org builders shared by the pages that emit structured data.
 //
@@ -26,6 +26,11 @@ export function organizationSchema() {
     // the trading name and the registered name are both stated rather than
     // one standing in for the other.
     legalName: BUSINESS.legalName,
+    /* The company registration number. Named in the terms and in the footer
+       already; stated here so the entity Google builds from this page and
+       the one in the Companies Registrar are provably the same, rather than
+       two businesses that happen to share a name. */
+    taxID: BUSINESS.companyId,
     url: SITE_URL,
     /* The same artwork, at an address Google has not already cached.
        The file at /brand/logo.png has been the Buy Today mark for a while —
@@ -77,7 +82,13 @@ export function organizationSchema() {
        These come from BUSINESS, which is also what the footer renders, so a
        claim made here is a link a visitor can actually follow. Nothing goes
        in this list that is not a profile the shop controls. */
-    sameAs: [BUSINESS.instagram, BUSINESS.facebook],
+    /* prec.co.il is the same company's other shopfront — the same catalogue,
+       the same counter in Hadera, the same people. Two commerce sites with
+       one inventory and one address look like two businesses pretending to
+       be unrelated unless the link is declared, and declared it is simply
+       one business with two fronts. The footer and the about page say the
+       same thing in words, for the reader rather than the crawler. */
+    sameAs: [BUSINESS.instagram, BUSINESS.facebook, SISTER_SITE.url, SISTER_SITE.facebook],
   };
 }
 

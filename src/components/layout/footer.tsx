@@ -13,7 +13,7 @@ import SiInstagram from "@icons-pack/react-simple-icons/icons/SiInstagram";
 import SiFacebook from "@icons-pack/react-simple-icons/icons/SiFacebook";
 import { ConsentSettingsLink } from "@/components/layout/consent-settings-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
-import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
+import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL, SISTER_SITE } from "@/lib/business";
 
 export async function Footer() {
   const departments = (await getNavigableCategoryTree()).slice(0, 6);
@@ -221,6 +221,29 @@ export async function Footer() {
             <MapPin className="size-3" /> {BUSINESS_ADDRESS}
           </a>
         </div>
+
+        {/* Who operates this, in full, on every page.
+         
+            The registration number and the street make the operator
+            identifiable rather than a trading name, which is what a reader
+            deciding whether to hand over a card is looking for. The link to
+            the other shopfront is the half that matters to a crawler: two
+            commerce domains sharing one catalogue and one address read as two
+            businesses posing as unrelated until somebody says otherwise, and
+            said out loud it is one company with two fronts, which is
+            ordinary. Deliberately no rel="nofollow" — disowning a link to
+            your own company is the opposite of the statement being made. */}
+        <p className="text-primary-foreground/40 mx-auto mt-3 max-w-7xl text-center text-xs leading-relaxed sm:text-start">
+          האתר מופעל על ידי {BUSINESS.legalName} · ח.פ. {BUSINESS.companyId} · {BUSINESS_ADDRESS} · המפעילה גם את{" "}
+          <a
+            href={SISTER_SITE.url}
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary-foreground underline underline-offset-2"
+          >
+            {SISTER_SITE.label}
+          </a>
+        </p>
       </div>
     </footer>
   );
