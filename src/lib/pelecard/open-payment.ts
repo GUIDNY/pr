@@ -103,11 +103,33 @@ export async function openPelecardPayment(
       UserKey: order.id,
       Language: "HE",
       AccessibilityMode: "True",
+      /* WHAT THEIR FORM ASKS FOR, and it is four fields shorter than it was.
+         The name, the email and the phone were all typed into step 1 of our
+         own checkout a moment earlier and are already on the order; asking for
+         them again on their page is the same customer answering the same
+         question twice, and it is the second time that gets abandoned.
+
+         It became the whole experience once the wallets arrived. These
+         parameters are not per-method — they dress the page — so choosing
+         Google Pay or bit still produced a form to fill in before the wallet
+         button could be pressed, which is the opposite of what a wallet is
+         for: one tap, the details come from the wallet.
+
+         Hide is their own word for it, and for most of these it is their
+         DEFAULT — we had been switching on fields that ship off. The one
+         exception is the id number, which defaults to shown-and-optional, so
+         it has to be named to go away.
+
+         CVV stays Must. It is not a convenience field: a card-not-present
+         transaction without it authorises worse, and a wallet does not need it
+         because the wallet has already authenticated. That their page shows it
+         on the wallet tabs anyway is theirs to fix, not ours to work around by
+         weakening the card lane. */
       Cvv2Field: "must",
-      CustomerIdField: "optional",
-      CardHolderName: "optional",
-      EmailField: "optional",
-      TelField: "optional",
+      CustomerIdField: "Hide",
+      CardHolderName: "Hide",
+      EmailField: "Hide",
+      TelField: "Hide",
       MaxPayments: 1, // until there is an instalments agreement with Pelecard
       MinPayments: 1,
       FirstPayment: "auto",
