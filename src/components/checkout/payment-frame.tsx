@@ -1,7 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Script from "next/script";
 import { ExternalLink, Loader2 } from "lucide-react";
+
+/**
+ * Pelecard's Apple Pay bridge, and the reason a script of theirs runs on our
+ * page at all.
+ *
+ * Apple will only let the TOP-LEVEL document create an ApplePaySession. Their
+ * payment form is a cross-origin frame, so it cannot create one — it can only
+ * ask us to. This script is that relay and nothing more: it listens for
+ * postMessage from a *.pelecard.biz frame (it checks the origin itself), opens
+ * the Apple sheet on their behalf, and posts the events back.
+ *
+ * WHAT IT DOES NOT DO is touch a card. The sheet is Apple's, the token goes
+ * straight back into their frame, and nothing about the payment passes through
+ * our code — which is what keeps this the same PCI story as the plain card
+ * form. The button is drawn by their frame too; we render no Apple artwork,
+ * which is also what Apple's guidelines require.
+ *
+ * One URL for both gateways on purpose. The script is environment-agnostic —
+ * its origin check is /^https:\/\/[-a-zA-Z0-9]{1,15}\.pelecard\.biz$/, so the
+ * production copy serves a sandbox frame just as well, and deriving the host
+ * would mean threading a server-only value into a client component for no
+ * behavioural difference.
+ */
+const PELECARD_APPLE_PAY_BRIDGE = "https://gateway21.pelecard.biz/Scripts/Payment/ClientSecureV2.js";
 
 /**
  * Pelecard's payment form, embedded in our page.
@@ -94,6 +119,17 @@ export function PaymentFrame({ src }: { src: string }) {
           </a>
         </div>
       )}
+
+      {/* Loaded here rather than in the layout so it exists exactly where the
+          frame does, on both the checkout and the standalone pay page, and
+          nowhere else. afterInteractive is soon enough: their frame probes the
+          parent every 500ms for a minute, and this side probes back, so
+          neither depends on winning a race with the other. */}
+      <Script
+        id="pelecard-apple-pay-bridge"
+        src={PELECARD_APPLE_PAY_BRIDGE}
+        strategy="afterInteractive"
+      />
 
       <iframe
         src={src}
