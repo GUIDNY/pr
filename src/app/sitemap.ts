@@ -138,8 +138,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Unlike a category it is not part of the navigation anyone browses, so an
   // empty one is a thin page, and asking a crawler to fetch it spends the
   // crawl budget that the products need.
+  //
+  // Sellable, not merely published — the same correction the categories got
+  // above, and it was still owed here. This map was built off `products`,
+  // which is published-and-photographed without the stock condition, while
+  // the brand page renders PUBLIC_PRODUCT_WHERE. Ten brands sat in the gap:
+  // DLX, HAMA, JAMO, Lexus, Proficient, ProView, Sanyo Aqua Fresh, SIH,
+  // Sirius Living and לא ידוע were offered to Google as pages that then
+  // answered with an empty grid and a noindex of their own. The sitemap and
+  // the page were contradicting each other, which is the one thing a sitemap
+  // must never do.
+  //
+  // Dating off the sellable rows rather than all of them is right for the
+  // same reason: a sold-out product is not on this page, so a change to it
+  // is not a change to this page. A brand that drops out needs no date to
+  // keep, since it leaves the file entirely and returns the moment it has
+  // stock again.
   const brandNewest = new Map<string, Date>();
   for (const p of products) {
+    if (p.stockQty <= 0) continue;
     const current = brandNewest.get(p.brandId);
     if (!current || p.updatedAt > current) brandNewest.set(p.brandId, p.updatedAt);
   }
