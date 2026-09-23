@@ -7,6 +7,8 @@ import {
   LIVE_TEST_MAX_SHEKELS,
 } from "@/lib/pelecard/config";
 import { PelecardStatus } from "@/components/admin/pelecard-status";
+import { PelecardReconcilePanel } from "@/components/admin/pelecard-reconcile-panel";
+import { stuckGatewayOrders } from "@/actions/pelecard-reconcile";
 import { PelecardTestConsole } from "@/components/admin/pelecard-test-console";
 import { formatPrice, formatDateTime } from "@/lib/format";
 
@@ -30,11 +32,15 @@ export default async function PelecardTestPage() {
      status above it is not. */
   const diagnosis = diagnosePelecard();
   const consoleAvailable = isPelecardConsoleAvailable();
+  /* Above the console and outside its gate: an order stuck waiting on a
+     callback is a live-site problem, and the console does not exist there. */
+  const stuck = await stuckGatewayOrders();
 
   if (!consoleAvailable) {
     return (
       <div className="flex flex-col gap-6">
         <PelecardStatus diagnosis={diagnosis} />
+        <PelecardReconcilePanel orders={stuck} />
       </div>
     );
   }
@@ -51,6 +57,7 @@ export default async function PelecardTestPage() {
   return (
     <div className="flex flex-col gap-6">
       <PelecardStatus diagnosis={diagnosis} />
+      <PelecardReconcilePanel orders={stuck} />
       <div
         className={
           liveTest
