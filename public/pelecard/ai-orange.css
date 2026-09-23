@@ -1273,3 +1273,45 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
   max-height: 30px !important;
   object-fit: contain !important;
 }
+
+/* THE MARKS COME FROM THIS SHOP'S OWN DOMAIN, NOT FROM A SECOND GATEWAY HOST.
+
+   Inside the iOS app the four tiles drew a question mark each — WebKit's
+   broken-image glyph — while the same page was correct in Safari and in every
+   desktop browser. The marks are not the <img> tags' own src. Their sheet
+   replaces the image through `content: url(...)`, and those URLs point at
+   gateway20.pelecard.biz, a different host from the gateway21 that serves the
+   form. Everything else on the page comes from gateway21 or from here, and
+   both of those load in the app — which is precisely what isolates the one
+   host that does not.
+
+   The app is a Capacitor WebView (capacitor.config.ts) with no
+   NSAppTransportSecurity exception in Info.plist, so Apple's defaults apply to
+   every request it makes: TLS 1.2 or better, forward secrecy, a SHA-256
+   certificate. A host that misses any of those is refused by the system before
+   a request is sent, which looks like a broken image and produces no error a
+   customer or a log would show. A browser applies none of that, which is why
+   this is visible in exactly one place.
+
+   Pointing the four marks at files served from the shop itself settles it
+   without depending on which of those requirements gateway20 misses, or on
+   Pelecard changing anything. The files are byte-identical copies of theirs —
+   54x45 each, a little over 4KB for the set — and they are the same marks the
+   customer was already being shown, from a host the app has already proven it
+   can reach by loading this stylesheet from it.
+
+   The address is absolute because this sheet is read inside an iframe on
+   their domain, where a relative path resolves against gateway21. If the shop
+   ever changes domain, these four lines change with it. */
+#walletButtonsHolder img[data-id="creditcard"] {
+  content: url("https://buytoday.co.il/pelecard/marks/card.png") !important;
+}
+#walletButtonsHolder img[data-id="gamabit"] {
+  content: url("https://buytoday.co.il/pelecard/marks/Bit_2.png") !important;
+}
+#walletButtonsHolder img[data-id="googlePay"] {
+  content: url("https://buytoday.co.il/pelecard/marks/google.png") !important;
+}
+#walletButtonsHolder img[data-id="applePay"] {
+  content: url("https://buytoday.co.il/pelecard/marks/apple.png") !important;
+}
