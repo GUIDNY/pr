@@ -31,8 +31,28 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 /* Immutable because the path carries the ProductImage id and a new
    photograph is a new row with a new id. A migrated image's bytes never
    change under the same address, so there is nothing for a revalidation
-   round trip to discover. */
+   round trip to discover.
+
+   Three headers saying the same year, because three different caches read
+   three different names and each prefers the most specific one it
+   understands: the browser reads Cache-Control, a generic CDN reads
+   CDN-Cache-Control, and Vercel's edge reads Vercel-CDN-Cache-Control.
+   s-maxage in Cache-Control already reaches Vercel, so this is belt and
+   braces rather than a fix — but the cost is two header lines and the
+   failure it guards against is a silent one. */
 const CACHE = "public, max-age=31536000, s-maxage=31536000, immutable";
+
+/* And the opposite rule for a failure. A 502 currently carries no
+   Cache-Control at all, so every broken image is re-fetched from upstream
+   on every single request — which is exactly the wrong behaviour while
+   upstream is the thing that is unwell. A minute is long enough to stop a
+   crawler hammering a dead object and short enough that the picture
+   returns a minute after storage does, with no deployment in between.
+
+   Never the year. A failure cached for a year is a photograph that stays
+   broken long after everything around it is fixed, and nothing in the
+   shop would ever tell us. */
+const FAILURE_CACHE = "public, max-age=60";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
@@ -52,19 +72,27 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
   try {
     res = await fetch(upstream, { signal: AbortSignal.timeout(10_000) });
   } catch {
-    return new Response("upstream unavailable", { status: 502 });
+    return new Response("upstream unavailable", {
+      status: 502,
+      headers: { "Cache-Control": FAILURE_CACHE },
+    });
   }
 
   if (!res.ok || !res.body) {
-    return new Response("not found", { status: res.status === 404 ? 404 : 502 });
+    return new Response("not found", {
+      status: res.status === 404 ? 404 : 502,
+      headers: { "Cache-Control": FAILURE_CACHE },
+    });
   }
 
   /* Only the headers that describe the bytes are carried over. Everything
      else upstream sends — X-Robots-Tag above all — is dropped on purpose,
      which is the whole reason a request passes through here. */
   const headers = new Headers({
-    "Content-Type": res.headers.get("content-type") ?? "application/octet-stream",
+    "Content-Type": res.headers.get("content-type") ?? "image/webp",
     "Cache-Control": CACHE,
+    "CDN-Cache-Control": CACHE,
+    "Vercel-CDN-Cache-Control": CACHE,
   });
   const length = res.headers.get("content-length");
   if (length) headers.set("Content-Length", length);
