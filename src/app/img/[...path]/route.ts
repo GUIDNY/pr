@@ -26,6 +26,9 @@
  * caller controls is a path inside our own public bucket.
  */
 
+import { db } from "@/lib/db";
+import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
+
 const SUPABASE_URL = process.env.SUPABASE_URL;
 
 /* Immutable because the path carries the ProductImage id and a new
@@ -54,6 +57,54 @@ const CACHE = "public, max-age=31536000, s-maxage=31536000, immutable";
    shop would ever tell us. */
 const FAILURE_CACHE = "public, max-age=60";
 
+/**
+ * The photograph this address used to be, when storage cannot answer.
+ *
+ * Every migrated row keeps its original hotlink in `sourceImageUrl` — the
+ * migration writes it on the way past precisely so that moving a picture
+ * here is not a one-way door. This is the door being used: while Supabase
+ * Storage is restricted and answering 402, all 869 affected products have
+ * a working address on record, and sending a visitor there is the
+ * difference between a catalogue and a page of empty frames.
+ *
+ * Temporary in every sense that matters:
+ *
+ *   307, never 301. Nothing about this says the picture has moved. The
+ *   moment storage answers again the upstream fetch succeeds and this code
+ *   is not reached at all — no deployment, no data change, no cleanup.
+ *
+ *   Sixty seconds of cache, from the caller of this function. Long enough
+ *   that a crawler does not re-ask for every image, short enough that the
+ *   real photograph returns within the minute.
+ *
+ * A blocked host is never offered. Those are the competing Israeli
+ * retailers whose images were deleted from this catalogue on purpose, and
+ * an outage is not a reason to start hotlinking them again — a broken
+ * frame is better than that.
+ */
+async function originalImageUrl(path: string[]): Promise<string | null> {
+  /* Storage keys are `<bucket>/migrated/<productId>/<imageId>.webp`, so the
+     last segment names the row. Anything else — an admin upload under a
+     different shape — simply finds nothing and falls through. */
+  const file = path[path.length - 1];
+  const id = file.replace(/\.[^.]+$/, "");
+  if (!id) return null;
+
+  try {
+    const row = await db.productImage.findUnique({
+      where: { id },
+      select: { sourceImageUrl: true },
+    });
+    const source = row?.sourceImageUrl;
+    if (!source || isBlockedImageHost(source)) return null;
+    return source;
+  } catch {
+    /* The database being unreachable too is not this route's problem to
+       report. Fall through to the plain failure. */
+    return null;
+  }
+}
+
 export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
 
@@ -72,6 +123,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
   try {
     res = await fetch(upstream, { signal: AbortSignal.timeout(10_000) });
   } catch {
+    const original = await originalImageUrl(path);
+    if (original) {
+      return new Response(null, {
+        status: 307,
+        headers: { Location: original, "Cache-Control": FAILURE_CACHE },
+      });
+    }
     return new Response("upstream unavailable", {
       status: 502,
       headers: { "Cache-Control": FAILURE_CACHE },
@@ -79,6 +137,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
   }
 
   if (!res.ok || !res.body) {
+    const original = await originalImageUrl(path);
+    if (original) {
+      return new Response(null, {
+        status: 307,
+        headers: { Location: original, "Cache-Control": FAILURE_CACHE },
+      });
+    }
     return new Response("not found", {
       status: res.status === 404 ? 404 : 502,
       headers: { "Cache-Control": FAILURE_CACHE },
