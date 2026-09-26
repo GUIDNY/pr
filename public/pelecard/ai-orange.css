@@ -1321,3 +1321,43 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
 #walletButtonsHolder img[data-id="applePay"] {
   content: url("https://buytoday.co.il/pelecard/marks/apple.png") !important;
 }
+
+/* A GOOGLE PAY TILE WITH NO GOOGLE PAY BEHIND IT.
+
+   On an iPhone the row offered Google Pay, and choosing it left the customer
+   on a form with no way to pay at all: the card button hides with the card
+   tab, and the button that should replace it was never built.
+
+   Read from their own PeleGpay.js. onGooglePayLoaded() asks Google
+   isReadyToPay(), and only inside `if (response.result)` does it call
+   addGooglePayButton(), which appends Google's rendered button into
+   <div id="googlePayButton">. Google answers false wherever Google Pay is not
+   available — Safari and every iOS browser among them, since they are all
+   WebKit. The tile is not hidden on that path. It is hidden in the catch()
+   beside it, so the case they thought about is the one where Google's script
+   throws, and the case that actually happens to an iPhone is the one that
+   falls through. Apple Pay's own tile ships as display:none and their script
+   reveals it in Safari, which is the same problem solved correctly one tile
+   to the left.
+
+   The container being empty is exactly the condition, and :empty reads it
+   live: no button inside, no tile. If Google's button is appended a moment
+   later — on Android, on a desktop Chrome — the rule stops matching by itself
+   and the tile appears. There is no state to keep and nothing to undo, which
+   is the only reason this is safe to do from a stylesheet at all.
+
+   Their div is written <div id="googlePayButton" style="display:none"></div>
+   with nothing between the tags, so :empty holds. A single space inside it
+   would break this, and the tile would come back rather than something worse.
+
+   Not touched: the CVV, the card-holder name, the email and the phone, which
+   this form also shows on a wallet tab and should not. Those are real fields
+   and hiding a field from a stylesheet is how bit's phone number went missing
+   and every bit payment failed with a 599. Their own configuration carries
+   Cvv2Field, CardHolderName, EmailField and TelField per wallet — they come
+   down empty for all three of ours, so the global setting applies to all of
+   them. None of those keys is in the 212-parameter init manual, so they are
+   terminal-side and Pelecard is the one who can set them. */
+body:has(#googlePayButton:empty) #googlePayTab {
+  display: none !important;
+}

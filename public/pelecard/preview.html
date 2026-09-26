@@ -193,9 +193,17 @@
       </div>
     </div>
 
-    <div class="form-group form-group-submit">
+    <!-- Their submit row, copied from the gateway HTML along with the wallet
+         row above. #googlePayButton is where Google's own rendered button is
+         appended, and it stays empty wherever Google Pay is unavailable —
+         which is the condition the stylesheet reads to decide whether the
+         Google Pay tile is offered at all. Left empty here on purpose: this is
+         the iPhone case, and it is the one that was broken. -->
+    <div id="submitRow" class="form-group form-group-submit">
       <div class="form-group-submit-in">
-        <button class="btn btn-submit" type="button">בצע תשלום</button>
+        <button class="btn btn-submit" id="submitBtn" type="button">בצע תשלום</button>
+        <button lang="he" id="applePayButton" class="btn apple-pay-button apple-pay-button-black" style="display:none"></button>
+        <div id="googlePayButton" style="display:none"></div>
         <button class="btn" id="cancelBtn" type="button">ביטול</button>
       </div>
     </div>
