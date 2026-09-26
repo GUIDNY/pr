@@ -3,6 +3,8 @@ import { getCurrentUser, getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paymentLaneFor } from "@/lib/pelecard/config";
 import { canManageCatalog } from "@/lib/permissions";
+import { googleOAuthConfigured } from "@/lib/google-oauth";
+import { appleOAuthConfigured } from "@/lib/apple-oauth";
 
 export const metadata = { title: "תשלום" };
 
@@ -26,6 +28,13 @@ export default async function CheckoutPage() {
     : null;
   return (
     <CheckoutForm
+      // A guest is offered one-tap sign-in above the contact fields: with an
+      // account the three fields fill themselves, without one a tap makes
+      // one. Server-side, like the login page, because whether Google is
+      // configured is not a question for the browser.
+      signedIn={!!user}
+      googleEnabled={googleOAuthConfigured()}
+      appleEnabled={appleOAuthConfigured()}
       defaultName={user?.name}
       defaultEmail={user?.email}
       defaultPhone={user?.phone ?? savedAddress?.phone ?? undefined}

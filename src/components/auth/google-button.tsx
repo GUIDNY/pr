@@ -13,9 +13,11 @@ import { useSearchParams } from "next/navigation";
  * colours are fixed by their brand guidelines, and one more network request
  * on a sign-in page is one more thing between somebody and their account.
  */
-export function GoogleButton({ compact = false }: { compact?: boolean }) {
+export function GoogleButton({ compact = false, redirectTo }: { compact?: boolean; redirectTo?: string }) {
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect");
+  // Where to land after the provider: given by the page that knows (the
+  // checkout sends people back to itself), else whatever the URL says.
+  const redirect = redirectTo ?? searchParams.get("redirect");
   const href = redirect ? `/api/auth/google?redirect=${encodeURIComponent(redirect)}` : "/api/auth/google";
 
   return (

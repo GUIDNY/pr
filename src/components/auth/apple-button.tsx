@@ -13,9 +13,11 @@ import { useSearchParams } from "next/navigation";
  * colours and forbid altering the logo, and a sign-in page is the last place
  * to add a request to somebody else's CDN.
  */
-export function AppleButton({ compact = false }: { compact?: boolean }) {
+export function AppleButton({ compact = false, redirectTo }: { compact?: boolean; redirectTo?: string }) {
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect");
+  // Where to land after the provider: given by the page that knows (the
+  // checkout sends people back to itself), else whatever the URL says.
+  const redirect = redirectTo ?? searchParams.get("redirect");
   const href = redirect ? `/api/auth/apple?redirect=${encodeURIComponent(redirect)}` : "/api/auth/apple";
 
   return (

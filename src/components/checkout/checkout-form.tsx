@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -14,6 +14,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { CheckoutTestPanel } from "@/components/checkout/checkout-test-panel";
+import { GoogleButton } from "@/components/auth/google-button";
+import { AppleButton } from "@/components/auth/apple-button";
+import { useIsNativeApp } from "@/lib/native-app";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
 import SiApplepay from "@icons-pack/react-simple-icons/icons/SiApplepay";
 import SiGooglepay from "@icons-pack/react-simple-icons/icons/SiGooglepay";
@@ -73,6 +76,9 @@ function detailsCompleteFor(f: {
 }
 
 export function CheckoutForm({
+  signedIn = false,
+  googleEnabled = false,
+  appleEnabled = false,
   defaultName,
   defaultEmail,
   defaultPhone,
@@ -84,6 +90,10 @@ export function CheckoutForm({
   isStaff = false,
   canEditWhilePaying = false,
 }: {
+  /** Whether the viewer has an account; a guest sees the one-tap sign-in. */
+  signedIn?: boolean;
+  googleEnabled?: boolean;
+  appleEnabled?: boolean;
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
@@ -109,6 +119,10 @@ export function CheckoutForm({
   const cart = useCartStore((s) => s.cart);
   const setCart = useCartStore((s) => s.setCart);
   const router = useRouter();
+  /* Google refuses OAuth inside a WebView and Apple's web flow is not yet
+     allowed there either — the same rule the login page follows. */
+  const inApp = useIsNativeApp();
+  const quickSignIn = !signedIn && !inApp && (googleEnabled || appleEnabled);
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
   /* Two fields the demo shows only so it matches Pelecard's form field for
@@ -434,6 +448,30 @@ export function CheckoutForm({
         <fieldset disabled={!!payment && !canEditWhilePaying} className="contents">
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">1. פרטי התקשרות</h2>
+          {quickSignIn && (
+            /* Optional, and it says so: a guest who would rather type three
+               fields types three fields. One tap fills them from an account,
+               or makes an account, and the customer comes back to this page
+               signed in — the cart is in the browser, not on the trip. */
+            <div className="bg-muted/50 mb-4 rounded-xl p-3">
+              <p className="mb-2 text-sm">
+                <span className="font-semibold">יש לכם חשבון?</span>{" "}
+                <span className="text-muted-foreground">התחברו בלחיצה ונמלא את הפרטים. אין? נפתח לכם אחד, ובפעם הבאה זה שתי לחיצות.</span>
+              </p>
+              <Suspense>
+                <div className={`grid gap-2 ${googleEnabled && appleEnabled ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {googleEnabled && <GoogleButton compact={appleEnabled} redirectTo="/checkout" />}
+                  {appleEnabled && <AppleButton compact={googleEnabled} redirectTo="/checkout" />}
+                </div>
+              </Suspense>
+              <p className="text-muted-foreground mt-2 text-xs">
+                <Link href="/login?redirect=/checkout" className="hover:text-foreground underline underline-offset-2">
+                  התחברות עם מייל וסיסמה
+                </Link>
+                {" · "}או פשוט ממלאים למטה וממשיכים כאורח
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <Label htmlFor="fullName" className="mb-1.5">שם מלא</Label>
