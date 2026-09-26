@@ -114,6 +114,7 @@ export function ProductCard({
             price={product.price}
             compareAtPrice={product.compareAtPrice}
             installmentMonths={product.installmentMonths}
+            showPercent={false}
             size="md"
           />
         </div>
