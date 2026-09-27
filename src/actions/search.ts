@@ -37,12 +37,25 @@ export async function searchProductsAction(query: string): Promise<SearchResult[
   const ids = await rankedSearchIds(q, 8);
   if (ids.length === 0) return [];
 
+  /* The eight fields the dropdown draws, and not the other forty-odd.
+     
+     This was an `include`, which fetches every column of Product — the
+     3.2 KB of description HTML among them — to render a line of text and a
+     thumbnail. Eight results is 68 KB off the wire for about 2 KB of
+     answer, on a box that fires as somebody types. Same mistake, and the
+     same fix, as cardSelect in queries/products.ts; see the note there for
+     what it cost. */
   const rows = await db.product.findMany({
     where: { id: { in: ids } },
-    include: {
-      brand: true,
-      category: { include: { parent: true } },
-      images: { take: 1, orderBy: { sortOrder: "asc" } },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      price: true,
+      stockStatus: true,
+      brand: { select: { name: true } },
+      category: { select: { name: true, icon: true, parent: { select: { icon: true } } } },
+      images: { select: { url: true }, take: 1, orderBy: { sortOrder: "asc" } },
     },
   });
 
