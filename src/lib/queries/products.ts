@@ -7,10 +7,45 @@ import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 
-const cardInclude = {
-  brand: true,
-  category: { include: { parent: true } },
-  images: { take: 1, orderBy: { sortOrder: "asc" as const } },
+/**
+ * Exactly what a product card renders, and nothing else.
+ *
+ * This was an `include`, which in Prisma means "every column of Product,
+ * plus these relations". A card shows a title, a price, a thumbnail and a
+ * brand — 232 bytes of a row — and the query was fetching 8,559: the
+ * 3.2 KB of description HTML that belongs to the product page, extraSpecsRaw,
+ * seoDesc, internalNotes, stockBreakdown, the supplier columns. Thirty-seven
+ * times more than reaches the screen, measured over the live catalogue.
+ *
+ * Nobody would have seen it from the types. ProductWithRelations below was
+ * already written as the narrow shape, so TypeScript described a 232-byte
+ * row while the database was asked for all of it. The type was right and
+ * the query was wrong, and only the wire knew.
+ *
+ * That matters here more than it usually would, because Supabase bills
+ * egress and a category page is twenty-four of these at once: 738 category
+ * renders a day is roughly 150 MB of rows that nothing reads, which is the
+ * order of the whole 5 GB monthly quota that got this project's storage
+ * restricted.
+ *
+ * Keep it in step with ProductWithRelations. Adding a field to the type
+ * without adding it here fails to compile, which is the guard.
+ */
+const cardSelect = {
+  id: true,
+  sku: true,
+  slug: true,
+  title: true,
+  price: true,
+  compareAtPrice: true,
+  installmentMonths: true,
+  stockStatus: true,
+  ratingAvg: true,
+  ratingCount: true,
+  deliveryDays: true,
+  brand: { select: { name: true } },
+  category: { select: { icon: true, parent: { select: { icon: true } } } },
+  images: { select: { url: true }, take: 1, orderBy: { sortOrder: "asc" as const } },
 } as const;
 
 // Store policy, in one place. Spread this into every customer-facing
@@ -76,7 +111,7 @@ export function mapProductToCard(p: ProductWithRelations): ProductCardData {
 export async function getFeaturedProducts(take = 8) {
   const rows = await db.product.findMany({
     where: { ...PUBLIC_PRODUCT_WHERE, isFeatured: true },
-    include: cardInclude,
+    select: cardSelect,
     take,
     orderBy: { createdAt: "desc" },
   });
@@ -86,7 +121,7 @@ export async function getFeaturedProducts(take = 8) {
 export async function getBestSellers(take = 8) {
   const rows = await db.product.findMany({
     where: { ...PUBLIC_PRODUCT_WHERE, isBestSeller: true },
-    include: cardInclude,
+    select: cardSelect,
     take,
     orderBy: { ratingCount: "desc" },
   });
@@ -103,7 +138,7 @@ export async function getBestSellers(take = 8) {
 export async function getNewArrivals(take = 8) {
   const rows = await db.product.findMany({
     where: PUBLIC_PRODUCT_WHERE,
-    include: cardInclude,
+    select: cardSelect,
     take,
     orderBy: { createdAt: "desc" },
   });
@@ -155,7 +190,7 @@ export async function getDepartmentShowcases({
     picked.map(async (d) => {
       const rows = await db.product.findMany({
         where: { ...PUBLIC_PRODUCT_WHERE, categoryId: { in: d.categoryIds } },
-        include: cardInclude,
+        select: cardSelect,
         take: perDepartment,
         // Enriched products first — "ENRICHED" sorts ahead of the other
         // two values ascending — since those are the ones with a written
@@ -187,7 +222,7 @@ export async function getCatalogSize() {
 export async function getDeals(take = 8) {
   const rows = await db.product.findMany({
     where: { ...PUBLIC_PRODUCT_WHERE, compareAtPrice: { not: null } },
-    include: cardInclude,
+    select: cardSelect,
     take,
     orderBy: { updatedAt: "desc" },
   });
@@ -203,7 +238,7 @@ export async function getProductsByIds(ids: string[]) {
   if (ids.length === 0) return [];
   const rows = await db.product.findMany({
     where: { id: { in: ids }, ...PUBLIC_PRODUCT_WHERE },
-    include: cardInclude,
+    select: cardSelect,
   });
   const byId = new Map(rows.map((r) => [r.id, mapProductToCard(r)]));
   return ids.map((id) => byId.get(id)).filter((p): p is ProductCardData => !!p);
@@ -285,7 +320,7 @@ export async function getProductsByCategorySlug(
   const [rows, total, brandsInCategory, priceAgg] = await Promise.all([
     db.product.findMany({
       where,
-      include: cardInclude,
+      select: cardSelect,
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -524,7 +559,7 @@ export async function getColorVariants(product: {
 export async function getRelatedProducts(categoryId: string, excludeId: string, take = 4) {
   const rows = await db.product.findMany({
     where: { ...PUBLIC_PRODUCT_WHERE, categoryId, id: { not: excludeId } },
-    include: cardInclude,
+    select: cardSelect,
     take,
     orderBy: { ratingCount: "desc" },
   });
@@ -554,7 +589,7 @@ export async function getProductsByBrandSlug(
   const where = { ...PUBLIC_PRODUCT_WHERE, brandId: brand.id };
 
   const [rows, total] = await Promise.all([
-    db.product.findMany({ where, include: cardInclude, orderBy, skip: (page - 1) * pageSize, take: pageSize }),
+    db.product.findMany({ where, select: cardSelect, orderBy, skip: (page - 1) * pageSize, take: pageSize }),
     db.product.count({ where }),
   ]);
 
@@ -672,7 +707,7 @@ export function inRankedOrder<T extends { id: string }>(ids: string[], rows: T[]
 export async function searchProducts(query: string, take = 8) {
   const ids = await rankedSearchIds(query, take);
   if (ids.length === 0) return [];
-  const products = await db.product.findMany({ where: { id: { in: ids } }, include: cardInclude });
+  const products = await db.product.findMany({ where: { id: { in: ids } }, select: cardSelect });
   return inRankedOrder(ids, products).map(mapProductToCard);
 }
 
