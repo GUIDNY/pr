@@ -1361,3 +1361,53 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
 body:has(#googlePayButton:empty) #googlePayTab {
   display: none !important;
 }
+
+/* NO CVV BOX ON THE GOOGLE PAY TAB.
+
+   A customer who picked Google Pay was shown an empty "קוד אימות כרטיס (CVV)"
+   above the Google Pay button. Google Pay exists so that nobody has to reach
+   for the card, so a box asking for three digits off the back of it reads as
+   either "this did not work" or "they still want my card", on the screen where
+   doubt is most expensive.
+
+   Their own code, Payment.js, in the #googlePayTabBtn click handler:
+
+       $("#CvvContainer").hide();
+       $("#googlePayButton").show();
+       $("#captchaRow").hide();
+       $("#AccountNumber").hide();
+       $("#cvv_input").show();
+       $("#CvvContainer").show();      <- four lines after hiding it
+       $("#cvv_star_id").hide();
+
+   It hides the box and shows it again in the same handler. That the second
+   call is the accident and not the first is not a guess: the bit handler and
+   the Apple Pay handler, in the same file, both hide #CvvContainer and never
+   re-show it, and the line immediately after hides the asterisk that marks the
+   field required — which is why the box arrives with no star on it. Their own
+   validation agrees: it only demands a CVV when the per-wallet GooglePay
+   .Cvv2Field reads "must", and ours arrives empty.
+
+   So this restores what three of their four handlers do, rather than imposing
+   anything of ours.
+
+   THE SECOND :has IS AN INTERLOCK, not decoration. jQuery's .hide() writes
+   display:none into the style attribute, so "the asterisk is hidden" is
+   readable from CSS, and it is their code's own statement that a CVV is not
+   required on this tab. If Pelecard ever sets GooglePay.Cvv2Field to must, the
+   asterisk stays and this rule stops applying by itself — the field comes back
+   rather than a payment failing validation against a box nobody can see. That
+   is the whole difference between this and hiding TelField, which took bit's
+   phone number out of the request itself and turned every bit payment into a
+   599. Nothing here changes what is sent; the input keeps its value and its
+   name, and returns intact the moment the customer picks the card tab.
+
+   Not touched: the card-holder name, email and phone that the same tab also
+   shows. Those carry real values from the order, they are what the shop uses
+   to reach a customer about the payment, and their handlers say nothing about
+   them either way. Pelecard can silence them per wallet — CardHolderName,
+   EmailField and TelField sit beside Cvv2Field in the same block and all
+   arrive empty. That is a request to them, not something to mute from here. */
+body:has(#googlePayTabBtn.tab-button-selected):has(#cvv_star_id[style*="display: none"]) #CvvContainer {
+  display: none !important;
+}
