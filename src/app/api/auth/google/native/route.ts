@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { createSession, hashPassword } from "@/lib/auth";
+import { claimGuestCart } from "@/lib/cart";
 import { googleNativeConfigured, verifyGoogleIdToken } from "@/lib/google-oauth";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +76,9 @@ export async function POST(request: Request) {
   }
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
+  /* The cart this browser filled before signing in. Without this the shop
+     answers a fresh sign-in with an empty cart — see claimGuestCart. */
+  await claimGuestCart(user.id);
 
   /* No redirect: the caller is a fetch from a page that is already open and
      reloads itself. */

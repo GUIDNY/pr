@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession, createSession, clearSession, hashPassword, verifyPassword } from "@/lib/auth";
+import { claimGuestCart } from "@/lib/cart";
 import { looksLikePhone, normalizeIsraeliPhone } from "@/lib/phone";
 import { consumeResetToken, requestPasswordReset } from "@/lib/password-reset";
 
@@ -105,6 +106,7 @@ export async function loginAction(input: { identifier: string; password: string 
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
   await claimGuestOrders(user.id, user.email);
+  await claimGuestCart(user.id);
   return { success: true, error: null, role: user.role };
 }
 
@@ -131,6 +133,7 @@ export async function registerAction(input: { name: string; email: string; phone
 
   await createSession({ sub: user.id, role: "CUSTOMER", name: user.name });
   await claimGuestOrders(user.id, email);
+  await claimGuestCart(user.id);
   return { success: true, error: null };
 }
 
@@ -246,6 +249,7 @@ export async function resetPasswordAction(input: { token: string; newPassword: s
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
   await claimGuestOrders(user.id, user.email);
+  await claimGuestCart(user.id);
   return { success: true, error: null };
 }
 
