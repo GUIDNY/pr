@@ -234,6 +234,14 @@ export const INVENTORY_ALERT_TYPES = [
   "NEW_FROM_SOURCE",
   "MANUAL_ATTENTION",
   "MANUAL_URGENT",
+  /* Not a fact about a product or a row — a fact about the sync itself not
+     having happened. Every other type here is written *by* a sync run,
+     which is exactly why none of them fired when the price sheets stopped
+     arriving on 23 September: the upload died before the run started, so
+     there was no run to report anything, and four days of stale stock
+     looked identical to four quiet days. This is the one alert raised from
+     outside. See inventory/sync-watchdog.ts. */
+  "SYNC_STALE",
 ] as const;
 export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
 
@@ -255,6 +263,7 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   NEW_FROM_SOURCE: "מוצר חדש מהגיליון",
   MANUAL_ATTENTION: "סומן לטיפול ידנית",
   MANUAL_URGENT: "סומן לטיפול דחוף ידנית",
+  SYNC_STALE: "הסנכרון לא רץ",
 };
 
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;

@@ -6,6 +6,10 @@
     {
       "path": "/api/inventory/migrate-images",
       "schedule": "*/5 22,23,0,1,2,3 * * *"
+    },
+    {
+      "path": "/api/inventory/watchdog",
+      "schedule": "0 */3 * * *"
     }
   ]
 }

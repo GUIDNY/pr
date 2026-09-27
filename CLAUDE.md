@@ -200,6 +200,27 @@ hosts in `blocked-image-hosts.ts` outright. `npm run check:images` guards both r
 - **Manufacturer sites are unreachable** from every cloud container (`samsung.com`,
   `lg.com` → `connect_rejected`). Product images and manufacturer specs can only be
   fetched by a session running on a real machine.
+- **Supabase counts database egress against the same quota as storage, and a
+  card query is where it goes.** In September the free tier's 5 GB ran out and
+  Storage answered 402 for four days. The photographs were blamed and were
+  innocent: the whole bucket is 61 MB and the image route served under 500 MB a
+  month. It was `cardInclude` in `queries/products.ts`, an `include` where a
+  `select` belonged — every column of `Product` on every card of every grid,
+  8,559 bytes fetched for the 232 a card renders, and a category page is
+  twenty-four of them. Nothing in the types showed it, because
+  `ProductWithRelations` was already written as the narrow shape. Before
+  suspecting a file, price the queries.
+
+- **Every inventory alert is written by a sync run, so a sync that never starts
+  reports nothing.** The same outage killed the price-sheet upload, which is
+  upstream of the run, and the shop sold against four-day-old stock with every
+  back-office screen looking normal. `inventory/sync-watchdog.ts` now asks from
+  outside, on its own cron, whether a sheet has *arrived* in the last 18 hours
+  — arrival, not a successful run, because the agent correctly skips the sync
+  when the supplier changed nothing, and the last run before anyone noticed
+  read `SUCCESS`. Anything new that can stop the catalog updating needs a check
+  that does not live inside the thing that stops.
+
 - **Secrets live in the Vercel dashboard only** — `PRODUCT_ENRICH_SECRET`,
   `SUPABASE_SERVICE_ROLE_KEY` and the rest are not in `.env` and not in the repo.
 
