@@ -3,8 +3,8 @@ import { getCurrentUser, getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { paymentLaneFor } from "@/lib/pelecard/config";
 import { canManageCatalog } from "@/lib/permissions";
-import { googleOAuthConfigured } from "@/lib/google-oauth";
-import { appleOAuthConfigured } from "@/lib/apple-oauth";
+import { googleOAuthConfigured, googleNativeConfigured } from "@/lib/google-oauth";
+import { appleOAuthConfigured, appleNativeConfigured } from "@/lib/apple-oauth";
 
 export const metadata = { title: "תשלום" };
 
@@ -35,6 +35,10 @@ export default async function CheckoutPage() {
       signedIn={!!user}
       googleEnabled={googleOAuthConfigured()}
       appleEnabled={appleOAuthConfigured()}
+      // The app cannot run the web OAuth redirect, so inside it the same strip
+      // offers the native sheets instead — the pair the login page uses.
+      googleNativeEnabled={googleNativeConfigured()}
+      appleNativeEnabled={appleNativeConfigured()}
       defaultName={user?.name}
       defaultEmail={user?.email}
       defaultPhone={user?.phone ?? savedAddress?.phone ?? undefined}

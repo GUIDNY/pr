@@ -16,6 +16,8 @@ import { ProductImagePlaceholder } from "@/components/product/product-image-plac
 import { CheckoutTestPanel } from "@/components/checkout/checkout-test-panel";
 import { GoogleButton } from "@/components/auth/google-button";
 import { AppleButton } from "@/components/auth/apple-button";
+import { GoogleNativeButton, useGoogleNativeAvailable } from "@/components/auth/google-native-button";
+import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
 import { useIsNativeApp } from "@/lib/native-app";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
 import SiApplepay from "@icons-pack/react-simple-icons/icons/SiApplepay";
@@ -79,6 +81,8 @@ export function CheckoutForm({
   signedIn = false,
   googleEnabled = false,
   appleEnabled = false,
+  googleNativeEnabled = false,
+  appleNativeEnabled = false,
   defaultName,
   defaultEmail,
   defaultPhone,
@@ -94,6 +98,10 @@ export function CheckoutForm({
   signedIn?: boolean;
   googleEnabled?: boolean;
   appleEnabled?: boolean;
+  /** The native sheets, for the App Store build; the web OAuth cannot run
+      inside its WebView. */
+  googleNativeEnabled?: boolean;
+  appleNativeEnabled?: boolean;
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
@@ -120,9 +128,18 @@ export function CheckoutForm({
   const setCart = useCartStore((s) => s.setCart);
   const router = useRouter();
   /* Google refuses OAuth inside a WebView and Apple's web flow is not yet
-     allowed there either — the same rule the login page follows. */
+     allowed there either — the same rule the login page follows. Inside the
+     app the strip offers the native sheets instead, and only when the running
+     build actually carries the plugin (asked of the bridge, not inferred). */
   const inApp = useIsNativeApp();
-  const quickSignIn = !signedIn && !inApp && (googleEnabled || appleEnabled);
+  const googleNativeReady = useGoogleNativeAvailable();
+  const appleNativeReady = useAppleNativeAvailable();
+  const showGoogle = googleEnabled && !inApp;
+  const showApple = appleEnabled && !inApp;
+  const showGoogleNative = googleNativeEnabled && inApp && googleNativeReady;
+  const showAppleNative = appleNativeEnabled && inApp && appleNativeReady;
+  const quickSignIn = !signedIn && (showGoogle || showApple || showGoogleNative || showAppleNative);
+  const twoUp = (showGoogle && showApple) || (showGoogleNative && showAppleNative);
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
   /* Two fields the demo shows only so it matches Pelecard's form field for
@@ -459,9 +476,11 @@ export function CheckoutForm({
                 <span className="text-muted-foreground">התחברו בלחיצה ונמלא את הפרטים. אין? נפתח לכם אחד, ובפעם הבאה זה שתי לחיצות.</span>
               </p>
               <Suspense>
-                <div className={`grid gap-2 ${googleEnabled && appleEnabled ? "grid-cols-2" : "grid-cols-1"}`}>
-                  {googleEnabled && <GoogleButton compact={appleEnabled} redirectTo="/checkout" />}
-                  {appleEnabled && <AppleButton compact={googleEnabled} redirectTo="/checkout" />}
+                <div className={`grid gap-2 ${twoUp ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {showGoogle && <GoogleButton compact={showApple} redirectTo="/checkout" />}
+                  {showApple && <AppleButton compact={showGoogle} redirectTo="/checkout" />}
+                  {showGoogleNative && <GoogleNativeButton compact={showAppleNative} redirectTo="/checkout" />}
+                  {showAppleNative && <AppleNativeButton compact={showGoogleNative} redirectTo="/checkout" />}
                 </div>
               </Suspense>
               <p className="text-muted-foreground mt-2 text-xs">
