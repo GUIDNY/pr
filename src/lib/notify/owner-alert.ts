@@ -100,6 +100,75 @@ const PAYMENT_TEXT: Record<string, string> = {
   REFUNDED: "זוכה",
 };
 
+/**
+ * The push to the owner's phone — the Notify! app (getnotifyapp.com).
+ *
+ * OWNER_PUSH_URL is the group's send URL exactly as the app hands it out,
+ * token included: https://push.getnotifyapp.com/notify-group/GRP…?token=…
+ * The token is a secret, so the whole URL lives in Vercel and nowhere else.
+ * Unset, and there is no push — the mail still goes.
+ *
+ * A GET with query parameters, because that is what the service reads; a
+ * form body answers "Missing body parameter".
+ */
+export function ownerPushConfigured(): boolean {
+  return !!process.env.OWNER_PUSH_URL?.trim();
+}
+
+/** The two lines that fit on a lock screen. */
+export function renderOwnerPush(order: AlertOrder): { title: string; body: string } {
+  const name = order.user?.name ?? order.guestName ?? "לקוח ללא שם";
+  const phone = order.guestPhone ?? order.user?.phone ?? null;
+  const toCustomer = order.deliveryMethod === "DELIVERY";
+  const count = order.items.reduce((sum, item) => sum + item.quantity, 0);
+  const first = order.items[0]?.titleSnap ?? "";
+  const what = count > 1 ? `${first} ועוד ${count - 1}` : first;
+  return {
+    title: `הזמנה חדשה · ${formatPrice(order.total)}`,
+    body: [
+      name + (phone ? ` · ${phone}` : ""),
+      PAYMENT_TEXT[order.paymentStatus] ?? order.paymentStatus,
+      toCustomer ? `משלוח${order.shipCity ? ` ל${order.shipCity}` : ""}` : "איסוף עצמי",
+      what,
+    ]
+      .filter(Boolean)
+      .join(" · "),
+  };
+}
+
+async function sendOwnerPush(order: AlertOrder): Promise<{ ok: true } | { ok: false; error: string }> {
+  const base = process.env.OWNER_PUSH_URL?.trim();
+  if (!base) return { ok: false, error: "OWNER_PUSH_URL is not set" };
+  const { title, body } = renderOwnerPush(order);
+  let url: URL;
+  try {
+    url = new URL(base);
+  } catch {
+    return { ok: false, error: "OWNER_PUSH_URL is not a URL" };
+  }
+  url.searchParams.set("title", title);
+  url.searchParams.set("body", body);
+  /* One thread on the phone for all of the shop's orders, so they stack
+     rather than scatter between other apps' alerts. */
+  url.searchParams.set("groupType", "buytoday-orders");
+  try {
+    const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
+    const text = await res.text();
+    if (!res.ok) return { ok: false, error: `Notify ${res.status}: ${text.slice(0, 200)}` };
+    let parsed: { success?: boolean; deviceCount?: number } = {};
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      /* A 200 that is not JSON is still a send. */
+    }
+    if (parsed.success === false) return { ok: false, error: `Notify: ${text.slice(0, 200)}` };
+    if (parsed.deviceCount === 0) return { ok: false, error: "Notify: the group has no devices" };
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "fetch failed" };
+  }
+}
+
 export function renderOwnerEmail(order: AlertOrder): string {
   const name = order.user?.name ?? order.guestName ?? "לקוח ללא שם";
   const phone = order.guestPhone ?? order.user?.phone ?? null;
@@ -180,7 +249,9 @@ export function renderOwnerEmail(order: AlertOrder): string {
  */
 export async function notifyOwnerOfNewOrder(orderId: string): Promise<void> {
   const recipients = ownerAlertRecipients();
-  if (recipients.length === 0 || !emailChannel.configured()) return;
+  const mail = recipients.length > 0 && emailChannel.configured();
+  const push = ownerPushConfigured();
+  if (!mail && !push) return;
 
   const order = await db.order.findUnique({
     where: { id: orderId },
@@ -205,6 +276,30 @@ export async function notifyOwnerOfNewOrder(orderId: string): Promise<void> {
   });
   if (!order) return;
 
+  /* The phone first: it is the one the owner is looking at, and the mail
+     can take a moment. Each lane claims its own row, so the push still goes
+     when the mail is off, and neither goes twice. */
+  await Promise.all([push ? pushOwner(order) : null, mail ? mailOwner(order, recipients) : null]);
+}
+
+async function pushOwner(order: AlertOrder & { id: string }): Promise<void> {
+  try {
+    await db.orderNotification.create({
+      data: { orderId: order.id, channel: "PUSH", event: OWNER_EVENT, recipient: "notify-group" },
+    });
+  } catch {
+    return;
+  }
+  const result = await sendOwnerPush(order);
+  await db.orderNotification.updateMany({
+    where: { orderId: order.id, channel: "PUSH", event: OWNER_EVENT },
+    data: result.ok
+      ? { status: "SENT", sentAt: new Date() }
+      : { status: "FAILED", error: result.error.slice(0, 300) },
+  });
+}
+
+async function mailOwner(order: AlertOrder & { id: string }, recipients: string[]): Promise<void> {
   // Claim first. Two lanes can reach this for one order — creation and the
   // gateway callback — and the row is what makes the second one silent.
   try {
