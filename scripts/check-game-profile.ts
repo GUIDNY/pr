@@ -103,11 +103,14 @@ is("the game's origin is exact", GAME_ORIGIN, "https://play.buytoday.co.il");
 
 const returnRoute = readFileSync("src/app/api/game/return/route.ts", "utf8");
 is(
-  "/api/game/return redirects to a fixed address",
-  /NextResponse\.redirect\(`\$\{GAME_ORIGIN\}\/\?signedin=1`/.test(returnRoute),
+  "/api/game/return sends the web back to the game's own address",
+  returnRoute.includes("`${GAME_ORIGIN}/?signedin=1`"),
   true,
 );
-is("/api/game/return reads nothing from the request", /export function GET\(\)/.test(returnRoute), true);
+is("/api/game/return sends the app back to /mall on this host", returnRoute.includes("`${new URL(request.url).origin}/mall?signedin=1`"), true);
+// Only the user agent picks between the two fixed destinations: nothing from
+// the query string or body may reach the redirect, or it becomes aimable.
+is("/api/game/return reads no query string", /searchParams|request\.json|request\.text|formData/.test(returnRoute), false);
 
 /* The same-site rule every web sign-in path applies to `redirect`. If one of
    them changes it — to an allow-list of pages, say — the game's sign-in
