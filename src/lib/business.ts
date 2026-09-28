@@ -79,11 +79,14 @@ export const BUSINESS = {
      matters most, because the page a customer reaches for is the one they
      read when something has gone wrong.
 
-     Not on buytoday.co.il, and that is worth knowing rather than fixing
-     here: Google matches the address on this site against the Business
-     Profile and the Merchant Center account, so the day mail moves to the
-     shop's own domain, this line moves with it and so do those two. */
-  email: "prelect@prelect.co.il",
+     It is on buytoday.co.il as of the Merchant Center review, and the
+     paragraph above predicted the move: a shop declaring a contact address
+     on a different domain entirely is one of the patterns a misrepresentation
+     review is looking for, and this one appeared twice in the Organization
+     JSON-LD and again in the terms. Google matches the address here against
+     the Business Profile and the Merchant Center account, so those two have
+     to carry the same one. */
+  email: "info@buytoday.co.il",
 
   /* The mobile the shop answers, and the number the HEADER offers to call.
      Not a replacement for `phone` above: that one is the service line on the
@@ -116,6 +119,12 @@ export const BUSINESS = {
      page's name out loud, which is what a shared link shows. */
   instagram: "https://www.instagram.com/buytoday.co.il/",
   facebook: "https://www.facebook.com/people/BuyToday/61593689074664/",
+  /* Declared alongside the other two rather than instead of them. Verified
+     to answer 200 before being written here, which is the rule for anything
+     that goes into sameAs: a dead link there is worse than a missing one,
+     because it is the field Google uses to decide that this domain and that
+     profile are one business. */
+  threads: "https://www.threads.net/@buytoday.co.il",
 
   street: "דוד אלעזר 27",
   city: "חדרה",

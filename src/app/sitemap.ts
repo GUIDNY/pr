@@ -4,6 +4,7 @@ import { SITE_URL as BASE_URL } from "@/lib/site-url";
 import { hasDerivedHashSuffix } from "@/lib/derived-slug";
 import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
 import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
+import { WARRANTY_POLICY_UPDATED } from "@/lib/warranty-policy";
 import { TERMS_UPDATED } from "@/lib/content/terms";
 
 // One catalog this size (products + categories + articles) comfortably
@@ -208,6 +209,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
        handing over a card, and both existed at two addresses until this
        commit, which is its own reason to name the surviving one here
        explicitly rather than leave an engine to pick. */
+    {
+      /* The warranty page. New, and listed the moment it existed: the site
+         has been promising an importer's warranty on 1,800 pages with
+         nothing behind the words, so this is the URL that makes the claim
+         checkable. */
+      url: `${BASE_URL}/warranty`,
+      lastModified: WARRANTY_POLICY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
     {
       url: `${BASE_URL}/shipping`,
       lastModified: SHIPPING_POLICY_UPDATED,

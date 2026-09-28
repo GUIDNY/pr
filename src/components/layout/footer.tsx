@@ -174,6 +174,17 @@ export async function Footer() {
               </Link>
             </li>
             <li>
+              {/* The shop promises "אחריות יבואן רשמי" on every page of the
+                  site, and until this link existed there was no page behind
+                  it — /warranty, /page/warranty and /page/service all
+                  answered 404. A claim a visitor cannot check is the one
+                  kind of inconsistency a Merchant Center review treats as a
+                  false statement rather than an untidy one. */}
+              <Link href="/warranty" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                אחריות ושירות
+              </Link>
+            </li>
+            <li>
               <Link href="/privacy" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 מדיניות פרטיות
               </Link>

@@ -88,7 +88,13 @@ export function organizationSchema() {
        be unrelated unless the link is declared, and declared it is simply
        one business with two fronts. The footer and the about page say the
        same thing in words, for the reader rather than the crawler. */
-    sameAs: [BUSINESS.instagram, BUSINESS.facebook, SISTER_SITE.url, SISTER_SITE.facebook],
+    sameAs: [
+      BUSINESS.instagram,
+      BUSINESS.facebook,
+      BUSINESS.threads,
+      SISTER_SITE.url,
+      SISTER_SITE.facebook,
+    ],
   };
 }
 

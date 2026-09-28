@@ -63,7 +63,7 @@ export const TERMS_BLOCKS: ArticleBlock[] = [
       "ח.פ.: 512801093",
       "כתובת: דוד אלעזר 27, חדרה",
       "טלפון: [04-622-4041](tel:04-622-4041)",
-      "דוא\"ל: [prelect@prelect.co.il](mailto:prelect@prelect.co.il)",
+      "דוא\"ל: [info@buytoday.co.il](mailto:info@buytoday.co.il)",
       "אתר: buytoday.co.il"
     ]
   },
@@ -344,7 +344,7 @@ export const TERMS_BLOCKS: ArticleBlock[] = [
     "type": "list",
     "items": [
       "טלפון: [04-622-4041](tel:04-622-4041)",
-      "דוא\"ל: [prelect@prelect.co.il](mailto:prelect@prelect.co.il)",
+      "דוא\"ל: [info@buytoday.co.il](mailto:info@buytoday.co.il)",
       "בדואר או באופן פיזי: פ.ר. אלקטרוניקה והשקעות (1999) בע\"מ, דוד אלעזר 27, חדרה",
       "באמצעות מנגנון הביטול באתר, ככל שהעסקה ניתנת לביטול באמצעות האתר."
     ]
@@ -673,7 +673,7 @@ export const TERMS_BLOCKS: ArticleBlock[] = [
       "פ.ר. אלקטרוניקה והשקעות (1999) בע\"מ, ח.פ. 512801093",
       "דוד אלעזר 27, חדרה",
       "טלפון: [04-622-4041](tel:04-622-4041)",
-      "דוא\"ל: [prelect@prelect.co.il](mailto:prelect@prelect.co.il)"
+      "דוא\"ל: [info@buytoday.co.il](mailto:info@buytoday.co.il)"
     ]
   },
   {
