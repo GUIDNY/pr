@@ -3,6 +3,7 @@ import { BUSINESS } from "@/lib/business";
 import { computeDeliveryFee } from "@/lib/delivery";
 import { colorInTitle } from "@/lib/catalog/variant-colors";
 import type { StockStatus } from "@/lib/enums";
+import { googleProductCategoryFor } from "./google-product-category";
 
 // The product feed Google Merchant Center fetches once a day.
 //
@@ -161,7 +162,7 @@ export type FeedProduct = {
   compareAtPrice: number | null;
   stockStatus: string;
   brand: { name: string };
-  category: { name: string; parent: { name: string } | null };
+  category: { name: string; slug: string; parent: { name: string } | null };
   images: { url: string }[];
 };
 
@@ -274,6 +275,19 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
 
     const productType = [p.category.parent?.name, p.category.name].filter(Boolean).join(" > ");
     if (productType) lines.push(tag("g:product_type", productType));
+
+    /* Google's own taxonomy id alongside our category names. product_type
+       above is what we call the thing; this is what Google calls it, and
+       they are different questions — the first is for our own reporting,
+       the second is how the item is placed against everybody else's.
+
+       Omitted rather than guessed when the map has no entry: a wrong id is
+       a confident claim that a washing machine is something else, whereas
+       an absent one lets Google classify the item itself, which it does
+       well. See google-product-category.ts for where the numbers come
+       from. */
+    const googleCategory = googleProductCategoryFor(p.category.slug);
+    if (googleCategory !== null) lines.push(tag("g:google_product_category", String(googleCategory)));
 
     items.push(`  <item>\n${lines.join("\n")}\n  </item>`);
   }

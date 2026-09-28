@@ -39,7 +39,7 @@ export async function GET() {
       compareAtPrice: true,
       stockStatus: true,
       brand: { select: { name: true } },
-      category: { select: { name: true, parent: { select: { name: true } } } },
+      category: { select: { name: true, slug: true, parent: { select: { name: true } } } },
       images: { select: { url: true }, orderBy: { sortOrder: "asc" } },
     },
     orderBy: { sku: "asc" },
