@@ -5,6 +5,7 @@ import { breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
 import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw } from "lucide-react";
 import { FREE_DELIVERY_THRESHOLD, computeDeliveryFee, deliveryDaysFor } from "@/lib/delivery";
+import { RETURN_WINDOW_DAYS, cancellationFee } from "@/lib/returns-policy";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -236,7 +237,18 @@ export async function ProductPageView({
              handlingTime 0-1 and transitTime up to deliveryDays: the
              product carries one number for "arrives within N days", and
              splitting it as all-transit is the honest reading — it is what
-             the page says to a customer. */
+             the page says to a customer.
+
+             deliveryDaysFor, not product.deliveryDays. That was the bug.
+             Every row in the catalogue still carries the schema default of
+             7 because nothing has ever written the column, and
+             deliveryDaysFor is the function that turns that unset 7 into
+             the 3 business days /shipping actually promises. The visible
+             line further down this same file already called it; this did
+             not, so the page said three and the structured data said seven,
+             on all 1,592 products. Two answers to the same question on one
+             page is what a Merchant Center review reads as a misrepresented
+             delivery estimate. */
           shippingDetails: {
             "@type": "OfferShippingDetails",
             shippingRate: {
@@ -251,8 +263,53 @@ export async function ProductPageView({
             deliveryTime: {
               "@type": "ShippingDeliveryTime",
               handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
-              transitTime: { "@type": "QuantitativeValue", minValue: 1, maxValue: product.deliveryDays, unitCode: "DAY" },
+              transitTime: {
+                "@type": "QuantitativeValue",
+                minValue: 1,
+                maxValue: deliveryDaysFor(product),
+                unitCode: "DAY",
+              },
             },
+          },
+          /* The returns policy, in the place Merchant Center looks for it.
+             It existed at /returns and in the Merchant Center account and
+             nowhere in the structured data, which is the one copy a crawler
+             reads per product.
+
+             Every number below is taken from /returns rather than chosen
+             here, because three statements of a returns policy that
+             disagree is the same failure as the delivery estimate above:
+             fourteen days under the Consumer Protection Law, and a
+             cancellation fee of 5% of the price or 100 shekels, whichever
+             is lower.
+
+             That "whichever is lower" is why the fee is computed per
+             product instead of being a constant. A flat 5% would overstate
+             it on a 3,000 shekel fridge, where the cap binds; a flat 100
+             would overstate it on a 200 shekel kettle, where the
+             percentage does. The same per-product treatment shippingRate
+             already gets, and for the same reason — a quoted figure a
+             customer can check has to be the figure they would be charged.
+
+             Faulty goods carry no fee at all and are collected at our
+             expense, which this cannot express: schema.org has one policy
+             per offer, and the standard one is the right one to publish. */
+          hasMerchantReturnPolicy: {
+            "@type": "MerchantReturnPolicy",
+            applicableCountry: BUSINESS.country,
+            returnPolicyCategory: "https://schema.org/MerchantReturnFiniteReturnWindow",
+            merchantReturnDays: RETURN_WINDOW_DAYS,
+            /* Both are true and both are offered: a large appliance is
+               collected from the customer's home, and the shop in Hadera
+               takes a return over the counter. */
+            returnMethod: ["https://schema.org/ReturnByMail", "https://schema.org/ReturnInStore"],
+            returnFees: "https://schema.org/RestockingFees",
+            restockingFee: {
+              "@type": "MonetaryAmount",
+              currency: SCHEMA_CURRENCY,
+              value: cancellationFee(product.price).toFixed(2),
+            },
+            merchantReturnLink: absoluteUrl("/returns"),
           },
         },
         // Only when there is a real rating behind it. schema.org rejects an
