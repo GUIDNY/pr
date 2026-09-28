@@ -5,6 +5,7 @@ import { Heart } from "lucide-react";
 import { toast } from "sonner";
 import { toggleFavoriteAction } from "@/actions/favorites";
 import { cn } from "@/lib/utils";
+import { navigateOutOfMallFrame } from "@/lib/mall";
 import { useIsFavorite } from "@/components/layout/session-summary-provider";
 
 export function FavoriteButton({
@@ -39,7 +40,15 @@ export function FavoriteButton({
           const result = await toggleFavoriteAction(productId);
           if (result.requiresAuth) {
             toast("יש להתחבר כדי לשמור מוצרים במועדפים", {
-              action: { label: "התחברות", onClick: () => (window.location.href = "/login") },
+              // Out of the 3D mall's frame when the page is in one: a login
+              // inside a panel over the game signs in a frame the customer
+              // is about to close. See lib/mall.ts.
+              action: {
+                label: "התחברות",
+                onClick: () => {
+                  if (!navigateOutOfMallFrame("/login")) window.location.href = "/login";
+                },
+              },
             });
             return;
           }

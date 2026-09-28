@@ -5,6 +5,7 @@ import { CategoryGrid } from "@/components/home/category-grid-mobile";
 import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
+import { MallPromo } from "@/components/home/mall-promo";
 import {
   getDeals,
   getBestSellers,
@@ -126,6 +127,15 @@ export default async function HomePage() {
 
         <div className="order-2">
           <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" phoneGrid />
+        </div>
+
+        {/* The 3D mall, right after the first products and ahead of the
+            finder on a phone; between the deals and the brands on a
+            laptop. Late enough that the page has already shown it is a
+            shop with stock and prices, early enough that it is seen —
+            the footer link alone was not. See MallPromo. */}
+        <div className="order-3">
+          <MallPromo />
         </div>
 
         <div className="order-4">

@@ -379,3 +379,20 @@ html[data-cookie-notice="open"] .floating-launcher {
     min-height: 52rem;
   }
 }
+
+/* Embed mode: a product page opened by the 3D mall, inside the game's
+   <iframe name="bt-mall-embed">. The attribute is set by an inline script in
+   <head> before anything paints (MALL_EMBED_BOOT_SCRIPT in lib/mall.ts), so
+   the frame shows the page and nothing around it — no header, footer, tab
+   bar, launchers or cookie bar — and the same cached HTML still serves the
+   web. Marked with data-site-chrome on the elements themselves rather than
+   matched by position or class, so a restyle of the header cannot quietly
+   bring it back into the game. */
+html[data-embed="mall"] [data-site-chrome] {
+  display: none !important;
+}
+
+/* The room main keeps under the phone's tab bar, which is not there. */
+html[data-embed="mall"] #main-content {
+  padding-bottom: 0 !important;
+}
