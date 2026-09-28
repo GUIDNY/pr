@@ -143,7 +143,9 @@ export function HeaderMallButton({ className }: { className?: string }) {
           <TileFace />
         </button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="mx-auto max-w-md gap-0 rounded-t-3xl px-5 pt-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
+      {/* z-[60]: above the cookie bar (z-[55]), which a first-time visitor
+          still has open and which would otherwise sit over both buttons. */}
+      <SheetContent side="bottom" className="z-[60] mx-auto max-w-md gap-0 rounded-t-3xl px-5 pt-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
         <SheetHeader className="p-0 text-start">
           <span className="text-brand flex items-center gap-1.5 text-xs font-bold">
             <Gamepad2 aria-hidden className="size-4" />
