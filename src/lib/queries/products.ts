@@ -60,16 +60,38 @@ const cardSelect = {
 //    a shopper was being shown for hundreds of products — a coloured square
 //    with a category icon standing in for the thing they were being asked
 //    to buy. A product with no picture of itself is not ready to be sold.
+//  - stockStatus is not NEEDS_REVIEW: see below.
 //
-// Both are query-time gates rather than an isPublished flip on purpose: a
+// These are query-time gates rather than an isPublished flip on purpose: a
 // product returns to the site the moment it has stock and a photo, with no
 // sync run in between, and isPublished keeps meaning what it says — that a
 // person or the sync deliberately hid this — instead of being overloaded
 // with "and also it happens to be missing content right now".
+//
+// NEEDS_REVIEW IS NOT A THING TO SAY TO A CUSTOMER. It means "the inventory
+// data is inconsistent or unmatched and a human has to look" — the sync
+// sets it when a product vanishes from the supplier sheet, and when it
+// does, on line 880 of sync.ts, it does not unpublish. So 21 published,
+// photographed, in-stock products were on the live site wearing
+// STOCK_STATUS_LABELS.NEEDS_REVIEW, which renders as a red "דורש בדיקה"
+// pill on the card and the product page. Customers were reading an
+// engineer's note to himself.
+//
+// Worse than the wording: purchase-panel.tsx disables the button for
+// OUT_OF_STOCK and DISPLAY_ONLY and for nothing else, so Add to Cart was
+// live on products whose stock we had explicitly flagged as not to be
+// trusted. Somebody could have bought one.
+//
+// The feed already had this right — google-merchant.ts leaves NEEDS_REVIEW
+// out and says why: "nobody has promised [it] can actually be bought
+// today". The shop is supposed to be the same predicate as the feed, and
+// here it was not. This is that correction, in the constant every
+// customer-facing query already spreads.
 export const PUBLIC_PRODUCT_WHERE = {
   isPublished: true,
   stockQty: { gt: 0 },
   images: { some: {} },
+  stockStatus: { not: "NEEDS_REVIEW" },
 } as const;
 
 type ProductWithRelations = {
