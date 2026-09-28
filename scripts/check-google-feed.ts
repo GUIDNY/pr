@@ -32,7 +32,10 @@ function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
     compareAtPrice: null,
     stockStatus: "IN_STOCK",
     brand: { name: "Bosch" },
-    category: { name: "מדיח כלים", parent: { name: "מטבח" } },
+    /* slug as well as name, because the feed now maps it to a Google
+       taxonomy id. dishwasher-standard is a real slug with a real entry,
+       so the fixture exercises the lookup rather than only the fallback. */
+    category: { name: "מדיח כלים", slug: "dishwasher-standard", parent: { name: "מטבח" } },
     images: [{ url: "https://example.com/a.jpg" }],
     ...over,
   };
