@@ -107,6 +107,19 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
         return;
       }
       toast.success("התחברת בהצלחה");
+      /* A destination under /api/ is a route handler, not a page — today
+         that is /api/game/return, which forwards to the 3D mall on
+         play.buytoday.co.il. router.push cannot go there. It fetches the
+         target as an RSC payload, the fetch follows the handler's redirect
+         to the other origin, the browser refuses that as CORS, and Next
+         reads the refusal as the network being down and waits for it to
+         come back. The customer is signed in and looking at a login page
+         that never moves. A full navigation simply follows the redirect.
+         Everything that is a page keeps the soft navigation it had. */
+      if (!isBackOffice(result.role) && redirectTo.startsWith("/api/")) {
+        window.location.assign(redirectTo);
+        return;
+      }
       router.push(isBackOffice(result.role) ? backOfficeHome(result.role) : redirectTo);
       router.refresh();
     });

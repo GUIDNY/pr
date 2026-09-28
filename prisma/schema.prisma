@@ -69,6 +69,7 @@ model User {
   complaints        Complaint[]          @relation("ComplaintCustomer")
   assignedComplaints Complaint[]         @relation("ComplaintAssignee")
   complaintMessages ComplaintMessage[]   @relation("ComplaintMessageAuthor")
+  gameProfile       GameProfile?
 }
 
 model Address {
@@ -501,6 +502,30 @@ model Favorite {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId])
+}
+
+// The customer's character in the 3D mall at play.buytoday.co.il — see
+// src/lib/game-profile.ts for what it may contain and app/api/game/profile
+// for the only route that reads or writes it.
+//
+// A table of its own rather than a `gameProfile Json?` column on User, and
+// the reason is the order things reach production in. There is no migrate
+// step on deploy here: DDL is run by hand (scripts/create-game-profile-table.ts)
+// and the code ships on a push. A new column on User that the code knows
+// about and the database does not yet have breaks every `db.user.findUnique`
+// without a `select` — getCurrentUser, every sign-in callback — which is
+// every customer signing in, over a toy. A missing table breaks only the two
+// game routes. The relation field on User above is Prisma's bookkeeping and
+// is not a column.
+//
+// One row per account, keyed by the account, and gone with it: deleting an
+// account cascades here, so the account-deletion flow needs no change.
+model GameProfile {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Always the output of parseGameProfile — never the request body as sent.
+  profile   Json
+  updatedAt DateTime @updatedAt
 }
 
 // ---------- Orders ----------
