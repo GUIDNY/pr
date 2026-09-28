@@ -49,6 +49,11 @@ model User {
   /// Whether the customer agreed to order updates on WhatsApp. Ticked at
   /// registration and at checkout; off means email only.
   whatsappOptIn Boolean @default(true)
+  /// Explicit, prior consent to advertising (section 30א of the
+  /// Communications Law): an unticked box the customer ticked, with the
+  /// moment it was ticked. Off by default and never assumed.
+  marketingOptIn   Boolean   @default(false)
+  marketingOptInAt DateTime?
   name         String
   role         String   @default("CUSTOMER") // CUSTOMER | ADMIN | STAFF
   createdAt    DateTime @default(now())
@@ -573,6 +578,9 @@ model Order {
   /// The customer's answer to "updates on WhatsApp too?" for this order.
   /// Read by the notifier: off means the WhatsApp lane is skipped, email goes.
   whatsappOptIn      Boolean   @default(true)
+  /// The advertising-consent box as it was at checkout, kept with the order
+  /// so a guest's consent has a record and a time (createdAt).
+  marketingOptIn     Boolean   @default(false)
   paymentMethod      String? // DEMO_CARD | CASH_ON_DELIVERY
   supplierId         String?
   supplier           Supplier? @relation(fields: [supplierId], references: [id])

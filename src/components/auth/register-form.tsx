@@ -62,6 +62,7 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
     phone: searchParams.get("phone") ?? "",
     password: "",
     whatsappOptIn: true,
+    marketingOptIn: false,
   });
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -125,6 +126,23 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
             <span className="leading-snug">
               עדכונים על ההזמנות שלי גם בוואטסאפ
               <span className="text-muted-foreground block text-xs">בלי זה, העדכונים יגיעו במייל בלבד.</span>
+            </span>
+          </label>
+          {/* Advertising consent: separate, unticked, names the channels.
+              See the same box on the checkout for why. */}
+          <label htmlFor="register-marketing" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
+            <Checkbox
+              id="register-marketing"
+              checked={form.marketingOptIn}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, marketingOptIn: v === true }))}
+              className="mt-0.5 rounded-full"
+            />
+            <span className="leading-snug">
+              אני מאשר/ת קבלת מבצעים ועדכונים שיווקיים במייל, ב‑SMS ובוואטסאפ
+              <span className="text-muted-foreground block text-xs">
+                לא חובה. אפשר להסיר בכל עת מהאזור האישי.{" "}
+                <Link href="/privacy" className="underline underline-offset-2" target="_blank">מדיניות הפרטיות</Link>
+              </span>
             </span>
           </label>
         </div>

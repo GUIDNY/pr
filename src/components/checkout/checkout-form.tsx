@@ -92,6 +92,7 @@ export function CheckoutForm({
   defaultHouseNo,
   defaultApartment,
   defaultWhatsappOptIn = true,
+  defaultMarketingOptIn = false,
   payViaGateway = false,
   isStaff = false,
   canEditWhilePaying = false,
@@ -110,6 +111,9 @@ export function CheckoutForm({
   /** The account's last answer to "updates on WhatsApp too?"; a guest starts
       with the box ticked. */
   defaultWhatsappOptIn?: boolean;
+  /** Whether the account already consented to advertising. A guest, and an
+      account that never did, start unticked — consent is never pre-filled. */
+  defaultMarketingOptIn?: boolean;
   /** The address already on the account, so a returning customer does not
       retype one the shop has had since their last order. */
   defaultCity?: string;
@@ -185,6 +189,7 @@ export function CheckoutForm({
     cardExpiry: "",
     cardCvv: "",
     whatsappOptIn: defaultWhatsappOptIn,
+    marketingOptIn: defaultMarketingOptIn,
   });
 
   /* Delivery is priced by the method, and the method is chosen on this screen
@@ -542,6 +547,26 @@ export function CheckoutForm({
                 <span className="leading-snug">
                   לשלוח לי עדכונים על ההזמנה גם בוואטסאפ למספר הזה
                   <span className="text-muted-foreground block text-xs">אישור ההזמנה, יציאה למשלוח ומסירה. בלי זה, העדכונים יגיעו במייל בלבד.</span>
+                </span>
+              </label>
+              {/* Consent to advertising, as section 30א of the Communications
+                  Law wants it: a separate box, unticked, in plain words that
+                  name the channels, with the way out stated beside it. The
+                  order updates above are service messages and need no
+                  consent; this is the one that does, and it is never assumed. */}
+              <label htmlFor="marketingOptIn" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
+                <Checkbox
+                  id="marketingOptIn"
+                  checked={form.marketingOptIn}
+                  onCheckedChange={(v) => update("marketingOptIn", v === true)}
+                  className="mt-0.5 rounded-full"
+                />
+                <span className="leading-snug">
+                  אני מאשר/ת ל‑Buy Today לשלוח לי מבצעים ועדכונים שיווקיים במייל, ב‑SMS ובוואטסאפ
+                  <span className="text-muted-foreground block text-xs">
+                    לא חובה. אפשר להסיר בכל עת מהאזור האישי או בקישור שבכל הודעה.{" "}
+                    <Link href="/privacy" className="underline underline-offset-2" target="_blank">מדיניות הפרטיות</Link>
+                  </span>
                 </span>
               </label>
             </div>

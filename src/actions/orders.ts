@@ -145,6 +145,8 @@ export async function createOrderAction(input: CheckoutInput) {
       // The tick beside the phone field. Missing (an older client) means yes,
       // which is what the column defaults to as well.
       whatsappOptIn: data.whatsappOptIn ?? true,
+      // Consent to advertising is never assumed: missing means no.
+      marketingOptIn: data.marketingOptIn === true,
       // Where this order is going, recorded on the order for everyone. A
       // pickup order has no address to record.
       shipCity: keepsAddress ? data.city : null,
@@ -193,9 +195,19 @@ export async function createOrderAction(input: CheckoutInput) {
 
   // The account remembers the latest answer, so the next checkout opens with
   // the box the way this customer last left it.
-  if (session?.sub && data.whatsappOptIn !== undefined) {
+  if (session?.sub && (data.whatsappOptIn !== undefined || data.marketingOptIn !== undefined)) {
     await db.user
-      .update({ where: { id: session.sub }, data: { whatsappOptIn: data.whatsappOptIn } })
+      .update({
+        where: { id: session.sub },
+        data: {
+          ...(data.whatsappOptIn !== undefined ? { whatsappOptIn: data.whatsappOptIn } : {}),
+          // The moment of consent is part of the consent: it is what the
+          // shop shows if a customer ever asks when they agreed.
+          ...(data.marketingOptIn !== undefined
+            ? { marketingOptIn: data.marketingOptIn, marketingOptInAt: data.marketingOptIn ? new Date() : null }
+            : {}),
+        },
+      })
       .catch(() => {});
   }
 

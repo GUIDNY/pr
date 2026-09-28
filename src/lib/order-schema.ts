@@ -21,6 +21,8 @@ export const checkoutSchema = z.object({
   saveAddress: z.boolean().optional(),
   /** "Order updates on WhatsApp too" — the tick beside the phone field. */
   whatsappOptIn: z.boolean().optional(),
+  /** Consent to advertising — the unticked box under the phone field. */
+  marketingOptIn: z.boolean().optional(),
 }).refine(
   (data) => data.deliveryMethod !== "DELIVERY" || (data.city && data.street && data.houseNo),
   { message: "יש להזין כתובת מלאה למשלוח", path: ["city"] }

@@ -20,6 +20,7 @@ const registerSchema = z.object({
   phone: z.string().min(9, "מספר טלפון לא תקין"),
   password: z.string().min(6, "הסיסמה חייבת להכיל לפחות 6 תווים"),
   whatsappOptIn: z.boolean().optional(),
+  marketingOptIn: z.boolean().optional(),
 });
 
 /**
@@ -117,6 +118,7 @@ export async function registerAction(input: {
   phone: string;
   password: string;
   whatsappOptIn?: boolean;
+  marketingOptIn?: boolean;
 }) {
   const parsed = registerSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
@@ -136,6 +138,8 @@ export async function registerAction(input: {
       passwordHash,
       role: "CUSTOMER",
       whatsappOptIn: parsed.data.whatsappOptIn ?? true,
+      marketingOptIn: parsed.data.marketingOptIn === true,
+      marketingOptInAt: parsed.data.marketingOptIn === true ? new Date() : null,
     },
   });
 
@@ -156,6 +160,22 @@ export async function setWhatsappOptInAction(enabled: boolean) {
   const session = await getSession();
   if (!session) return { success: false as const, error: "יש להתחבר" };
   await db.user.update({ where: { id: session.sub }, data: { whatsappOptIn: enabled === true } });
+  return { success: true as const, error: null };
+}
+
+/**
+ * Consent to advertising, from the personal area. Turning it on records the
+ * moment; turning it off clears it. Withdrawal is free and immediate, which
+ * is what section 30א requires of an opt-out.
+ */
+export async function setMarketingOptInAction(enabled: boolean) {
+  const session = await getSession();
+  if (!session) return { success: false as const, error: "יש להתחבר" };
+  const on = enabled === true;
+  await db.user.update({
+    where: { id: session.sub },
+    data: { marketingOptIn: on, marketingOptInAt: on ? new Date() : null },
+  });
   return { success: true as const, error: null };
 }
 
