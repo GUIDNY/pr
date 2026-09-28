@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Phone, MapPin, ShieldCheck, Truck, CreditCard, MessageCircle } from "lucide-react";
+import { Phone, MapPin, ShieldCheck, Truck, CreditCard, MessageCircle, Gamepad2 } from "lucide-react";
 /* The official marks, from Simple Icons. lucide-react dropped every brand
    glyph before v1.31, so these cannot come from the same import as the icons
    beside them.
@@ -94,6 +94,20 @@ export async function Footer() {
               <SiFacebook aria-hidden className="size-4" />
             </a>
           </div>
+          {/* The 3D mall: a separate static site on its own subdomain, built
+              from this catalogue's category pages, so it adds nothing to this
+              app's load. Its product links come back here tagged
+              utm_source=closing-time-game; this link is tagged too, so the
+              round trip shows up in analytics as footer → game → product. */}
+          <a
+            href="https://play.buytoday.co.il/?utm_source=buytoday&utm_medium=footer&utm_campaign=3d-mall"
+            target="_blank"
+            rel="noopener"
+            className="bg-brand text-brand-foreground hover:bg-brand-hover mt-4 inline-flex items-center gap-2 rounded-full py-2 ps-3 pe-4 text-sm font-semibold transition-colors"
+          >
+            <Gamepad2 aria-hidden className="size-4" />
+            הקניון התלת־ממדי שלנו
+          </a>
         </div>
 
         <div>
