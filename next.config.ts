@@ -67,6 +67,36 @@ const nextConfig: NextConfig = {
       { source: "/page/terms", destination: "/terms", permanent: true },
     ];
   },
+  /* The 3D mall, served from the shop's own address as well as its own.
+
+     The game is a static site at play.buytoday.co.il. On the web that is
+     fine: the footer opens it in a new tab. Inside the iOS app it is not.
+     The app is a WebView pointed at buytoday.co.il (capacitor.config.ts),
+     and a navigation to any other host that is not in `allowNavigation` is
+     handed to Safari — so tapping the mall threw the customer out of the
+     app. Adding the host there would work too, but that list is compiled
+     into the binary and needs a new build through App Review.
+
+     A rewrite needs neither: /mall is this host, so the WebView keeps it,
+     and Vercel fetches the page from the game's deployment at the edge.
+     Nothing here renders it and nothing about the game's code or hosting
+     changes. The game loads its catalogue and music from play.buytoday.co.il
+     by absolute URL when it is not on that host, so the missing trailing
+     slash on /mall does not matter. */
+  async rewrites() {
+    return [
+      { source: "/mall", destination: "https://play.buytoday.co.il/" },
+      { source: "/mall/:path*", destination: "https://play.buytoday.co.il/:path*" },
+    ];
+  },
+  /* The same page at a second address: kept out of search, where
+     play.buytoday.co.il is the one that should be found. */
+  async headers() {
+    return [
+      { source: "/mall", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
+      { source: "/mall/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
+    ];
+  },
   turbopack: {
     root: path.join(__dirname),
   },
