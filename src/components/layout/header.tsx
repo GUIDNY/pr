@@ -92,7 +92,8 @@ export async function Header() {
           <div className="min-w-0 flex-1">
             <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-10 border-2" />
           </div>
-          {/* The 3D mall, in the app only — nothing on the web. */}
+          {/* The 3D mall: straight in from the app; on an iPhone in the
+              browser it offers the app first. See HeaderMallButton. */}
           <HeaderMallButton />
           {/* Only where the bottom tab bar is not already the cart. */}
           <CartTrigger unlessTabBar />

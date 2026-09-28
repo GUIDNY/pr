@@ -27,6 +27,13 @@
 /** Where the game lives on the web. */
 export const MALL_WEB_ORIGIN = "https://play.buytoday.co.il";
 
+/**
+ * The shop's app on the App Store ("buy today", bundle il.co.buytoday.app).
+ * Found by its bundle id through Apple's lookup API; the /il/ storefront so
+ * the page opens in Hebrew for the customers this is for.
+ */
+export const APP_STORE_URL = "https://apps.apple.com/il/app/buy-today/id6810211732";
+
 /** The iframe name the game gives the frame it opens product pages in. */
 export const MALL_EMBED_FRAME_NAME = "bt-mall-embed";
 
