@@ -4,16 +4,18 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type OrderStatus } from "@/lib/enums";
 import { formatPrice, formatDate } from "@/lib/format";
+import { WhatsappToggle } from "@/components/account/whatsapp-toggle";
 
 export default async function AccountDashboardPage() {
   const session = await getSession();
   if (!session) return null;
 
-  const [orderCount, favoriteCount, addressCount, recentOrders] = await Promise.all([
+  const [orderCount, favoriteCount, addressCount, recentOrders, account] = await Promise.all([
     db.order.count({ where: { userId: session.sub } }),
     db.favorite.count({ where: { userId: session.sub } }),
     db.address.count({ where: { userId: session.sub } }),
     db.order.findMany({ where: { userId: session.sub }, orderBy: { createdAt: "desc" }, take: 3 }),
+    db.user.findUnique({ where: { id: session.sub }, select: { phone: true, whatsappOptIn: true } }),
   ]);
 
   return (
@@ -40,6 +42,10 @@ export default async function AccountDashboardPage() {
           <p className="text-muted-foreground text-xs">כתובות</p>
         </Link>
       </div>
+
+      {/* The one setting a customer comes here to change. Under the counts
+          and above the orders, because the orders are what it is about. */}
+      <WhatsappToggle initial={account?.whatsappOptIn ?? true} phone={account?.phone ?? null} />
 
       <div>
         <div className="mb-3 flex items-center justify-between">

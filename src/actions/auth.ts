@@ -145,6 +145,20 @@ export async function registerAction(input: {
   return { success: true, error: null };
 }
 
+/**
+ * The account's "updates on WhatsApp" switch, from the personal area.
+ *
+ * Read by the notifier on every send, so turning it off here silences the
+ * WhatsApp lane for orders already placed as well — not only the next one.
+ * Email is unaffected: order confirmations are part of the transaction.
+ */
+export async function setWhatsappOptInAction(enabled: boolean) {
+  const session = await getSession();
+  if (!session) return { success: false as const, error: "יש להתחבר" };
+  await db.user.update({ where: { id: session.sub }, data: { whatsappOptIn: enabled === true } });
+  return { success: true as const, error: null };
+}
+
 const setPasswordSchema = z.object({
   currentPassword: z.string().optional(),
   newPassword: z.string().min(6, "הסיסמה חייבת להכיל לפחות 6 תווים"),
