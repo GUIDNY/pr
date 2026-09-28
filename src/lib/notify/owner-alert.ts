@@ -348,6 +348,12 @@ export function renderTeamEmail(order: AlertOrder): string {
         </table>
         <div style="padding-top:12px;font-family:${FONT};font-size:12px;color:${MUTED};">אם הקישור מבקש התחברות, מתחברים עם הפרטים למעלה ולוחצים עליו שוב.</div>
       </td></tr>
+
+      <tr><td style="padding:0 26px 22px;border-top:1px solid ${LINE};">
+        <div style="padding-top:14px;font-family:${FONT};font-size:12px;color:${MUTED};line-height:1.6;text-align:right;">
+          המייל הזה נשלח אוטומטית ואי אפשר להשיב עליו. לשאלות ולתשובות כותבים ל‑<a href="mailto:info@buytoday.co.il" style="color:${BRAND};font-weight:700;text-decoration:none;" dir="ltr">info@buytoday.co.il</a>.
+        </div>
+      </td></tr>
     </table>
   </td></tr>
 </table>
@@ -369,7 +375,8 @@ async function mailTeam(order: AlertOrder & { id: string }, recipients: string[]
     `היי צוות PR, התקבלה הזמנה חדשה ב-Buy Today: ${order.orderNumber} · ${formatPrice(order.total)}\n` +
     `1. התחברות: ${SITE_URL}/login (מייל: ${process.env.TEAM_LOGIN_EMAIL?.trim() || TEAM_LOGIN_DEFAULT})\n` +
     `2. ממשק ההזמנות: ${SITE_URL}/admin/orders\n` +
-    `3. ההזמנה: ${SITE_URL}/admin/orders/${order.orderNumber}`;
+    `3. ההזמנה: ${SITE_URL}/admin/orders/${order.orderNumber}\n\n` +
+    `המייל הזה נשלח אוטומטית ואי אפשר להשיב עליו. לשאלות: info@buytoday.co.il`;
   const subject = `הזמנה לטיפול · ${order.orderNumber} · ${formatPrice(order.total)}`;
 
   const results = await Promise.all(
