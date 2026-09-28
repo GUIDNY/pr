@@ -125,6 +125,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
   } catch {
     const original = await originalImageUrl(path);
     if (original) {
+      console.warn(`[img] storage unreachable — falling back to source for ${path.join("/")}`);
       return new Response(null, {
         status: 307,
         headers: { Location: original, "Cache-Control": FAILURE_CACHE },
@@ -139,6 +140,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
   if (!res.ok || !res.body) {
     const original = await originalImageUrl(path);
     if (original) {
+      /* Said out loud every time, because a safety net that works in
+         silence is a safety net that hides the thing it is catching. The
+         shop keeps working while storage is unreachable, which is the
+         point — and is exactly why nobody would notice. This line in the
+         runtime logs is the difference between "we are on the fallback"
+         and "everything is fine". */
+      console.warn(`[img] storage ${res.status} — falling back to source for ${path.join("/")}`);
       return new Response(null, {
         status: 307,
         headers: { Location: original, "Cache-Control": FAILURE_CACHE },
