@@ -114,11 +114,18 @@ export const BUSINESS = {
      those two profiles together into one entity instead of three. A link
      that appears in one place and not the other breaks exactly that match.
 
-     The Facebook address is the canonical one the numeric profile.php?id=
-     form redirects to. Both work; this one avoids the redirect and says the
-     page's name out loud, which is what a shared link shows. */
+     The Facebook address is the vanity one rather than the numeric
+     profile.php?id= form: it avoids a redirect and says the page's name out
+     loud, which is what a shared link shows and what sameAs is read for.
+
+     Confirmed by a person opening it, which is the only check that counts
+     here. From this network Facebook answers 400 to the vanity URL, to the
+     numeric one, and to a page invented to be certain it does not exist,
+     while PREC's page answers 200 — so a request from a server cannot tell
+     a live page from a dead one, and a dead link in sameAs is worse than a
+     stale one. */
   instagram: "https://www.instagram.com/buytoday.co.il/",
-  facebook: "https://www.facebook.com/people/BuyToday/61593689074664/",
+  facebook: "https://www.facebook.com/buytoday.co.il",
   /* Declared alongside the other two rather than instead of them. Verified
      to answer 200 before being written here, which is the rule for anything
      that goes into sameAs: a dead link there is worse than a missing one,
