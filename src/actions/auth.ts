@@ -19,6 +19,7 @@ const registerSchema = z.object({
   email: z.email("כתובת אימייל לא תקינה"),
   phone: z.string().min(9, "מספר טלפון לא תקין"),
   password: z.string().min(6, "הסיסמה חייבת להכיל לפחות 6 תווים"),
+  whatsappOptIn: z.boolean().optional(),
 });
 
 /**
@@ -110,7 +111,13 @@ export async function loginAction(input: { identifier: string; password: string 
   return { success: true, error: null, role: user.role };
 }
 
-export async function registerAction(input: { name: string; email: string; phone: string; password: string }) {
+export async function registerAction(input: {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  whatsappOptIn?: boolean;
+}) {
   const parsed = registerSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
@@ -128,6 +135,7 @@ export async function registerAction(input: { name: string; email: string; phone
       phone: normalizeIsraeliPhone(parsed.data.phone) ?? parsed.data.phone,
       passwordHash,
       role: "CUSTOMER",
+      whatsappOptIn: parsed.data.whatsappOptIn ?? true,
     },
   });
 

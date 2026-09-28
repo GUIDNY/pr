@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
@@ -90,6 +91,7 @@ export function CheckoutForm({
   defaultStreet,
   defaultHouseNo,
   defaultApartment,
+  defaultWhatsappOptIn = true,
   payViaGateway = false,
   isStaff = false,
   canEditWhilePaying = false,
@@ -105,6 +107,9 @@ export function CheckoutForm({
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
+  /** The account's last answer to "updates on WhatsApp too?"; a guest starts
+      with the box ticked. */
+  defaultWhatsappOptIn?: boolean;
   /** The address already on the account, so a returning customer does not
       retype one the shop has had since their last order. */
   defaultCity?: string;
@@ -179,6 +184,7 @@ export function CheckoutForm({
     cardNumber: "",
     cardExpiry: "",
     cardCvv: "",
+    whatsappOptIn: defaultWhatsappOptIn,
   });
 
   /* Delivery is priced by the method, and the method is chosen on this screen
@@ -523,6 +529,21 @@ export function CheckoutForm({
                 onBlur={rememberContact}
                 required
               />
+              {/* The customer's say on WhatsApp, next to the number it would
+                  go to. Ticked to start with; unticked, the order's updates
+                  come by email only, and the notifier records the choice. */}
+              <label htmlFor="whatsappOptIn" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
+                <Checkbox
+                  id="whatsappOptIn"
+                  checked={form.whatsappOptIn}
+                  onCheckedChange={(v) => update("whatsappOptIn", v === true)}
+                  className="mt-0.5 rounded-full"
+                />
+                <span className="leading-snug">
+                  לשלוח לי עדכונים על ההזמנה גם בוואטסאפ למספר הזה
+                  <span className="text-muted-foreground block text-xs">אישור ההזמנה, יציאה למשלוח ומסירה. בלי זה, העדכונים יגיעו במייל בלבד.</span>
+                </span>
+              </label>
             </div>
           </div>
         </section>

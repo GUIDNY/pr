@@ -42,6 +42,7 @@ export default async function CheckoutPage() {
       defaultName={user?.name}
       defaultEmail={user?.email}
       defaultPhone={user?.phone ?? savedAddress?.phone ?? undefined}
+      defaultWhatsappOptIn={user?.whatsappOptIn ?? true}
       defaultCity={savedAddress?.city ?? undefined}
       defaultStreet={savedAddress?.street ?? undefined}
       defaultHouseNo={savedAddress?.houseNo ?? undefined}

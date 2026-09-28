@@ -27,6 +27,7 @@ const ORDER_SELECT = {
   guestName: true,
   guestEmail: true,
   guestPhone: true,
+  whatsappOptIn: true,
   user: { select: { name: true, email: true, phone: true } },
   items: { select: { titleSnap: true, quantity: true, priceSnap: true } },
 } as const;
@@ -192,6 +193,13 @@ export async function notifyOrder(
 
     if (!to) {
       await mark(claimed.id, "SKIPPED", channel.id === "EMAIL" ? "אין מייל ללקוח" : "אין טלפון ללקוח");
+      continue;
+    }
+    /* The customer's choice, made beside the phone field. A "no" is recorded
+       like any other skip, so the order page shows why nothing went out on
+       this lane rather than looking like a failure. The email still goes. */
+    if (channel.id === "WHATSAPP" && !order.whatsappOptIn) {
+      await mark(claimed.id, "SKIPPED", "הלקוח לא אישר עדכונים בוואטסאפ");
       continue;
     }
     if (!channel.configured()) {

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { registerAction } from "@/actions/auth";
 
@@ -60,6 +61,7 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
     email: searchParams.get("email") ?? "",
     phone: searchParams.get("phone") ?? "",
     password: "",
+    whatsappOptIn: true,
   });
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -111,6 +113,20 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
         <div>
           <Label className="mb-1.5">טלפון</Label>
           <Input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} required />
+          {/* Same tick as the checkout's, kept on the account: the box opens
+              this way on every later order. */}
+          <label htmlFor="register-whatsapp" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
+            <Checkbox
+              id="register-whatsapp"
+              checked={form.whatsappOptIn}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, whatsappOptIn: v === true }))}
+              className="mt-0.5 rounded-full"
+            />
+            <span className="leading-snug">
+              עדכונים על ההזמנות שלי גם בוואטסאפ
+              <span className="text-muted-foreground block text-xs">בלי זה, העדכונים יגיעו במייל בלבד.</span>
+            </span>
+          </label>
         </div>
         <div>
           <Label className="mb-1.5">סיסמה</Label>

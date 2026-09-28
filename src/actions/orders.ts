@@ -142,6 +142,9 @@ export async function createOrderAction(input: CheckoutInput) {
       guestName: data.fullName,
       guestEmail: data.email,
       guestPhone: data.phone,
+      // The tick beside the phone field. Missing (an older client) means yes,
+      // which is what the column defaults to as well.
+      whatsappOptIn: data.whatsappOptIn ?? true,
       // Where this order is going, recorded on the order for everyone. A
       // pickup order has no address to record.
       shipCity: keepsAddress ? data.city : null,
@@ -187,6 +190,14 @@ export async function createOrderAction(input: CheckoutInput) {
   // an order number. Set before either return below, including the gateway
   // one — that customer reaches the same page after paying.
   await rememberOrder(order.orderNumber);
+
+  // The account remembers the latest answer, so the next checkout opens with
+  // the box the way this customer last left it.
+  if (session?.sub && data.whatsappOptIn !== undefined) {
+    await db.user
+      .update({ where: { id: session.sub }, data: { whatsappOptIn: data.whatsappOptIn } })
+      .catch(() => {});
+  }
 
   if (!payWithPelecard && paymentStatus === "AUTHORIZED") {
     const last4 = data.cardNumber ? data.cardNumber.replace(/\s/g, "").slice(-4) : null;

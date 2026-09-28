@@ -46,6 +46,9 @@ model User {
   /// satisfied, and nothing anybody can type will match it. The account page
   /// reads this to offer "set a password" instead of "change password".
   hasPassword  Boolean  @default(true)
+  /// Whether the customer agreed to order updates on WhatsApp. Ticked at
+  /// registration and at checkout; off means email only.
+  whatsappOptIn Boolean @default(true)
   name         String
   role         String   @default("CUSTOMER") // CUSTOMER | ADMIN | STAFF
   createdAt    DateTime @default(now())
@@ -567,6 +570,9 @@ model Order {
   total              Float
   couponCode         String?
   paymentStatus      String    @default("PENDING") // PENDING | AUTHORIZED | CAPTURED | FAILED | REFUNDED
+  /// The customer's answer to "updates on WhatsApp too?" for this order.
+  /// Read by the notifier: off means the WhatsApp lane is skipped, email goes.
+  whatsappOptIn      Boolean   @default(true)
   paymentMethod      String? // DEMO_CARD | CASH_ON_DELIVERY
   supplierId         String?
   supplier           Supplier? @relation(fields: [supplierId], references: [id])
