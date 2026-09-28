@@ -20,7 +20,7 @@ export async function Footer() {
   const departments = (await getNavigableCategoryTree()).slice(0, 6);
 
   return (
-    <footer className="bg-primary text-primary-foreground mt-16">
+    <footer data-site-chrome className="bg-primary text-primary-foreground mt-16">
       <div className="border-border/10 border-b">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 sm:grid-cols-3">
           <div className="flex items-center gap-3">

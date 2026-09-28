@@ -12,6 +12,7 @@ import { CartTrigger } from "@/components/cart/cart-trigger";
 import { AccountButton } from "@/components/layout/account-button";
 import { FavoritesLink } from "@/components/layout/favorites-link";
 import { BackOfficeLink } from "@/components/layout/back-office-link";
+import { HeaderMallButton } from "@/components/layout/mall-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 
 export async function Header() {
@@ -30,8 +31,12 @@ export async function Header() {
           and a phone number are that second's worth of evidence, so they are
           the first thing on the screen at every size. Outside the sticky
           header on purpose: it is read once, at the top, and should not
-          spend a strip of every screen afterwards. */}
-      <div className="bg-primary text-primary-foreground/85 flex justify-center py-1.5 text-[11px] sm:text-xs">
+          spend a strip of every screen afterwards.
+
+          data-site-chrome on this, the header and the tab bar: the parts of
+          the site that are not the page. Inside the 3D mall's product frame
+          they are all hidden (globals.css, lib/mall.ts). */}
+      <div data-site-chrome className="bg-primary text-primary-foreground/85 flex justify-center py-1.5 text-[11px] sm:text-xs">
         <div className="flex w-full max-w-7xl items-center justify-center gap-3 px-4 sm:gap-4 md:justify-between">
           <div className="flex items-center gap-3 whitespace-nowrap sm:gap-4">
             <span className="flex items-center gap-1">
@@ -72,7 +77,7 @@ export async function Header() {
         </div>
       </div>
 
-      <header className="bg-background sticky top-0 z-30 border-b">
+      <header data-site-chrome className="bg-background sticky top-0 z-30 border-b">
         {/* Phone: one row, 56px, and that is the whole sticky header —
             menu, the mark, the search field — and the cart only on the
             pages without the bottom tab bar, which carries it elsewhere.
@@ -87,6 +92,8 @@ export async function Header() {
           <div className="min-w-0 flex-1">
             <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-10 border-2" />
           </div>
+          {/* The 3D mall, in the app only — nothing on the web. */}
+          <HeaderMallButton />
           {/* Only where the bottom tab bar is not already the cart. */}
           <CartTrigger unlessTabBar />
         </div>
@@ -123,6 +130,7 @@ export async function Header() {
           </div>
 
           <div className="flex items-center gap-1">
+            <HeaderMallButton className="h-11" />
             <FavoritesLink />
             {/* Looks different signed in and signed out — see AccountButton. */}
             <AccountButton />

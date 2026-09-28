@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { addToCartAction } from "@/actions/cart";
 import { useCartStore } from "@/stores/cart-store";
 import { META_CURRENCY, trackMeta } from "@/lib/analytics/meta";
+import { reportAddedToMall } from "@/lib/mall";
 import { cn } from "@/lib/utils";
 
 export function AddToCartButton({
@@ -45,6 +46,8 @@ export function AddToCartButton({
             const summary = await addToCartAction(productId, qty);
             setCart(summary);
             reportAddToCart(summary, productId, qty);
+            // Only inside the 3D mall's frame — see lib/mall.ts.
+            reportAddedToMall(summary, productId);
             if (openDrawerOnAdd) openDrawer();
             else toast.success("נוסף לעגלה");
           } catch (err) {

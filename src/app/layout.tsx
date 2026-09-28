@@ -13,6 +13,8 @@ import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
 import { AccessibilityWidget } from "@/components/layout/accessibility-widget";
 import { CookieNotice } from "@/components/layout/cookie-notice";
 import { ShoppingOnly } from "@/components/layout/shopping-only";
+import { BackToMallPill, MallBridge } from "@/components/layout/mall-bridge";
+import { MALL_EMBED_BOOT_SCRIPT } from "@/lib/mall";
 import { SITE_URL } from "@/lib/site-url";
 import "./globals.css";
 
@@ -114,6 +116,11 @@ export default function RootLayout({
             larger font would get a flash of the version they can't read on
             every single page load. */}
         <script dangerouslySetInnerHTML={{ __html: A11Y_BOOT_SCRIPT }} />
+        {/* Marks a page opened inside the 3D mall's product frame, for the
+            same reason and at the same moment: the CSS that hides the
+            header, footer and launchers there has to be true before the
+            first paint, not after hydration. See lib/mall.ts. */}
+        <script dangerouslySetInnerHTML={{ __html: MALL_EMBED_BOOT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <a
@@ -128,13 +135,29 @@ export default function RootLayout({
                 for nobody in particular: name, favourites and cart together. */}
             <SessionSummaryProvider>{children}</SessionSummaryProvider>
             {/* Browsing furniture. Hidden on the payment step — see ShoppingOnly. */}
+            {/* The cart drawer stays usable inside the 3D mall's product
+                frame — it is where "added" is confirmed and where the way
+                to checkout is — so it is outside the data-site-chrome
+                wrapper below; everything floating is inside it. */}
             <ShoppingOnly>
               <CartDrawer />
-              <CompareTray />
-              <AlfredChatWidget />
+              <BackToMallPill />
             </ShoppingOnly>
-            <AccessibilityWidget />
-            <CookieNotice />
+            {/* display:contents, so the wrapper changes nothing about how
+                these lay out; it exists only to carry the marker that
+                hides them all in the mall's frame (globals.css). The
+                accessibility widget is required on every page of the site —
+                the frame is not a page of the site, it is a panel inside the
+                game, and the full page with the widget is one tap away. */}
+            <div data-site-chrome className="contents">
+              <ShoppingOnly>
+                <CompareTray />
+                <AlfredChatWidget />
+              </ShoppingOnly>
+              <AccessibilityWidget />
+              <CookieNotice />
+            </div>
+            <MallBridge />
             <Toaster position="top-center" richColors />
             <GoogleAnalytics />
             <Clarity />
