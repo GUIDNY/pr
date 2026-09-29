@@ -87,6 +87,31 @@ const cardSelect = {
 // today". The shop is supposed to be the same predicate as the feed, and
 // here it was not. This is that correction, in the constant every
 // customer-facing query already spreads.
+/**
+ * How many sellable products a listing page needs before it is worth a
+ * crawler's time.
+ *
+ * Two is the line: a page showing one or two products says almost nothing
+ * its product pages do not say better, and it competes with them for the
+ * same query. Of 218 brand and category pages, 111 hold fewer than six —
+ * and 1,637 pages on this site are already "crawled, not indexed", which
+ * is Google having looked at a page with one product on it and decided
+ * there was no reason to keep it. Pages like that do not merely fail to
+ * rank; in bulk they teach Google that this domain manufactures empty
+ * pages, and that costs the pages that deserve to rank.
+ *
+ * One number, read in two places that answer different crawlers:
+ * sitemap.ts stops offering the page, and the category and brand pages
+ * put noindex on it. Offering a page you have told Google not to index is
+ * the contradiction that started this; a single constant is what stops
+ * the two drifting apart again.
+ *
+ * Reversible on its own, like every other gate here: the page comes back
+ * the moment it has a third product in stock, with no list for anyone to
+ * remember to edit.
+ */
+export const LISTING_MIN_PRODUCTS = 3;
+
 export const PUBLIC_PRODUCT_WHERE = {
   isPublished: true,
   stockQty: { gt: 0 },

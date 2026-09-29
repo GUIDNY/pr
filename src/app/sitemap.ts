@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { SITE_URL as BASE_URL } from "@/lib/site-url";
 import { hasDerivedHashSuffix } from "@/lib/derived-slug";
+import { LISTING_MIN_PRODUCTS } from "@/lib/queries/products";
 import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
 import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
 import { WARRANTY_POLICY_UPDATED } from "@/lib/warranty-policy";
@@ -147,8 +148,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
      The number is one constant rather than two because a thin brand page
      and a thin category page are thin for the same reason, and a threshold
-     that lives in two places is one that ends up meaning two things. */
-  const LISTING_MIN_PRODUCTS = 3;
+     that lives in two places is one that ends up meaning two things.
+
+     It now lives in queries/products.ts beside PUBLIC_PRODUCT_WHERE, and
+     the category and brand pages read the same one to decide noindex —
+     because leaving a page out of this file never deindexed it. The URLs
+     still answer 200 and Google keeps what it already has. Offering and
+     indexing are two different crawlers' questions, and they have to be
+     given the same answer. */
 
   // The homepage's rails are deals, best sellers and featured products, so
   // the catalog's newest change is what dates it. Not the homepage sections

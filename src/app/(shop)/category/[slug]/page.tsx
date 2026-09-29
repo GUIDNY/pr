@@ -1,3 +1,4 @@
+import { LISTING_MIN_PRODUCTS } from "@/lib/queries/products";
 import type { Metadata } from "next";
 import { CategoryPageView } from "@/components/category/category-page-view";
 import { findCategoryBySlug } from "@/lib/category-tree";
@@ -45,13 +46,18 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
      follow stays on — the page still carries the breadcrumb and the
      department's other categories, and there is no reason to stop a
      crawler walking back out of it. */
+  /* Fewer than LISTING_MIN_PRODUCTS, not zero. Removing these from the
+     sitemap stopped offering them and did not deindex them — the URLs
+     still answer 200, so Google keeps what it already has and they keep
+     counting against the site. The sitemap and this tag now read the same
+     constant, which is the only way the two stay in step. */
   const live = await countLiveProductsInCategory(slug);
 
   return {
     title: name,
     description: `${name} - מגוון רחב במחירים הטובים ביותר, משלוח עד הבית ואחריות יבואן רשמי.`,
     alternates: { canonical: `/category/${slug}` },
-    ...(live === 0 ? { robots: { index: false, follow: true } } : {}),
+    ...(live < LISTING_MIN_PRODUCTS ? { robots: { index: false, follow: true } } : {}),
   };
 }
 
