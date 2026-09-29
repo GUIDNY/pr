@@ -702,7 +702,13 @@ export async function rankedSearchIds(query: string, take: number): Promise<stri
       FROM "Product" p
       JOIN "Category" c ON c.id = p."categoryId"
       LEFT JOIN "Brand" b ON b.id = p."brandId"
+      -- PUBLIC_PRODUCT_WHERE, by hand. This is raw SQL, so the constant
+      -- cannot be spread here, and that is exactly how the NEEDS_REVIEW
+      -- condition went missing from search while every Prisma query picked
+      -- it up for free. Any change to that constant has to be copied into
+      -- all three of these blocks; there is no compiler to notice.
       WHERE p."isPublished" AND p."stockQty" > 0
+        AND p."stockStatus" <> 'NEEDS_REVIEW'
         AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
         ${priceClause}
     )
@@ -729,7 +735,14 @@ export function inRankedOrder<T extends { id: string }>(ids: string[], rows: T[]
 export async function searchProducts(query: string, take = 8) {
   const ids = await rankedSearchIds(query, take);
   if (ids.length === 0) return [];
-  const products = await db.product.findMany({ where: { id: { in: ids } }, select: cardSelect });
+  /* The gate again, even though rankedSearchIds already applied it. The
+     ranker hand-rolls the predicate in raw SQL — it cannot spread the
+     constant — so the two can drift, and this is the cheap place to make
+     drift harmless rather than invisible. */
+  const products = await db.product.findMany({
+    where: { id: { in: ids }, ...PUBLIC_PRODUCT_WHERE },
+    select: cardSelect,
+  });
   return inRankedOrder(ids, products).map(mapProductToCard);
 }
 
@@ -995,7 +1008,13 @@ export async function searchForChat(
       FROM "Product" p
       JOIN "Category" c ON c.id = p."categoryId"
       LEFT JOIN "Brand" b ON b.id = p."brandId"
+      -- PUBLIC_PRODUCT_WHERE, by hand. This is raw SQL, so the constant
+      -- cannot be spread here, and that is exactly how the NEEDS_REVIEW
+      -- condition went missing from search while every Prisma query picked
+      -- it up for free. Any change to that constant has to be copied into
+      -- all three of these blocks; there is no compiler to notice.
       WHERE p."isPublished" AND p."stockQty" > 0
+        AND p."stockStatus" <> 'NEEDS_REVIEW'
         AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
         ${priceClause}
     ), hits AS (
@@ -1018,7 +1037,13 @@ export async function searchForChat(
       FROM "Product" p
       JOIN "Category" c ON c.id = p."categoryId"
       LEFT JOIN "Brand" b ON b.id = p."brandId"
+      -- PUBLIC_PRODUCT_WHERE, by hand. This is raw SQL, so the constant
+      -- cannot be spread here, and that is exactly how the NEEDS_REVIEW
+      -- condition went missing from search while every Prisma query picked
+      -- it up for free. Any change to that constant has to be copied into
+      -- all three of these blocks; there is no compiler to notice.
       WHERE p."isPublished" AND p."stockQty" > 0
+        AND p."stockStatus" <> 'NEEDS_REVIEW'
         AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
         ${priceClause}
     )
