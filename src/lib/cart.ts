@@ -211,6 +211,31 @@ export async function getOrCreateCart() {
   return db.cart.create({ data: { sessionId: sid }, include: cartInclude });
 }
 
+/**
+ * Puts `quantity` of a product into a cart, or adds it to the line already
+ * there, capped at what is in stock and at 10 a line. The cap is the shop's
+ * rule for every way into a cart (the add button, the 3D mall's buy-now
+ * link), so it lives here once rather than being copied into each of them.
+ *
+ * Whether the product may be sold at all is the caller's question, answered
+ * with PUBLIC_PRODUCT_WHERE before this is reached.
+ */
+export async function addLineToCart(
+  cart: { id: string; items: { id: string; productId: string; quantity: number }[] },
+  product: { id: string; stockQty: number },
+  quantity: number,
+) {
+  const existing = cart.items.find((i) => i.productId === product.id);
+  const maxQty = Math.max(1, Math.min(product.stockQty, 10));
+
+  if (existing) {
+    const nextQty = Math.min(existing.quantity + quantity, maxQty);
+    await db.cartItem.update({ where: { id: existing.id }, data: { quantity: nextQty } });
+  } else {
+    await db.cartItem.create({ data: { cartId: cart.id, productId: product.id, quantity: Math.min(quantity, maxQty) } });
+  }
+}
+
 export async function getCartItemCount() {
   const cart = await getCart();
   return cart.items.reduce((sum, i) => sum + i.quantity, 0);
