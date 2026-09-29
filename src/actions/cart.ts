@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { getCart, getOrCreateCart } from "@/lib/cart";
+import { addLineToCart, getCart, getOrCreateCart } from "@/lib/cart";
 import { buildCartSummary } from "@/lib/cart-summary";
 
 async function currentSummary() {
@@ -21,15 +21,7 @@ export async function addToCartAction(productId: string, quantity: number = 1) {
   if (!product) throw new Error("מוצר לא נמצא");
   if (product.stockStatus === "OUT_OF_STOCK") throw new Error("המוצר אזל מהמלאי");
 
-  const existing = cart.items.find((i) => i.productId === productId);
-  const maxQty = Math.max(1, Math.min(product.stockQty, 10));
-  const nextQty = Math.min((existing?.quantity ?? 0) + quantity, maxQty);
-
-  if (existing) {
-    await db.cartItem.update({ where: { id: existing.id }, data: { quantity: nextQty } });
-  } else {
-    await db.cartItem.create({ data: { cartId: cart.id, productId, quantity: Math.min(quantity, maxQty) } });
-  }
+  await addLineToCart(cart, product, quantity);
 
   return currentSummary();
 }
