@@ -4,7 +4,12 @@ import { MetaViewContent } from "@/components/analytics/meta-events";
 import { breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
 import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw } from "lucide-react";
-import { FREE_DELIVERY_THRESHOLD, computeDeliveryFee, deliveryDaysFor } from "@/lib/delivery";
+import {
+  FREE_DELIVERY_THRESHOLD,
+  computeDeliveryFee,
+  deliveryCalendarDaysFor,
+  deliveryDaysFor,
+} from "@/lib/delivery";
 import { RETURN_WINDOW_DAYS, cancellationFee } from "@/lib/returns-policy";
 import {
   Breadcrumb,
@@ -263,10 +268,19 @@ export async function ProductPageView({
             deliveryTime: {
               "@type": "ShippingDeliveryTime",
               handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
+              /* Calendar days, which is what unitCode DAY means, and not
+                 the business-day figure the page prints. Google adds
+                 handlingTime and transitTime to get its estimate, so the
+                 two together have to bound the worst case the policy
+                 allows: a three-business-day order placed on a Thursday
+                 arrives five calendar days later, and one of those five is
+                 already claimed by handling. Publishing the business-day
+                 number here promised Google a delivery /shipping does not
+                 promise a customer. */
               transitTime: {
                 "@type": "QuantitativeValue",
                 minValue: 1,
-                maxValue: deliveryDaysFor(product),
+                maxValue: deliveryCalendarDaysFor(product) - 1,
                 unitCode: "DAY",
               },
             },

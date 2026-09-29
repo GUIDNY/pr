@@ -56,6 +56,32 @@ export function deliveryDaysFor(product: { deliveryDays: number }): number {
   return product.deliveryDays === DELIVERY_DAYS_UNSET ? STANDARD_DELIVERY_DAYS : product.deliveryDays;
 }
 
+/**
+ * The same promise in calendar days, because schema.org counts in those.
+ *
+ * ShippingDeliveryTime takes unitCode DAY, and DAY means a day on the
+ * calendar. Every visible line on this site says business days, and
+ * /shipping spells out that those exclude Saturdays and holidays — so
+ * publishing the business-day figure under a calendar-day unit quietly
+ * promises Google something faster than the policy allows. Three business
+ * days can be five on a calendar, and the structured data was claiming
+ * three.
+ *
+ * Two, because the working week here runs Sunday to Thursday and the
+ * longest a three-business-day order can stretch is an order placed on
+ * Thursday: Sunday, Monday, Tuesday is five calendar days later. Any
+ * shorter promise is one the shop has not made.
+ *
+ * Derived rather than typed, so that changing STANDARD_DELIVERY_DAYS moves
+ * the visible sentence and the structured data together. A second literal
+ * is how the two came to disagree in the first place.
+ */
+const WEEKEND_DAYS = 2;
+
+export function deliveryCalendarDaysFor(product: { deliveryDays: number }): number {
+  return deliveryDaysFor(product) + WEEKEND_DAYS;
+}
+
 /** Named on the checkout and the shipping policy. A shopper choosing a
     pickup point is agreeing to be contacted by a company whose name they
     should have seen first. */
