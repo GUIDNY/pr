@@ -34,6 +34,21 @@
     <key>BUYTODAY_SHEETS_DIR</key>
     <string>/Volumes/מחירון</string>
 
+    <!-- FILL IN: how to put the share back when it drops, which it does —
+         on a reboot, on sleep, on any blip of the line it lives behind.
+         Without this the run simply reports the folder missing and waits
+         for a person; with it, macOS remounts and the run carries on.
+
+         Form: smb://<account>@<host>/<share>
+         No password here. macOS reads that from the login keychain, where
+         Finder saved it the first time somebody connected — so connect once
+         by hand with "Remember this password in my keychain" ticked, and
+         this line is all the script needs.
+
+         Leave it empty on any machine that is not the one in the office. -->
+    <key>BUYTODAY_SHEETS_SMB_URL</key>
+    <string></string>
+
     <!-- FILL IN: the same value set as INVENTORY_AGENT_SECRET in Vercel.
          It lives here and nowhere else — not in the script, which is in a
          git repository. Keep this file at chmod 600. -->

@@ -29,6 +29,7 @@ import mimetypes
 import os
 import shutil
 import ssl
+import subprocess
 import sys
 import tempfile
 import time
@@ -43,6 +44,23 @@ from pathlib import Path
 # THE ONE LINE TO FILL IN. Drag the מחירון folder onto a Terminal window and
 # paste what appears. It will look like /Volumes/something/מחירון.
 SHEETS_DIR = Path(os.environ.get("BUYTODAY_SHEETS_DIR", "/Volumes/מחירון"))
+
+# How to put the share back when it is gone, and nothing about it in this
+# file. The URL carries an account name and the company's own address, so it
+# lives in the LaunchAgent plist next to the secret (chmod 600, never
+# committed) rather than here. The password is not in it either: macOS reads
+# that from the login keychain, where Finder put it the first time somebody
+# connected. Empty means "do not try", which is the right default for any
+# machine that is not the one in the office.
+#
+#   BUYTODAY_SHEETS_SMB_URL=smb://<account>@<host>/<share>
+SHEETS_SMB_URL = os.environ.get("BUYTODAY_SHEETS_SMB_URL", "")
+
+# How long to wait for the volume to appear. `open` hands the mount to macOS
+# and returns immediately, so the only way to know is to look. Twenty seconds
+# is generous for a share on the far side of an ADSL line and still far
+# inside the launchd window.
+MOUNT_WAIT_SECONDS = 20
 
 SITE = os.environ.get("BUYTODAY_SITE", "https://buytoday.co.il")
 
@@ -198,6 +216,50 @@ def send(req: urllib.request.Request) -> tuple[int, dict]:
             return err.code, {"error": raw[:500]}
 
 
+def remount() -> bool:
+    """Ask macOS to mount the share again, and wait to see whether it did.
+
+    `open` rather than mount_smbfs on purpose. mount_smbfs needs the mount
+    point to exist first, which means this script would have to create
+    /Volumes/<name> — and a directory of that name left behind when the mount
+    fails is worse than no directory at all: the next run reads an empty
+    folder and concludes the supplier deleted every price sheet. Handing the
+    URL to macOS avoids that entirely. It creates the mount point, mounts
+    onto it, and cleans up after itself, and if it fails nothing is left
+    behind to be misread.
+
+    It also means the password stays where it belongs. macOS looks it up in
+    the login keychain; this process never sees it, never logs it, and there
+    is nothing to leak if the log is shared.
+    """
+    if not SHEETS_SMB_URL:
+        log("       BUYTODAY_SHEETS_SMB_URL is not set, so not attempting a remount")
+        return False
+
+    log(f"WARN   {SHEETS_DIR} is not there — asking macOS to mount it")
+    try:
+        subprocess.run(
+            ["/usr/bin/open", SHEETS_SMB_URL],
+            check=False,
+            capture_output=True,
+            timeout=MOUNT_WAIT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError) as err:
+        log(f"       could not start the mount: {err}")
+        return False
+
+    for _ in range(MOUNT_WAIT_SECONDS):
+        if SHEETS_DIR.is_dir():
+            log("       mounted")
+            return True
+        time.sleep(1)
+
+    log(f"       still not there after {MOUNT_WAIT_SECONDS}s")
+    log("       The share needs a person: check the server is reachable and that")
+    log("       the saved credentials still work (Finder → Go → Connect to Server).")
+    return False
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -208,10 +270,6 @@ def main() -> int:
         log("ERROR  BUYTODAY_AGENT_SECRET is not set")
         return 2
 
-    """A share that is not mounted looks exactly like a folder with no
-    spreadsheets in it, and a run that finds nothing reports success. That is
-    the shape of the failure that goes unnoticed for a fortnight, so it is
-    checked first and it is fatal."""
     """A share that is not mounted looks exactly like a folder with no
     spreadsheets in it, and a run that finds nothing reports success. That is
     the shape of the failure that goes unnoticed for a fortnight.
@@ -226,8 +284,20 @@ def main() -> int:
     try:
         entries = list(SHEETS_DIR.iterdir())
     except FileNotFoundError:
-        log(f"ERROR  folder not reachable: {SHEETS_DIR}  (is the share mounted?)")
-        return 2
+        # Gone rather than forbidden, which is the case worth trying to fix.
+        # The share drops on a reboot, on sleep, on any blip of the ADSL line
+        # it lives behind, and it does not come back by itself: three runs
+        # were lost to exactly that between 28 and 29 September before anyone
+        # looked. Reporting it accurately was the previous improvement; this
+        # is the one that stops needing a person.
+        if not remount():
+            log(f"ERROR  folder not reachable: {SHEETS_DIR}  (is the share mounted?)")
+            return 2
+        try:
+            entries = list(SHEETS_DIR.iterdir())
+        except OSError as err:
+            log(f"ERROR  mounted {SHEETS_DIR} but cannot read it: {err}")
+            return 2
     except PermissionError:
         log(f"ERROR  no permission to read {SHEETS_DIR}")
         log("       macOS is blocking this process, not the folder. Grant Full Disk")

@@ -61,6 +61,24 @@ moved. See CLAUDE.md.
 
 The log is at `~/Library/Logs/buytoday-sync.log`.
 
+## When the share drops
+
+It will. It is an SMB mount over the public internet, and it does not come
+back by itself — a reboot, a sleep, a blip of the line, and `/Volumes/מחירון`
+is simply gone. Three runs were lost to that between 28 and 29 September.
+
+Set `BUYTODAY_SHEETS_SMB_URL` in the plist to `smb://<account>@<host>/<share>`
+and the script asks macOS to mount it again before giving up. **No password
+goes in that line.** macOS takes it from the login keychain, so connect once
+by hand in Finder (Go → Connect to Server) with *Remember this password in my
+keychain* ticked, and the script never sees the credential at all.
+
+Belt and braces, and worth doing as well: System Settings → General → Login
+Items → add the mounted volume, so it is there from boot rather than from the
+first failed run.
+
+Leave the variable empty on any machine that is not the one in the office.
+
 ## Filenames move, so the agent does not rely on them
 
 The workbooks are matched by the **start** of their name, not the whole
