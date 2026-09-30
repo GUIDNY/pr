@@ -34,6 +34,7 @@ export async function GET(request: Request) {
   const freshness = await reconcileSyncStaleAlert();
   return NextResponse.json({
     stale: freshness.stale,
+    lastSeenAt: freshness.lastSeenAt,
     lastUploadAt: freshness.lastUploadAt,
     lastRunFailed: freshness.lastRunFailed,
     hoursSince: freshness.hoursSince === null ? null : Math.round(freshness.hoursSince * 10) / 10,

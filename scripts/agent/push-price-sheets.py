@@ -216,6 +216,32 @@ def send(req: urllib.request.Request) -> tuple[int, dict]:
             return err.code, {"error": raw[:500]}
 
 
+def heartbeat(keys: list[str]) -> None:
+    """Say "I read the sheets and they had not changed."
+
+    Without this the site cannot tell a quiet supplier from a dead agent:
+    both look like nothing arriving. Uploading the identical workbooks
+    anyway would tell it, and would also be the twice-daily egress that took
+    Storage down in September — so a few bytes say it instead.
+
+    Best effort on purpose, and it must stay that way. A heartbeat that
+    fails is not a reason to fail a run that did its job; the next run sends
+    another one, and if none ever gets through the watchdog is right to
+    complain. It is also why this is not folded into the upload path: it
+    reports only that the files were read and matched, and must never be
+    able to stand in for bytes that did not arrive.
+    """
+    if not SECRET:
+        return
+    try:
+        body = json.dumps({"keys": keys}).encode("utf-8")
+        status, _ = post(f"{SITE}/api/inventory/heartbeat", body, "application/json")
+        if status != 200:
+            log(f"       heartbeat HTTP {status} (not fatal)")
+    except Exception as err:  # noqa: BLE001 - never fatal, see above
+        log(f"       heartbeat failed, not fatal: {err}")
+
+
 def remount() -> bool:
     """Ask macOS to mount the share again, and wait to see whether it did.
 
@@ -353,6 +379,8 @@ def main() -> int:
 
         if not to_send:
             log("nothing changed — no upload, no sync")
+            if not args.dry_run:
+                heartbeat(sorted(before))
             return 0
 
         if args.dry_run:
