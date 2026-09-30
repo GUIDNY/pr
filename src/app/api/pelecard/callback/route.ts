@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { rememberAddress } from "@/lib/address-book";
+import { retireGameCoupon } from "@/lib/game-wheel";
 import { timingSafeEqual as nodeTimingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import {
@@ -339,6 +340,9 @@ export async function POST(req: Request) {
       },
     }),
   ]);
+
+  // A personal coupon from the mall's wheel is good for one paid order.
+  await retireGameCoupon(order.couponCode);
 
   /* The payment is real, so the address it was paid for goes into the
      account's address book now, once (rememberAddress reuses an identical

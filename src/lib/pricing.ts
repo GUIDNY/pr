@@ -21,7 +21,9 @@ export async function resolveCoupon(code: string | null | undefined, subtotal: n
     };
   }
 
-  const discount = promo.type === "PERCENTAGE" ? Math.round((subtotal * promo.value) / 100) : Math.min(promo.value, subtotal);
+  const raw = promo.type === "PERCENTAGE" ? Math.round((subtotal * promo.value) / 100) : Math.min(promo.value, subtotal);
+  // A percentage can carry a ceiling (the mall wheel's 5% stops at ₪100).
+  const discount = promo.maxDiscount ? Math.min(raw, promo.maxDiscount) : raw;
   return { discount, error: null, promotion: promo };
 }
 
