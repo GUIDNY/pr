@@ -14,6 +14,7 @@ import { rememberOrder, browserPlacedOrder } from "@/lib/order-receipts";
 import { notifyOrder } from "@/lib/notify";
 import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 import { holdDays } from "@/lib/pelecard/client";
+import { rememberAddress } from "@/lib/address-book";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -64,24 +65,24 @@ export async function createOrderAction(input: CheckoutInput) {
      Until the order carried its own copy, this `if (session)` decided whether
      the address survived at all, and a guest's delivery order reached the back
      office with nothing under "משלוח עד הבית". */
+  /* Once per place, and only for an order that is real. A gateway order is
+     not real yet: it exists so the card form can open, the customer may still
+     change the address under it (updatePendingOrderDetailsAction) or walk
+     away, and every change to the basket makes a new one. Its address goes
+     into the book when Pelecard confirms the payment — see the callback. An
+     order on any other lane is final as placed, so it is remembered now.
+     rememberAddress reuses an identical address instead of adding it again. */
   let addressId: string | undefined;
-  if (keepsAddress) {
-    if (session) {
-      const address = await db.address.create({
-        data: {
-          userId: session.sub,
-          fullName: data.fullName,
-          phone: data.phone,
-          city: data.city!,
-          street: data.street!,
-          houseNo: data.houseNo!,
-          apartment: data.apartment,
-          notes: data.deliveryNotes,
-          isDefault: false,
-        },
-      });
-      addressId = address.id;
-    }
+  if (keepsAddress && session && data.paymentMethod !== "PELECARD") {
+    addressId = await rememberAddress(session.sub, {
+      fullName: data.fullName,
+      phone: data.phone,
+      city: data.city!,
+      street: data.street!,
+      houseNo: data.houseNo!,
+      apartment: data.apartment,
+      notes: data.deliveryNotes,
+    });
   }
 
   let orderNumber = generateOrderNumber();
@@ -428,6 +429,17 @@ export async function updatePendingOrderDetailsAction(
     return { success: false as const };
   }
 
+  /* The address is written to the ORDER — ship*, the copy the back office
+     and the courier read (lib/order-address.ts). It used to go only to the
+     address-book row the order pointed at, so a customer who corrected their
+     street while the card form was open had the order shipped to the street
+     they had corrected. The book is not touched here: this runs on every
+     pause in typing, and a half-typed street is not an address to keep. The
+     callback files the final one in the book once the payment clears. */
+  const method = details.deliveryMethod;
+  const shipsHome = method ? requiresAddress(method) : null;
+  const fullAddress = Boolean(details.city && details.street && details.houseNo);
+
   await db.order.update({
     where: { id: order.id },
     data: {
@@ -435,24 +447,19 @@ export async function updatePendingOrderDetailsAction(
       guestEmail: details.email,
       guestPhone: details.phone,
       customerNote: details.deliveryNotes,
-      ...(details.deliveryMethod ? { deliveryMethod: details.deliveryMethod } : {}),
+      ...(method ? { deliveryMethod: method } : {}),
+      ...(shipsHome === false
+        ? { shipCity: null, shipStreet: null, shipHouseNo: null, shipApartment: null }
+        : fullAddress
+          ? {
+              shipCity: details.city,
+              shipStreet: details.street,
+              shipHouseNo: details.houseNo,
+              shipApartment: details.apartment || null,
+            }
+          : {}),
     },
   });
-
-  if (order.addressId && details.city && details.street && details.houseNo) {
-    await db.address.update({
-      where: { id: order.addressId },
-      data: {
-        fullName: details.fullName,
-        phone: details.phone,
-        city: details.city,
-        street: details.street,
-        houseNo: details.houseNo,
-        apartment: details.apartment,
-        notes: details.deliveryNotes,
-      },
-    });
-  }
 
   return { success: true as const };
 }
