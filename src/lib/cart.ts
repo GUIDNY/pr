@@ -236,6 +236,28 @@ export async function addLineToCart(
   }
 }
 
+/**
+ * Makes sure a cart holds at least `quantity` of a product, never adding on
+ * top. "קנה עכשיו" in the 3D mall means "this, in my checkout": pressing it
+ * twice, or sending the game's basket again after the customer removed a line
+ * on the site and put it back in the game, must not turn one into two. A line
+ * already at or above `quantity` is left exactly as the customer set it. Same
+ * cap as addLineToCart.
+ */
+export async function ensureCartLine(
+  cart: { id: string; items: { id: string; productId: string; quantity: number }[] },
+  product: { id: string; stockQty: number },
+  quantity: number,
+) {
+  const existing = cart.items.find((i) => i.productId === product.id);
+  const wanted = Math.min(quantity, Math.max(1, Math.min(product.stockQty, 10)));
+  if (!existing) {
+    await db.cartItem.create({ data: { cartId: cart.id, productId: product.id, quantity: wanted } });
+  } else if (existing.quantity < wanted) {
+    await db.cartItem.update({ where: { id: existing.id }, data: { quantity: wanted } });
+  }
+}
+
 export async function getCartItemCount() {
   const cart = await getCart();
   return cart.items.reduce((sum, i) => sum + i.quantity, 0);

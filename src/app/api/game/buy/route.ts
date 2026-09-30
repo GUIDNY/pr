@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { addLineToCart, getOrCreateCart } from "@/lib/cart";
+import { ensureCartLine, getOrCreateCart } from "@/lib/cart";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 
 // "קנה עכשיו" in the 3D mall: puts the products into this browser's cart and
@@ -11,6 +11,12 @@ import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 // A product's card in the game sends one slug; the receipt at the mall's
 // checkout counters sends everything in the game's basket. A slug that
 // appears twice is two of it.
+//
+// It ENSURES rather than adds (ensureCartLine): the cart ends up with at least
+// that many, never that many more. It used to add, so every press of the
+// button and every trip through the receipt put the same speaker in again —
+// including one the customer had just removed at checkout and pressed buy on
+// once more — and the cart kept growing lines nobody meant to buy twice.
 //
 // The cart is the ordinary one: the signed-in customer's (their saved
 // address is already filled in at checkout) or the guest cart on the
@@ -57,7 +63,7 @@ export async function GET(request: Request) {
     if (sellable.length) {
       const cart = await getOrCreateCart();
       for (const p of sellable) {
-        await addLineToCart(cart, p, wanted.get(p.slug) ?? 1);
+        await ensureCartLine(cart, p, wanted.get(p.slug) ?? 1);
         added++;
       }
     }
