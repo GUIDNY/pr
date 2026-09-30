@@ -79,6 +79,7 @@ model User {
   complaintMessages ComplaintMessage[]   @relation("ComplaintMessageAuthor")
   gameProfile       GameProfile?
   gameSpins         GameSpin[]
+  memberCoupons     MemberCoupon[]
 }
 
 model Address {
@@ -1053,4 +1054,18 @@ model GameSpin {
 
   @@unique([userId, day])
   @@index([day])
+}
+
+/// A personal coupon the mall's club gave an account: a loyalty reward, a
+/// level gift, or cashback on a paid order. The discount itself is the
+/// Promotion with the same code; this row says whose it is and why.
+model MemberCoupon {
+  code      String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // welcome | streak7 | days30 | cashback | level3 | level5 | level7 | level10
+  orderId   String?  @unique // the paid order a cashback coupon was earned on
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
