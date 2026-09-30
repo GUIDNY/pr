@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { SITE_URL } from "@/lib/site-url";
-import { GAME_ORIGIN, GAME_PROFILE_MAX_BYTES, gameFirstName, parseGameProfile } from "@/lib/game-profile";
+import { GAME_PROFILE_MAX_BYTES, gameFirstName, parseGameProfile } from "@/lib/game-profile";
+import { parseGameProgress } from "@/lib/game-progress";
+import { gameJson as json, gameOriginAllowed as originAllowed, gamePreflight, readGameBody } from "@/lib/game-api";
 
 // The 3D mall's window onto a BuyToday account.
 //
@@ -43,77 +43,9 @@ import { GAME_ORIGIN, GAME_PROFILE_MAX_BYTES, gameFirstName, parseGameProfile } 
 // shared cache in between could hand one origin's CORS answer to another.
 export const dynamic = "force-dynamic";
 
-function corsHeaders(): Record<string, string> {
-  return {
-    "Access-Control-Allow-Origin": GAME_ORIGIN,
-    "Access-Control-Allow-Credentials": "true",
-    Vary: "Origin",
-    "Cache-Control": "no-store",
-  };
-}
-
-function json(body: unknown, status = 200) {
-  return NextResponse.json(body, { status, headers: corsHeaders() });
-}
-
-/**
- * Is this write coming from a page allowed to make it?
- *
- * The game, or the shop itself. The shop is named twice — its configured
- * address and the address this request actually reached — because on a
- * preview deployment those differ, and a same-origin call from a preview
- * page is not a cross-site forgery. A browser does not let a page lie about
- * its own Origin header, and a request with no Origin at all is refused:
- * every browser sends one on a cross-origin PUT, so its absence means this
- * was not a page asking.
- */
-function originAllowed(request: Request): boolean {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  if (origin === GAME_ORIGIN) return true;
-  return origin === new URL(SITE_URL).origin || origin === new URL(request.url).origin;
-}
-
-/**
- * The body, read no further than the limit.
- *
- * Content-Length is checked first because it is free, but it is a claim the
- * sender makes, and a chunked body carries none. So the stream is read with
- * a running count and abandoned the moment it passes the limit — a large body
- * costs this function a couple of kilobytes, not whatever was sent.
- */
-async function readLimited(request: Request): Promise<string | null> {
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (declared > GAME_PROFILE_MAX_BYTES) return null;
-  if (!request.body) return "";
-
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > GAME_PROFILE_MAX_BYTES) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks).toString("utf8");
-}
-
-/** The preflight for PUT. Answered for any origin; only the game's is named. */
+/** The preflight for PUT. */
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    status: 204,
-    headers: {
-      ...corsHeaders(),
-      "Access-Control-Allow-Methods": "GET, PUT, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Max-Age": "600",
-    },
-  });
+  return gamePreflight("GET, PUT, OPTIONS");
 }
 
 /**
@@ -133,7 +65,7 @@ export async function GET() {
 
   const user = await db.user.findUnique({
     where: { id: session.sub },
-    select: { name: true, email: true, gameProfile: { select: { profile: true } } },
+    select: { name: true, email: true, gameProfile: { select: { profile: true, progress: true } } },
   });
   if (!user) return json({ signedIn: false });
 
@@ -141,6 +73,7 @@ export async function GET() {
     signedIn: true,
     firstName: gameFirstName(user.name, user.email),
     profile: user.gameProfile ? parseGameProfile(user.gameProfile.profile) : null,
+    progress: user.gameProfile?.progress ? parseGameProgress(user.gameProfile.progress) : null,
   });
 }
 
@@ -163,7 +96,7 @@ export async function PUT(request: Request) {
   const type = request.headers.get("content-type") ?? "";
   if (!type.toLowerCase().startsWith("application/json")) return json({ error: "bad_request" }, 400);
 
-  const raw = await readLimited(request);
+  const raw = await readGameBody(request, GAME_PROFILE_MAX_BYTES);
   if (raw === null) return json({ error: "too_large" }, 413);
 
   let body: unknown;
@@ -178,10 +111,16 @@ export async function PUT(request: Request) {
   );
   if (!profile) return json({ error: "invalid_profile" }, 400);
 
+  // The progress rides along when the game has any; it is optional, and a
+  // malformed one is refused as a whole rather than half-stored.
+  const rawProgress = typeof body === "object" && body !== null ? (body as { progress?: unknown }).progress : undefined;
+  const progress = rawProgress === undefined ? undefined : parseGameProgress(rawProgress);
+  if (progress === null) return json({ error: "invalid_progress" }, 400);
+
   await db.gameProfile.upsert({
     where: { userId: session.sub },
-    create: { userId: session.sub, profile },
-    update: { profile },
+    create: { userId: session.sub, profile, ...(progress ? { progress } : {}) },
+    update: { profile, ...(progress ? { progress } : {}) },
   });
 
   return json({ ok: true });
