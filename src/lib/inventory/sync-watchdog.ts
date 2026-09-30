@@ -50,9 +50,14 @@ const STALE_AFTER_HOURS = 18;
  * identical files pushed twice a day is the egress that took Storage down in
  * September. So a quiet supplier and a dead agent looked identical from
  * here, and on 30 September a perfectly healthy system was eighteen hours
- * from the false alarm this comment was written to rule out. `lastScannedAt`
- * is the other half: /api/inventory/heartbeat stamps it on every run that
- * read the sheets and found them unchanged.
+ * from the false alarm this comment was written to rule out.
+ *
+ * `lastScannedAt` is the other half. The sync has always stamped it, but
+ * only on a run that had something to sync, which made it a second copy of
+ * `uploadedAt` rather than the independent signal its own description in
+ * the schema promises — "last time we checked the content hash, whether or
+ * not it had changed". /api/inventory/heartbeat is what makes that true:
+ * the agent stamps it on every run that read the sheets and matched them.
  *
  * Either one is proof of the same thing — the machine inside the company
  * network read the files and reached this server. That is the whole chain
