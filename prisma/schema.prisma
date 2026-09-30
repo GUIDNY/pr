@@ -78,6 +78,7 @@ model User {
   assignedComplaints Complaint[]         @relation("ComplaintAssignee")
   complaintMessages ComplaintMessage[]   @relation("ComplaintMessageAuthor")
   gameProfile       GameProfile?
+  gameSpins         GameSpin[]
 }
 
 model Address {
@@ -450,6 +451,8 @@ model Promotion {
   scope         String // CART | CATEGORY | BRAND | PRODUCT
   scopeRefId    String? // categoryId / brandId / productId depending on scope
   minCartAmount Float?
+  // The most a PERCENTAGE coupon may take off, in shekels (the mall wheel's 5% is capped). Null = no cap.
+  maxDiscount   Float?
   startsAt      DateTime?
   endsAt        DateTime?
   isActive      Boolean   @default(true)
@@ -1034,4 +1037,20 @@ model ComplaintMessage {
 
   @@index([complaintId])
   @@index([createdAt])
+}
+
+/// One spin of the 3D mall's daily wheel by a signed-in customer. The server
+/// rolls it (lib/game-wheel.ts); one a day per account is the unique key.
+/// A coupon prize is a personal Promotion whose code is kept here.
+model GameSpin {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       String
+  prize     String
+  code      String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, day])
+  @@index([day])
 }

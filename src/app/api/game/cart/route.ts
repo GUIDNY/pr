@@ -29,7 +29,7 @@ const MAX_BODY = 512;
 
 async function cartForGame() {
   const cart = await getCart();
-  if (!cart.id) return { items: [], count: 0, subtotal: 0 };
+  if (!cart.id) return { items: [], count: 0, subtotal: 0, discount: 0, coupon: null, couponError: null };
   const s = await buildCartSummary(cart);
   return {
     items: s.items.map((i) => ({
@@ -44,6 +44,9 @@ async function cartForGame() {
     })),
     count: s.itemCount,
     subtotal: s.subtotal,
+    discount: s.discount,
+    coupon: s.couponCode,
+    couponError: s.couponError,
   };
 }
 
@@ -62,11 +65,20 @@ export async function POST(request: Request) {
 
   const raw = await readGameBody(request, MAX_BODY);
   if (raw === null) return json({ error: "too_large" }, 413);
-  let body: { action?: unknown; slug?: unknown; qty?: unknown };
+  let body: { action?: unknown; slug?: unknown; qty?: unknown; code?: unknown };
   try {
     body = JSON.parse(raw);
   } catch {
     return json({ error: "bad_request" }, 400);
+  }
+
+  // A wheel coupon, applied to the cart from the game ("להפעלה בעגלה").
+  if (body.action === "coupon") {
+    const code = typeof (body as { code?: unknown }).code === "string" ? ((body as { code: string }).code).trim().toUpperCase() : "";
+    if (!/^GAME-[A-Z0-9]{6}$/.test(code)) return json({ error: "bad_request" }, 400);
+    const cart = await getOrCreateCart();
+    await db.cart.update({ where: { id: cart.id }, data: { couponCode: code } });
+    return json(await cartForGame());
   }
 
   const action = body.action;

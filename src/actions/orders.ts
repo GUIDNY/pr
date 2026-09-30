@@ -15,6 +15,7 @@ import { notifyOrder } from "@/lib/notify";
 import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 import { holdDays } from "@/lib/pelecard/client";
 import { rememberAddress } from "@/lib/address-book";
+import { retireGameCoupon } from "@/lib/game-wheel";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -211,6 +212,10 @@ export async function createOrderAction(input: CheckoutInput) {
       })
       .catch(() => {});
   }
+
+  // A personal wheel coupon is spent by an order that is final as placed; a
+  // gateway order spends it when the payment clears (the Pelecard callback).
+  if (!payWithPelecard) await retireGameCoupon(summary.couponCode);
 
   if (!payWithPelecard && paymentStatus === "AUTHORIZED") {
     const last4 = data.cardNumber ? data.cardNumber.replace(/\s/g, "").slice(-4) : null;
