@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { CreditCard, Home, MapPin, PackageOpen, ShieldCheck, Truck, Store, Lock, RotateCcw } from "lucide-react";
+import { CreditCard, Home, MapPin, Minus, PackageOpen, Plus, ShieldCheck, Truck, Store, Lock, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ import SiGooglepay from "@icons-pack/react-simple-icons/icons/SiGooglepay";
 import { useCartStore } from "@/stores/cart-store";
 import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
 import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/orders";
-import { saveCheckoutContactAction } from "@/actions/cart";
+import { removeCartItemAction, saveCheckoutContactAction, updateCartItemAction } from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
 import { cartHasBulky } from "@/lib/bulky";
@@ -150,6 +150,7 @@ export function CheckoutForm({
   const quickSignIn = !signedIn && (showGoogle || showApple || showGoogleNative || showAppleNative);
   const twoUp = (showGoogle && showApple) || (showGoogleNative && showAppleNative);
   const [isPending, startTransition] = useTransition();
+  const [isEditingCart, startCartEdit] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
   /* Two fields the demo shows only so it matches Pelecard's form field for
      field. They are deliberately NOT part of `form`: the checkout schema
@@ -249,6 +250,35 @@ export function CheckoutForm({
     });
   }
 
+  /* THE ORDER CAN BE CHANGED ON THIS PAGE: a quantity up or down, or a line
+     removed, without a trip back to the cart. Same actions and the same caps
+     as the cart drawer, so a line here can never be one the cart would refuse.
+
+     A payment already open was opened FOR AN AMOUNT, against an order made
+     from the old basket, so it cannot survive the change. It goes, exactly as
+     it does when an edit leaves the details incomplete, and the auto-open
+     brings the card form back against a new order at the new total. The old
+     order is left PAYMENT_PENDING, the same state an abandoned checkout
+     leaves. readyToPay waits while the edit is in flight, so the new order is
+     never made from a basket the server is still changing. */
+  function changeLine(itemId: string, quantity: number) {
+    startCartEdit(async () => {
+      try {
+        const summary = quantity <= 0 ? await removeCartItemAction(itemId) : await updateCartItemAction(itemId, quantity);
+        if (payment || stranded) {
+          setPayment(null);
+          setStranded(null);
+          paidOrderId.current = null;
+          autoOpened.current = false;
+        }
+        setCart(summary);
+      } catch {
+        toast.error("לא הצלחנו לעדכן את ההזמנה, נסו שוב");
+      }
+    });
+  }
+  const lockLines = isPending || isEditingCart;
+
   /* Fills the form well enough to pass validation, so the demo lane can be run
      end to end in one press instead of eleven. The card number is the one every
      payment provider publishes as their test Visa — it is not a card, it just
@@ -334,6 +364,7 @@ export function CheckoutForm({
      earlier; the admin's order list already shows them for what they are. */
   const readyToPay =
     payViaGateway &&
+    !isEditingCart &&
     !payment &&
     !stranded &&
     form.paymentMethod === "DEMO_CARD" &&
@@ -987,7 +1018,10 @@ export function CheckoutForm({
       </div>
 
       <div className="border-border h-fit rounded-xl border p-5 lg:sticky lg:top-24">
-        <h2 className="mb-4 font-semibold">4. סיכום הזמנה</h2>
+        <h2 className="mb-1 font-semibold">4. סיכום הזמנה</h2>
+        <p className="text-muted-foreground mb-4 text-xs">
+          {isEditingCart ? "מעדכנים את ההזמנה..." : payment ? "שינוי כמות יעדכן את הסכום ויפתח את טופס התשלום מחדש" : "אפשר לשנות כמות או להסיר מוצר כאן"}
+        </p>
         <ul className="mb-4 flex max-h-64 flex-col gap-3 overflow-y-auto">
           {cart.items.map((item) => (
             <li key={item.id} className="flex items-center gap-3">
@@ -997,12 +1031,43 @@ export function CheckoutForm({
                 ) : (
                   <ProductImagePlaceholder title={item.title} brand={item.brandName} />
                 )}
-                <span className="bg-primary text-primary-foreground absolute -top-1.5 -end-1.5 flex size-5 items-center justify-center rounded-full text-[10px] font-bold">
-                  {item.quantity}
-                </span>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{item.title}</p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="border-input flex items-center rounded-lg border">
+                    <button
+                      type="button"
+                      disabled={lockLines}
+                      onClick={() => changeLine(item.id, item.quantity - 1)}
+                      className="flex size-8 items-center justify-center disabled:opacity-40"
+                      aria-label={item.quantity > 1 ? "הפחתת כמות" : "הסרה מההזמנה"}
+                    >
+                      {item.quantity > 1 ? <Minus className="size-3.5" /> : <Trash2 className="size-3.5" />}
+                    </button>
+                    <span className="w-6 text-center text-sm font-semibold tabular-nums">{item.quantity}</span>
+                    <button
+                      type="button"
+                      disabled={lockLines || item.quantity >= item.maxQuantity}
+                      onClick={() => changeLine(item.id, item.quantity + 1)}
+                      className="flex size-8 items-center justify-center disabled:opacity-40"
+                      aria-label="הוספת כמות"
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
+                  </div>
+                  {item.quantity > 1 && (
+                    <button
+                      type="button"
+                      disabled={lockLines}
+                      onClick={() => changeLine(item.id, 0)}
+                      className="text-muted-foreground hover:text-destructive p-1 disabled:opacity-40"
+                      aria-label="הסרה מההזמנה"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
+                </div>
               </div>
               <span className="text-sm font-semibold tabular-nums">{formatPrice(item.lineTotal)}</span>
             </li>
