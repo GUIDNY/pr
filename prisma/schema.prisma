@@ -533,6 +533,8 @@ model GameProfile {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   // Always the output of parseGameProfile — never the request body as sent.
   profile   Json
+  // Always the output of parseGameProgress (lib/game-progress.ts). Cosmetic only.
+  progress  Json?
   updatedAt DateTime @updatedAt
 }
 
