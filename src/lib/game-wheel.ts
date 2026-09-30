@@ -1,6 +1,7 @@
 import "server-only";
-import { randomBytes, randomInt } from "crypto";
+import { randomInt } from "crypto";
 import { db } from "@/lib/db";
+import { issueMemberCoupon, listMemberCoupons, type IssuedCoupon } from "@/lib/member-coupons";
 
 /**
  * The 3D mall's daily check-in: a wheel that pays game coins, and discounts
@@ -71,32 +72,8 @@ function rollCoins() {
   return WHEEL_COINS[0];
 }
 
-const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-function newCode(): string {
-  return "GAME-" + Array.from(randomBytes(6), (x) => CODE_ALPHABET[x % CODE_ALPHABET.length]).join("");
-}
-
-export type IssuedCoupon = { code: string; label: string; rule: string; min: number; endsAt: string };
-
-async function issue(reward: Reward): Promise<IssuedCoupon> {
-  let code = newCode();
-  for (let i = 0; i < 5 && (await db.promotion.findUnique({ where: { code } })); i++) code = newCode();
-  const endsAt = new Date(Date.now() + COUPON_DAYS * 86_400_000);
-  await db.promotion.create({
-    data: {
-      name: `קניון · ${reward.label} · ${reward.rule}`,
-      code,
-      type: reward.type,
-      value: reward.value,
-      scope: "CART",
-      minCartAmount: reward.min || null,
-      maxDiscount: reward.max ?? null,
-      startsAt: new Date(),
-      endsAt,
-      isActive: true,
-    },
-  });
-  return { code, label: reward.label, rule: reward.rule, min: reward.min, endsAt: endsAt.toISOString() };
+async function issue(userId: string, reward: Reward): Promise<IssuedCoupon> {
+  return issueMemberCoupon({ userId, kind: reward.id, label: reward.label, rule: reward.rule, type: reward.type, value: reward.value, min: reward.min, max: reward.max, days: COUPON_DAYS });
 }
 
 /** Where an account stands: today's check-in, the streak, the days, and the coupons still usable. */
@@ -106,10 +83,6 @@ export async function checkinStatus(userId: string) {
   const days = new Set(rows.map((r) => r.day));
   let streak = 0;
   for (let d = days.has(today) ? today : prevDay(today); days.has(d); d = prevDay(d)) streak++;
-  const codes = rows.map((r) => r.code).filter((c): c is string => !!c);
-  const promos = codes.length
-    ? await db.promotion.findMany({ where: { code: { in: codes }, isActive: true, endsAt: { gt: new Date() } }, select: { code: true, name: true, minCartAmount: true, endsAt: true, type: true, value: true } })
-    : [];
   const todayRow = rows.find((r) => r.day === today) ?? null;
   return {
     checkedInToday: !!todayRow,
@@ -117,12 +90,7 @@ export async function checkinStatus(userId: string) {
     streak,
     totalDays: days.size,
     welcomeGiven: rows.some((r) => r.prize.includes("+welcome")),
-    coupons: promos.map((p) => ({
-      code: p.code!,
-      label: p.type === "PERCENTAGE" ? `${p.value}% הנחה` : `₪${p.value} הנחה`,
-      min: p.minCartAmount ?? 0,
-      endsAt: p.endsAt!.toISOString(),
-    })),
+    coupons: await listMemberCoupons(userId),
   };
 }
 
@@ -147,7 +115,7 @@ export async function checkIn(userId: string) {
   if (status.totalDays === 30) due.push(REWARDS.days30);
 
   const rewards: IssuedCoupon[] = [];
-  for (const r of due) rewards.push(await issue(r));
+  for (const r of due) rewards.push(await issue(userId, r));
   if (rewards.length) {
     await db.gameSpin.update({
       where: { userId_day: { userId, day } },

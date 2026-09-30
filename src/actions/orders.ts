@@ -16,6 +16,7 @@ import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 import { holdDays } from "@/lib/pelecard/client";
 import { rememberAddress } from "@/lib/address-book";
 import { retireGameCoupon } from "@/lib/game-wheel";
+import { awardPurchase } from "@/lib/game-levels";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -236,6 +237,9 @@ export async function createOrderAction(input: CheckoutInput) {
       },
     });
   }
+  // the club: cashback and level gifts for an order that is paid as placed
+  if (!payWithPelecard && paymentStatus === "AUTHORIZED") await awardPurchase(order.id);
+
 
   /* A cart being emptied is the sign that the order went through. With
      Pelecard the order is not through yet — the customer is about to be sent
