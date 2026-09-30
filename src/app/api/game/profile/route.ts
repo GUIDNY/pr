@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { GAME_PROFILE_MAX_BYTES, gameFirstName, parseGameProfile } from "@/lib/game-profile";
 import { parseGameProgress } from "@/lib/game-progress";
+import { purchaseLevel } from "@/lib/game-levels";
 import { gameJson as json, gameOriginAllowed as originAllowed, gamePreflight, readGameBody } from "@/lib/game-api";
 
 // The 3D mall's window onto a BuyToday account.
@@ -74,6 +75,8 @@ export async function GET() {
     firstName: gameFirstName(user.name, user.email),
     profile: user.gameProfile ? parseGameProfile(user.gameProfile.profile) : null,
     progress: user.gameProfile?.progress ? parseGameProgress(user.gameProfile.progress) : null,
+    // the mall's level: counted from paid orders, never from the game (lib/game-levels.ts)
+    purchases: await purchaseLevel(session.sub),
   });
 }
 
