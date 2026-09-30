@@ -25,6 +25,12 @@ const MUST_BLOCK = [
   "https://www.saynet.co.il/a.jpg",
   "https://superpharmstorage.blob.core.windows.net/a.jpg",
   "https://zabilo.com/44519-product_page_img/470803.jpg",
+  "https://www.payngo.co.il/media/catalog/product/n/w/nw2927f-1.png",
+  "https://www.shekem-electric.co.il/media/ADIZT/371006-1.png",
+  "https://www.technovision.co.il/images/itempics/EZ33500_1.jpg",
+  "https://www.electricshop.co.il/images/itempics/TAF2023IX_1.jpg",
+  "https://www.avc.co.il/images/itempics/EZ4K500_1.jpg",
+  "https://yarid-b.co.il/wp-content/uploads/2026/07/a.jpeg",
 ];
 
 // prec.co.il is ours. Manufacturer and importer sites must pass, http://

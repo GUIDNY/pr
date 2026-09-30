@@ -119,7 +119,9 @@ export const HOSTS_THAT_REFUSE_US = [
   "semicom.co.il",
   "yshalom.co.il",
   "sel.co.il",
-  "hidurgroup.co.il",
+  // hidurgroup.co.il was here on 6/6 failures — all from before the
+  // user-agent fix of 27/09, and the host answers 200 to the fixed request.
+  // Back in the queue; if it refuses again the cooldown benches it.
   "miniline.co.il",
   "sol.co.il",
 ];
@@ -140,8 +142,34 @@ export const HOSTS_THAT_REFUSE_US = [
  */
 const FAILURE_COOLDOWN_DAYS = 3;
 
+/**
+ * How long a transient failure is left out of the queue.
+ *
+ * Transient used to mean "not recorded at all", on the theory that a host
+ * that hiccuped once should be asked again next run. The theory met
+ * aeg.co.uk, electrolux.com.sg, zanussi.co.il, kitchenaid.com and
+ * alctron-audio.com, whose robots.txt never answers from Vercel's address:
+ * thirty images that sit at the head of the queue (sortOrder 0, low ids)
+ * and are tried again every five minutes, all night, every night. On
+ * 29/09 the 22:25 run tried 29 images and migrated none — every slot spent
+ * on the same thirty. Twelve hours is short enough that a real hiccup
+ * still heals the same night and long enough that a dead host costs two
+ * attempts a day rather than 72.
+ *
+ * Stored in the same column, backdated: a transient failure is written as
+ * if it happened (3 days − 12 hours) ago, so the one cutoff below releases
+ * it after twelve hours. One column and one query, at the price of a
+ * timestamp that reads oddly in the database — which is why this comment
+ * exists.
+ */
+const TRANSIENT_COOLDOWN_HOURS = 12;
+
 function failureCutoff(): Date {
   return new Date(Date.now() - FAILURE_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+}
+
+function transientFailureStamp(): Date {
+  return new Date(Date.now() - (FAILURE_COOLDOWN_DAYS * 24 - TRANSIENT_COOLDOWN_HOURS) * 60 * 60 * 1000);
 }
 
 export type MigrationCandidate = {
@@ -313,7 +341,27 @@ export type MigrationOutcome =
 /* Some of these hosts are slow — prec.co.il asks crawlers for a seven-second
    delay — and a batch that hangs on one image burns the whole request. */
 const FETCH_TIMEOUT_MS = 15_000;
-const MAX_SOURCE_BYTES = 16 * 1024 * 1024;
+/* 40, up from 16: blomberg.co.il serves a 17MB PNG of a fridge, which sharp
+   turns into a 100KB webp without complaint. The function has a gigabyte. */
+const MAX_SOURCE_BYTES = 40 * 1024 * 1024;
+
+/**
+ * A URL as fetch() will accept it.
+ *
+ * Several importer sites name their files in Hebrew — sauter.co.il's product
+ * pages, yarid-b's uploads — and the rows hold those addresses as they were
+ * copied, unencoded. fetch() rejects a header that is not Latin-1 ("Cannot
+ * convert argument to a ByteString"), so every sauter image failed before a
+ * request was even sent, on the Referer. The URL parser percent-encodes
+ * what needs it and leaves what is already encoded alone, which encodeURI
+ * would not (it turns an existing %D7 into %25D7). */
+function asciiUrl(url: string): string | null {
+  try {
+    return new URL(url).href;
+  } catch {
+    return null;
+  }
+}
 
 /* The first real run returned HTTP 403 on all eight images from
    prec.co.il, and the cause was this file, not the host.
@@ -371,11 +419,8 @@ function fetchHeaders(url: string, sourcePageUrl?: string | null): Record<string
      looks like someone deep-linking the file, which is what their hotlink
      rules are written to stop. Falls back to the root when there is no
      page on record. */
-  const referer = sourcePageUrl && /^https?:\/\//i.test(sourcePageUrl)
-    ? sourcePageUrl
-    : origin
-      ? `${origin}/`
-      : undefined;
+  const referer = (sourcePageUrl && /^https?:\/\//i.test(sourcePageUrl) ? asciiUrl(sourcePageUrl) : null)
+    ?? (origin ? `${origin}/` : undefined);
   return {
     /* A plain Chrome string, with nothing appended.
     
@@ -410,11 +455,14 @@ function fetchHeaders(url: string, sourcePageUrl?: string | null): Record<string
     the next invocation does not spend its budget rediscovering it. */
 export async function migrateOneImage(image: MigrationCandidate): Promise<MigrationOutcome> {
   const outcome = await attemptMigration(image);
-  if (!outcome.ok && !outcome.transient) {
+  if (!outcome.ok) {
     /* Best-effort. A database hiccup here must not turn a failed image into
        a failed batch — the worst case is the row is retried sooner. */
     await db.productImage
-      .update({ where: { id: image.id }, data: { migrationFailedAt: new Date() } })
+      .update({
+        where: { id: image.id },
+        data: { migrationFailedAt: outcome.transient ? transientFailureStamp() : new Date() },
+      })
       .catch(() => {});
   }
   return outcome;
@@ -463,10 +511,13 @@ async function attemptMigration(image: MigrationCandidate): Promise<MigrationOut
     };
   }
 
+  const target = asciiUrl(image.url);
+  if (!target) return { id: image.id, ok: false, from: image.url, reason: "כתובת לא תקינה" };
+
   let input: Buffer;
   try {
     await politeDelay(host);
-    let res = await fetch(image.url, {
+    let res = await fetch(target, {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       headers: fetchHeaders(image.url, image.sourcePageUrl),
     });
@@ -476,7 +527,7 @@ async function attemptMigration(image: MigrationCandidate): Promise<MigrationOut
     if (res.status === 403 || res.status === 429) {
       await new Promise((r) => setTimeout(r, RETRY_AFTER_MS));
       lastHitAt.set(host, Date.now());
-      res = await fetch(image.url, {
+      res = await fetch(target, {
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         headers: fetchHeaders(image.url, image.sourcePageUrl),
       });

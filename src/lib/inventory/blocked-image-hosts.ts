@@ -36,6 +36,15 @@ const BLOCKED_HOSTS = [
   "hye.co.il",
   "i0.wp.com",
   "cdn.shopify.com",
+  // Found still hotlinked on 30/09/2026, all retail shops, all answering 403
+  // to us anyway. Listed so the sync never writes them back and the
+  // migration never copies them.
+  "avc.co.il",
+  "yarid-b",
+  "electricshop",
+  "payngo",
+  "shekem-electric",
+  "technovision",
 ];
 
 // Matches on the host alone, never the whole URL: a competitor's name
