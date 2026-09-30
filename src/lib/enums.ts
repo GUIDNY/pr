@@ -242,6 +242,15 @@ export const INVENTORY_ALERT_TYPES = [
      looked identical to four quiet days. This is the one alert raised from
      outside. See inventory/sync-watchdog.ts. */
   "SYNC_STALE",
+  /* The shop is selling below what the supplier charges it.
+     Distinct from INVALID_PRICE, which is about a price column in the
+     sheet looking wrong. This one compares the price the shop actually
+     charges — set once at creation, or by a person since — against the
+     cost the sheet reports today. Cost moves; a stored price does not,
+     because nothing but a person is allowed to change it. So the two
+     drift apart silently, and on 30 September fourteen live products had
+     drifted past each other. */
+  "PRICE_BELOW_COST",
 ] as const;
 export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
 
@@ -264,6 +273,7 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   MANUAL_ATTENTION: "סומן לטיפול ידנית",
   MANUAL_URGENT: "סומן לטיפול דחוף ידנית",
   SYNC_STALE: "הסנכרון לא רץ",
+  PRICE_BELOW_COST: "מחיר מתחת לעלות הספק",
 };
 
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;

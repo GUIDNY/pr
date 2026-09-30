@@ -345,6 +345,7 @@ type ApplyResult = {
 const ROW_STATE_ALERT_TYPES = new Set([
   "UNMATCHED_ROW",
   "INVALID_PRICE",
+  "PRICE_BELOW_COST",
   "MISSING_MODEL",
   "NEGATIVE_STOCK",
   "DUPLICATE_SKU",
@@ -747,6 +748,42 @@ async function applyOneRow(
       syncRunId,
       sourceSku: sku,
       message: `${row.title}: ${rejectedPrices.map((p) => `${p.toLocaleString("he-IL")} ₪`).join(", ")} נמוך מחצי מעלות הספק (${(row.internalCost ?? 0).toLocaleString("he-IL")} ₪) ולא יכול להיות מחיר מכירה. המחיר נלקח מעמודה אחרת (${resolved.toLocaleString("he-IL")} ₪) — כדאי לתקן בגיליון.`,
+    });
+  }
+
+  /* The shop's own price, against what the supplier charges today.
+     Everything above this checks the sheet's price *columns*; none of it
+     looks at the number the customer is actually charged. For an existing
+     product those are different things and drift apart by design: cost
+     moves with every sheet, and the stored price cannot, because the
+     ownership rule says only a person changes it. Nothing was watching
+     the gap, so on 30 September fourteen live products were being sold
+     below cost — one fridge at 4,790 against a cost of 8,590 — with no
+     sign of it anywhere in the back office.
+
+     The price is not corrected here, deliberately. A price is a
+     commercial decision and the sheet is not allowed to make it; that is
+     the whole reason sync writes stock and nothing else. This says so
+     loudly instead, and closes itself the moment the gap does.
+
+     No VAT arithmetic on purpose. The cost column is sometimes ex-VAT and
+     sometimes inc-VAT, and a price below either is a loss, so comparing
+     the raw numbers only ever under-reports — never invents a problem. */
+  const chargedPrice = existing?.price ?? resolved;
+  const supplierCost = row.internalCost;
+  if (chargedPrice !== null && supplierCost !== null && supplierCost > 0 && chargedPrice < supplierCost) {
+    currentRowTypes.add("PRICE_BELOW_COST");
+    await upsertAlert({
+      type: "PRICE_BELOW_COST",
+      severity: "CRITICAL",
+      productId,
+      sourceId,
+      syncRunId,
+      sourceSku: sku,
+      message:
+        `${row.title}: נמכר ב-${chargedPrice.toLocaleString("he-IL")} ₪ בעוד שעלות הספק בגיליון היא ` +
+        `${supplierCost.toLocaleString("he-IL")} ₪ — הפסד של ${(supplierCost - chargedPrice).toLocaleString("he-IL")} ₪ לכל יחידה שתימכר. ` +
+        `המחיר לא שונה אוטומטית; צריך להחליט עליו ולעדכן בכרטיס המוצר.`,
     });
   }
 
