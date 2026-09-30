@@ -30,9 +30,14 @@ export const dynamic = "force-dynamic";
 // request, so this is still not a redirect anybody can aim.
 const APP_UA_MARKER = "BuyTodayApp";
 
+// ?checkout=1: the sign-in started in the game's checkout, and the game should
+// open it again. A flag with one value, appended to a fixed address; it aims
+// nothing.
 export function GET(request: Request) {
+  const url = new URL(request.url);
   const inApp = (request.headers.get("user-agent") ?? "").includes(APP_UA_MARKER);
-  const destination = inApp ? `${new URL(request.url).origin}/mall?signedin=1` : `${GAME_ORIGIN}/?signedin=1`;
+  const flags = url.searchParams.get("checkout") === "1" ? "signedin=1&checkout=1" : "signedin=1";
+  const destination = inApp ? `${url.origin}/mall?${flags}` : `${GAME_ORIGIN}/?${flags}`;
   return NextResponse.redirect(destination, {
     status: 303,
     headers: { "Cache-Control": "no-store" },

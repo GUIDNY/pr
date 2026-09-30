@@ -19,7 +19,8 @@ import { Lock, ChevronRight } from "lucide-react";
 export default function PaymentLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <header className="border-border bg-background sticky top-0 z-40 border-b">
+      {/* data-site-chrome: inside the 3D mall's checkout the game draws its own bar. */}
+      <header data-site-chrome className="border-border bg-background sticky top-0 z-40 border-b">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/" aria-label="Buy Today — לעמוד הבית" className="shrink-0">
             <Image

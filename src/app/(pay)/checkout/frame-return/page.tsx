@@ -1,3 +1,4 @@
+import { MALL_CHECKOUT_FRAME_NAME } from "@/lib/mall";
 export const metadata = { title: "מעבירים אתכם...", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,13 @@ export default async function FrameReturnPage({
         // inside a frame this is the whole point, and outside one it is simply
         // this window, so the same line is correct in both flows.
         dangerouslySetInnerHTML={{
-          __html: `try{window.top.location.replace(${JSON.stringify(destination)})}catch(e){window.location.replace(${JSON.stringify(destination)})}`,
+          // In the 3D mall's checkout the "whole window" is the game's
+          // checkout frame, not the game: climb to it while the ancestors are
+          // this site (reading a cross-origin one's name throws, which ends
+          // the climb at the top).
+          __html: `(function(d){var w=window.top;try{var f=window;while(f!==window.top){if(f.name===${JSON.stringify(
+            MALL_CHECKOUT_FRAME_NAME,
+          )}){w=f;break}f=f.parent}}catch(e){}try{w.location.replace(d)}catch(e){window.location.replace(d)}})(${JSON.stringify(destination)})`,
         }}
       />
       <noscript>

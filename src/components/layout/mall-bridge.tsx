@@ -10,11 +10,14 @@ import {
   FROM_MALL_KEY,
   MALL_GAME_UTM_SOURCE,
   MALL_WEB_ORIGIN,
+  MALL_CHECKOUT_RETURN,
+  isMallCheckout,
   isMallEmbed,
   leavesMallFrame,
   postToMall,
 } from "@/lib/mall";
 import { cn } from "@/lib/utils";
+import { PAYMENT_CAPTURED_EVENT } from "@/components/analytics/meta-events";
 
 /**
  * The shop's half of the 3D mall's conversation — see lib/mall.ts for the
@@ -61,6 +64,13 @@ export function MallBridge() {
           return;
         }
         if (url.origin !== window.location.origin || !leavesMallFrame(url.pathname)) return;
+        /* A sign-in from the game's checkout would land on the shop's own
+           checkout, outside the game. Point it back at the game instead,
+           which reopens its checkout with the customer now signed in. */
+        if (isMallCheckout() && /^\/(checkout|cart)(\/|$|\?)/.test(url.searchParams.get("redirect") ?? "")) {
+          url.searchParams.set("redirect", MALL_CHECKOUT_RETURN);
+          anchor.href = url.href;
+        }
         anchor.target = "_top";
       }
       document.addEventListener("click", onClick, true);
@@ -78,6 +88,31 @@ export function MallBridge() {
       /* Storage refused (private mode on some browsers): no pill, no harm. */
     }
   }, []);
+
+  return null;
+}
+
+/**
+ * Tells the game an order is paid, so the mall can celebrate it and close its
+ * checkout. Mirrors MetaPurchase: an order that is already paid (or needs no
+ * payment) reports on arrival; a gateway order reports when
+ * PaymentConfirmation announces the payment settled, and not before — a
+ * declined card must never look like a purchase in the game. Outside the
+ * game's frames postToMall does nothing.
+ */
+export function ReportOrderToMall({ orderNumber, total, paid }: { orderNumber: string; total: number; paid: boolean }) {
+  useEffect(() => {
+    const send = () => postToMall({ type: "bt-mall:ordered", orderNumber, total });
+    if (paid) {
+      send();
+      return;
+    }
+    const onCaptured = (e: Event) => {
+      if ((e as CustomEvent<{ orderNumber: string }>).detail?.orderNumber === orderNumber) send();
+    };
+    window.addEventListener(PAYMENT_CAPTURED_EVENT, onCaptured);
+    return () => window.removeEventListener(PAYMENT_CAPTURED_EVENT, onCaptured);
+  }, [orderNumber, total, paid]);
 
   return null;
 }

@@ -37,6 +37,20 @@ export const APP_STORE_URL = "https://apps.apple.com/il/app/buy-today/id68102117
 /** The iframe name the game gives the frame it opens product pages in. */
 export const MALL_EMBED_FRAME_NAME = "bt-mall-embed";
 
+/**
+ * The iframe name of the game's checkout: "קנה עכשיו" opens the cart and the
+ * checkout in a full-screen sheet over the mall, so the customer pays without
+ * leaving the game. It is embedded exactly like the product frame (no header,
+ * no footer), with one difference: cart and checkout stay in it rather than
+ * leaving for the whole window — see leavesMallFrame. A separate name rather
+ * than a flag, because the name is the one thing that survives every
+ * navigation inside the frame, which is the whole checkout journey:
+ * /api/game/buy, /checkout, Pelecard's form, and the confirmation.
+ */
+export const MALL_CHECKOUT_FRAME_NAME = "bt-mall-checkout";
+
+const MALL_FRAME_NAMES = [MALL_EMBED_FRAME_NAME, MALL_CHECKOUT_FRAME_NAME];
+
 /** The utm_source the game stamps on every link into the shop. */
 export const MALL_GAME_UTM_SOURCE = "closing-time-game";
 
@@ -90,18 +104,23 @@ export function mallHref(medium: string, inApp: boolean): string {
  * The comparison is allowed across origins: comparing two WindowProxy objects
  * reads nothing from the other document.
  */
-export const MALL_EMBED_BOOT_SCRIPT = `(function(){try{if(window.self!==window.top&&window.name===${JSON.stringify(
-  MALL_EMBED_FRAME_NAME,
-)})document.documentElement.setAttribute("data-embed","mall")}catch(e){}})()`;
+export const MALL_EMBED_BOOT_SCRIPT = `(function(){try{if(window.self!==window.top&&${JSON.stringify(
+  MALL_FRAME_NAMES,
+)}.indexOf(window.name)>-1)document.documentElement.setAttribute("data-embed","mall")}catch(e){}})()`;
 
 /** Same test as the boot script, for code that runs after it. */
 export function isMallEmbed(): boolean {
   if (typeof window === "undefined") return false;
   try {
-    return window.self !== window.top && window.name === MALL_EMBED_FRAME_NAME;
+    return window.self !== window.top && MALL_FRAME_NAMES.includes(window.name);
   } catch {
     return false;
   }
+}
+
+/** Inside the game's checkout frame, where cart and checkout stay put. */
+export function isMallCheckout(): boolean {
+  return isMallEmbed() && window.name === MALL_CHECKOUT_FRAME_NAME;
 }
 
 /**
@@ -113,9 +132,24 @@ export function isMallEmbed(): boolean {
  */
 const TOP_LEVEL_PATHS = /^\/(cart|checkout|login|register|account)(\/|$)/;
 
+/**
+ * In the game's checkout frame the customer asked to pay inside the game, and
+ * the checkout there fills the whole screen, so cart and checkout stay. What
+ * still leaves: signing in (Google and Apple refuse to be framed, and a
+ * session made in a frame is one the customer then closes) and the account.
+ */
+const CHECKOUT_TOP_LEVEL_PATHS = /^\/(login|register|account|api\/auth)(\/|$)/;
+
 export function leavesMallFrame(pathname: string): boolean {
-  return TOP_LEVEL_PATHS.test(pathname);
+  return (isMallCheckout() ? CHECKOUT_TOP_LEVEL_PATHS : TOP_LEVEL_PATHS).test(pathname);
 }
+
+/**
+ * Where a sign-in started in the game's checkout comes back to: the game,
+ * which opens its checkout again (the cart is on the account by then). A
+ * fixed path of this site, so it passes the login's same-site redirect check.
+ */
+export const MALL_CHECKOUT_RETURN = "/api/game/return?checkout=1";
 
 /**
  * Navigate to a shop path — out of the game's frame when embedded, as an
@@ -132,7 +166,11 @@ export function leavesMallFrame(pathname: string): boolean {
 export function navigateOutOfMallFrame(path: string): boolean {
   if (!isMallEmbed()) return false;
   try {
-    window.top!.location.href = new URL(path, window.location.href).href;
+    const url = new URL(path, window.location.href);
+    /* The game's checkout frame keeps its checkout: the caller navigates it
+       in place, as it would outside the game. */
+    if (!leavesMallFrame(url.pathname)) return false;
+    window.top!.location.href = url.href;
     return true;
   } catch {
     return false;
@@ -142,7 +180,8 @@ export function navigateOutOfMallFrame(path: string): boolean {
 /** The messages the frame sends up to the game. */
 export type MallFrameMessage =
   | { type: "bt-mall:ready" }
-  | { type: "bt-mall:added"; slug: string; name: string; price: number };
+  | { type: "bt-mall:added"; slug: string; name: string; price: number }
+  | { type: "bt-mall:ordered"; orderNumber: string; total: number };
 
 /**
  * Post to the game, when embedded.
