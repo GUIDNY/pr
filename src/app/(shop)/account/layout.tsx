@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Package, MapPin, Heart, KeyRound, Trash2 } from "lucide-react";
+import { LayoutDashboard, Package, MapPin, Heart, KeyRound, Trash2, Trophy } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
 
 const NAV = [
   { href: "/account", label: "סקירה כללית", icon: LayoutDashboard },
   { href: "/account/orders", label: "ההזמנות שלי", icon: Package },
+  { href: "/account/club", label: "מועדון הקניון", icon: Trophy },
   { href: "/account/addresses", label: "כתובות", icon: MapPin },
   { href: "/account/favorites", label: "מועדפים", icon: Heart },
   { href: "/account/password", label: "סיסמה", icon: KeyRound },

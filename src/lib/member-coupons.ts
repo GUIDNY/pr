@@ -73,3 +73,26 @@ export async function listMemberCoupons(userId: string) {
 export async function hasMemberCoupon(userId: string, kind: string) {
   return !!(await db.memberCoupon.findFirst({ where: { userId, kind }, select: { code: true } }));
 }
+
+export type CouponState = "active" | "used" | "expired";
+
+/** Every club coupon the account was ever given, newest first, and what became of it. */
+export async function memberCouponHistory(userId: string, take = 30) {
+  const mine = await db.memberCoupon.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take, select: { code: true, kind: true, createdAt: true } });
+  if (!mine.length) return [];
+  const promos = await db.promotion.findMany({
+    where: { code: { in: mine.map((m) => m.code) } },
+    select: { code: true, type: true, value: true, minCartAmount: true, endsAt: true, isActive: true, name: true },
+  });
+  const byCode = new Map(promos.map((p) => [p.code!, p]));
+  const now = Date.now();
+  return mine.flatMap((m) => {
+    const p = byCode.get(m.code);
+    if (!p) return [];
+    const state: CouponState = !p.isActive ? "used" : p.endsAt && p.endsAt.getTime() <= now ? "expired" : "active";
+    const label = p.type === "PERCENTAGE" ? `${p.value}% הנחה` : m.kind === "cashback" ? `₪${p.value} קאשבק` : `₪${p.value} הנחה`;
+    // the rule is the part of the promotion's name after the label ("מועדון BuyToday · label · rule")
+    const rule = p.name.split(" · ").slice(2).join(" · ");
+    return [{ code: m.code, kind: m.kind, label, rule, min: p.minCartAmount ?? 0, createdAt: m.createdAt.toISOString(), endsAt: p.endsAt?.toISOString() ?? null, state }];
+  });
+}
