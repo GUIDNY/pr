@@ -42,7 +42,8 @@
     "slugs:generate": "tsx scripts/generate-legacy-slugs.ts",
     "cap:ios": "cap sync ios && cap open ios",
     "seed:guides": "tsx scripts/seed-buying-guides.ts",
-    "check:delivery": "tsx scripts/check-delivery-promise.ts"
+    "check:delivery": "tsx scripts/check-delivery-promise.ts",
+    "seed:intros": "tsx scripts/seed-category-intros.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
