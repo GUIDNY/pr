@@ -30,6 +30,7 @@ export type AdminPromotion = {
   usageLimit: number | null;
   perCustomerLimit: number | null;
   firstOrderOnly: boolean;
+  membersOnly: boolean;
   used: number;
   createdAt: string;
 };
@@ -98,6 +99,7 @@ export async function getAdminPromotions(): Promise<{ promotions: AdminPromotion
       usageLimit: r.usageLimit,
       perCustomerLimit: r.perCustomerLimit,
       firstOrderOnly: r.firstOrderOnly,
+      membersOnly: r.membersOnly,
       used: r.code ? (usedBy.get(r.code) ?? 0) : 0,
       createdAt: r.createdAt.toISOString(),
     })),

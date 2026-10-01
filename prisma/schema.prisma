@@ -467,6 +467,8 @@ model Promotion {
   perCustomerLimit Int?
   /// Only for a customer with no paid order yet.
   firstOrderOnly   Boolean   @default(false)
+  /// Only for a signed-in account; a guest is told to sign in.
+  membersOnly      Boolean   @default(false)
   updatedAt        DateTime  @default(now()) @updatedAt
 }
 

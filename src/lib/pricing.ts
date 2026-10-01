@@ -93,6 +93,10 @@ export async function resolveCoupon(
      drifts the first time an order is deleted or a callback is replayed,
      and the orders are the record anyway. Only when a limit is set, so an
      ordinary coupon costs no extra query. */
+  if (promo.membersOnly && !customer.userId) {
+    return refuse("הקופון ללקוחות רשומים בלבד — התחברו או הירשמו כדי להשתמש בו");
+  }
+
   const email = customer.email?.trim().toLowerCase() || null;
   const whoClauses = [
     ...(customer.userId ? [{ userId: customer.userId }] : []),

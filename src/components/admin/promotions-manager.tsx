@@ -52,6 +52,7 @@ type FormState = {
   usageLimit: string;
   perCustomerLimit: string;
   firstOrderOnly: boolean;
+  membersOnly: boolean;
   isActive: boolean;
 };
 
@@ -71,6 +72,7 @@ const EMPTY: FormState = {
   usageLimit: "",
   perCustomerLimit: "",
   firstOrderOnly: false,
+  membersOnly: false,
   isActive: true,
 };
 
@@ -107,6 +109,7 @@ function fromPromotion(p: AdminPromotion): FormState {
     usageLimit: p.usageLimit ? String(p.usageLimit) : "",
     perCustomerLimit: p.perCustomerLimit ? String(p.perCustomerLimit) : "",
     firstOrderOnly: p.firstOrderOnly,
+    membersOnly: p.membersOnly,
     isActive: p.isActive,
   };
 }
@@ -127,6 +130,7 @@ function toInput(f: FormState): PromotionInput {
     usageLimit: f.usageLimit ? Number(f.usageLimit) : null,
     perCustomerLimit: f.perCustomerLimit ? Number(f.perCustomerLimit) : null,
     firstOrderOnly: f.firstOrderOnly,
+    membersOnly: f.membersOnly,
     isActive: f.isActive,
   };
 }
@@ -156,6 +160,7 @@ function conditionsText(p: AdminPromotion): string {
   if (p.startsAt) parts.push(`מ‑${new Date(p.startsAt).toLocaleDateString("he-IL")}`);
   if (p.endsAt) parts.push(`עד ${new Date(p.endsAt).toLocaleDateString("he-IL")}`);
   if (p.firstOrderOnly) parts.push("הזמנה ראשונה");
+  if (p.membersOnly) parts.push("לרשומים בלבד");
   if (p.perCustomerLimit) parts.push(p.perCustomerLimit === 1 ? "פעם אחת ללקוח" : `${p.perCustomerLimit} ללקוח`);
   return parts.join(" · ") || "—";
 }
@@ -452,6 +457,10 @@ export function PromotionsManager({
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <Checkbox checked={form.firstOrderOnly} onCheckedChange={(v) => set("firstOrderOnly", v === true)} />
                 להזמנה ראשונה בלבד (לקוח בלי הזמנה ששולמה)
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <Checkbox checked={form.membersOnly} onCheckedChange={(v) => set("membersOnly", v === true)} />
+                ללקוחות רשומים בלבד (אורח יתבקש להתחבר)
               </label>
               <label className="flex cursor-pointer items-center gap-2 text-sm">
                 <Switch checked={form.isActive} onCheckedChange={(v) => set("isActive", v)} />

@@ -34,6 +34,7 @@ const promotionSchema = z
     usageLimit: z.coerce.number().int().min(1).optional().nullable(),
     perCustomerLimit: z.coerce.number().int().min(1).optional().nullable(),
     firstOrderOnly: z.boolean().optional(),
+    membersOnly: z.boolean().optional(),
     isActive: z.boolean().optional(),
   })
   .refine((d) => d.type === "FREE_DELIVERY" || d.value > 0, { message: "יש להזין ערך הנחה", path: ["value"] })
@@ -62,6 +63,7 @@ function promotionData(d: z.output<typeof promotionSchema>) {
     usageLimit: d.usageLimit || null,
     perCustomerLimit: d.perCustomerLimit || null,
     firstOrderOnly: d.firstOrderOnly === true,
+    membersOnly: d.membersOnly === true,
     isActive: d.isActive !== false,
   };
 }
