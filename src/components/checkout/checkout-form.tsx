@@ -163,6 +163,7 @@ export function CheckoutForm({
      the numbers on this page are never computed twice. */
   const [couponInput, setCouponInput] = useState("");
   const [couponBusy, setCouponBusy] = useState(false);
+  const [couponOpen, setCouponOpen] = useState(false);
   function runCoupon(promise: ReturnType<typeof applyCouponAction>) {
     setCouponBusy(true);
     promise
@@ -1095,53 +1096,6 @@ export function CheckoutForm({
           ))}
         </ul>
         <Separator className="mb-3" />
-        {/* The coupon, here as well as in the cart. A customer who arrived
-            with a code from a campaign reaches this page without ever opening
-            the cart drawer, and a code with no field to type it into is a
-            discount they do not get — and a sale that is lost over it. */}
-        {!payment && (
-          <div className="mb-3">
-            {cart.couponCode ? (
-              <div className="bg-success/10 text-success flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm">
-                <span className="flex items-center gap-1.5">
-                  <Ticket className="size-4" />
-                  קופון <span className="font-mono font-bold">{cart.couponCode}</span> הופעל
-                  {cart.couponLabel && <span className="text-success/80"> · {cart.couponLabel}</span>}
-                </span>
-                <button
-                  type="button"
-                  className="text-xs underline underline-offset-2"
-                  disabled={couponBusy}
-                  onClick={() => runCoupon(removeCouponAction())}
-                >
-                  הסרה
-                </button>
-              </div>
-            ) : (
-              <form
-                className="flex gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!couponInput.trim()) return;
-                  runCoupon(applyCouponAction(couponInput));
-                }}
-              >
-                <Input
-                  value={couponInput}
-                  onChange={(e) => setCouponInput(e.target.value)}
-                  placeholder="יש לכם קוד קופון?"
-                  dir="ltr"
-                  className="h-10 font-mono"
-                  aria-label="קוד קופון"
-                />
-                <Button type="submit" variant="outline" className="h-10 shrink-0" disabled={couponBusy || !couponInput.trim()}>
-                  {couponBusy ? "בודק…" : "הפעלה"}
-                </Button>
-              </form>
-            )}
-            {cart.couponError && <p className="text-destructive mt-1.5 text-xs">{cart.couponError}</p>}
-          </div>
-        )}
         <div className="flex flex-col gap-1.5 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">סכום ביניים</span>
@@ -1164,6 +1118,63 @@ export function CheckoutForm({
             <span className="text-muted-foreground">{DELIVERY_METHOD_LABELS[deliveryMethod]}</span>
             <span className="tabular-nums">{deliveryFee === 0 ? "חינם" : formatPrice(deliveryFee)}</span>
           </div>
+          {/* The coupon, quietly. A customer who arrived with a code from a
+              campaign reaches this page without opening the cart, so there
+              has to be somewhere to type it — but most customers have no
+              code, and a field with a button in the middle of the summary
+              read as a step they had skipped. So: one small line, and the
+              field only for whoever asks for it. */}
+          {!payment &&
+            (cart.couponCode ? (
+              <div className="text-success flex items-center justify-between gap-2 text-xs">
+                <span className="flex items-center gap-1">
+                  <Ticket className="size-3.5" />
+                  קופון <span className="font-mono font-semibold">{cart.couponCode}</span> הופעל
+                  {cart.couponLabel && <span className="text-success/80"> · {cart.couponLabel}</span>}
+                </span>
+                <button
+                  type="button"
+                  className="text-muted-foreground underline underline-offset-2"
+                  disabled={couponBusy}
+                  onClick={() => runCoupon(removeCouponAction())}
+                >
+                  הסרה
+                </button>
+              </div>
+            ) : couponOpen ? (
+              <form
+                className="mt-0.5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!couponInput.trim()) return;
+                  runCoupon(applyCouponAction(couponInput));
+                }}
+              >
+                <div className="flex gap-1.5">
+                  <Input
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value)}
+                    placeholder="קוד קופון"
+                    dir="ltr"
+                    className="h-8 font-mono text-sm"
+                    aria-label="קוד קופון"
+                    autoFocus
+                  />
+                  <Button type="submit" variant="outline" size="sm" className="h-8 shrink-0" disabled={couponBusy || !couponInput.trim()}>
+                    {couponBusy ? "בודק…" : "הפעלה"}
+                  </Button>
+                </div>
+                {cart.couponError && <p className="text-destructive mt-1 text-xs">{cart.couponError}</p>}
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCouponOpen(true)}
+                className="text-muted-foreground hover:text-foreground w-fit text-xs underline underline-offset-2"
+              >
+                יש לכם קוד קופון?
+              </button>
+            ))}
         </div>
         <Separator className="my-3" />
         <div className="mb-4 flex justify-between text-base font-bold">
