@@ -95,6 +95,12 @@ model Address {
   zip       String?
   notes     String?
   isDefault Boolean @default(false)
+  /* Did a person put this here on purpose, or did a checkout leave it behind?
+     The book is written from orders, so without this every delivery to a new
+     place adds a row the customer never asked to keep. One auto row is a
+     convenience — prefill the next checkout — and four of the same flat is
+     clutter they then have to tidy. See lib/address-book.ts. */
+  savedByUser Boolean @default(false)
 
   orders Order[]
 
