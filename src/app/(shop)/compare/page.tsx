@@ -12,6 +12,7 @@ import { StockBadge } from "@/components/product/stock-badge";
 import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/format";
+import { deliveryDaysFor } from "@/lib/delivery";
 
 type CompareProduct = Awaited<ReturnType<typeof getProductsForCompareAction>>[number];
 
@@ -117,7 +118,7 @@ export default function ComparePage() {
               <td className="text-muted-foreground p-3 text-sm font-medium">זמן אספקה</td>
               {products.map((p) => (
                 <td key={p.id} className="border-border border p-3 text-sm">
-                  עד {p.deliveryDays} ימים
+                  עד {deliveryDaysFor(p)} ימי עסקים
                 </td>
               ))}
             </tr>

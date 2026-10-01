@@ -487,7 +487,9 @@ export async function ProductPageView({
             ) : null}
             <span className="text-muted-foreground flex items-center gap-1 text-sm">
               <Truck className="size-4" />
-              {deliveryFee === 0 ? `עד הבית תוך ${product.deliveryDays} ימים` : `משלוח ${formatPrice(deliveryFee)} · תוך ${product.deliveryDays} ימים`}
+              {deliveryFee === 0
+                ? `עד הבית תוך ${deliveryDaysFor(product)} ימי עסקים`
+                : `משלוח ${formatPrice(deliveryFee)} · תוך ${deliveryDaysFor(product)} ימי עסקים`}
             </span>
           </div>
 
@@ -742,7 +744,7 @@ export async function ProductPageView({
               <div>
                 <p className="font-bold">משלוח עד הבית</p>
                 <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
-                  תוך {product.deliveryDays} ימי עסקים בכל הארץ. ניתן גם לאסוף עצמאית מהסניף.
+                  תוך {deliveryDaysFor(product)} ימי עסקים בכל הארץ. ניתן גם לאסוף עצמאית מהסניף.
                 </p>
               </div>
             </div>
