@@ -57,30 +57,48 @@ export function deliveryDaysFor(product: { deliveryDays: number }): number {
 }
 
 /**
- * The same promise in calendar days, because schema.org counts in those.
+ * The same promise, split the way ShippingDeliveryTime wants it.
  *
- * ShippingDeliveryTime takes unitCode DAY, and DAY means a day on the
- * calendar. Every visible line on this site says business days, and
- * /shipping spells out that those exclude Saturdays and holidays — so
- * publishing the business-day figure under a calendar-day unit quietly
- * promises Google something faster than the policy allows. Three business
- * days can be five on a calendar, and the structured data was claiming
- * three.
+ * handlingTime and transitTime are counted in BUSINESS days, not calendar
+ * days — Google states it outright ("the minimum and maximum number of
+ * business days for handling and transit of an order"), and schema.org
+ * carries a `businessDays` property on ShippingDeliveryTime for declaring
+ * which days those are, a property that would mean nothing if the unit were
+ * the calendar. This file assumed the opposite and padded the figure by a
+ * weekend, which published a promise two days slower than the one the shop
+ * makes: handling 0-1 plus transit 1-4 declares five business days while
+ * every visible line on the product page says three. Google shows the
+ * structured-data figure in its shopping surfaces, so the shop was
+ * advertising five and delivering in three.
  *
- * Two, because the working week here runs Sunday to Thursday and the
- * longest a three-business-day order can stretch is an order placed on
- * Thursday: Sunday, Monday, Tuesday is five calendar days later. Any
- * shorter promise is one the shop has not made.
+ * Google adds the two maximums, so they have to sum to the promise and not
+ * to more. Derived from STANDARD_DELIVERY_DAYS rather than typed as
+ * literals, because a second copy of the number is how the page and the
+ * structured data came to disagree in the first place.
  *
- * Derived rather than typed, so that changing STANDARD_DELIVERY_DAYS moves
- * the visible sentence and the structured data together. A second literal
- * is how the two came to disagree in the first place.
+ * The split: up to a day to pick, pack and hand over, the rest with the
+ * carrier. Both minimums stay honest — an order placed in the morning can
+ * go out the same day (handling 0) and nothing arrives in zero (transit 1).
  */
-const WEEKEND_DAYS = 2;
+export const HANDLING_DAYS = { min: 0, max: 1 } as const;
 
-export function deliveryCalendarDaysFor(product: { deliveryDays: number }): number {
-  return deliveryDaysFor(product) + WEEKEND_DAYS;
-}
+export const TRANSIT_DAYS = {
+  min: 1,
+  max: STANDARD_DELIVERY_DAYS - HANDLING_DAYS.max,
+} as const;
+
+/**
+ * Which days those are. Sunday to Thursday is the working week here, and
+ * saying so removes the last ambiguity: a crawler never has to guess
+ * whether the shop counts Friday.
+ */
+export const BUSINESS_DAY_NAMES = [
+  "https://schema.org/Sunday",
+  "https://schema.org/Monday",
+  "https://schema.org/Tuesday",
+  "https://schema.org/Wednesday",
+  "https://schema.org/Thursday",
+] as const;
 
 /** Named on the checkout and the shipping policy. A shopper choosing a
     pickup point is agreeing to be contacted by a company whose name they

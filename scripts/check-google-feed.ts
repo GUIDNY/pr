@@ -16,7 +16,7 @@
 // Run: npx tsx scripts/check-google-feed.ts
 import { renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
 import { SITE_URL } from "../src/lib/site-url";
-import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE } from "../src/lib/delivery";
+import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE, HANDLING_DAYS, TRANSIT_DAYS, STANDARD_DELIVERY_DAYS } from "../src/lib/delivery";
 
 function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
   return {
@@ -202,6 +202,22 @@ check("above the threshold quotes free delivery", (items.get("FREESHIP") ?? "").
 // The fixture only tests the threshold if it actually straddles it.
 check("the free-shipping fixture is above the threshold", 9900 >= FREE_DELIVERY_THRESHOLD);
 check("the paid-shipping fixture is below the threshold", 100 < FREE_DELIVERY_THRESHOLD);
+
+/* The delivery time, which has to be the same promise the product page
+   prints and the same one its ShippingDeliveryTime declares. Google counts
+   these in business days and adds the two maximums, so their sum is what a
+   shopper is shown — and a feed that says five next to a page that says
+   three is the misrepresentation this account has already been flagged for.
+   Read from the constants, so the guard moves with the policy. */
+for (const sku of ["PLAIN", "FREESHIP"]) {
+  const item = items.get(sku) ?? "";
+  check(`${sku} declares handling time`, item.includes(`<g:max_handling_time>${HANDLING_DAYS.max}</g:max_handling_time>`));
+  check(`${sku} declares transit time`, item.includes(`<g:max_transit_time>${TRANSIT_DAYS.max}</g:max_transit_time>`));
+}
+check(
+  "the two maximums add up to the published promise",
+  HANDLING_DAYS.max + TRANSIT_DAYS.max === STANDARD_DELIVERY_DAYS,
+);
 
 check("special order maps to backorder", (items.get("BACKORDER") ?? "").includes("<g:availability>backorder</g:availability>"));
 check("in stock maps to in_stock", (items.get("PLAIN") ?? "").includes("<g:availability>in_stock</g:availability>"));

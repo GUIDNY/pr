@@ -1,6 +1,6 @@
 import { SITE_URL } from "@/lib/site-url";
 import { BUSINESS } from "@/lib/business";
-import { computeDeliveryFee } from "@/lib/delivery";
+import { computeDeliveryFee, HANDLING_DAYS, TRANSIT_DAYS } from "@/lib/delivery";
 import { colorInTitle } from "@/lib/catalog/variant-colors";
 import type { StockStatus } from "@/lib/enums";
 import { googleProductCategoryFor } from "./google-product-category";
@@ -272,6 +272,19 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
         "    </g:shipping>",
       ].join("\n"),
     );
+
+    /* How long it takes, in the feed's own words.
+       Google counts these in business days and adds the two maximums, which
+       is exactly what the product page's ShippingDeliveryTime says — same
+       constants, from lib/delivery.ts. Without them the feed carried a price
+       and no time at all, so Google fell back to the account-level setting
+       for the figure it shows next to a product whose own page states three
+       days. A feed that disagrees with the page it links to is the thing
+       this account has already been flagged for once. */
+    lines.push(tag("g:min_handling_time", String(HANDLING_DAYS.min)));
+    lines.push(tag("g:max_handling_time", String(HANDLING_DAYS.max)));
+    lines.push(tag("g:min_transit_time", String(TRANSIT_DAYS.min)));
+    lines.push(tag("g:max_transit_time", String(TRANSIT_DAYS.max)));
 
     const productType = [p.category.parent?.name, p.category.name].filter(Boolean).join(" > ");
     if (productType) lines.push(tag("g:product_type", productType));

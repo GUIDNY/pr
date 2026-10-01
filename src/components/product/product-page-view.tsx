@@ -7,7 +7,9 @@ import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw } from "lucid
 import {
   FREE_DELIVERY_THRESHOLD,
   computeDeliveryFee,
-  deliveryCalendarDaysFor,
+  HANDLING_DAYS,
+  TRANSIT_DAYS,
+  BUSINESS_DAY_NAMES,
   deliveryDaysFor,
 } from "@/lib/delivery";
 import { RETURN_WINDOW_DAYS, cancellationFee } from "@/lib/returns-policy";
@@ -239,10 +241,12 @@ export async function ProductPageView({
              itself renders three paragraphs further down, so the structured
              data cannot promise a delivery the visible page contradicts.
 
-             handlingTime 0-1 and transitTime up to deliveryDays: the
-             product carries one number for "arrives within N days", and
-             splitting it as all-transit is the honest reading — it is what
-             the page says to a customer.
+             handlingTime and transitTime are business days, which Google
+             states outright and which schema.org's businessDays property
+             presumes. Their maximums are added to produce the estimate, so
+             they sum to the three days the page promises and not to more.
+             Both come from lib/delivery.ts, derived from the same constant
+             the visible sentence uses.
 
              deliveryDaysFor, not product.deliveryDays. That was the bug.
              Every row in the catalogue still carries the schema default of
@@ -267,21 +271,24 @@ export async function ProductPageView({
             },
             deliveryTime: {
               "@type": "ShippingDeliveryTime",
-              handlingTime: { "@type": "QuantitativeValue", minValue: 0, maxValue: 1, unitCode: "DAY" },
-              /* Calendar days, which is what unitCode DAY means, and not
-                 the business-day figure the page prints. Google adds
-                 handlingTime and transitTime to get its estimate, so the
-                 two together have to bound the worst case the policy
-                 allows: a three-business-day order placed on a Thursday
-                 arrives five calendar days later, and one of those five is
-                 already claimed by handling. Publishing the business-day
-                 number here promised Google a delivery /shipping does not
-                 promise a customer. */
+              handlingTime: {
+                "@type": "QuantitativeValue",
+                minValue: HANDLING_DAYS.min,
+                maxValue: HANDLING_DAYS.max,
+                unitCode: "DAY",
+              },
               transitTime: {
                 "@type": "QuantitativeValue",
-                minValue: 1,
-                maxValue: deliveryCalendarDaysFor(product) - 1,
+                minValue: TRANSIT_DAYS.min,
+                maxValue: TRANSIT_DAYS.max,
                 unitCode: "DAY",
+              },
+              /* Said rather than left to be inferred. Without it a crawler
+                 has to guess which days the shop counts, and the week here
+                 ends on Thursday rather than Friday. */
+              businessDays: {
+                "@type": "OpeningHoursSpecification",
+                dayOfWeek: [...BUSINESS_DAY_NAMES],
               },
             },
           },
