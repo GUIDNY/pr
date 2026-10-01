@@ -16,13 +16,12 @@ const MUST_BLOCK = [
   "https://100-100.co.il/media/p.jpg",
   "https://i0.wp.com/example.com/wp-content/a.jpg",
   "https://www.cwc.co.il/images/a.jpg",
-  "https://sarig.com/img/a.jpg",
   "https://kreizman.co.il/a.jpg",
   "https://shukhashmal.co.il/a.jpg",
   "https://cdn.shopify.com/s/files/1/a.jpg",
   "https://www.lastprice.co.il/a.jpg",
   "https://www.savoy.co.il/wp-content/uploads/a.jpg",
-  "https://www.saynet.co.il/a.jpg",
+  "https://www.hye.co.il/media/catalog/product/a.jpg",
   "https://superpharmstorage.blob.core.windows.net/a.jpg",
   "https://zabilo.com/44519-product_page_img/470803.jpg",
   "https://www.payngo.co.il/media/catalog/product/n/w/nw2927f-1.png",
@@ -42,6 +41,13 @@ const MUST_ALLOW = [
   "https://images.samsung.com/is/image/samsung/x.jpg",
   "https://www.lg.com/content/dam/a.jpg",
   "https://media3.bosch-home.com/Product_Shots/a.png",
+  // Importers, re-checked 01/10/2026 — see blocked-image-hosts.ts. sarig and
+  // saynet used to sit in the list above; they were classified as shops by
+  // mistake.
+  "https://sarig.com/app/uploads/2023/07/EG203_HEB_3.png",
+  "https://www.saynet.co.il/pub/media/catalog/product/m/x/mx-pisa-fan-ow.jpg",
+  "https://omegador.co.il/wp-content/uploads/2025/07/a.jpg",
+  "https://www.isfar.co.il/media/a.jpg",
   // The host is what matters, not the path: a competitor's name in a query
   // string or filename is not the same as the image living on their box.
   "https://images.electra.co.il/a.jpg?ref=savoy",
