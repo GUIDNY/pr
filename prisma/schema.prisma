@@ -458,6 +458,16 @@ model Promotion {
   endsAt        DateTime?
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
+  /// What the customer is told when the code takes ("10% על כל המקררים").
+  description      String?
+  /// How many orders may use the code in total; null = unlimited. Counted
+  /// from paid orders carrying the code, never stored.
+  usageLimit       Int?
+  /// How many orders one customer (account or email) may use it on.
+  perCustomerLimit Int?
+  /// Only for a customer with no paid order yet.
+  firstOrderOnly   Boolean   @default(false)
+  updatedAt        DateTime  @default(now()) @updatedAt
 }
 
 // ---------- Cart ----------

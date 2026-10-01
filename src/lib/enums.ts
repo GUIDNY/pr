@@ -324,11 +324,24 @@ export const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = {
   PICKUP: "איסוף עצמי מהסניף",
 };
 
-export const PROMOTION_TYPES = ["PERCENTAGE", "FIXED"] as const;
+export const PROMOTION_TYPES = ["PERCENTAGE", "FIXED", "FREE_DELIVERY"] as const;
 export type PromotionType = (typeof PROMOTION_TYPES)[number];
+
+export const PROMOTION_TYPE_LABELS: Record<PromotionType, string> = {
+  PERCENTAGE: "אחוז הנחה",
+  FIXED: "סכום הנחה",
+  FREE_DELIVERY: "משלוח חינם",
+};
 
 export const PROMOTION_SCOPES = ["CART", "CATEGORY", "BRAND", "PRODUCT"] as const;
 export type PromotionScope = (typeof PROMOTION_SCOPES)[number];
+
+export const PROMOTION_SCOPE_LABELS: Record<PromotionScope, string> = {
+  CART: "כל העגלה",
+  CATEGORY: "קטגוריה",
+  BRAND: "מותג",
+  PRODUCT: "מוצר",
+};
 
 export const SUPPORT_CHANNELS = ["CALLBACK", "WHATSAPP", "PHONE", "FORM"] as const;
 export type SupportChannel = (typeof SUPPORT_CHANNELS)[number];

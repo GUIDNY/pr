@@ -11,6 +11,8 @@ const EMPTY_CART: CartSummary = {
   total: 0,
   couponCode: null,
   couponError: null,
+  couponLabel: null,
+  freeDelivery: false,
 };
 
 type CartState = {

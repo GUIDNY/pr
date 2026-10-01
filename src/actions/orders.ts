@@ -30,9 +30,11 @@ export async function createOrderAction(input: CheckoutInput) {
     return { success: false as const, error: "העגלה ריקה" };
   }
 
-  // never trust client prices — recompute from the authoritative cart
-  const summary = await buildCartSummary(cart);
+  // never trust client prices — recompute from the authoritative cart. The
+  // form's email goes in so a coupon limited per customer, or to a first
+  // order, is judged against the person actually ordering.
   const session = await getSession();
+  const summary = await buildCartSummary(cart, { userId: session?.sub, email: data.email });
 
   /* An address is kept for the door AND for a pickup point, not only the
      door. The carrier arranges the point with the customer afterwards and
@@ -56,7 +58,7 @@ export async function createOrderAction(input: CheckoutInput) {
 
   const keepsAddress = requiresAddress(deliveryMethod);
 
-  const deliveryFee = computeDeliveryFee(summary.subtotal - summary.discount, deliveryMethod);
+  const deliveryFee = summary.freeDelivery ? 0 : computeDeliveryFee(summary.subtotal - summary.discount, deliveryMethod);
   const total = Math.max(0, summary.subtotal - summary.discount + deliveryFee);
 
   /* The address goes onto the order itself, below, for every delivery order.
