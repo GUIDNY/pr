@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { CreditCard, Home, MapPin, Minus, PackageOpen, Plus, ShieldCheck, Truck, Store, Lock, RotateCcw, Trash2 } from "lucide-react";
+import { CreditCard, Home, MapPin, Minus, PackageOpen, Plus, ShieldCheck, Ticket, Truck, Store, Lock, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,13 @@ import SiGooglepay from "@icons-pack/react-simple-icons/icons/SiGooglepay";
 import { useCartStore } from "@/stores/cart-store";
 import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
 import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/orders";
-import { removeCartItemAction, saveCheckoutContactAction, updateCartItemAction } from "@/actions/cart";
+import {
+  applyCouponAction,
+  removeCartItemAction,
+  removeCouponAction,
+  saveCheckoutContactAction,
+  updateCartItemAction,
+} from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
 import { cartHasBulky } from "@/lib/bulky";
@@ -152,6 +158,21 @@ export function CheckoutForm({
   const [isPending, startTransition] = useTransition();
   const [isEditingCart, startCartEdit] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /* The coupon field in the summary. The server answers with the whole
+     summary — discount, delivery, total — and the store takes it as is, so
+     the numbers on this page are never computed twice. */
+  const [couponInput, setCouponInput] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
+  function runCoupon(promise: ReturnType<typeof applyCouponAction>) {
+    setCouponBusy(true);
+    promise
+      .then((summary) => {
+        setCart(summary);
+        if (!summary.couponError) setCouponInput("");
+      })
+      .catch(() => toast.error("לא הצלחנו לבדוק את הקופון, נסו שוב"))
+      .finally(() => setCouponBusy(false));
+  }
   /* Two fields the demo shows only so it matches Pelecard's form field for
      field. They are deliberately NOT part of `form`: the checkout schema
      decides what an order carries, and a skin is not a reason to change it. */
@@ -1074,6 +1095,53 @@ export function CheckoutForm({
           ))}
         </ul>
         <Separator className="mb-3" />
+        {/* The coupon, here as well as in the cart. A customer who arrived
+            with a code from a campaign reaches this page without ever opening
+            the cart drawer, and a code with no field to type it into is a
+            discount they do not get — and a sale that is lost over it. */}
+        {!payment && (
+          <div className="mb-3">
+            {cart.couponCode ? (
+              <div className="bg-success/10 text-success flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm">
+                <span className="flex items-center gap-1.5">
+                  <Ticket className="size-4" />
+                  קופון <span className="font-mono font-bold">{cart.couponCode}</span> הופעל
+                  {cart.couponLabel && <span className="text-success/80"> · {cart.couponLabel}</span>}
+                </span>
+                <button
+                  type="button"
+                  className="text-xs underline underline-offset-2"
+                  disabled={couponBusy}
+                  onClick={() => runCoupon(removeCouponAction())}
+                >
+                  הסרה
+                </button>
+              </div>
+            ) : (
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!couponInput.trim()) return;
+                  runCoupon(applyCouponAction(couponInput));
+                }}
+              >
+                <Input
+                  value={couponInput}
+                  onChange={(e) => setCouponInput(e.target.value)}
+                  placeholder="יש לכם קוד קופון?"
+                  dir="ltr"
+                  className="h-10 font-mono"
+                  aria-label="קוד קופון"
+                />
+                <Button type="submit" variant="outline" className="h-10 shrink-0" disabled={couponBusy || !couponInput.trim()}>
+                  {couponBusy ? "בודק…" : "הפעלה"}
+                </Button>
+              </form>
+            )}
+            {cart.couponError && <p className="text-destructive mt-1.5 text-xs">{cart.couponError}</p>}
+          </div>
+        )}
         <div className="flex flex-col gap-1.5 text-sm">
           <div className="flex justify-between">
             <span className="text-muted-foreground">סכום ביניים</span>
@@ -1081,7 +1149,7 @@ export function CheckoutForm({
           </div>
           {cart.discount > 0 && (
             <div className="text-success flex justify-between">
-              <span>הנחה</span>
+              <span>הנחה{cart.couponCode ? ` (${cart.couponCode})` : ""}</span>
               <span className="tabular-nums">-{formatPrice(cart.discount)}</span>
             </div>
           )}
