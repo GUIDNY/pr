@@ -1,6 +1,8 @@
 /**
- * The buying guide on a department page, from content/category-intros/*.html
- * into Category.description. Idempotent: re-running overwrites in place.
+ * The buying guide on a listing page, from content/ into the database.
+ * category-intros/<slug>.html goes to Category.description and
+ * brand-intros/<slug>.html to Brand.pageContent. Idempotent: re-running
+ * overwrites in place.
  *
  * Files rather than rows typed into the admin, for the reason the buying
  * guides are files: a claim that was checked once has to be re-checkable
@@ -31,41 +33,56 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { db } from "../src/lib/db";
 
-const DIR = join(process.cwd(), "content", "category-intros");
+const SETS = [
+  { dir: "category-intros", table: "category" as const, field: "description" as const },
+  { dir: "brand-intros", table: "brand" as const, field: "pageContent" as const },
+];
 
 async function main() {
-  const files = readdirSync(DIR).filter((f) => f.endsWith(".html"));
   let written = 0;
-  let missing = 0;
+  let skipped = 0;
 
-  for (const file of files) {
-    const slug = file.replace(/\.html$/, "");
-    const html = readFileSync(join(DIR, file), "utf8").trim().replace(/\n+/g, "");
+  for (const set of SETS) {
+    const dir = join(process.cwd(), "content", set.dir);
+    const files = readdirSync(dir).filter((f) => f.endsWith(".html"));
+    console.log(`\n${set.dir} (${files.length})`);
 
-    const category = await db.category.findUnique({ where: { slug }, select: { id: true, name: true } });
-    if (!category) {
-      console.log(`  MISSING  ${slug} — no category with this slug`);
-      missing++;
-      continue;
+    for (const file of files) {
+      const slug = file.replace(/\.html$/, "");
+      const html = readFileSync(join(dir, file), "utf8").trim().replace(/\n+/g, "");
+
+      const row =
+        set.table === "category"
+          ? await db.category.findUnique({ where: { slug }, select: { id: true, name: true } })
+          : await db.brand.findUnique({ where: { slug }, select: { id: true, name: true } });
+      if (!row) {
+        console.log(`  MISSING  ${slug} — nothing with this slug`);
+        skipped++;
+        continue;
+      }
+
+      const headings = (html.match(/<h2>/g) ?? []).length;
+      /* One heading is a file carrying only the throwaway title, which
+         renders as nothing at all. Worth failing on rather than writing. */
+      if (headings < 2) {
+        console.log(`  THIN     ${slug} — ${headings} heading(s); the first is dropped on render`);
+        skipped++;
+        continue;
+      }
+
+      if (set.table === "category") {
+        await db.category.update({ where: { id: row.id }, data: { description: html } });
+      } else {
+        await db.brand.update({ where: { id: row.id }, data: { pageContent: html } });
+      }
+      console.log(`  ok       ${slug.padEnd(22)} ${row.name.padEnd(20)} ${headings - 1} sections, ${html.length} chars`);
+      written++;
     }
-
-    const headings = (html.match(/<h2>/g) ?? []).length;
-    /* One heading is a file that only has the throwaway title, which renders
-       as nothing at all. Worth failing on rather than writing. */
-    if (headings < 2) {
-      console.log(`  THIN     ${slug} — ${headings} heading(s); the first is dropped on render`);
-      missing++;
-      continue;
-    }
-
-    await db.category.update({ where: { id: category.id }, data: { description: html } });
-    console.log(`  ok       ${slug.padEnd(22)} ${category.name.padEnd(22)} ${headings - 1} sections, ${html.length} chars`);
-    written++;
   }
 
-  console.log(`\n${written} written, ${missing} skipped.\n`);
+  console.log(`\n${written} written, ${skipped} skipped.\n`);
   await db.$disconnect();
-  if (missing > 0) process.exit(1);
+  if (skipped > 0) process.exit(1);
 }
 
 main().catch(async (err) => {

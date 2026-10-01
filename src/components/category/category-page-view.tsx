@@ -20,7 +20,7 @@ import { SubcategoryRow } from "@/components/category/subcategory-row";
 import { findCategoryBySlug } from "@/lib/category-tree";
 import { PackageSearch, BookOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CategoryIntro } from "@/components/category/category-intro";
+import { GuideIntro } from "@/components/category/guide-intro";
 import { JsonLd } from "@/components/seo/json-ld";
 import { breadcrumbSchema, itemListSchema } from "@/lib/schema";
 
@@ -187,7 +187,7 @@ export async function CategoryPageView({
       </Breadcrumb>
 
       <h1 className="mt-3 text-2xl font-bold sm:text-3xl">{category.name}</h1>
-      <CategoryIntro description={category.description} />
+      <GuideIntro content={category.description} moreLabel="קרא עוד על הקטגוריה" />
       {subcategories.length > 1 && <SubcategoryRow tiles={subcategories} currentSlug={found.sub ? slug : null} />}
 
       <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[240px_1fr]">

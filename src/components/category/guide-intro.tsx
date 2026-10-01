@@ -1,7 +1,14 @@
 import { parseProductContent } from "@/lib/product-content";
 import { ProductProse, ProductSections } from "@/components/product/product-overview";
 
-// The buying guide on a category page.
+// The buying guide on a listing page — a category's, or a brand's.
+//
+// One renderer for both, because they are the same thing twice: a few
+// hundred words of advice above a grid of products, stored as HTML and
+// parsed by the same parser. The brand pages had no renderer at all until
+// now (BrandPageView printed brand.description as a single paragraph, which
+// is why all 91 of them measured zero headings), and writing a second one
+// would have been two components to keep saying the same thing.
 //
 // Every one of the 53 categories that has a description stores it as HTML —
 // `<h2>`, `<p>`, `<h3>`, `<strong>` — and the page printed it into a plain
@@ -20,10 +27,21 @@ import { ProductProse, ProductSections } from "@/components/product/product-over
 //
 // The first heading is dropped on purpose: it restates the page's own <h1>
 // ("מכונות כביסה" / "מכונות כביסה - מדריך בחירה"), and two titles saying the
-// same thing is how a page starts looking automated.
-export function CategoryIntro({ description }: { description: string | null }) {
-  if (!description?.trim()) return null;
-  const { summary, prose, sections } = parseProductContent(description);
+// same thing is how a page starts looking automated. Every stored guide
+// therefore opens with a heading nobody sees, which is why seed:intros
+// refuses a file that has only one.
+export function GuideIntro({
+  content,
+  moreLabel,
+}: {
+  content: string | null;
+  /* What the fold says. "About the category" on a category page reads wrong
+     under a brand name, and a shopper who cannot tell what is behind a fold
+     does not open it. */
+  moreLabel: string;
+}) {
+  if (!content?.trim()) return null;
+  const { summary, prose, sections } = parseProductContent(content);
 
   // A guide written with headings parses entirely into sections; one written
   // as flat paragraphs lands in summary/prose. Both shapes are in the
@@ -38,7 +56,7 @@ export function CategoryIntro({ description }: { description: string | null }) {
       {(rest.length > 0 || intro.length > 1) && (
         <details className="group mt-2">
           <summary className="text-brand hover:text-brand/80 inline-flex cursor-pointer list-none items-center gap-1 text-sm font-medium marker:content-none">
-            <span className="group-open:hidden">קרא עוד על הקטגוריה</span>
+            <span className="group-open:hidden">{moreLabel}</span>
             <span className="hidden group-open:inline">הצג פחות</span>
             <span aria-hidden className="transition-transform group-open:rotate-180">⌄</span>
           </summary>

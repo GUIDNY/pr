@@ -122,6 +122,14 @@ model Brand {
   // paragraph convention as Product.description (see
   // ProductDescriptionText) — not every brand has one yet.
   aboutContent String?
+  /* The buying guide on the brand's own page — the same job
+     Category.description does for a category, and the same HTML the same
+     parser reads. Separate from `aboutContent`, which is the "about the
+     brand" panel on every PRODUCT page of this brand: a paragraph that
+     opens "what to find here" belongs on the listing and nowhere near a
+     single product. Separate from `description`, which is one line and is
+     what the meta description uses. */
+  pageContent  String?
   isActive     Boolean  @default(true)
   seoTitle     String?
   seoDesc      String?
