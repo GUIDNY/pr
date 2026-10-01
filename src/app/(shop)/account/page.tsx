@@ -1,16 +1,18 @@
 import Link from "next/link";
-import { Package, Heart, MapPin, ArrowLeft } from "lucide-react";
+import { Package, Heart, MapPin, ArrowLeft, Trophy } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type OrderStatus } from "@/lib/enums";
 import { formatPrice, formatDate } from "@/lib/format";
 import { ConsentToggle } from "@/components/account/consent-toggle";
+import { purchaseLevel } from "@/lib/game-levels";
+import { listMemberCoupons } from "@/lib/member-coupons";
 
 export default async function AccountDashboardPage() {
   const session = await getSession();
   if (!session) return null;
 
-  const [orderCount, favoriteCount, addressCount, recentOrders, account] = await Promise.all([
+  const [orderCount, favoriteCount, addressCount, recentOrders, account, club, coupons] = await Promise.all([
     db.order.count({ where: { userId: session.sub } }),
     db.favorite.count({ where: { userId: session.sub } }),
     db.address.count({ where: { userId: session.sub } }),
@@ -19,7 +21,10 @@ export default async function AccountDashboardPage() {
       where: { id: session.sub },
       select: { phone: true, whatsappOptIn: true, marketingOptIn: true },
     }),
+    purchaseLevel(session.sub),
+    listMemberCoupons(session.sub),
   ]);
+  const nextTier = club.tiers[club.level] ?? null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -45,6 +50,27 @@ export default async function AccountDashboardPage() {
           <p className="text-muted-foreground text-xs">כתובות</p>
         </Link>
       </div>
+
+      {/* The mall's club in one line: the level, the cashback, the coupons waiting. */}
+      <Link
+        href="/account/club"
+        className="border-brand/30 bg-brand/5 hover:border-brand/60 flex items-center gap-4 rounded-xl border p-4 transition-colors"
+      >
+        <div className="bg-brand text-brand-foreground grid size-12 shrink-0 place-items-center rounded-xl">
+          <Trophy className="size-6" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold">
+            מועדון הקניון · רמה {club.level}
+            {club.cashback ? ` · ${club.cashback}% קאשבק` : ""}
+          </p>
+          <p className="text-muted-foreground text-xs">
+            {coupons.length ? `${coupons.length} הטבות מחכות לכם` : "אין כרגע הטבות פעילות"}
+            {nextTier ? ` · עוד ${formatPrice(Math.max(0, nextTier.spend - club.spent))} לרמה ${nextTier.level}` : ""}
+          </p>
+        </div>
+        <ArrowLeft className="text-brand size-4 shrink-0" />
+      </Link>
 
       {/* The one setting a customer comes here to change. Under the counts
           and above the orders, because the orders are what it is about. */}
