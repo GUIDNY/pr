@@ -4,7 +4,7 @@ import { useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { FilterSidebar, type FilterAttribute } from "@/components/catalog/filter-sidebar";
+import { FilterSidebar, type BrandFacet, type Facet } from "@/components/catalog/filter-sidebar";
 
 export function MobileFilters({
   brands,
@@ -13,8 +13,8 @@ export function MobileFilters({
   resultCount,
   query = "",
 }: {
-  brands: { name: string; slug: string }[];
-  attributes: FilterAttribute[];
+  brands: BrandFacet[];
+  attributes: Facet[];
   priceRange: { min: number; max: number };
   resultCount: number;
   query?: string;

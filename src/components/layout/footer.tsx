@@ -1,15 +1,26 @@
 import Image from "next/image";
 import Link from "next/link";
-import { Phone, MapPin, ShieldCheck, Truck, CreditCard, Share2, MessageCircle } from "lucide-react";
+import { Phone, MapPin, ShieldCheck, Truck, CreditCard, MessageCircle } from "lucide-react";
+/* The official marks, from Simple Icons. lucide-react dropped every brand
+   glyph before v1.31, so these cannot come from the same import as the icons
+   beside them.
+
+   Imported per icon rather than from the package root: that barrel re-exports
+   around three thousand components, and while the package sets
+   sideEffects:false so a production build shakes the rest out, the subpath
+   costs nothing and keeps dev compiles from walking all of them. */
+import SiInstagram from "@icons-pack/react-simple-icons/icons/SiInstagram";
+import SiFacebook from "@icons-pack/react-simple-icons/icons/SiFacebook";
 import { ConsentSettingsLink } from "@/components/layout/consent-settings-link";
+import { MallLink } from "@/components/layout/mall-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
-import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
+import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL, SISTER_SITE } from "@/lib/business";
 
 export async function Footer() {
   const departments = (await getNavigableCategoryTree()).slice(0, 6);
 
   return (
-    <footer className="bg-primary text-primary-foreground mt-16">
+    <footer data-site-chrome className="bg-primary text-primary-foreground mt-16">
       <div className="border-border/10 border-b">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-4 py-8 sm:grid-cols-3">
           <div className="flex items-center gap-3">
@@ -57,17 +68,40 @@ export async function Footer() {
           <p className="text-primary-foreground/60 mt-3 text-sm leading-relaxed">
             חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. קשת נרחבת של מוצרים במחירים תחרותיים.
           </p>
+          {/* Was one button, captioned "עמוד הפייסבוק שלנו", pointing at
+              https://www.facebook.com/ — Facebook's own front page. A visitor
+              who pressed it was told the shop had a page and then handed
+              somebody else's, which is worse than offering nothing, and
+              schema.ts left sameAs out for exactly that reason. Both
+              addresses are real now and live in BUSINESS, so the footer and
+              the structured data cannot drift apart. */}
           <div className="mt-4 flex items-center gap-3">
             <a
-              href="https://www.facebook.com/"
+              href={BUSINESS.instagram}
               target="_blank"
               rel="noreferrer noopener"
-              aria-label="עמוד הפייסבוק שלנו"
+              aria-label="Buy Today באינסטגרם"
               className="bg-primary-foreground/10 hover:bg-primary-foreground/20 flex size-9 items-center justify-center rounded-full transition-colors"
             >
-              <Share2 className="size-4" />
+              <SiInstagram aria-hidden className="size-4" />
+            </a>
+            <a
+              href={BUSINESS.facebook}
+              target="_blank"
+              rel="noreferrer noopener"
+              aria-label="Buy Today בפייסבוק"
+              className="bg-primary-foreground/10 hover:bg-primary-foreground/20 flex size-9 items-center justify-center rounded-full transition-colors"
+            >
+              <SiFacebook aria-hidden className="size-4" />
             </a>
           </div>
+          {/* The 3D mall: a separate static site on its own subdomain, built
+              from this catalogue's category pages, so it adds nothing to this
+              app's load. Its product links come back here tagged
+              utm_source=closing-time-game; this link is tagged too, so the
+              round trip shows up in analytics as footer → game → product. Inside
+              the iOS app it goes to /mall instead, see mall-link.tsx. */}
+          <MallLink />
         </div>
 
         <div>
@@ -118,7 +152,7 @@ export async function Footer() {
               </Link>
             </li>
             <li>
-              <Link href="/page/terms" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+              <Link href="/terms" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 תקנון האתר
               </Link>
             </li>
@@ -129,6 +163,25 @@ export async function Footer() {
                   told to look for. */}
               <Link href="/returns" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
                 מדיניות ביטול והחזרות
+              </Link>
+            </li>
+            <li>
+              {/* The second page Merchant Center looks for from the footer,
+                  and for the same reason: a shopper must be able to find what
+                  delivery costs without starting a checkout. */}
+              <Link href="/shipping" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                מדיניות משלוחים
+              </Link>
+            </li>
+            <li>
+              {/* The shop promises "אחריות יבואן רשמי" on every page of the
+                  site, and until this link existed there was no page behind
+                  it — /warranty, /page/warranty and /page/service all
+                  answered 404. A claim a visitor cannot check is the one
+                  kind of inconsistency a Merchant Center review treats as a
+                  false statement rather than an untidy one. */}
+              <Link href="/warranty" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                אחריות ושירות
               </Link>
             </li>
             <li>
@@ -187,6 +240,29 @@ export async function Footer() {
             <MapPin className="size-3" /> {BUSINESS_ADDRESS}
           </a>
         </div>
+
+        {/* Who operates this, in full, on every page.
+         
+            The registration number and the street make the operator
+            identifiable rather than a trading name, which is what a reader
+            deciding whether to hand over a card is looking for. The link to
+            the other shopfront is the half that matters to a crawler: two
+            commerce domains sharing one catalogue and one address read as two
+            businesses posing as unrelated until somebody says otherwise, and
+            said out loud it is one company with two fronts, which is
+            ordinary. Deliberately no rel="nofollow" — disowning a link to
+            your own company is the opposite of the statement being made. */}
+        <p className="text-primary-foreground/40 mx-auto mt-3 max-w-7xl text-center text-xs leading-relaxed sm:text-start">
+          האתר מופעל על ידי {BUSINESS.legalName} · ח.פ. {BUSINESS.companyId} · {BUSINESS_ADDRESS} · המפעילה גם את{" "}
+          <a
+            href={SISTER_SITE.url}
+            target="_blank"
+            rel="noopener"
+            className="hover:text-primary-foreground underline underline-offset-2"
+          >
+            {SISTER_SITE.label}
+          </a>
+        </p>
       </div>
     </footer>
   );

@@ -28,13 +28,13 @@ export async function GET(
   /* "owner" is the shop's own new-order alert, which is not a NotifyEvent —
      see owner-alert.ts for why it is kept out of that list. It is previewable
      from the same address because the question is the same one. */
-  if (event !== "owner" && !NOTIFY_EVENTS.includes(event as NotifyEvent)) {
+  if (event !== "owner" && event !== "team" && !NOTIFY_EVENTS.includes(event as NotifyEvent)) {
     return new Response("unknown event", { status: 404 });
   }
 
   const html =
-    event === "owner"
-      ? await previewOwnerAlert(orderNumber)
+    event === "owner" || event === "team"
+      ? await previewOwnerAlert(orderNumber, event)
       : await previewOrderEmail(orderNumber, event as NotifyEvent);
   if (!html) return new Response("order not found", { status: 404 });
 

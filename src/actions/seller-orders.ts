@@ -1,5 +1,6 @@
 "use server";
 
+import { awardPurchase } from "@/lib/game-levels";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireBackOffice } from "@/lib/auth";
@@ -94,6 +95,7 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
       }),
     ]);
     note = "הדפוזיט נגבה ואושר לטיפול";
+    await awardPurchase(order.id);
   }
 
   // PROCESSING and not PAID: PAID is what the gateway says, and overwriting it
@@ -265,6 +267,17 @@ export async function logManualWhatsappAction(
   });
   if (!order) return { success: false, error: "הזמנה לא נמצאה" };
 
+  // A message the API already delivered keeps its record: the by-hand
+  // note must not paint over the automatic result, or nobody can tell
+  // afterwards whether the API worked. Only a row that did not go —
+  // skipped, failed, or never claimed — is written as sent by hand.
+  const existing = await db.orderNotification.findUnique({
+    where: { orderId_channel_event: { orderId: order.id, channel: "WHATSAPP", event } },
+    select: { status: true, error: true },
+  });
+  if (existing?.status === "SENT" && !existing.error?.startsWith("נשלח ידנית")) {
+    return { success: true, error: null };
+  }
   await db.orderNotification.upsert({
     where: { orderId_channel_event: { orderId: order.id, channel: "WHATSAPP", event } },
     create: {

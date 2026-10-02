@@ -36,6 +36,7 @@ export function MobileBottomNav({ departments }: { departments: NavigableDepartm
   return (
     <nav
       aria-label="ניווט ראשי"
+      data-site-chrome
       className="floating-launcher border-border bg-background/95 fixed inset-x-0 bottom-0 z-40 border-t pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgb(0_0_0/0.06)] backdrop-blur sm:hidden"
     >
       <div className="flex h-14 items-stretch px-1">
@@ -52,7 +53,7 @@ export function MobileBottomNav({ departments }: { departments: NavigableDepartm
           className={cn(tab, "text-muted-foreground")}
         >
           <span className="ring-brand/40 relative -mt-3 flex size-11 items-center justify-center rounded-full bg-white shadow-md ring-2">
-            <Image src="/mascot/alfred-chat.png" alt="" width={44} height={44} className="size-full rounded-full object-cover" />
+            <Image src="/mascot/alfred-face.png" alt="" width={44} height={44} className="size-full rounded-full object-cover" />
           </span>
           אלפרד
         </button>

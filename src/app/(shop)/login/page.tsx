@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { LoginForm } from "@/components/auth/login-form";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { googleOAuthConfigured, googleNativeConfigured } from "@/lib/google-oauth";
 import { appleOAuthConfigured, appleNativeConfigured } from "@/lib/apple-oauth";
 
@@ -27,13 +28,15 @@ export const dynamic = "force-dynamic";
  */
 export default function LoginPage() {
   return (
-    <Suspense>
-      <LoginForm
-        googleEnabled={googleOAuthConfigured()}
-        appleEnabled={appleOAuthConfigured()}
-        appleNativeEnabled={appleNativeConfigured()}
-        googleNativeEnabled={googleNativeConfigured()}
-      />
-    </Suspense>
+    <AuthShell mode="login">
+      <Suspense>
+        <LoginForm
+          googleEnabled={googleOAuthConfigured()}
+          appleEnabled={appleOAuthConfigured()}
+          appleNativeEnabled={appleNativeConfigured()}
+          googleNativeEnabled={googleNativeConfigured()}
+        />
+      </Suspense>
+    </AuthShell>
   );
 }

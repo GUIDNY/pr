@@ -8,6 +8,7 @@ import { SITE_URL } from "@/lib/site-url";
 import { NOTIFY_EVENTS, type NotifyEvent, type NotifyChannel } from "@/lib/notify/types";
 import { courierTrackingUrl } from "@/lib/couriers";
 import { channelReadiness } from "@/lib/notify";
+import { attributionFromJson, type Attribution } from "@/lib/attribution";
 
 /**
  * The orders queue as a salesperson needs it.
@@ -37,13 +38,25 @@ export type SellerOrderSummary = {
 
 export type SellerOrderDetail = SellerOrderSummary & {
   customerEmail: string | null;
+  /** Where the customer came from, as the browser recorded it. Null for
+      orders placed before the shop started keeping it. */
+  attribution: Attribution | null;
   customerNote: string | null;
   subtotal: number;
   discountTotal: number;
   couponCode: string | null;
   paymentMethod: string | null;
   /** What the gateway actually holds or took, which is not always the order total. */
-  paid: { amount: number; heldAmount: number | null; holdExpiresAt: Date | null; capturedAt: Date | null } | null;
+  paid: {
+    amount: number;
+    heldAmount: number | null;
+    holdExpiresAt: Date | null;
+    capturedAt: Date | null;
+    /** The card as the customer knows it — last four digits, never more. */
+    cardLast4: string | null;
+    approvalNo: string | null;
+    clearerName: string | null;
+  } | null;
   courier: { name: string | null; trackingNumber: string | null; trackingUrl: string | null };
   shippedAt: Date | null;
   deliveredAt: Date | null;
@@ -117,6 +130,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
     select: {
       ...LIST_SELECT,
       guestEmail: true,
+      attribution: true,
       customerNote: true,
       subtotal: true,
       discountTotal: true,
@@ -150,6 +164,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
   return {
     ...summary,
     customerEmail: row.user?.email ?? row.guestEmail ?? null,
+    attribution: attributionFromJson(row.attribution),
     customerNote: row.customerNote,
     subtotal: row.subtotal,
     discountTotal: row.discountTotal,
@@ -161,6 +176,16 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
           heldAmount: live.amountAgorot !== null ? live.amountAgorot / 100 : null,
           holdExpiresAt: live.holdExpiresAt,
           capturedAt: live.capturedAt,
+          /* What the gateway said about the card, which the callback has been
+             storing all along and no screen was showing. It is the first
+             thing anybody reaches for on the phone to a customer — "the card
+             ending 6254, approval 0914087" — and without it the back office
+             had a reference number that means nothing to the person holding
+             the card.
+             Last four digits only, which is all that is ever stored. */
+          cardLast4: live.cardLast4,
+          approvalNo: live.approvalNo,
+          clearerName: live.clearerName,
         }
       : null,
     courier: {

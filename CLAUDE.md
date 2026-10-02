@@ -41,6 +41,36 @@ presses sync in the admin when the supplier sends a new sheet.
 `slug` is never written by anything after creation — it is public in the product URL,
 so renaming a product must not break links already shared.
 
+## The source price sheets are read-only. Never write to them.
+
+The three price lists on the company's file server — מחירון מלאי אלקטרוניקה,
+מחירון ליין קטן, מחירון ליין לבן מסכים — are the company's own record, maintained
+in the ERP and exported for everyone who needs them. This shop is one consumer of
+that export among several.
+
+**Nothing in this project may modify, rename, move, delete or re-save any of them,
+under any circumstances.** Not to mark a row as processed, not to normalise a
+header, not to fix a typo in a title, not "just to re-save it as a cleaner xlsx".
+A corrected value belongs in this database, where the field-ownership table above
+says it belongs; the sheet is never the place to write a correction back to.
+
+What that rules out in practice, because these are the ways it happens by accident:
+
+- opening a workbook with a library in write mode. `openpyxl.load_workbook()`
+  followed by any `save()` rewrites the whole file and drops the formatting the
+  parser depends on — the highlighted brand headers and the yellow section
+  dividers are load-bearing (see brand attribution below).
+- driving Excel or LibreOffice to convert or export. Both rewrite on close.
+- the "move it to a processed/ folder when done" pattern. The file stays where it
+  is; what has been seen is recorded on our side, by hash.
+- reading the original repeatedly. Anything that fetches a sheet copies the bytes
+  once to local scratch and works on the copy from there.
+
+Any agent that pushes these files to the site reads with `open(path, "rb")` and
+nothing else, and records the file's sha256 before and after its own run so that a
+violation is caught rather than trusted. The server never has a route back to that
+share at all, which is the one guarantee that holds without anybody remembering it.
+
 ## Brand attribution is derived, and it has been wrong before
 
 `Product.brandId` is not typed into the sheet per row. It comes out of
@@ -161,11 +191,36 @@ hosts in `blocked-image-hosts.ts` outright. `npm run check:images` guards both r
   takes the build down with `Can't reach database server at 127.0.0.1:5432`.
 - **`prisma db push` hangs against the pooler** (PgBouncer, port 6543). For schema
   changes use direct DDL via `db.$executeRawUnsafe`, then `prisma generate`.
-- **`npm install` fails**: `xlsx` is pinned to `cdn.sheetjs.com`, which the sandbox
-  egress policy blocks.
+- **`npm install` depends on the container's egress policy.** `xlsx` is pinned to
+  a tarball on `cdn.sheetjs.com` rather than the npm registry, so any install has
+  to reach that host. It has been blocked; on 2026-09-15 it answered 200 and
+  `npm install @icons-pack/react-simple-icons` completed normally. Try it before
+  assuming it is unavailable — and if it is blocked, that is the reason, so the
+  workaround is to vendor the one thing you need rather than to fight the install.
 - **Manufacturer sites are unreachable** from every cloud container (`samsung.com`,
   `lg.com` → `connect_rejected`). Product images and manufacturer specs can only be
   fetched by a session running on a real machine.
+- **Supabase counts database egress against the same quota as storage, and a
+  card query is where it goes.** In September the free tier's 5 GB ran out and
+  Storage answered 402 for four days. The photographs were blamed and were
+  innocent: the whole bucket is 61 MB and the image route served under 500 MB a
+  month. It was `cardInclude` in `queries/products.ts`, an `include` where a
+  `select` belonged — every column of `Product` on every card of every grid,
+  8,559 bytes fetched for the 232 a card renders, and a category page is
+  twenty-four of them. Nothing in the types showed it, because
+  `ProductWithRelations` was already written as the narrow shape. Before
+  suspecting a file, price the queries.
+
+- **Every inventory alert is written by a sync run, so a sync that never starts
+  reports nothing.** The same outage killed the price-sheet upload, which is
+  upstream of the run, and the shop sold against four-day-old stock with every
+  back-office screen looking normal. `inventory/sync-watchdog.ts` now asks from
+  outside, on its own cron, whether a sheet has *arrived* in the last 18 hours
+  — arrival, not a successful run, because the agent correctly skips the sync
+  when the supplier changed nothing, and the last run before anyone noticed
+  read `SUCCESS`. Anything new that can stop the catalog updating needs a check
+  that does not live inside the thing that stops.
+
 - **Secrets live in the Vercel dashboard only** — `PRODUCT_ENRICH_SECRET`,
   `SUPABASE_SERVICE_ROLE_KEY` and the rest are not in `.env` and not in the repo.
 

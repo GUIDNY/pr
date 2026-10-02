@@ -345,6 +345,7 @@ type ApplyResult = {
 const ROW_STATE_ALERT_TYPES = new Set([
   "UNMATCHED_ROW",
   "INVALID_PRICE",
+  "PRICE_BELOW_COST",
   "MISSING_MODEL",
   "NEGATIVE_STOCK",
   "DUPLICATE_SKU",
@@ -750,6 +751,42 @@ async function applyOneRow(
     });
   }
 
+  /* The shop's own price, against what the supplier charges today.
+     Everything above this checks the sheet's price *columns*; none of it
+     looks at the number the customer is actually charged. For an existing
+     product those are different things and drift apart by design: cost
+     moves with every sheet, and the stored price cannot, because the
+     ownership rule says only a person changes it. Nothing was watching
+     the gap, so on 30 September fourteen live products were being sold
+     below cost — one fridge at 4,790 against a cost of 8,590 — with no
+     sign of it anywhere in the back office.
+
+     The price is not corrected here, deliberately. A price is a
+     commercial decision and the sheet is not allowed to make it; that is
+     the whole reason sync writes stock and nothing else. This says so
+     loudly instead, and closes itself the moment the gap does.
+
+     No VAT arithmetic on purpose. The cost column is sometimes ex-VAT and
+     sometimes inc-VAT, and a price below either is a loss, so comparing
+     the raw numbers only ever under-reports — never invents a problem. */
+  const chargedPrice = existing?.price ?? resolved;
+  const supplierCost = row.internalCost;
+  if (chargedPrice !== null && supplierCost !== null && supplierCost > 0 && chargedPrice < supplierCost) {
+    currentRowTypes.add("PRICE_BELOW_COST");
+    await upsertAlert({
+      type: "PRICE_BELOW_COST",
+      severity: "CRITICAL",
+      productId,
+      sourceId,
+      syncRunId,
+      sourceSku: sku,
+      message:
+        `${row.title}: נמכר ב-${chargedPrice.toLocaleString("he-IL")} ₪ בעוד שעלות הספק בגיליון היא ` +
+        `${supplierCost.toLocaleString("he-IL")} ₪ — הפסד של ${(supplierCost - chargedPrice).toLocaleString("he-IL")} ₪ לכל יחידה שתימכר. ` +
+        `המחיר לא שונה אוטומטית; צריך להחליט עליו ולעדכן בכרטיס המוצר.`,
+    });
+  }
+
   for (const issue of row.issues) {
     const typeMap = {
       MISSING_MODEL: "MISSING_MODEL",
@@ -1150,6 +1187,11 @@ export type { SyncTrigger };
 // action and the scheduled Vercel Cron endpoint call. Swapping Excel for
 // Priority ERP later means replacing how bytes are fetched here; the parse
 // -> normalize -> diff -> apply pipeline underneath doesn't change.
+/* How long a run may be in flight before the next one may assume it died.
+   Long enough that a real 1,700-row sync is never interrupted, short enough
+   that one killed invocation does not block the schedule all day. */
+const STALE_SYNC_MINUTES = 10;
+
 export async function runFullSync(
   trigger: SyncTrigger,
   triggeredById?: string,
@@ -1163,6 +1205,54 @@ export async function runFullSync(
   } = await import("./google-sheets-source");
   const { normalizeRow, findDuplicates } = await import("./normalizer");
   const { createHash } = await import("crypto");
+
+  /* ONE SYNC AT A TIME, and the guard lives here rather than in the route
+     that calls it.
+
+     It started in the route, which covered the cron and the agent and missed
+     the one caller a person actually uses: the button in the admin goes
+     straight to this function. Two runs then walk the same 1,700 rows from
+     two copies of the same sheet and write the same products, and the later
+     write wins by accident. Putting it at the entrance is the only version
+     nobody has to remember.
+
+     Nothing enforced this before and nothing needed to — a person does not
+     press a button twice in the same minute. It stops being true the moment
+     an agent calls this on a schedule.
+
+     STALE_SYNC_MINUTES rather than "until it finishes": Vercel kills a
+     function at its maxDuration and a killed run leaves its row saying
+     RUNNING forever, so an unbounded rule would block every sync afterwards
+     with no way to tell it from a real one.
+
+     Refused, not queued. A skipped sync costs nothing — the next one reads
+     the same file and reaches the same place. An interleaved one costs a
+     catalogue nobody can explain. */
+  const inFlight = await db.inventorySyncRun.findFirst({
+    where: {
+      status: "RUNNING",
+      startedAt: { gt: new Date(Date.now() - STALE_SYNC_MINUTES * 60_000) },
+    },
+    orderBy: { startedAt: "desc" },
+  });
+  if (inFlight) {
+    /* Returned in the shape of a run, and deliberately NOT written to the
+       history: a stood-down attempt is not a sync, and a history filling
+       with them would bury the runs that did something. The caller reports
+       it; the log keeps it. */
+    return {
+      ...inFlight,
+      id: inFlight.id,
+      status: "SKIPPED" as const,
+      errorMessage: `סנכרון אחר התחיל ב-${inFlight.startedAt.toISOString()} ועדיין רץ`,
+      rowsScanned: 0,
+      productsAdded: 0,
+      productsUpdated: 0,
+      productsMissing: 0,
+      priceChanges: 0,
+      stockChanges: 0,
+    };
+  }
 
   const syncRun = await db.inventorySyncRun.create({
     data: { trigger, triggeredById, status: "RUNNING", sourceIds: "[]" },

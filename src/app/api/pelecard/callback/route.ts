@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { rememberAddress } from "@/lib/address-book";
+import { retireGameCoupon } from "@/lib/game-wheel";
+import { awardPurchase } from "@/lib/game-levels";
 import { timingSafeEqual as nodeTimingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import {
@@ -338,6 +341,39 @@ export async function POST(req: Request) {
       },
     }),
   ]);
+
+  // A personal coupon from the mall's wheel is good for one paid order.
+  await retireGameCoupon(order.couponCode);
+  // the club: cashback on this order, and any level gift it reaches
+  await awardPurchase(orderId);
+
+  /* The payment is real, so the address it was paid for goes into the
+     account's address book now, once (rememberAddress reuses an identical
+     one). Taken from the order's own copy, which is the address the customer
+     finished with. Never allowed to fail the callback: a book entry is a
+     convenience, the payment record is not. */
+  if (order.userId && order.deliveryMethod === "DELIVERY") {
+    try {
+      const shipped = await db.order.findUnique({
+        where: { id: orderId },
+        select: { shipCity: true, shipStreet: true, shipHouseNo: true, shipApartment: true, guestName: true, guestPhone: true, customerNote: true },
+      });
+      if (shipped?.shipCity && shipped.shipStreet && shipped.shipHouseNo) {
+        const addressId = await rememberAddress(order.userId, {
+          fullName: shipped.guestName ?? "",
+          phone: shipped.guestPhone ?? "",
+          city: shipped.shipCity,
+          street: shipped.shipStreet,
+          houseNo: shipped.shipHouseNo,
+          apartment: shipped.shipApartment,
+          notes: shipped.customerNote,
+        });
+        await db.order.update({ where: { id: orderId }, data: { addressId } });
+      }
+    } catch (error) {
+      console.error("[pelecard] could not file the address", error);
+    }
+  }
 
   /* Both mails go out here rather than at order creation, because on this
      lane the order exists before the customer has paid: it is created, the

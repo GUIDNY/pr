@@ -8,11 +8,12 @@ import { GoogleButton } from "@/components/auth/google-button";
 import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
 import { GoogleNativeButton, useGoogleNativeAvailable } from "@/components/auth/google-native-button";
 import { AppleButton } from "@/components/auth/apple-button";
-import { UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { registerAction } from "@/actions/auth";
 
 export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, googleNativeEnabled }: { googleEnabled: boolean; appleEnabled: boolean; appleNativeEnabled: boolean; googleNativeEnabled: boolean }) {
@@ -85,6 +86,8 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
     email: searchParams.get("email") ?? "",
     phone: searchParams.get("phone") ?? "",
     password: "",
+    whatsappOptIn: true,
+    marketingOptIn: false,
   });
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -105,25 +108,20 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
   }
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-16">
-      <div className="mb-6 text-center">
-        <span className="bg-brand/10 text-brand mx-auto mb-3 flex size-12 items-center justify-center rounded-full">
-          <UserPlus className="size-5" />
-        </span>
-        <h1 className="text-2xl font-bold">יצירת חשבון</h1>
-      </div>
+    <div>
+      <h1 className="sr-only">יצירת חשבון</h1>
 
       {(showGoogle || showApple || showAppleNative || showGoogleNative) && (
         <>
-          <div className="flex flex-col gap-2.5">
-            {showGoogle && <GoogleButton />}
-            {showApple && <AppleButton />}
-              {showGoogleNative && <GoogleNativeButton />}
-              {showAppleNative && <AppleNativeButton />}
+          <div className={cn("grid gap-2", showGoogle && showApple ? "grid-cols-2 sm:grid-cols-1" : "grid-cols-1")}>
+            {showGoogle && <GoogleButton compact={showApple} />}
+            {showApple && <AppleButton compact={showGoogle} />}
+            {showGoogleNative && <GoogleNativeButton />}
+            {showAppleNative && <AppleNativeButton />}
           </div>
-          <div className="my-5 flex items-center gap-3">
+          <div className="my-4 flex items-center gap-3">
             <span className="bg-border h-px flex-1" />
-            <span className="text-muted-foreground text-xs font-medium">או עם סיסמה</span>
+            <span className="text-muted-foreground text-xs">או</span>
             <span className="bg-border h-px flex-1" />
           </div>
         </>
@@ -141,6 +139,37 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
         <div>
           <Label className="mb-1.5">טלפון</Label>
           <Input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} required />
+          {/* Same tick as the checkout's, kept on the account: the box opens
+              this way on every later order. */}
+          <label htmlFor="register-whatsapp" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
+            <Checkbox
+              id="register-whatsapp"
+              checked={form.whatsappOptIn}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, whatsappOptIn: v === true }))}
+              className="mt-0.5 rounded-full"
+            />
+            <span className="leading-snug">
+              עדכונים על ההזמנות שלי גם בוואטסאפ
+              <span className="text-muted-foreground block text-xs">בלי זה, העדכונים יגיעו במייל בלבד.</span>
+            </span>
+          </label>
+          {/* Advertising consent: separate, unticked, names the channels.
+              See the same box on the checkout for why. */}
+          <label htmlFor="register-marketing" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
+            <Checkbox
+              id="register-marketing"
+              checked={form.marketingOptIn}
+              onCheckedChange={(v) => setForm((f) => ({ ...f, marketingOptIn: v === true }))}
+              className="mt-0.5 rounded-full"
+            />
+            <span className="leading-snug">
+              אני מאשר/ת קבלת מבצעים ועדכונים שיווקיים במייל, ב‑SMS ובוואטסאפ
+              <span className="text-muted-foreground block text-xs">
+                לא חובה. אפשר להסיר בכל עת מהאזור האישי.{" "}
+                <Link href="/privacy" className="underline underline-offset-2" target="_blank">מדיניות הפרטיות</Link>
+              </span>
+            </span>
+          </label>
         </div>
         <div>
           <Label className="mb-1.5">סיסמה</Label>
@@ -162,7 +191,7 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
             מדיניות הפרטיות
           </Link>{" "}
           ול
-          <Link href="/page/terms" className="hover:text-foreground underline">
+          <Link href="/terms" className="hover:text-foreground underline">
             תקנון האתר
           </Link>
           .

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { RegisterForm } from "@/components/auth/register-form";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { googleOAuthConfigured, googleNativeConfigured } from "@/lib/google-oauth";
 import { appleOAuthConfigured, appleNativeConfigured } from "@/lib/apple-oauth";
 
@@ -20,13 +21,15 @@ export const dynamic = "force-dynamic";
 /** Server-side only so it can read whether Google sign-in is configured. */
 export default function RegisterPage() {
   return (
-    <Suspense>
-      <RegisterForm
-        googleEnabled={googleOAuthConfigured()}
-        appleEnabled={appleOAuthConfigured()}
-        appleNativeEnabled={appleNativeConfigured()}
-        googleNativeEnabled={googleNativeConfigured()}
-      />
-    </Suspense>
+    <AuthShell mode="register">
+      <Suspense>
+        <RegisterForm
+          googleEnabled={googleOAuthConfigured()}
+          appleEnabled={appleOAuthConfigured()}
+          appleNativeEnabled={appleNativeConfigured()}
+          googleNativeEnabled={googleNativeConfigured()}
+        />
+      </Suspense>
+    </AuthShell>
   );
 }

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
+import { sameAddress } from "@/lib/address-book";
 
 const addressSchema = z.object({
   fullName: z.string().min(2),
@@ -22,10 +23,34 @@ export async function addAddressAction(input: z.infer<typeof addressSchema>) {
   const parsed = addressSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
-  const existingCount = await db.address.count({ where: { userId: session.sub } });
-  await db.address.create({
-    data: { ...parsed.data, userId: session.sub, isDefault: existingCount === 0 },
+  /* Adding it here is the customer saying they want it kept, which is what
+     savedByUser records and what stops rememberAddress rewriting the book
+     from then on — see lib/address-book.ts.
+
+     The same place twice is still one row. Usually that is this form being
+     used to confirm an address a checkout already left behind: the row
+     exists, the customer does not know it is automatic, and pressing save
+     should promote it rather than leave them looking at it twice. */
+  const book = await db.address.findMany({
+    where: { userId: session.sub },
+    select: { id: true, city: true, street: true, houseNo: true, apartment: true },
   });
+  const existing = book.find((row) => sameAddress(row, parsed.data));
+  if (existing) {
+    await db.address.update({
+      where: { id: existing.id },
+      data: { ...parsed.data, savedByUser: true },
+    });
+  } else {
+    await db.address.create({
+      data: {
+        ...parsed.data,
+        userId: session.sub,
+        savedByUser: true,
+        isDefault: book.length === 0,
+      },
+    });
+  }
 
   revalidatePath("/account/addresses");
   return { success: true, error: null };

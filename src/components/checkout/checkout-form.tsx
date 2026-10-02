@@ -1,34 +1,72 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { CreditCard, Home, ShieldCheck, Truck, Store, Lock, RotateCcw, Wallet } from "lucide-react";
+import { CreditCard, Home, MapPin, Minus, PackageOpen, Plus, ShieldCheck, Ticket, Truck, Store, Lock, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { CheckoutTestPanel } from "@/components/checkout/checkout-test-panel";
+import { GoogleButton } from "@/components/auth/google-button";
+import { AppleButton } from "@/components/auth/apple-button";
+import { GoogleNativeButton, useGoogleNativeAvailable } from "@/components/auth/google-native-button";
+import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
+import { useIsNativeApp } from "@/lib/native-app";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
+import SiApplepay from "@icons-pack/react-simple-icons/icons/SiApplepay";
+import SiGooglepay from "@icons-pack/react-simple-icons/icons/SiGooglepay";
 import { useCartStore } from "@/stores/cart-store";
 import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
 import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/orders";
-import { saveCheckoutContactAction } from "@/actions/cart";
+import {
+  applyCouponAction,
+  removeCartItemAction,
+  removeCouponAction,
+  saveCheckoutContactAction,
+  updateCartItemAction,
+} from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
+import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
+import { cartHasBulky } from "@/lib/bulky";
+import {
+  DELIVERY_CARRIER,
+  FREE_DELIVERY_THRESHOLD,
+  HOME_DELIVERY_FEE,
+  requiresAddress,
+  type DeliveryMethod,
+} from "@/lib/delivery";
 import type { CheckoutInput } from "@/lib/order-schema";
 
 /** Everything an order needs before one can be created from this form. Asked
     in both directions: to open the card form, and to take it away again. */
+/**
+ * The published daily cap on a bit transfer, and the line above which this
+ * checkout warns rather than lets a customer find out from an error code.
+ *
+ * It is the payer's limit and not the shop's: cumulative across their day,
+ * raisable by some, and already partly spent by anyone who sent money this
+ * morning. So it can only ever be a hint — the number is right for most
+ * accounts and wrong for some, which is exactly why the warning says "if it is
+ * declined" instead of refusing to offer bit at all.
+ *
+ * Written down here rather than inline because it will move: it was ₪3,600
+ * until recently. When bit change it, this is the one line to change.
+ */
+const BIT_DAILY_CAP = 7000;
+
 function detailsCompleteFor(f: {
   fullName: string;
   email: string;
   phone: string;
-  deliveryMethod: "DELIVERY" | "PICKUP";
+  deliveryMethod: DeliveryMethod;
   city: string;
   street: string;
   houseNo: string;
@@ -37,12 +75,21 @@ function detailsCompleteFor(f: {
     f.fullName.trim().length >= 2 &&
     /\S+@\S+\.\S+/.test(f.email) &&
     f.phone.trim().length >= 9 &&
-    (f.deliveryMethod !== "DELIVERY" ||
+    /* A pickup point needs the address too, which is the part that surprises
+       people: the carrier arranges the point with the customer afterwards
+       and needs to know where they are to offer one nearby. Only collecting
+       from our own counter needs nothing — that address is ours. */
+    (!requiresAddress(f.deliveryMethod) ||
       Boolean(f.city.trim() && f.street.trim() && f.houseNo.trim()))
   );
 }
 
 export function CheckoutForm({
+  signedIn = false,
+  googleEnabled = false,
+  appleEnabled = false,
+  googleNativeEnabled = false,
+  appleNativeEnabled = false,
   defaultName,
   defaultEmail,
   defaultPhone,
@@ -50,13 +97,29 @@ export function CheckoutForm({
   defaultStreet,
   defaultHouseNo,
   defaultApartment,
+  defaultWhatsappOptIn = true,
+  defaultMarketingOptIn = false,
   payViaGateway = false,
   isStaff = false,
   canEditWhilePaying = false,
 }: {
+  /** Whether the viewer has an account; a guest sees the one-tap sign-in. */
+  signedIn?: boolean;
+  googleEnabled?: boolean;
+  appleEnabled?: boolean;
+  /** The native sheets, for the App Store build; the web OAuth cannot run
+      inside its WebView. */
+  googleNativeEnabled?: boolean;
+  appleNativeEnabled?: boolean;
   defaultName?: string;
   defaultEmail?: string;
   defaultPhone?: string;
+  /** The account's last answer to "updates on WhatsApp too?"; a guest starts
+      with the box ticked. */
+  defaultWhatsappOptIn?: boolean;
+  /** Whether the account already consented to advertising. A guest, and an
+      account that never did, start unticked — consent is never pre-filled. */
+  defaultMarketingOptIn?: boolean;
   /** The address already on the account, so a returning customer does not
       retype one the shop has had since their last order. */
   defaultCity?: string;
@@ -79,8 +142,38 @@ export function CheckoutForm({
   const cart = useCartStore((s) => s.cart);
   const setCart = useCartStore((s) => s.setCart);
   const router = useRouter();
+  /* Google refuses OAuth inside a WebView and Apple's web flow is not yet
+     allowed there either — the same rule the login page follows. Inside the
+     app the strip offers the native sheets instead, and only when the running
+     build actually carries the plugin (asked of the bridge, not inferred). */
+  const inApp = useIsNativeApp();
+  const googleNativeReady = useGoogleNativeAvailable();
+  const appleNativeReady = useAppleNativeAvailable();
+  const showGoogle = googleEnabled && !inApp;
+  const showApple = appleEnabled && !inApp;
+  const showGoogleNative = googleNativeEnabled && inApp && googleNativeReady;
+  const showAppleNative = appleNativeEnabled && inApp && appleNativeReady;
+  const quickSignIn = !signedIn && (showGoogle || showApple || showGoogleNative || showAppleNative);
+  const twoUp = (showGoogle && showApple) || (showGoogleNative && showAppleNative);
   const [isPending, startTransition] = useTransition();
+  const [isEditingCart, startCartEdit] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /* The coupon field in the summary. The server answers with the whole
+     summary — discount, delivery, total — and the store takes it as is, so
+     the numbers on this page are never computed twice. */
+  const [couponInput, setCouponInput] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
+  const [couponOpen, setCouponOpen] = useState(false);
+  function runCoupon(promise: ReturnType<typeof applyCouponAction>) {
+    setCouponBusy(true);
+    promise
+      .then((summary) => {
+        setCart(summary);
+        if (!summary.couponError) setCouponInput("");
+      })
+      .catch(() => toast.error("לא הצלחנו לבדוק את הקופון, נסו שוב"))
+      .finally(() => setCouponBusy(false));
+  }
   /* Two fields the demo shows only so it matches Pelecard's form field for
      field. They are deliberately NOT part of `form`: the checkout schema
      decides what an order carries, and a skin is not a reason to change it. */
@@ -108,7 +201,7 @@ export function CheckoutForm({
     fullName: defaultName ?? "",
     email: defaultEmail ?? "",
     phone: defaultPhone ?? "",
-    deliveryMethod: "DELIVERY" as "DELIVERY" | "PICKUP",
+    deliveryMethod: "DELIVERY" as DeliveryMethod,
     city: defaultCity ?? "",
     street: defaultStreet ?? "",
     houseNo: defaultHouseNo ?? "",
@@ -118,7 +211,39 @@ export function CheckoutForm({
     cardNumber: "",
     cardExpiry: "",
     cardCvv: "",
+    whatsappOptIn: defaultWhatsappOptIn,
+    marketingOptIn: defaultMarketingOptIn,
   });
+
+  /* Delivery is priced by the method, and the method is chosen on this screen
+     — after the server built the summary. Derived rather than refetched: it
+     is one comparison, and a round trip on every click of a radio button is
+     latency the customer feels for a number that is already known.
+     createOrder computes it the same way from the same rule, so what is shown
+     here is what gets charged. */
+  /* Both collection methods are free at every basket size, so the server's
+     quoted fee only ever applies to the door. computeDeliveryFee says the
+     same thing from the same constants — this mirrors the rule rather than
+     re-deriving it, and createOrder computes the charge itself. */
+  /* A fridge cannot be left at a shop counter. One bulky line decides for the
+     whole basket, because the carrier delivers the order rather than the
+     line — see lib/bulky.ts for which categories count and why the rule
+     errs towards bulky. Collecting from our own counter in Hadera stays
+     available: that is a shop with a loading area, not a locker. */
+  const hasBulky = cartHasBulky(cart.items);
+
+  /* Derived, not corrected after the fact. A basket can become bulky after
+     the choice was made — another tab adds a fridge, the page is restored
+     from history — and an effect that reset the stored choice would render
+     once with a method the carrier cannot honour before fixing itself. This
+     cannot: there is no moment where the selected method is one the order
+     would refuse. createOrder applies the same rule, so the screen and the
+     charge agree. */
+  const deliveryMethod: DeliveryMethod =
+    hasBulky && form.deliveryMethod === "PICKUP_POINT" ? "DELIVERY" : form.deliveryMethod;
+  const needsAddress = requiresAddress(deliveryMethod);
+  const deliveryFee = deliveryMethod === "DELIVERY" ? cart.deliveryFee : 0;
+  const orderTotal = Math.max(0, cart.subtotal - cart.discount + deliveryFee);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => {
@@ -146,6 +271,35 @@ export function CheckoutForm({
       return next;
     });
   }
+
+  /* THE ORDER CAN BE CHANGED ON THIS PAGE: a quantity up or down, or a line
+     removed, without a trip back to the cart. Same actions and the same caps
+     as the cart drawer, so a line here can never be one the cart would refuse.
+
+     A payment already open was opened FOR AN AMOUNT, against an order made
+     from the old basket, so it cannot survive the change. It goes, exactly as
+     it does when an edit leaves the details incomplete, and the auto-open
+     brings the card form back against a new order at the new total. The old
+     order is left PAYMENT_PENDING, the same state an abandoned checkout
+     leaves. readyToPay waits while the edit is in flight, so the new order is
+     never made from a basket the server is still changing. */
+  function changeLine(itemId: string, quantity: number) {
+    startCartEdit(async () => {
+      try {
+        const summary = quantity <= 0 ? await removeCartItemAction(itemId) : await updateCartItemAction(itemId, quantity);
+        if (payment || stranded) {
+          setPayment(null);
+          setStranded(null);
+          paidOrderId.current = null;
+          autoOpened.current = false;
+        }
+        setCart(summary);
+      } catch {
+        toast.error("לא הצלחנו לעדכן את ההזמנה, נסו שוב");
+      }
+    });
+  }
+  const lockLines = isPending || isEditingCart;
 
   /* Fills the form well enough to pass validation, so the demo lane can be run
      end to end in one press instead of eleven. The card number is the one every
@@ -232,6 +386,7 @@ export function CheckoutForm({
      earlier; the admin's order list already shows them for what they are. */
   const readyToPay =
     payViaGateway &&
+    !isEditingCart &&
     !payment &&
     !stranded &&
     form.paymentMethod === "DEMO_CARD" &&
@@ -273,7 +428,7 @@ export function CheckoutForm({
         houseNo: form.houseNo,
         apartment: form.apartment,
         deliveryNotes: form.deliveryNotes,
-        deliveryMethod: form.deliveryMethod,
+        deliveryMethod,
       }).catch(() => {});
     }, 700);
     return () => clearTimeout(timer);
@@ -288,7 +443,7 @@ export function CheckoutForm({
     form.houseNo,
     form.apartment,
     form.deliveryNotes,
-    form.deliveryMethod,
+    deliveryMethod,
   ]);
 
   function submit() {
@@ -374,6 +529,32 @@ export function CheckoutForm({
         <fieldset disabled={!!payment && !canEditWhilePaying} className="contents">
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">1. פרטי התקשרות</h2>
+          {quickSignIn && (
+            /* Optional, and it says so: a guest who would rather type three
+               fields types three fields. One tap fills them from an account,
+               or makes an account, and the customer comes back to this page
+               signed in — the cart is in the browser, not on the trip. */
+            <div className="bg-muted/50 mb-4 rounded-xl p-3">
+              <p className="mb-2 text-sm">
+                <span className="font-semibold">יש לכם חשבון?</span>{" "}
+                <span className="text-muted-foreground">התחברו בלחיצה ונמלא את הפרטים. אין? נפתח לכם אחד, ובפעם הבאה זה שתי לחיצות.</span>
+              </p>
+              <Suspense>
+                <div className={`grid gap-2 ${twoUp ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {showGoogle && <GoogleButton compact={showApple} redirectTo="/checkout" />}
+                  {showApple && <AppleButton compact={showGoogle} redirectTo="/checkout" />}
+                  {showGoogleNative && <GoogleNativeButton compact={showAppleNative} redirectTo="/checkout" />}
+                  {showAppleNative && <AppleNativeButton compact={showGoogleNative} redirectTo="/checkout" />}
+                </div>
+              </Suspense>
+              <p className="text-muted-foreground mt-2 text-xs">
+                <Link href="/login?redirect=/checkout" className="hover:text-foreground underline underline-offset-2">
+                  התחברות עם מייל וסיסמה
+                </Link>
+                {" · "}או פשוט ממלאים למטה וממשיכים כאורח
+              </p>
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <Label htmlFor="fullName" className="mb-1.5">שם מלא</Label>
@@ -406,6 +587,41 @@ export function CheckoutForm({
                 onBlur={rememberContact}
                 required
               />
+              {/* The customer's say on WhatsApp, next to the number it would
+                  go to. Ticked to start with; unticked, the order's updates
+                  come by email only, and the notifier records the choice. */}
+              <label htmlFor="whatsappOptIn" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
+                <Checkbox
+                  id="whatsappOptIn"
+                  checked={form.whatsappOptIn}
+                  onCheckedChange={(v) => update("whatsappOptIn", v === true)}
+                  className="mt-0.5 rounded-full"
+                />
+                <span className="leading-snug">
+                  לשלוח לי עדכונים על ההזמנה גם בוואטסאפ למספר הזה
+                  <span className="text-muted-foreground block text-xs">אישור ההזמנה, יציאה למשלוח ומסירה. בלי זה, העדכונים יגיעו במייל בלבד.</span>
+                </span>
+              </label>
+              {/* Consent to advertising, as section 30א of the Communications
+                  Law wants it: a separate box, unticked, in plain words that
+                  name the channels, with the way out stated beside it. The
+                  order updates above are service messages and need no
+                  consent; this is the one that does, and it is never assumed. */}
+              <label htmlFor="marketingOptIn" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
+                <Checkbox
+                  id="marketingOptIn"
+                  checked={form.marketingOptIn}
+                  onCheckedChange={(v) => update("marketingOptIn", v === true)}
+                  className="mt-0.5 rounded-full"
+                />
+                <span className="leading-snug">
+                  אני מאשר/ת ל‑Buy Today לשלוח לי מבצעים ועדכונים שיווקיים במייל, ב‑SMS ובוואטסאפ
+                  <span className="text-muted-foreground block text-xs">
+                    לא חובה. אפשר להסיר בכל עת מהאזור האישי או בקישור שבכל הודעה.{" "}
+                    <Link href="/privacy" className="underline underline-offset-2" target="_blank">מדיניות הפרטיות</Link>
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
         </section>
@@ -413,27 +629,77 @@ export function CheckoutForm({
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">2. משלוח</h2>
           <RadioGroup
-            value={form.deliveryMethod}
-            onValueChange={(v) => update("deliveryMethod", v as "DELIVERY" | "PICKUP")}
-            className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2"
+            value={deliveryMethod}
+            onValueChange={(v) => update("deliveryMethod", v as DeliveryMethod)}
+            className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
           >
             <Label
               htmlFor="delivery-home"
               className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
             >
               <RadioGroupItem value="DELIVERY" id="delivery-home" />
-              <Truck className="size-4" /> משלוח עד הבית
+              <Truck className="size-4" />
+              <span>
+                <span className="block">משלוח עד הבית</span>
+                {/* The one fee in the shop, said on the control that causes
+                    it rather than in the total underneath. */}
+                <span className="text-muted-foreground block text-xs">
+                  {cart.subtotal - cart.discount >= FREE_DELIVERY_THRESHOLD
+                    ? "חינם"
+                    : `${formatPrice(HOME_DELIVERY_FEE)} · חינם מעל ${formatPrice(FREE_DELIVERY_THRESHOLD)}`}
+                </span>
+              </span>
             </Label>
+            {/* Absent rather than disabled when the basket is bulky: a
+                greyed-out radio invites a click and then explains itself,
+                and the sentence under the group already says why. */}
+            {!hasBulky && (
+              <Label
+                htmlFor="delivery-point"
+                className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+              >
+                <RadioGroupItem value="PICKUP_POINT" id="delivery-point" />
+                <MapPin className="size-4" />
+                <span>
+                  <span className="block">נקודת איסוף</span>
+                  <span className="text-success block text-xs font-medium">חינם</span>
+                </span>
+              </Label>
+            )}
             <Label
               htmlFor="delivery-pickup"
               className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
             >
               <RadioGroupItem value="PICKUP" id="delivery-pickup" />
-              <Store className="size-4" /> איסוף עצמי מהסניף
+              <Store className="size-4" />
+              <span>
+                <span className="block">איסוף מהסניף</span>
+                <span className="text-success block text-xs font-medium">חינם</span>
+              </span>
             </Label>
           </RadioGroup>
 
-          {form.deliveryMethod === "DELIVERY" && (
+          {hasBulky && (
+            <p className="text-muted-foreground mb-3 flex items-start gap-2 text-sm leading-relaxed">
+              <PackageOpen className="mt-0.5 size-4 shrink-0" />
+              <span>
+                ההזמנה כוללת מוצר גדול שלא ניתן למסור בנקודת איסוף. אפשר לקבל אותו עד הבית או לאסוף מהחנות
+                בחדרה.
+              </span>
+            </p>
+          )}
+
+          {deliveryMethod === "PICKUP_POINT" && (
+            <p className="text-muted-foreground mb-3 flex items-start gap-2 text-sm leading-relaxed">
+              <MapPin className="mt-0.5 size-4 shrink-0" />
+              <span>
+                {DELIVERY_CARRIER} יצרו איתכם קשר אחרי ההזמנה כדי לבחור את נקודת האיסוף הנוחה לכם.
+                הכתובת למטה היא כדי שיציעו נקודה קרובה אליכם.
+              </span>
+            </p>
+          )}
+
+          {needsAddress && (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="col-span-2 sm:col-span-2">
                 <Label className="mb-1.5">עיר</Label>
@@ -458,7 +724,7 @@ export function CheckoutForm({
               </div>
             </div>
           )}
-          {form.deliveryMethod === "PICKUP" && (
+          {deliveryMethod === "PICKUP" && (
             <p className="text-muted-foreground flex items-center gap-2 text-sm">
               <Home className="size-4" /> ניתן לאסוף מהסניף הקרוב, פרטים יישלחו לאחר ההזמנה.
             </p>
@@ -470,46 +736,55 @@ export function CheckoutForm({
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">3. תשלום</h2>
 
-          {/* Card is the only way to pay now. Cash on delivery is gone from
-              the checkout — not from the codebase: CASH_ON_DELIVERY stays a
-              value the order schema accepts and the admin can render, because
-              orders already placed that way still have to open. Deleting the
-              value would break the history rather than close the option.
+          {/* WHAT THE SHOP ACCEPTS — and it is no longer a chooser.
+              Cash on delivery is gone from the checkout but not from the
+              codebase: CASH_ON_DELIVERY stays a value the schema accepts and
+              the admin renders, because orders already placed that way still
+              have to open. Deleting it would break the history rather than
+              close the option.
 
-              THE MARKS ARE NOT DRAWN HERE, and that is not laziness. Apple's
-              guidelines require their own supplied Apple Pay artwork and forbid
-              a redrawn or modified one; Google publishes its buttons the same
-              way. A hand-traced Apple logo on a live shop is a trademark
-              problem for the sake of a placeholder, so these carry a wallet
-              glyph and the name until the integration brings the official
-              assets with it.
+              This was three tiles that looked like a selector, with the two
+              wallets dashed out and labelled בקרוב. The comment that used to
+              sit here warned that the promise had to become true or it would
+              be one the checkout keeps making and breaking. It became true in
+              September — Google Pay, bit and card all render inside Pelecard's
+              own form, with their own marks, and that form is where the choice
+              is actually made. Which left this row telling a customer that two
+              live payment methods were still coming, directly above the row
+              offering them.
 
-              Apple Pay and Google Pay are placeholders and behave like it.
-              They are buttons that cannot be pressed, marked בקרוב, and they
-              are here because a payment step that shows one way to pay reads
-              as a shop that only takes one — while the same step showing three
-              with two marked "coming" reads as a shop that is adding them. The
-              cost of that impression is that it has to become true; if these
-              are still here unimplemented in six months they are a promise the
-              checkout keeps making and breaking. */}
-          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="border-brand bg-brand/5 flex items-center gap-3 rounded-lg border p-3">
-              <CreditCard className="size-4 shrink-0" />
-              <span className="text-sm font-medium">כרטיס אשראי</span>
-            </div>
-            {["Apple Pay", "Google Pay"].map((wallet) => (
-              <div
-                key={wallet}
-                aria-disabled
-                className="border-input text-muted-foreground flex cursor-not-allowed items-center justify-between gap-2 rounded-lg border border-dashed p-3 opacity-70"
-              >
-                <span className="flex items-center gap-2">
-                  <Wallet className="size-4 shrink-0" />
-                  <span className="text-sm font-medium tracking-tight">{wallet}</span>
-                </span>
-                <span className="bg-muted rounded-full px-2 py-0.5 text-[10px] font-semibold">בקרוב</span>
-              </div>
-            ))}
+              So it says what it is: the methods accepted, in one line, chosen
+              one step further down. Choosing twice on one page is worse than
+              not choosing here at all.
+
+              THE MARKS ARE THE REAL ONES NOW. Apple and Google both require
+              their own supplied artwork and forbid a redrawn or recoloured
+              version, which is why this carried a generic wallet glyph while
+              the integration was pending — a hand-traced Apple logo on a live
+              shop is a trademark problem for the sake of a placeholder. These
+              come from simple-icons, already a dependency of the footer, and
+              are shipped unmodified.
+
+              bit is the exception and stays a word. The set does carry a
+              "SiBit", and it belongs to Bit.dev — a developer tool in a purple
+              that has nothing to do with the Israeli payment app. A wrong logo
+              is worse than none, and a brand's NAME in plain text is the part
+              nobody needs a licence for. */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span className="text-muted-foreground text-xs">מקבלים:</span>
+            <span className="border-input flex h-9 items-center gap-1.5 rounded-lg border px-2.5">
+              <CreditCard className="size-4 shrink-0" aria-hidden />
+              <span className="text-xs font-medium">כרטיס אשראי</span>
+            </span>
+            <span className="border-input flex h-9 items-center rounded-lg border px-2.5" title="Apple Pay">
+              <SiApplepay className="h-5 w-auto" aria-label="Apple Pay" />
+            </span>
+            <span className="border-input flex h-9 items-center rounded-lg border px-2.5" title="Google Pay">
+              <SiGooglepay className="h-5 w-auto" aria-label="Google Pay" />
+            </span>
+            <span className="border-input flex h-9 items-center rounded-lg border px-2.5">
+              <span className="text-sm font-bold tracking-tight">bit</span>
+            </span>
           </div>
 
 
@@ -527,6 +802,27 @@ export function CheckoutForm({
                   נוצרה · פרטי הכרטיס מוזנים אצל חברת הסליקה ואינם עוברים דרך האתר
                 </span>
               </p>
+              {/* bit refuses a payment over the payer's daily cap and says so
+                  as "General error ... 599", which reads as a broken shop
+                  rather than as a limit. It cost us a real ₪8,579 attempt.
+
+                  A WARNING AND NOT A HIDDEN TILE, deliberately. The cap is the
+                  customer's, cumulative over their day, and it is not fixed:
+                  some raise it, and somebody who already sent ₪5,000 this
+                  morning will fail well under the number. Hiding bit above a
+                  threshold would turn away people who could have paid and
+                  still not save the ones who could not. Saying it out loud
+                  costs nothing and leaves the choice where it belongs.
+
+                  The threshold is the published consumer cap, which is what a
+                  shopper is most likely to be under. It is a hint, not a rule
+                  — nothing here blocks anything. */}
+              {cart.total > BIT_DAILY_CAP && (
+                <p className="border-warning/40 bg-warning/10 rounded-md border px-2.5 py-2 text-xs leading-relaxed">
+                  שימו לב: בתשלום ב־bit יש תקרה יומית (כ־{formatPrice(BIT_DAILY_CAP)} ברוב החשבונות), והסכום
+                  כאן גבוה ממנה. אם התשלום ב־bit נדחה — זו התקרה ולא תקלה באתר, ואפשר לשלם בכרטיס אשראי.
+                </p>
+              )}
               <PaymentFrame src={payment.url} />
               {/* A way back out. Without it, finishing the address is a one-way
                   door: the fieldset above locks the moment a payment exists,
@@ -744,7 +1040,10 @@ export function CheckoutForm({
       </div>
 
       <div className="border-border h-fit rounded-xl border p-5 lg:sticky lg:top-24">
-        <h2 className="mb-4 font-semibold">4. סיכום הזמנה</h2>
+        <h2 className="mb-1 font-semibold">4. סיכום הזמנה</h2>
+        <p className="text-muted-foreground mb-4 text-xs">
+          {isEditingCart ? "מעדכנים את ההזמנה..." : payment ? "שינוי כמות יעדכן את הסכום ויפתח את טופס התשלום מחדש" : "אפשר לשנות כמות או להסיר מוצר כאן"}
+        </p>
         <ul className="mb-4 flex max-h-64 flex-col gap-3 overflow-y-auto">
           {cart.items.map((item) => (
             <li key={item.id} className="flex items-center gap-3">
@@ -754,12 +1053,43 @@ export function CheckoutForm({
                 ) : (
                   <ProductImagePlaceholder title={item.title} brand={item.brandName} />
                 )}
-                <span className="bg-primary text-primary-foreground absolute -top-1.5 -end-1.5 flex size-5 items-center justify-center rounded-full text-[10px] font-bold">
-                  {item.quantity}
-                </span>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm">{item.title}</p>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="border-input flex items-center rounded-lg border">
+                    <button
+                      type="button"
+                      disabled={lockLines}
+                      onClick={() => changeLine(item.id, item.quantity - 1)}
+                      className="flex size-8 items-center justify-center disabled:opacity-40"
+                      aria-label={item.quantity > 1 ? "הפחתת כמות" : "הסרה מההזמנה"}
+                    >
+                      {item.quantity > 1 ? <Minus className="size-3.5" /> : <Trash2 className="size-3.5" />}
+                    </button>
+                    <span className="w-6 text-center text-sm font-semibold tabular-nums">{item.quantity}</span>
+                    <button
+                      type="button"
+                      disabled={lockLines || item.quantity >= item.maxQuantity}
+                      onClick={() => changeLine(item.id, item.quantity + 1)}
+                      className="flex size-8 items-center justify-center disabled:opacity-40"
+                      aria-label="הוספת כמות"
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
+                  </div>
+                  {item.quantity > 1 && (
+                    <button
+                      type="button"
+                      disabled={lockLines}
+                      onClick={() => changeLine(item.id, 0)}
+                      className="text-muted-foreground hover:text-destructive p-1 disabled:opacity-40"
+                      aria-label="הסרה מההזמנה"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
+                </div>
               </div>
               <span className="text-sm font-semibold tabular-nums">{formatPrice(item.lineTotal)}</span>
             </li>
@@ -773,19 +1103,83 @@ export function CheckoutForm({
           </div>
           {cart.discount > 0 && (
             <div className="text-success flex justify-between">
-              <span>הנחה</span>
+              <span>הנחה{cart.couponCode ? ` (${cart.couponCode})` : ""}</span>
               <span className="tabular-nums">-{formatPrice(cart.discount)}</span>
             </div>
           )}
+          {/* The summary came from the server before the customer chose how
+              they are getting the order, so the fee it carries is always the
+              delivery one. Choosing to collect removes it here the moment the
+              radio changes, and createOrder recomputes the same way — the
+              screen and the charge stay the same number. */}
           <div className="flex justify-between">
-            <span className="text-muted-foreground">משלוח</span>
-            <span className="tabular-nums">{cart.deliveryFee === 0 ? "חינם" : formatPrice(cart.deliveryFee)}</span>
+            {/* Named by the method chosen, so the free line says which free
+                thing it is — three options make "משלוח: חינם" ambiguous. */}
+            <span className="text-muted-foreground">{DELIVERY_METHOD_LABELS[deliveryMethod]}</span>
+            <span className="tabular-nums">{deliveryFee === 0 ? "חינם" : formatPrice(deliveryFee)}</span>
           </div>
+          {/* The coupon, quietly. A customer who arrived with a code from a
+              campaign reaches this page without opening the cart, so there
+              has to be somewhere to type it — but most customers have no
+              code, and a field with a button in the middle of the summary
+              read as a step they had skipped. So: one small line, and the
+              field only for whoever asks for it. */}
+          {!payment &&
+            (cart.couponCode ? (
+              <div className="text-success flex items-center justify-between gap-2 text-xs">
+                <span className="flex items-center gap-1">
+                  <Ticket className="size-3.5" />
+                  קופון <span className="font-mono font-semibold">{cart.couponCode}</span> הופעל
+                  {cart.couponLabel && <span className="text-success/80"> · {cart.couponLabel}</span>}
+                </span>
+                <button
+                  type="button"
+                  className="text-muted-foreground underline underline-offset-2"
+                  disabled={couponBusy}
+                  onClick={() => runCoupon(removeCouponAction())}
+                >
+                  הסרה
+                </button>
+              </div>
+            ) : couponOpen ? (
+              <form
+                className="mt-0.5"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!couponInput.trim()) return;
+                  runCoupon(applyCouponAction(couponInput));
+                }}
+              >
+                <div className="flex gap-1.5">
+                  <Input
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value)}
+                    placeholder="קוד קופון"
+                    dir="ltr"
+                    className="h-8 font-mono text-sm"
+                    aria-label="קוד קופון"
+                    autoFocus
+                  />
+                  <Button type="submit" variant="outline" size="sm" className="h-8 shrink-0" disabled={couponBusy || !couponInput.trim()}>
+                    {couponBusy ? "בודק…" : "הפעלה"}
+                  </Button>
+                </div>
+                {cart.couponError && <p className="text-destructive mt-1 text-xs">{cart.couponError}</p>}
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCouponOpen(true)}
+                className="text-muted-foreground hover:text-foreground w-fit text-xs underline underline-offset-2"
+              >
+                יש לכם קוד קופון?
+              </button>
+            ))}
         </div>
         <Separator className="my-3" />
         <div className="mb-4 flex justify-between text-base font-bold">
           <span>סה&quot;כ לתשלום</span>
-          <span className="tabular-nums">{formatPrice(cart.total)}</span>
+          <span className="tabular-nums">{formatPrice(orderTotal)}</span>
         </div>
         {payment ? (
           <p className="border-border text-muted-foreground rounded-lg border border-dashed p-3 text-center text-xs leading-relaxed">
@@ -839,7 +1233,7 @@ export function CheckoutForm({
             מדיניות הפרטיות
           </Link>{" "}
           ·{" "}
-          <Link href="/page/terms" className="hover:text-foreground underline">
+          <Link href="/terms" className="hover:text-foreground underline">
             תקנון האתר
           </Link>
         </p>

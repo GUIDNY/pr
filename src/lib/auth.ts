@@ -4,7 +4,7 @@ import { SignJWT, jwtVerify } from "jose";
 import { db } from "@/lib/db";
 import type { UserRole } from "@/lib/enums";
 import { hashPassword, verifyPassword } from "@/lib/auth-seed-helpers";
-import { canManageCatalog, isBackOffice } from "@/lib/permissions";
+import { canManageCatalog, isBackOffice, isSiteAdmin } from "@/lib/permissions";
 
 export { hashPassword, verifyPassword };
 
@@ -109,6 +109,15 @@ export async function getCurrentUser() {
 export async function requireAdmin() {
   const session = await getSession();
   if (!session || !canManageCatalog(session.role)) {
+    throw new Error("UNAUTHORIZED");
+  }
+  return session;
+}
+
+/** The principal administrator only — see isSiteAdmin. */
+export async function requireSiteAdmin() {
+  const session = await getSession();
+  if (!session || !isSiteAdmin(session.role)) {
     throw new Error("UNAUTHORIZED");
   }
   return session;

@@ -1,9 +1,14 @@
 import "server-only";
 import { computeCartSubtotal, computeDeliveryFee, resolveCoupon } from "@/lib/pricing";
+import { isBulkyCategory } from "@/lib/bulky";
 
 type CartWithItems = {
   id: string;
   couponCode: string | null;
+  /** Who holds the cart, for coupons limited per customer or to a first
+      order. Both optional: the empty, unpersisted cart has neither. */
+  userId?: string | null;
+  contactEmail?: string | null;
   items: {
     id: string;
     quantity: number;
@@ -16,7 +21,14 @@ type CartWithItems = {
       compareAtPrice: number | null;
       stockStatus: string;
       stockQty: number;
+      categoryId: string;
+      brandId: string;
       brand: { name: string };
+      // Needed to decide whether the order can go to a collection point —
+      // see lib/bulky.ts. Carried on the item rather than recomputed at the
+      // checkout, so the cart and the checkout cannot reach different
+      // answers about the same basket.
+      category: { id: string; slug: string; parentId: string | null; parent: { slug: string } | null };
       images: { url: string; alt: string | null }[];
     };
   }[];
@@ -41,6 +53,9 @@ export type CartSummary = {
     lineTotal: number;
     stockStatus: string;
     maxQuantity: number;
+    /** Too big for a צ'יטה collection point. Collecting it from the Hadera
+        counter is still fine. */
+    isBulky: boolean;
   }[];
   itemCount: number;
   subtotal: number;
@@ -49,9 +64,21 @@ export type CartSummary = {
   total: number;
   couponCode: string | null;
   couponError: string | null;
+  /** What the applied code gives, in the shop's words ("10% על מקררים"). */
+  couponLabel: string | null;
+  /** The applied code waives the home-delivery fee. */
+  freeDelivery: boolean;
 };
 
-export async function buildCartSummary(cart: CartWithItems): Promise<CartSummary> {
+/**
+ * @param customer Who is checking out, when the caller knows more than the
+ *   cart does: the order action passes the email typed into the form, so a
+ *   per-customer or first-order coupon is judged against it.
+ */
+export async function buildCartSummary(
+  cart: CartWithItems,
+  customer: { userId?: string | null; email?: string | null } = {},
+): Promise<CartSummary> {
   const items = cart.items.map((i) => ({
     id: i.id,
     productId: i.product.id,
@@ -66,11 +93,24 @@ export async function buildCartSummary(cart: CartWithItems): Promise<CartSummary
     lineTotal: i.product.price * i.quantity,
     stockStatus: i.product.stockStatus,
     maxQuantity: i.product.stockStatus === "OUT_OF_STOCK" ? 0 : Math.max(1, Math.min(i.product.stockQty, 10)),
+    isBulky: isBulkyCategory(i.product.category.slug, i.product.category.parent?.slug ?? null),
   }));
 
   const subtotal = computeCartSubtotal(items);
-  const { discount, error } = await resolveCoupon(cart.couponCode, subtotal);
-  const deliveryFee = computeDeliveryFee(subtotal - discount);
+  const coupon = await resolveCoupon(
+    cart.couponCode,
+    cart.items.map((i) => ({
+      productId: i.product.id,
+      price: i.product.price,
+      quantity: i.quantity,
+      categoryId: i.product.categoryId,
+      parentCategoryId: i.product.category.parentId,
+      brandId: i.product.brandId,
+    })),
+    { userId: customer.userId ?? cart.userId ?? null, email: customer.email ?? cart.contactEmail ?? null },
+  );
+  const { discount, error, freeDelivery } = coupon;
+  const deliveryFee = freeDelivery ? 0 : computeDeliveryFee(subtotal - discount);
 
   return {
     id: cart.id,
@@ -82,5 +122,7 @@ export async function buildCartSummary(cart: CartWithItems): Promise<CartSummary
     total: Math.max(0, subtotal - discount + deliveryFee),
     couponCode: error ? null : cart.couponCode,
     couponError: error,
+    couponLabel: error ? null : coupon.label,
+    freeDelivery,
   };
 }

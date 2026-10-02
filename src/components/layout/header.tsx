@@ -2,6 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { MapPin, Phone, ShieldCheck, Tag, Truck } from "lucide-react";
 import { BUSINESS } from "@/lib/business";
+import { formatPrice } from "@/lib/format";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import { SearchBar } from "@/components/layout/search-bar";
 import { MegaMenu } from "@/components/layout/mega-menu";
 import { MobileNav } from "@/components/layout/mobile-nav";
@@ -10,6 +12,7 @@ import { CartTrigger } from "@/components/cart/cart-trigger";
 import { AccountButton } from "@/components/layout/account-button";
 import { FavoritesLink } from "@/components/layout/favorites-link";
 import { BackOfficeLink } from "@/components/layout/back-office-link";
+import { HeaderMallButton } from "@/components/layout/mall-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 
 export async function Header() {
@@ -28,15 +31,24 @@ export async function Header() {
           and a phone number are that second's worth of evidence, so they are
           the first thing on the screen at every size. Outside the sticky
           header on purpose: it is read once, at the top, and should not
-          spend a strip of every screen afterwards. */}
-      <div className="bg-primary text-primary-foreground/85 flex justify-center py-1.5 text-[11px] sm:text-xs">
+          spend a strip of every screen afterwards.
+
+          data-site-chrome on this, the header and the tab bar: the parts of
+          the site that are not the page. Inside the 3D mall's product frame
+          they are all hidden (globals.css, lib/mall.ts). */}
+      <div data-site-chrome className="bg-primary text-primary-foreground/85 flex justify-center py-1.5 text-[11px] sm:text-xs">
         <div className="flex w-full max-w-7xl items-center justify-center gap-3 px-4 sm:gap-4 md:justify-between">
           <div className="flex items-center gap-3 whitespace-nowrap sm:gap-4">
             <span className="flex items-center gap-1">
               <ShieldCheck className="text-brand size-3.5" /> <span className="hidden sm:inline">אחריות </span>יבואן רשמי
             </span>
             <span className="flex items-center gap-1">
-              <Truck className="text-brand size-3.5" /> משלוח חינם מעל ₪500
+              {/* From the constant, not typed. This line sat on every page
+                  of the shop promising ₪500 for an hour after the policy
+                  moved to ₪600 — the one place the threshold was written by
+                  hand instead of read, and therefore the one place that did
+                  not follow. */}
+              <Truck className="text-brand size-3.5" /> משלוח עד הבית חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)}
             </span>
             <Link href="/page/branches" className="hover:text-primary-foreground hidden items-center gap-1 md:flex">
               <MapPin className="size-3.5" /> חנות בחדרה
@@ -52,8 +64,12 @@ export async function Header() {
             {/* On a phone the number lives one tap away in the drawer and
                 on the product page; three facts in one 390px line wrapped
                 to two, and a strip that wraps is a strip that shouts. */}
-            <a href={BUSINESS.phoneHref} className="hover:text-primary-foreground hidden items-center gap-1 font-medium whitespace-nowrap sm:flex">
-              <Phone className="size-3.5" /> {BUSINESS.phone}
+            {/* The mobile, not the service line. BUSINESS.phone stays what
+                it is everywhere else — the number of record on the Business
+                Profile, in the JSON-LD and in the terms — and this is the
+                one place the shop would rather a tap reached a handset. */}
+            <a href={BUSINESS.mobileHref} className="hover:text-primary-foreground hidden items-center gap-1 font-medium whitespace-nowrap sm:flex">
+              <Phone className="size-3.5" /> {BUSINESS.mobile}
             </a>
             {/* Staff only, and empty for everyone else — see BackOfficeLink. */}
             <BackOfficeLink />
@@ -61,11 +77,13 @@ export async function Header() {
         </div>
       </div>
 
-      <header className="bg-background sticky top-0 z-30 border-b">
+      <header data-site-chrome className="bg-background sticky top-0 z-30 border-b">
         {/* Phone: one row, 56px, and that is the whole sticky header —
-            menu, the mark, the search field, the cart. It was three rows
-            and 200px, a quarter of the screen pinned in place. Account and
-            favourites live in the menu drawer on a phone. */}
+            menu, the mark, the search field — and the cart only on the
+            pages without the bottom tab bar, which carries it elsewhere.
+            It was three rows and 200px, a quarter of the screen pinned in
+            place. Account and favourites live in the menu drawer on a
+            phone. */}
         <div className="flex items-center gap-2 px-3 py-2 sm:hidden">
           <MobileNav departments={departments} />
           <Link href="/" aria-label="Buy Today — לדף הבית" className="shrink-0">
@@ -74,7 +92,11 @@ export async function Header() {
           <div className="min-w-0 flex-1">
             <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-10 border-2" />
           </div>
-          <CartTrigger />
+          {/* The 3D mall: straight in from the app; on an iPhone in the
+              browser it offers the app first. See HeaderMallButton. */}
+          <HeaderMallButton />
+          {/* Only where the bottom tab bar is not already the cart. */}
+          <CartTrigger unlessTabBar />
         </div>
 
         {/* Desktop: the mark with its name, a wide search field, the icons. */}
@@ -109,6 +131,7 @@ export async function Header() {
           </div>
 
           <div className="flex items-center gap-1">
+            <HeaderMallButton className="h-11" />
             <FavoritesLink />
             {/* Looks different signed in and signed out — see AccountButton. */}
             <AccountButton />

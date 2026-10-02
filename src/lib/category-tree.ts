@@ -58,21 +58,31 @@ export const CATEGORY_TREE: CategoryNode[] = [
       { name: "מקפיאים", slug: "freezers" },
     ],
   },
+  /* Dishwashers used to be a department of their own, beside this one.
+     Both were thin: the mega menu lists only sub-categories that have live
+     products (see getNavigableCategoryTree), and of the six leaves across
+     the two, three have no products at all — so the menu was really showing
+     "כביסה וייבוש" with two entries and "מדיחי כלים" with one. Two thin
+     columns beside each other read as a shop with no range; one column of
+     three reads as a section.
+
+     Merged into this one rather than into the kitchen, because what these
+     share is the plumbing: a washing machine, a dryer and a dishwasher are
+     the three machines in a home that take a water inlet and a drain, and
+     they are shopped for, delivered and installed the same way.
+
+     The slug stays `laundry` — it is public in /category/laundry and in
+     the sitemap. /category/dishwashers is 301'd to it in next.config.ts;
+     that address is indexed and linked from the dishwasher buying guide,
+     so it cannot simply stop existing. */
   {
-    name: "כביסה וייבוש",
+    name: "כביסה, ייבוש ומדיחים",
     slug: "laundry",
     icon: "WashingMachine",
     children: [
       { name: "מכונות כביסה", slug: "washing-machines" },
       { name: "מייבשי כביסה", slug: "dryers" },
       { name: "מכונת כביסה משולבת מייבש", slug: "washer-dryer-combo" },
-    ],
-  },
-  {
-    name: "מדיחי כלים",
-    slug: "dishwashers",
-    icon: "Utensils",
-    children: [
       { name: "מדיח כלים", slug: "dishwasher-standard" },
       { name: "מדיח כלים חצי אינטגרלי", slug: "dishwasher-semi-integrated" },
       { name: "מדיח כלים אינטגרלי מלא", slug: "dishwasher-fully-integrated" },

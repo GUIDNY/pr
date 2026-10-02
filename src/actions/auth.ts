@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession, createSession, clearSession, hashPassword, verifyPassword } from "@/lib/auth";
+import { claimGuestCart } from "@/lib/cart";
 import { looksLikePhone, normalizeIsraeliPhone } from "@/lib/phone";
 import { consumeResetToken, requestPasswordReset } from "@/lib/password-reset";
 
@@ -18,6 +19,8 @@ const registerSchema = z.object({
   email: z.email("כתובת אימייל לא תקינה"),
   phone: z.string().min(9, "מספר טלפון לא תקין"),
   password: z.string().min(6, "הסיסמה חייבת להכיל לפחות 6 תווים"),
+  whatsappOptIn: z.boolean().optional(),
+  marketingOptIn: z.boolean().optional(),
 });
 
 /**
@@ -105,10 +108,18 @@ export async function loginAction(input: { identifier: string; password: string 
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
   await claimGuestOrders(user.id, user.email);
+  await claimGuestCart(user.id);
   return { success: true, error: null, role: user.role };
 }
 
-export async function registerAction(input: { name: string; email: string; phone: string; password: string }) {
+export async function registerAction(input: {
+  name: string;
+  email: string;
+  phone: string;
+  password: string;
+  whatsappOptIn?: boolean;
+  marketingOptIn?: boolean;
+}) {
   const parsed = registerSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
@@ -126,12 +137,46 @@ export async function registerAction(input: { name: string; email: string; phone
       phone: normalizeIsraeliPhone(parsed.data.phone) ?? parsed.data.phone,
       passwordHash,
       role: "CUSTOMER",
+      whatsappOptIn: parsed.data.whatsappOptIn ?? true,
+      marketingOptIn: parsed.data.marketingOptIn === true,
+      marketingOptInAt: parsed.data.marketingOptIn === true ? new Date() : null,
     },
   });
 
   await createSession({ sub: user.id, role: "CUSTOMER", name: user.name });
   await claimGuestOrders(user.id, email);
+  await claimGuestCart(user.id);
   return { success: true, error: null };
+}
+
+/**
+ * The account's "updates on WhatsApp" switch, from the personal area.
+ *
+ * Read by the notifier on every send, so turning it off here silences the
+ * WhatsApp lane for orders already placed as well — not only the next one.
+ * Email is unaffected: order confirmations are part of the transaction.
+ */
+export async function setWhatsappOptInAction(enabled: boolean) {
+  const session = await getSession();
+  if (!session) return { success: false as const, error: "יש להתחבר" };
+  await db.user.update({ where: { id: session.sub }, data: { whatsappOptIn: enabled === true } });
+  return { success: true as const, error: null };
+}
+
+/**
+ * Consent to advertising, from the personal area. Turning it on records the
+ * moment; turning it off clears it. Withdrawal is free and immediate, which
+ * is what section 30א requires of an opt-out.
+ */
+export async function setMarketingOptInAction(enabled: boolean) {
+  const session = await getSession();
+  if (!session) return { success: false as const, error: "יש להתחבר" };
+  const on = enabled === true;
+  await db.user.update({
+    where: { id: session.sub },
+    data: { marketingOptIn: on, marketingOptInAt: on ? new Date() : null },
+  });
+  return { success: true as const, error: null };
 }
 
 const setPasswordSchema = z.object({
@@ -246,6 +291,7 @@ export async function resetPasswordAction(input: { token: string; newPassword: s
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
   await claimGuestOrders(user.id, user.email);
+  await claimGuestCart(user.id);
   return { success: true, error: null };
 }
 

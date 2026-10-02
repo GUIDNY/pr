@@ -13,11 +13,13 @@ import {
   Sparkles,
   AlertTriangle,
   CreditCard,
+  GalleryHorizontal,
+  TicketPercent,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { isPelecardSandbox } from "@/lib/pelecard/config";
-import { isBackOffice, canManageCatalog } from "@/lib/permissions";
+import { isBackOffice, canManageCatalog, isSiteAdmin } from "@/lib/permissions";
 
 /**
  * `catalog: true` means the link belongs to running the shop rather than to
@@ -35,10 +37,20 @@ const NAV = [
   { href: "/admin/complaints", label: "תלונות", icon: AlertTriangle, catalog: true },
   { href: "/admin/products", label: "מוצרים", icon: Package, catalog: true },
   { href: "/admin/inventory", label: "בקרת מלאי", icon: Boxes, catalog: true },
-  { href: "/admin/promotions", label: "מבצעים", icon: TagIcon, catalog: true },
+  /* Two different things were both called "מבצעים" and only one of them was
+     listed, which is how "where do I put a product on sale" became
+     unanswerable from this sidebar. /admin/deals is the discount on a
+     product — what the homepage rail and /deals show. /admin/promotions is
+     coupon codes and cart-level discounts. Same word, unrelated jobs, so
+     neither label is that word on its own any more. */
+  { href: "/admin/deals", label: "מוצרים במבצע", icon: TagIcon, catalog: true },
+  { href: "/admin/promotions", label: "קופונים והנחות עגלה", icon: TicketPercent, catalog: true },
   { href: "/admin/suppliers", label: "ספקים", icon: Truck, catalog: true },
   { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle, catalog: true },
   { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles, catalog: true },
+  // The owner's alone — what the shop advertises about itself. The page
+  // checks the role itself; this only decides who sees the link.
+  { href: "/admin/banners", label: "באנרים - דף הבית", icon: GalleryHorizontal, catalog: true, ownerOnly: true },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -54,7 +66,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
      asked on the live site. So it is listed everywhere, and the label says what
      it is rather than which gateway it happens to be pointed at. */
   const full = canManageCatalog(session.role);
-  const visible = full ? NAV : NAV.filter((item) => !item.catalog);
+  const owner = isSiteAdmin(session.role);
+  const visible = NAV.filter((item) => (full || !item.catalog) && (owner || !("ownerOnly" in item && item.ownerOnly)));
   const nav = full
     ? [
         ...visible,

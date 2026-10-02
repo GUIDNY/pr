@@ -46,6 +46,14 @@ model User {
   /// satisfied, and nothing anybody can type will match it. The account page
   /// reads this to offer "set a password" instead of "change password".
   hasPassword  Boolean  @default(true)
+  /// Whether the customer agreed to order updates on WhatsApp. Ticked at
+  /// registration and at checkout; off means email only.
+  whatsappOptIn Boolean @default(true)
+  /// Explicit, prior consent to advertising (section 30א of the
+  /// Communications Law): an unticked box the customer ticked, with the
+  /// moment it was ticked. Off by default and never assumed.
+  marketingOptIn   Boolean   @default(false)
+  marketingOptInAt DateTime?
   name         String
   role         String   @default("CUSTOMER") // CUSTOMER | ADMIN | STAFF
   createdAt    DateTime @default(now())
@@ -69,6 +77,9 @@ model User {
   complaints        Complaint[]          @relation("ComplaintCustomer")
   assignedComplaints Complaint[]         @relation("ComplaintAssignee")
   complaintMessages ComplaintMessage[]   @relation("ComplaintMessageAuthor")
+  gameProfile       GameProfile?
+  gameSpins         GameSpin[]
+  memberCoupons     MemberCoupon[]
 }
 
 model Address {
@@ -84,6 +95,12 @@ model Address {
   zip       String?
   notes     String?
   isDefault Boolean @default(false)
+  /* Did a person put this here on purpose, or did a checkout leave it behind?
+     The book is written from orders, so without this every delivery to a new
+     place adds a row the customer never asked to keep. One auto row is a
+     convenience — prefill the next checkout — and four of the same flat is
+     clutter they then have to tidy. See lib/address-book.ts. */
+  savedByUser Boolean @default(false)
 
   orders Order[]
 
@@ -105,6 +122,14 @@ model Brand {
   // paragraph convention as Product.description (see
   // ProductDescriptionText) — not every brand has one yet.
   aboutContent String?
+  /* The buying guide on the brand's own page — the same job
+     Category.description does for a category, and the same HTML the same
+     parser reads. Separate from `aboutContent`, which is the "about the
+     brand" panel on every PRODUCT page of this brand: a paragraph that
+     opens "what to find here" belongs on the listing and nowhere near a
+     single product. Separate from `description`, which is one line and is
+     what the meta description uses. */
+  pageContent  String?
   isActive     Boolean  @default(true)
   seoTitle     String?
   seoDesc      String?
@@ -175,6 +200,20 @@ model Product {
   slug                 String    @unique
   model                String? // the manufacturer's own model number (e.g. "HBG578ES3") — NOT the internal sku. Indexed: /api/integrations/products' ?hasModel=false filter and exact-model lookups both scan this.
   colorName            String? // e.g. "רוז גולד" — a real, structured field, not scraped/guessed; distinguishes same-capacity variants that differ only by finish (each with its own real manufacturer model number, e.g. M-LR8 vs M-LB8)
+  // Ties the colour variants of one appliance together, so the product page
+  // can offer the other finishes. Set deliberately — by the grouping script
+  // or by hand — and never derived at read time.
+  //
+  // It has to be a stored column rather than a query over similar titles,
+  // because the titles that look alike are mostly NOT variants: of 68 groups
+  // that collapse to the same text once colour words are removed, 51 are the
+  // same product entered twice. Matching on appearance would offer a shopper
+  // a "second colour" that is the identical appliance, and it would do it
+  // silently, on a page where the wrong click is a wrong order.
+  //
+  // Each variant stays a full product with its own slug, sku, price, stock
+  // and images. This groups them; it does not merge them.
+  variantGroupId       String?
   brandId              String
   brand                Brand     @relation(fields: [brandId], references: [id])
   categoryId           String
@@ -183,6 +222,17 @@ model Product {
   description          String?
   price                Float
   compareAtPrice       Float?
+  // The barcode. Empty on every row today: the supplier price sheets carry
+  // no barcode column, and the values will come from the ERP and the
+  // importers as a separate import. The plumbing is here first so that
+  // import is one UPDATE rather than a schema change plus a feed change
+  // plus a JSON-LD change under time pressure.
+  //
+  // A string, not a number: an EAN-13 can begin with a zero, and a leading
+  // zero is exactly the digit a numeric column drops. Google matches this
+  // against its own product catalogue, so a 12-digit value is not a
+  // near-miss, it is a rejected item.
+  gtin13               String?
   installmentMonths    Int?
   warrantyMonths       Int       @default(12)
   deliveryDays         Int       @default(7)
@@ -259,6 +309,7 @@ model Product {
   @@index([sourceId, sourceRowKey])
   @@index([isTemporarySku])
   @@index([model])
+  @@index([variantGroupId])
 }
 
 // Every address this product has ever been reachable at, so a renamed
@@ -355,8 +406,25 @@ model ProductImage {
   sourceImageUrl String?
   sourceDomain   String?
   capturedAt     DateTime?
+  /// When this image last failed to migrate onto our own storage.
+  ///
+  /// A failure leaves the row untouched — that is deliberate, so a product
+  /// keeps its working hotlink — but it also means the candidate query
+  /// returns the same image again, and the cron restarts at the front of
+  /// the queue on every invocation. 60 runs overnight moved 67 images:
+  /// each 45-second run spent its whole budget re-discovering the same
+  /// refusals at the head of the list. The browser loop never saw this
+  /// because it threads its skip-list forward across one long session.
+  ///
+  /// So a failure is written down. Anything that failed recently is left
+  /// out of the queue, which lets each run start where the last one
+  /// effectively finished. A timestamp rather than a boolean so it expires:
+  /// a host that was down comes back, and the retry costs one attempt a few
+  /// days later instead of four every five minutes.
+  migrationFailedAt DateTime?
 
   @@index([productId])
+  @@index([migrationFailedAt])
 }
 
 model ProductAttributeValue {
@@ -398,10 +466,24 @@ model Promotion {
   scope         String // CART | CATEGORY | BRAND | PRODUCT
   scopeRefId    String? // categoryId / brandId / productId depending on scope
   minCartAmount Float?
+  // The most a PERCENTAGE coupon may take off, in shekels (the mall wheel's 5% is capped). Null = no cap.
+  maxDiscount   Float?
   startsAt      DateTime?
   endsAt        DateTime?
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
+  /// What the customer is told when the code takes ("10% על כל המקררים").
+  description      String?
+  /// How many orders may use the code in total; null = unlimited. Counted
+  /// from paid orders carrying the code, never stored.
+  usageLimit       Int?
+  /// How many orders one customer (account or email) may use it on.
+  perCustomerLimit Int?
+  /// Only for a customer with no paid order yet.
+  firstOrderOnly   Boolean   @default(false)
+  /// Only for a signed-in account; a guest is told to sign in.
+  membersOnly      Boolean   @default(false)
+  updatedAt        DateTime  @default(now()) @updatedAt
 }
 
 // ---------- Cart ----------
@@ -412,6 +494,9 @@ model Cart {
   user       User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
   sessionId  String?  @unique
   couponCode String?
+  /// Where the visitor came from (lib/attribution.ts), as the browser
+  /// recorded it when the cart was made.
+  attribution Json?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -460,6 +545,32 @@ model Favorite {
   @@unique([userId, productId])
 }
 
+// The customer's character in the 3D mall at play.buytoday.co.il — see
+// src/lib/game-profile.ts for what it may contain and app/api/game/profile
+// for the only route that reads or writes it.
+//
+// A table of its own rather than a `gameProfile Json?` column on User, and
+// the reason is the order things reach production in. There is no migrate
+// step on deploy here: DDL is run by hand (scripts/create-game-profile-table.ts)
+// and the code ships on a push. A new column on User that the code knows
+// about and the database does not yet have breaks every `db.user.findUnique`
+// without a `select` — getCurrentUser, every sign-in callback — which is
+// every customer signing in, over a toy. A missing table breaks only the two
+// game routes. The relation field on User above is Prisma's bookkeeping and
+// is not a column.
+//
+// One row per account, keyed by the account, and gone with it: deleting an
+// account cascades here, so the account-deletion flow needs no change.
+model GameProfile {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Always the output of parseGameProfile — never the request body as sent.
+  profile   Json
+  // Always the output of parseGameProgress (lib/game-progress.ts). Cosmetic only.
+  progress  Json?
+  updatedAt DateTime @updatedAt
+}
+
 // ---------- Orders ----------
 
 model Order {
@@ -499,6 +610,15 @@ model Order {
   total              Float
   couponCode         String?
   paymentStatus      String    @default("PENDING") // PENDING | AUTHORIZED | CAPTURED | FAILED | REFUNDED
+  /// Where the customer came from (lib/attribution.ts): the browser's
+  /// record at order time, or the cart's if the cookie is gone.
+  attribution        Json?
+  /// The customer's answer to "updates on WhatsApp too?" for this order.
+  /// Read by the notifier: off means the WhatsApp lane is skipped, email goes.
+  whatsappOptIn      Boolean   @default(true)
+  /// The advertising-consent box as it was at checkout, kept with the order
+  /// so a guest's consent has a record and a time (createdAt).
+  marketingOptIn     Boolean   @default(false)
   paymentMethod      String? // DEMO_CARD | CASH_ON_DELIVERY
   supplierId         String?
   supplier           Supplier? @relation(fields: [supplierId], references: [id])
@@ -554,9 +674,13 @@ model OrderNotification {
   error     String?
   sentAt    DateTime?
   createdAt DateTime  @default(now())
+  // The provider's own id for the message (WhatsApp's wamid), so a delivery
+  // status that arrives later on the webhook finds its row.
+  providerMessageId String?
 
   @@unique([orderId, channel, event])
   @@index([orderId])
+  @@index([providerMessageId])
 }
 
 model OrderItem {
@@ -946,4 +1070,34 @@ model ComplaintMessage {
 
   @@index([complaintId])
   @@index([createdAt])
+}
+
+/// One spin of the 3D mall's daily wheel by a signed-in customer. The server
+/// rolls it (lib/game-wheel.ts); one a day per account is the unique key.
+/// A coupon prize is a personal Promotion whose code is kept here.
+model GameSpin {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day       String
+  prize     String
+  code      String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, day])
+  @@index([day])
+}
+
+/// A personal coupon the mall's club gave an account: a loyalty reward, a
+/// level gift, or cashback on a paid order. The discount itself is the
+/// Promotion with the same code; this row says whose it is and why.
+model MemberCoupon {
+  code      String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      String // welcome | streak7 | days30 | cashback | level3 | level5 | level7 | level10
+  orderId   String?  @unique // the paid order a cashback coupon was earned on
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }

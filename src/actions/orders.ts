@@ -6,12 +6,19 @@ import { getSession, getCurrentUser } from "@/lib/auth";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
+import { computeDeliveryFee, requiresAddress } from "@/lib/delivery";
+import { cartHasBulky, isBulkyCategory } from "@/lib/bulky";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
 import { rememberOrder, browserPlacedOrder } from "@/lib/order-receipts";
 import { notifyOrder } from "@/lib/notify";
 import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 import { holdDays } from "@/lib/pelecard/client";
+import { rememberAddress } from "@/lib/address-book";
+import { retireGameCoupon } from "@/lib/game-wheel";
+import { awardPurchase } from "@/lib/game-levels";
+import { cookies } from "next/headers";
+import { ATTRIBUTION_COOKIE, attributionFromJson, parseAttribution } from "@/lib/attribution";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -25,11 +32,36 @@ export async function createOrderAction(input: CheckoutInput) {
     return { success: false as const, error: "העגלה ריקה" };
   }
 
-  // never trust client prices — recompute from the authoritative cart
-  const summary = await buildCartSummary(cart);
+  // never trust client prices — recompute from the authoritative cart. The
+  // form's email goes in so a coupon limited per customer, or to a first
+  // order, is judged against the person actually ordering.
   const session = await getSession();
+  const summary = await buildCartSummary(cart, { userId: session?.sub, email: data.email });
 
-  const isDelivery = data.deliveryMethod === "DELIVERY";
+  /* An address is kept for the door AND for a pickup point, not only the
+     door. The carrier arranges the point with the customer afterwards and
+     needs to know roughly where they are; an order that arrives in the back
+     office with "נקודת איסוף" and no address is one nobody can act on.
+     Only collecting from our own counter has no address to record. */
+  /* A collection point cannot take a fridge, and the checkout hides the
+     option when the basket holds one — but the checkout is a form and a form
+     can be replayed. The order is where the money and the carrier booking
+     come from, so the rule is enforced here too rather than trusted to the
+     screen. Silently corrected rather than rejected: the customer chose a
+     free method and the two remaining ones are also free, so downgrading to
+     the door costs them nothing and loses no order. */
+  const basketIsBulky = cartHasBulky(
+    cart.items.map((i) => ({
+      isBulky: isBulkyCategory(i.product.category.slug, i.product.category.parent?.slug ?? null),
+    })),
+  );
+  const deliveryMethod =
+    data.deliveryMethod === "PICKUP_POINT" && basketIsBulky ? "DELIVERY" : data.deliveryMethod;
+
+  const keepsAddress = requiresAddress(deliveryMethod);
+
+  const deliveryFee = summary.freeDelivery ? 0 : computeDeliveryFee(summary.subtotal - summary.discount, deliveryMethod);
+  const total = Math.max(0, summary.subtotal - summary.discount + deliveryFee);
 
   /* The address goes onto the order itself, below, for every delivery order.
      This block is now only about the customer's ADDRESS BOOK — a saved address
@@ -39,24 +71,24 @@ export async function createOrderAction(input: CheckoutInput) {
      Until the order carried its own copy, this `if (session)` decided whether
      the address survived at all, and a guest's delivery order reached the back
      office with nothing under "משלוח עד הבית". */
+  /* Once per place, and only for an order that is real. A gateway order is
+     not real yet: it exists so the card form can open, the customer may still
+     change the address under it (updatePendingOrderDetailsAction) or walk
+     away, and every change to the basket makes a new one. Its address goes
+     into the book when Pelecard confirms the payment — see the callback. An
+     order on any other lane is final as placed, so it is remembered now.
+     rememberAddress reuses an identical address instead of adding it again. */
   let addressId: string | undefined;
-  if (isDelivery) {
-    if (session) {
-      const address = await db.address.create({
-        data: {
-          userId: session.sub,
-          fullName: data.fullName,
-          phone: data.phone,
-          city: data.city!,
-          street: data.street!,
-          houseNo: data.houseNo!,
-          apartment: data.apartment,
-          notes: data.deliveryNotes,
-          isDefault: false,
-        },
-      });
-      addressId = address.id;
-    }
+  if (keepsAddress && session && data.paymentMethod !== "PELECARD") {
+    addressId = await rememberAddress(session.sub, {
+      fullName: data.fullName,
+      phone: data.phone,
+      city: data.city!,
+      street: data.street!,
+      houseNo: data.houseNo!,
+      apartment: data.apartment,
+      notes: data.deliveryNotes,
+    });
   }
 
   let orderNumber = generateOrderNumber();
@@ -117,19 +149,34 @@ export async function createOrderAction(input: CheckoutInput) {
       guestName: data.fullName,
       guestEmail: data.email,
       guestPhone: data.phone,
+      // Where this customer came from: the browser's record now, or the
+      // cart's from when it was made if the cookie has since gone.
+      attribution:
+        parseAttribution((await cookies()).get(ATTRIBUTION_COOKIE)?.value) ??
+        attributionFromJson(cart.attribution) ??
+        undefined,
+      // The tick beside the phone field. Missing (an older client) means yes,
+      // which is what the column defaults to as well.
+      whatsappOptIn: data.whatsappOptIn ?? true,
+      // Consent to advertising is never assumed: missing means no.
+      marketingOptIn: data.marketingOptIn === true,
       // Where this order is going, recorded on the order for everyone. A
       // pickup order has no address to record.
-      shipCity: isDelivery ? data.city : null,
-      shipStreet: isDelivery ? data.street : null,
-      shipHouseNo: isDelivery ? data.houseNo : null,
-      shipApartment: isDelivery ? data.apartment || null : null,
+      shipCity: keepsAddress ? data.city : null,
+      shipStreet: keepsAddress ? data.street : null,
+      shipHouseNo: keepsAddress ? data.houseNo : null,
+      shipApartment: keepsAddress ? data.apartment || null : null,
       addressId,
-      deliveryMethod: data.deliveryMethod,
+      deliveryMethod,
       status: orderStatus,
       subtotal: summary.subtotal,
       discountTotal: summary.discount,
-      deliveryFee: summary.deliveryFee,
-      total: summary.total,
+      /* Recomputed here rather than taken from the cart summary, which is
+         built before anybody has said how the order is coming to them. A
+         pickup order was being charged ₪49 to deliver something the customer
+         was driving to collect. */
+      deliveryFee,
+      total,
       couponCode: summary.couponCode,
       paymentStatus,
       paymentMethod: data.paymentMethod,
@@ -159,14 +206,37 @@ export async function createOrderAction(input: CheckoutInput) {
   // one — that customer reaches the same page after paying.
   await rememberOrder(order.orderNumber);
 
+  // The account remembers the latest answer, so the next checkout opens with
+  // the box the way this customer last left it.
+  if (session?.sub && (data.whatsappOptIn !== undefined || data.marketingOptIn !== undefined)) {
+    await db.user
+      .update({
+        where: { id: session.sub },
+        data: {
+          ...(data.whatsappOptIn !== undefined ? { whatsappOptIn: data.whatsappOptIn } : {}),
+          // The moment of consent is part of the consent: it is what the
+          // shop shows if a customer ever asks when they agreed.
+          ...(data.marketingOptIn !== undefined
+            ? { marketingOptIn: data.marketingOptIn, marketingOptInAt: data.marketingOptIn ? new Date() : null }
+            : {}),
+        },
+      })
+      .catch(() => {});
+  }
+
+  // A personal wheel coupon is spent by an order that is final as placed; a
+  // gateway order spends it when the payment clears (the Pelecard callback).
+  if (!payWithPelecard) await retireGameCoupon(summary.couponCode);
+
   if (!payWithPelecard && paymentStatus === "AUTHORIZED") {
     const last4 = data.cardNumber ? data.cardNumber.replace(/\s/g, "").slice(-4) : null;
     await db.payment.create({
       data: {
         orderId: order.id,
         provider: "DEMO",
-        amount: summary.total,
-        amountAgorot: Math.round(summary.total * 100),
+        // The order's total, not the cart's: they differ on a pickup order.
+        amount: total,
+        amountAgorot: Math.round(total * 100),
         status: "AUTHORIZED",
         reference: last4 ? `DEMO-**** ${last4}` : "DEMO-COD",
         // The prefix is what tells the approval it may settle this one itself
@@ -177,6 +247,9 @@ export async function createOrderAction(input: CheckoutInput) {
       },
     });
   }
+  // the club: cashback and level gifts for an order that is paid as placed
+  if (!payWithPelecard && paymentStatus === "AUTHORIZED") await awardPurchase(order.id);
+
 
   /* A cart being emptied is the sign that the order went through. With
      Pelecard the order is not through yet — the customer is about to be sent
@@ -340,7 +413,7 @@ export async function updatePendingOrderDetailsAction(
     houseNo?: string;
     apartment?: string;
     deliveryNotes?: string;
-    deliveryMethod?: "DELIVERY" | "PICKUP";
+    deliveryMethod?: "DELIVERY" | "PICKUP_POINT" | "PICKUP";
   },
 ) {
   const session = await getSession();
@@ -375,6 +448,17 @@ export async function updatePendingOrderDetailsAction(
     return { success: false as const };
   }
 
+  /* The address is written to the ORDER — ship*, the copy the back office
+     and the courier read (lib/order-address.ts). It used to go only to the
+     address-book row the order pointed at, so a customer who corrected their
+     street while the card form was open had the order shipped to the street
+     they had corrected. The book is not touched here: this runs on every
+     pause in typing, and a half-typed street is not an address to keep. The
+     callback files the final one in the book once the payment clears. */
+  const method = details.deliveryMethod;
+  const shipsHome = method ? requiresAddress(method) : null;
+  const fullAddress = Boolean(details.city && details.street && details.houseNo);
+
   await db.order.update({
     where: { id: order.id },
     data: {
@@ -382,24 +466,19 @@ export async function updatePendingOrderDetailsAction(
       guestEmail: details.email,
       guestPhone: details.phone,
       customerNote: details.deliveryNotes,
-      ...(details.deliveryMethod ? { deliveryMethod: details.deliveryMethod } : {}),
+      ...(method ? { deliveryMethod: method } : {}),
+      ...(shipsHome === false
+        ? { shipCity: null, shipStreet: null, shipHouseNo: null, shipApartment: null }
+        : fullAddress
+          ? {
+              shipCity: details.city,
+              shipStreet: details.street,
+              shipHouseNo: details.houseNo,
+              shipApartment: details.apartment || null,
+            }
+          : {}),
     },
   });
-
-  if (order.addressId && details.city && details.street && details.houseNo) {
-    await db.address.update({
-      where: { id: order.addressId },
-      data: {
-        fullName: details.fullName,
-        phone: details.phone,
-        city: details.city,
-        street: details.street,
-        houseNo: details.houseNo,
-        apartment: details.apartment,
-        notes: details.deliveryNotes,
-      },
-    });
-  }
 
   return { success: true as const };
 }

@@ -506,7 +506,26 @@ input[type="number"]::-webkit-inner-spin-button {
 #dateContainer select,
 #dateContainer > div:has(select) > select {
   flex: 1 1 0 !important;
-  min-width: 0 !important;
+  /* A floor wide enough for a four-digit year and the dropdown arrow.
+     min-width:0 is the usual partner to flex-basis:0 — it lets an item shrink
+     past its own content instead of forcing the row to overflow — and here
+     that permission is the bug: the year renders as "025", which is "2025"
+     with the first digit cut off the left, because the box is RTL and clips
+     that end. A select clips in silence: no overflow, no scrollbar, just a
+     wrong-looking value sitting next to Pelecard's "expiry is invalid"
+     message, which makes their correct complaint read as our broken field.
+
+     Written without having measured the live page, which is worth admitting:
+     preview.html reproduces the old card-only layout and gives these 131px
+     there, so the squeeze comes from something in the live DOM that the
+     harness does not have — the wallet row above them, most likely. This is
+     the fix that is safe under either answer. At 131px it changes nothing;
+     at 52px it is the difference between a readable year and a wrong one.
+
+     5.5rem holds the longest option comfortably and still leaves both selects
+     and their separator inside 320px, so nothing overflows at the narrow end
+     either. */
+  min-width: 5.5rem !important;
   width: auto !important;
 }
 #IdAndCvvRow > * {
@@ -785,10 +804,29 @@ textarea.red-field,
    #cancelBtn is a confirmed id — the white outlined button on the live page is
    ours — so excluding it is safe, and it is the only thing in this row that
    must not be orange. */
-.form-group-submit button:not(#cancelBtn),
-.form-group-submit input[type="submit"]:not(#cancelBtn),
-.form-group-submit input[type="button"]:not(#cancelBtn),
-.form-group-submit a.btn:not(#cancelBtn) {
+/* EXCEPT A WALLET'S OWN BUTTON, which is the one thing in this row that must
+   keep somebody else's design.
+
+   The rule above is deliberately blind to class — "whatever sits in the submit
+   row is the brand button" — and that was right while the only things there
+   were Pelecard's. The wallets changed it. Apple publish their button as a
+   fixed set of styles and forbid recolouring it; Google say the same about
+   theirs. An orange button carrying Apple's mark is not a design choice, it is
+   a breach of the terms the integration was approved under.
+
+   .apple-pay-button is theirs, read from variant-he-4.css. The substring
+   guards beside it are a hedge for the buttons a wallet's own script injects
+   under a name we cannot see from here — Google's, above all, which renders
+   itself and which our !important was already repainting orange. Each argument
+   is a simple selector, which is what keeps the whole list valid; a complex one
+   inside :not() invalidates every rule it is written in.
+
+   Costing nothing if they match nothing is the point. If a wallet never puts a
+   button here, the page looks exactly as it did. */
+.form-group-submit button:not(#cancelBtn):not(.apple-pay-button):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]),
+.form-group-submit input[type="submit"]:not(#cancelBtn):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]),
+.form-group-submit input[type="button"]:not(#cancelBtn):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]),
+.form-group-submit a.btn:not(#cancelBtn):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]) {
   background: #F7590C !important;
   background-color: var(--ai-brand) !important;
   border: none !important;
@@ -801,8 +839,8 @@ textarea.red-field,
   border-radius: var(--ai-radius);
   cursor: pointer;
 }
-.form-group-submit button:not(#cancelBtn):hover,
-.form-group-submit input[type="submit"]:not(#cancelBtn):hover {
+.form-group-submit button:not(#cancelBtn):not(.apple-pay-button):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]):hover,
+.form-group-submit input[type="submit"]:not(#cancelBtn):not([class*="apple"]):not([class*="gpay"]):not([class*="google"]):hover {
   background: #E74600 !important;
   background-color: var(--ai-brand-hover) !important;
 }
@@ -1019,4 +1057,357 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type=
   /* Except the expiry pair, which shares its line on purpose. */
   #dateContainer { display: flex !important; }
   #dateContainer select { flex: 1 1 0 !important; width: auto !important; }
+}
+
+/* =========================  PAYMENT METHOD TILES  =========================
+   The wallets arrived in September and brought a row of tiles with them —
+   Google Pay, bit, credit card — drawn in Pelecard's own palette: a #f5f5f5
+   square that turns a navy #12284C when chosen. Navy is not a colour this shop
+   uses anywhere, so the one row where a customer picks how to pay was the one
+   row that did not look like the shop.
+
+   Every selector here is READ FROM THEIR STYLESHEET rather than guessed —
+   gateway21.pelecard.biz/Content/Css/variant-he-4.css, which this file already
+   imports. That is where .tab-button.pay-btn, .tab-button-selected and the
+   per-wallet ids come from. The header of this file records what guessing at
+   their names cost the last time, and their own sheet was sitting behind an
+   @import the whole while.
+
+   Their geometry is left alone: 90x90, the column layout, the icon box. The
+   tiles are a good shape and fighting it would be redecorating for its own
+   sake. What changes is the language — our surface, our radius, our ink, and
+   the brand orange with its tint for the chosen one, which is exactly how the
+   shop's own delivery and payment choices render one step higher up the same
+   page. A customer should not be able to tell where our checkout stops and
+   theirs starts.
+
+   No wallet MARK is touched. Google, Apple and bit each publish rules about
+   their own artwork, and a shop recolouring somebody else's logo is a shop
+   breaking them — so the icon box keeps whatever they put in it. */
+.tab-button.pay-btn {
+  background-color: #F7F5F3 !important;
+  background-color: var(--ai-surface) !important;
+  color: #1A1614 !important;
+  color: var(--ai-ink) !important;
+  border: 2px solid #E4E1DF !important;
+  border-color: var(--ai-line) !important;
+  border-radius: 14px !important;
+  border-radius: var(--ai-radius-lg) !important;
+  transition: border-color .12s ease, background-color .12s ease;
+}
+
+.tab-button.pay-btn:hover,
+.tab-button.pay-btn:focus-visible {
+  border-color: #F7590C !important;
+  border-color: var(--ai-brand) !important;
+}
+
+/* The chosen one, dressed like the shop's own selected option: brand border
+   over the faint brand tint, rather than their navy. */
+.tab-button.pay-btn.tab-button-selected {
+  background-color: #FEF1EA !important;
+  background-color: var(--ai-brand-tint) !important;
+  border-color: #F7590C !important;
+  border-color: var(--ai-brand) !important;
+}
+
+/* The caption under each mark. Theirs is 12px in a font the page does not
+   otherwise use; this is the shop's, at the size its own small labels run. */
+.tab-button.pay-btn h4 {
+  font-family: Heebo, "Segoe UI", Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1A1614;
+  color: var(--ai-ink);
+  margin: 0;
+}
+
+/* ---- The marks inside the tiles, at one size ----
+   Their own sheet sizes the icon box per wallet — 75% of the tile for Google,
+   Apple and card, 90% for bit — and then a later rule resets it to auto. What
+   reaches the page is whatever each mark happens to be drawn at, so the row
+   came out with a huge bit, a middling Google and a tiny card side by side.
+   Three logos at three sizes reads as three different qualities of thing.
+
+   A cap on height with width left free keeps every mark's own proportions —
+   nothing is stretched, recoloured or redrawn, which is what Apple's and
+   Google's guidelines require and what makes this a layout change rather than
+   a branding one. Both element shapes are named because their markup is not
+   visible from here and a wallet may ship either. */
+.tab-button.pay-btn .buttonIcon {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 100% !important;
+  height: 34px !important;
+  overflow: hidden;
+}
+.tab-button.pay-btn .buttonIcon img,
+.tab-button.pay-btn .buttonIcon svg {
+  max-height: 30px !important;
+  max-width: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain;
+}
+
+/* ---- Four tiles that line up ----
+   Their tile is a column with justify-content:space-between, which puts the
+   mark hard against the top and the caption hard against the bottom. That is
+   fine while every tile has both. bit ships without a caption, so its row
+   became a mark floating at the top of an empty box with a hole under it,
+   sitting beside three tiles whose marks were a centimetre lower. Nothing was
+   the wrong size by then — they were at the wrong HEIGHT, which reads the same
+   from across a room.
+
+   Centred with a gap instead: a tile with a caption and a tile without both
+   settle in the middle, and the marks land on one line. */
+.tab-button.pay-btn {
+  justify-content: center !important;
+  gap: 6px;
+}
+
+/* And bit gets the caption the other three have. :empty is doing real work —
+   it adds the word only when their markup left the element blank, so if they
+   ever fill it in, ours steps aside instead of printing it twice. The name is
+   the brand's own and needs no licence; the logo above it is untouched. */
+#btnGamaPayBit h4:empty::after {
+  content: "bit";
+}
+
+/* =====================  THE WALLET ROW  =====================================
+
+   Their markup, no longer guessed. It can be fetched in about a minute and
+   every future change here should start by fetching it again:
+
+     1. insert an Order row (any amount, PICKUP, PAYMENT_PENDING)
+     2. GET /checkout/pay/<orderNumber> on the live site
+     3. the iframe's src in that HTML is gateway21…/PaymentGW?transactionId=…
+     4. GET that, and the form's own HTML comes back, tiles and all
+     5. delete the order row
+
+   What came back:
+
+     #walletButtonsHolder.form-group.buttonWrapper
+       └ div.col-sm-2.mobile-four.text-2-line      ← one per method
+           └ div.pay-logo-col
+               └ button.tab-button.pay-btn
+                   ├ img.buttonIcon
+                   └ h4
+
+   TWO boxes between the row and a tile, which is what defeated three previous
+   attempts: each of them addressed "the element that contains the tiles" and
+   landed on .pay-logo-col, one tile deep, so the tiles ended up neatly centred
+   on the full-width lines they should never have had.
+
+   And the row itself was never a row. Their sheet gives #walletButtonsHolder
+   flex-direction and flex-wrap but no display, so it stays a block and its
+   children stack — at every width below Bootstrap's 768px breakpoint, phone or
+   not. Above it, .col-sm-2 takes its 16.66% and the tiles line up by float,
+   which is why this always looked fine on the desk it was written at.
+
+   So the display they left out is supplied, and the line is divided four ways
+   rather than measured: a flex basis of 0 with equal grow is the same answer
+   at 320px as at 760, cannot overflow, and closes over the fourth tile when
+   Apple Pay hides itself outside Safari. */
+#walletButtonsHolder {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  justify-content: center !important;
+  align-items: stretch !important;
+  gap: 8px !important;
+  width: 100% !important;
+  max-width: none !important;
+  /* Their markup gives the row no spacing of its own, so the tiles ran into
+     the field above and the one below. */
+  margin: 0 0 18px !important;
+  padding: 0 !important;
+}
+
+/* The column. Theirs is 80px wide with a 22px left margin, which is three
+   gaps of 22px too many once four of them have to share a phone. */
+#walletButtonsHolder > div {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  max-width: 104px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  float: none !important;
+}
+
+/* The box inside the column, which exists only to hold the button. */
+#walletButtonsHolder .pay-logo-col {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  float: none !important;
+}
+
+#walletButtonsHolder .tab-button.pay-btn {
+  width: 100% !important;
+  height: 84px !important;
+  padding: 9px 4px !important;
+}
+
+#walletButtonsHolder .tab-button.pay-btn h4 {
+  font-size: 11px;
+  line-height: 12px;
+}
+
+/* THE MARK KEEPS ITS PROPORTIONS. It is the <img> itself that carries
+   .buttonIcon — there is no separate box — and their per-wallet rules give
+   that image a height of 100px and a width of 75% of the tile, two absolute
+   instructions that between them describe a shape no logo actually has. A
+   140x60 bit mark came out 86 wide and 26 tall: squashed, and squashed
+   differently for each wallet, which is what "the logos look broken" was.
+
+   Both axes are handed back to the image and bounded instead of set, so each
+   mark is drawn at its own proportions and they still agree on a size. */
+#walletButtonsHolder .tab-button.pay-btn .buttonIcon {
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 30px !important;
+  object-fit: contain !important;
+}
+
+/* THE MARKS COME FROM THIS SHOP'S OWN DOMAIN, NOT FROM A SECOND GATEWAY HOST.
+
+   Inside the iOS app the four tiles drew a question mark each — WebKit's
+   broken-image glyph — while the same page was correct in Safari and in every
+   desktop browser. The marks are not the <img> tags' own src. Their sheet
+   replaces the image through `content: url(...)`, and those URLs point at
+   gateway20.pelecard.biz, a different host from the gateway21 that serves the
+   form. Everything else on the page comes from gateway21 or from here, and
+   both of those load in the app — which is precisely what isolates the one
+   host that does not.
+
+   The app is a Capacitor WebView (capacitor.config.ts) with no
+   NSAppTransportSecurity exception in Info.plist, so Apple's defaults apply to
+   every request it makes: TLS 1.2 or better, forward secrecy, a SHA-256
+   certificate. A host that misses any of those is refused by the system
+   before a request is sent, which looks like a broken image and leaves nothing
+   in any log. A browser applies none of it, which is why this was visible in
+   exactly one place and invisible in every test.
+
+   Measured rather than assumed: Qualys rates gateway21 A+ — TLS 1.2 and 1.3,
+   forward secrecy with every client it simulates — and gateway20 B, with
+   TLS 1.0 and 1.1 still offered and at least one handshake that negotiates no
+   forward secrecy at all. The certificate is the same on both, so it is the
+   protocol that differs, not trust.
+
+   Pointing the four marks at files served from the shop itself settles it
+   without depending on which of those requirements gateway20 misses, or on
+   Pelecard changing anything. The files are byte-identical copies of theirs —
+   54x45 each, a little over 4KB for the set — and they are the same marks the
+   customer was already being shown, from a host the app has already proven it
+   can reach by loading this stylesheet from it.
+
+   The address is absolute because this sheet is read inside an iframe on
+   their domain, where a relative path resolves against gateway21. If the shop
+   ever changes domain, these four lines change with it. */
+#walletButtonsHolder img[data-id="creditcard"] {
+  content: url("https://buytoday.co.il/pelecard/marks/card.png") !important;
+}
+#walletButtonsHolder img[data-id="gamabit"] {
+  content: url("https://buytoday.co.il/pelecard/marks/Bit_2.png") !important;
+}
+#walletButtonsHolder img[data-id="googlePay"] {
+  content: url("https://buytoday.co.il/pelecard/marks/google.png") !important;
+}
+#walletButtonsHolder img[data-id="applePay"] {
+  content: url("https://buytoday.co.il/pelecard/marks/apple.png") !important;
+}
+
+/* A GOOGLE PAY TILE WITH NO GOOGLE PAY BEHIND IT.
+
+   On an iPhone the row offered Google Pay, and choosing it left the customer
+   on a form with no way to pay at all: the card button hides with the card
+   tab, and the button that should replace it was never built.
+
+   Read from their own PeleGpay.js. onGooglePayLoaded() asks Google
+   isReadyToPay(), and only inside `if (response.result)` does it call
+   addGooglePayButton(), which appends Google's rendered button into
+   <div id="googlePayButton">. Google answers false wherever Google Pay is not
+   available — Safari and every iOS browser among them, since they are all
+   WebKit. The tile is not hidden on that path. It is hidden in the catch()
+   beside it, so the case they thought about is the one where Google's script
+   throws, and the case that actually happens to an iPhone is the one that
+   falls through. Apple Pay's own tile ships as display:none and their script
+   reveals it in Safari, which is the same problem solved correctly one tile
+   to the left.
+
+   The container being empty is exactly the condition, and :empty reads it
+   live: no button inside, no tile. If Google's button is appended a moment
+   later — on Android, on a desktop Chrome — the rule stops matching by itself
+   and the tile appears. There is no state to keep and nothing to undo, which
+   is the only reason this is safe to do from a stylesheet at all.
+
+   Their div is written <div id="googlePayButton" style="display:none"></div>
+   with nothing between the tags, so :empty holds. A single space inside it
+   would break this, and the tile would come back rather than something worse.
+
+   Not touched: the CVV, the card-holder name, the email and the phone, which
+   this form also shows on a wallet tab and should not. Those are real fields
+   and hiding a field from a stylesheet is how bit's phone number went missing
+   and every bit payment failed with a 599. Their own configuration carries
+   Cvv2Field, CardHolderName, EmailField and TelField per wallet — they come
+   down empty for all three of ours, so the global setting applies to all of
+   them. None of those keys is in the 212-parameter init manual, so they are
+   terminal-side and Pelecard is the one who can set them. */
+body:has(#googlePayButton:empty) #googlePayTab {
+  display: none !important;
+}
+
+/* NO CVV BOX ON THE GOOGLE PAY TAB.
+
+   A customer who picked Google Pay was shown an empty "קוד אימות כרטיס (CVV)"
+   above the Google Pay button. Google Pay exists so that nobody has to reach
+   for the card, so a box asking for three digits off the back of it reads as
+   either "this did not work" or "they still want my card", on the screen where
+   doubt is most expensive.
+
+   Their own code, Payment.js, in the #googlePayTabBtn click handler:
+
+       $("#CvvContainer").hide();
+       $("#googlePayButton").show();
+       $("#captchaRow").hide();
+       $("#AccountNumber").hide();
+       $("#cvv_input").show();
+       $("#CvvContainer").show();      <- four lines after hiding it
+       $("#cvv_star_id").hide();
+
+   It hides the box and shows it again in the same handler. That the second
+   call is the accident and not the first is not a guess: the bit handler and
+   the Apple Pay handler, in the same file, both hide #CvvContainer and never
+   re-show it, and the line immediately after hides the asterisk that marks the
+   field required — which is why the box arrives with no star on it. Their own
+   validation agrees: it only demands a CVV when the per-wallet GooglePay
+   .Cvv2Field reads "must", and ours arrives empty.
+
+   So this restores what three of their four handlers do, rather than imposing
+   anything of ours.
+
+   THE SECOND :has IS AN INTERLOCK, not decoration. jQuery's .hide() writes
+   display:none into the style attribute, so "the asterisk is hidden" is
+   readable from CSS, and it is their code's own statement that a CVV is not
+   required on this tab. If Pelecard ever sets GooglePay.Cvv2Field to must, the
+   asterisk stays and this rule stops applying by itself — the field comes back
+   rather than a payment failing validation against a box nobody can see. That
+   is the whole difference between this and hiding TelField, which took bit's
+   phone number out of the request itself and turned every bit payment into a
+   599. Nothing here changes what is sent; the input keeps its value and its
+   name, and returns intact the moment the customer picks the card tab.
+
+   Not touched: the card-holder name, email and phone that the same tab also
+   shows. Those carry real values from the order, they are what the shop uses
+   to reach a customer about the payment, and their handlers say nothing about
+   them either way. Pelecard can silence them per wallet — CardHolderName,
+   EmailField and TelField sit beside Cvv2Field in the same block and all
+   arrive empty. That is a request to them, not something to mute from here. */
+body:has(#googlePayTabBtn.tab-button-selected):has(#cvv_star_id[style*="display: none"]) #CvvContainer {
+  display: none !important;
 }

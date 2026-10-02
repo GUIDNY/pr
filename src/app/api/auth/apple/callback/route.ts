@@ -3,6 +3,7 @@ import { randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { createSession, hashPassword } from "@/lib/auth";
+import { claimGuestCart } from "@/lib/cart";
 import { appleOAuthConfigured, exchangeCodeForProfile } from "@/lib/apple-oauth";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
 import { SITE_URL } from "@/lib/site-url";
@@ -145,6 +146,9 @@ export async function POST(request: Request) {
   }
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
+  /* The cart this browser filled before signing in. Without this the shop
+     answers a fresh sign-in with an empty cart — see claimGuestCart. */
+  await claimGuestCart(user.id);
 
   const destination = isBackOffice(user.role) ? backOfficeHome(user.role) : returnTo;
   return NextResponse.redirect(`${SITE_URL}${destination}`, 303);

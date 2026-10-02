@@ -234,6 +234,23 @@ export const INVENTORY_ALERT_TYPES = [
   "NEW_FROM_SOURCE",
   "MANUAL_ATTENTION",
   "MANUAL_URGENT",
+  /* Not a fact about a product or a row — a fact about the sync itself not
+     having happened. Every other type here is written *by* a sync run,
+     which is exactly why none of them fired when the price sheets stopped
+     arriving on 23 September: the upload died before the run started, so
+     there was no run to report anything, and four days of stale stock
+     looked identical to four quiet days. This is the one alert raised from
+     outside. See inventory/sync-watchdog.ts. */
+  "SYNC_STALE",
+  /* The shop is selling below what the supplier charges it.
+     Distinct from INVALID_PRICE, which is about a price column in the
+     sheet looking wrong. This one compares the price the shop actually
+     charges — set once at creation, or by a person since — against the
+     cost the sheet reports today. Cost moves; a stored price does not,
+     because nothing but a person is allowed to change it. So the two
+     drift apart silently, and on 30 September fourteen live products had
+     drifted past each other. */
+  "PRICE_BELOW_COST",
 ] as const;
 export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
 
@@ -255,12 +272,19 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   NEW_FROM_SOURCE: "מוצר חדש מהגיליון",
   MANUAL_ATTENTION: "סומן לטיפול ידנית",
   MANUAL_URGENT: "סומן לטיפול דחוף ידנית",
+  SYNC_STALE: "הסנכרון לא רץ",
+  PRICE_BELOW_COST: "מחיר מתחת לעלות הספק",
 };
 
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;
 export type InventoryAlertSeverity = (typeof INVENTORY_ALERT_SEVERITIES)[number];
 
-export const SYNC_RUN_STATUSES = ["RUNNING", "SUCCESS", "FAILED", "NO_CHANGES"] as const;
+// SKIPPED is the one that is not an outcome of reading the sheets: it means
+// another run was already in flight and this one stood down. It exists so
+// that "nothing was imported" and "nothing had changed" stop looking alike
+// in the history, which is the difference between a quiet day and a sync
+// that has been refusing to start for a week.
+export const SYNC_RUN_STATUSES = ["RUNNING", "SUCCESS", "FAILED", "NO_CHANGES", "SKIPPED"] as const;
 export type SyncRunStatus = (typeof SYNC_RUN_STATUSES)[number];
 
 export const SYNC_RUN_STATUS_LABELS: Record<SyncRunStatus, string> = {
@@ -268,6 +292,7 @@ export const SYNC_RUN_STATUS_LABELS: Record<SyncRunStatus, string> = {
   SUCCESS: "הסתיים בהצלחה",
   FAILED: "נכשל",
   NO_CHANGES: "לא נמצאו שינויים",
+  SKIPPED: "דולג — סנכרון אחר רץ",
 };
 
 export const SYNC_TRIGGERS = ["MANUAL", "SCHEDULED"] as const;
@@ -290,19 +315,33 @@ export const USER_ROLES = ["CUSTOMER", "ADMIN", "STAFF", "SELLER"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 export const userRoleSchema = z.enum(USER_ROLES);
 
-export const DELIVERY_METHODS = ["DELIVERY", "PICKUP"] as const;
+export const DELIVERY_METHODS = ["DELIVERY", "PICKUP_POINT", "PICKUP"] as const;
 export type DeliveryMethod = (typeof DELIVERY_METHODS)[number];
 
 export const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = {
   DELIVERY: "משלוח עד הבית",
+  PICKUP_POINT: "איסוף מנקודת איסוף",
   PICKUP: "איסוף עצמי מהסניף",
 };
 
-export const PROMOTION_TYPES = ["PERCENTAGE", "FIXED"] as const;
+export const PROMOTION_TYPES = ["PERCENTAGE", "FIXED", "FREE_DELIVERY"] as const;
 export type PromotionType = (typeof PROMOTION_TYPES)[number];
+
+export const PROMOTION_TYPE_LABELS: Record<PromotionType, string> = {
+  PERCENTAGE: "אחוז הנחה",
+  FIXED: "סכום הנחה",
+  FREE_DELIVERY: "משלוח חינם",
+};
 
 export const PROMOTION_SCOPES = ["CART", "CATEGORY", "BRAND", "PRODUCT"] as const;
 export type PromotionScope = (typeof PROMOTION_SCOPES)[number];
+
+export const PROMOTION_SCOPE_LABELS: Record<PromotionScope, string> = {
+  CART: "כל העגלה",
+  CATEGORY: "קטגוריה",
+  BRAND: "מותג",
+  PRODUCT: "מוצר",
+};
 
 export const SUPPORT_CHANNELS = ["CALLBACK", "WHATSAPP", "PHONE", "FORM"] as const;
 export type SupportChannel = (typeof SUPPORT_CHANNELS)[number];

@@ -9,6 +9,7 @@ import { addToCartAction } from "@/actions/cart";
 import { useCartStore } from "@/stores/cart-store";
 import { useProductQtyStore } from "@/stores/product-qty-store";
 import type { StockStatus } from "@/lib/enums";
+import { navigateOutOfMallFrame, reportAddedToMall } from "@/lib/mall";
 
 export function PurchasePanel({
   productId,
@@ -39,8 +40,14 @@ export function PurchasePanel({
       try {
         const summary = await addToCartAction(productId, qty);
         setCart(summary);
-        if (then === "checkout") router.push("/checkout");
-        else openDrawer();
+        // Nothing unless this page is inside the 3D mall's frame — then the
+        // game hears what was added. See lib/mall.ts.
+        reportAddedToMall(summary, productId);
+        // Quick-buy inside the mall's frame goes to the checkout in the
+        // whole window, not in the frame; everywhere else it is the router.
+        if (then === "checkout") {
+          if (!navigateOutOfMallFrame("/checkout")) router.push("/checkout");
+        } else openDrawer();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "שגיאה בהוספה לעגלה");
       }

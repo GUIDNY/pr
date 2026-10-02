@@ -63,13 +63,24 @@ export const CATEGORY_RULES: Record<string, CategoryRule[]> = {
     { slug: "freezers", match: /^(?![\s\S]*מקרר)[\s\S]*מקפיא/ },
   ],
 
+  /* Dishwashers used to be their own department with their own three rules
+     under a `dishwashers` key. That department is gone — folded into this
+     one, see category-tree.ts — and this map is keyed by the department a
+     product is parked on, so the key would have matched nothing and a
+     dishwasher sitting on כביסה, ייבוש ומדיחים would have resolved to no
+     leaf at all. Silently: classifyProduct returns slug:null for an unknown
+     department exactly as it does for a product it cannot place.
+
+     The two groups do not compete — nothing matching /מדיח/ also matches
+     /מכונ(ת|ות) כביסה/ — but the order still holds the rule the file states:
+     most specific first, and the bare /מדיח/ last so the two integrated
+     variants get their chance before it. The washing-machine rule sits
+     ahead of them so an integrated *washing machine* is still a washing
+     machine. */
   laundry: [
     { slug: "washer-dryer-combo", match: /משולבת? מייבש|כביסה ומייבש|washer.?dryer/i },
     { slug: "dryers", match: /מייבש כביסה|מייבש פתח/ },
     { slug: "washing-machines", match: /מכונ(ת|ות) כביסה/ },
-  ],
-
-  dishwashers: [
     { slug: "dishwasher-fully-integrated", match: /אינטגרלי מלא|אינטגרלי לחלוטין/ },
     { slug: "dishwasher-semi-integrated", match: /חצי אינטגרלי|סמי.?אינטגרלי/ },
     { slug: "dishwasher-standard", match: /מדיח/ },

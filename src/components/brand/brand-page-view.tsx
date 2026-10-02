@@ -1,5 +1,6 @@
 import { notFound, permanentRedirect } from "next/navigation";
 import { ProductCard } from "@/components/product/product-card";
+import { GuideIntro } from "@/components/category/guide-intro";
 import { SortSelect } from "@/components/catalog/sort-select";
 import {
   getProductsByBrandSlug,
@@ -54,6 +55,13 @@ export async function BrandPageView({
             <p className="text-muted-foreground mt-2 max-w-2xl text-sm">{normalizeDescription(brand.description)}</p>
           )}
           <p className="text-muted-foreground mt-2 text-sm">{total} מוצרים</p>
+          {/* The guide, where until now there was nothing. A brand page was
+              an h1, this one-line description and a grid — which is why all
+              91 of them measured zero h2 headings, and why the longest
+              paragraph in the body of most of them was the accessibility
+              widget's privacy notice, identical across the site. Same
+              renderer as the category page; see guide-intro.tsx. */}
+          <GuideIntro content={brand.pageContent} moreLabel="קרא עוד על המותג" />
         </div>
         <SortSelect query={sort === "relevance" ? "" : `sort=${sort}`} />
       </div>

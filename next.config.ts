@@ -30,12 +30,85 @@ const nextConfig: NextConfig = {
         destination: "https://buytoday.co.il/:path",
         permanent: true,
       },
+      /* מדיחי כלים stopped being a department of its own — its three
+         sub-categories moved under כביסה, ייבוש ומדיחים (see
+         category-tree.ts for why). The address does not get to disappear
+         with it: it is a public category URL, it is in the sitemap Google
+         has already fetched, and the dishwasher buying guide links to it.
+         `permanent: true` emits 308, not 301 — Next's default, and the
+         right one: 308 is the permanent redirect that preserves the
+         method, and Google consolidates ranking through it exactly as it
+         does through a 301. Verified against the live deployment before
+         the categories were moved in the database. */
+      {
+        source: "/category/dishwashers",
+        destination: "/category/laundry",
+        permanent: true,
+      },
+      /* The policies had two addresses each. /returns and /privacy are real
+         pages in app/(shop); /page/returns and /page/privacy were CMS rows
+         saying the same thing in fewer words and with a different contact
+         address on them — two live policies per subject, disagreeing, both
+         indexable. The terms had the opposite problem: only the CMS address
+         existed, so /terms answered 404 while the footer linked to
+         /page/terms.
+
+         One address each now, all three in the same shape. The CMS row is
+         still what /terms renders — only the URL moved. */
+      /* /about has never existed — the page has always been the CMS row at
+         /page/about — but it is the address people type and link to, and it
+         answered 404. A redirect rather than a move: /page/about is what is
+         indexed and what the footer points at, and renaming a live URL for
+         tidiness is exactly the trade that produced the 223 redirects now
+         living in proxy.ts. This costs nothing and changes nothing. */
+      { source: "/about", destination: "/page/about", permanent: true },
+      { source: "/page/returns", destination: "/returns", permanent: true },
+      { source: "/page/privacy", destination: "/privacy", permanent: true },
+      { source: "/page/terms", destination: "/terms", permanent: true },
+    ];
+  },
+  /* The 3D mall, served from the shop's own address as well as its own.
+
+     The game is a static site at play.buytoday.co.il. On the web that is
+     fine: the footer opens it in a new tab. Inside the iOS app it is not.
+     The app is a WebView pointed at buytoday.co.il (capacitor.config.ts),
+     and a navigation to any other host that is not in `allowNavigation` is
+     handed to Safari — so tapping the mall threw the customer out of the
+     app. Adding the host there would work too, but that list is compiled
+     into the binary and needs a new build through App Review.
+
+     A rewrite needs neither: /mall is this host, so the WebView keeps it,
+     and Vercel fetches the page from the game's deployment at the edge.
+     Nothing here renders it and nothing about the game's code or hosting
+     changes. The game loads its catalogue and music from play.buytoday.co.il
+     by absolute URL when it is not on that host, so the missing trailing
+     slash on /mall does not matter. */
+  async rewrites() {
+    return [
+      { source: "/mall", destination: "https://play.buytoday.co.il/" },
+      { source: "/mall/:path*", destination: "https://play.buytoday.co.il/:path*" },
+    ];
+  },
+  /* The same page at a second address: kept out of search, where
+     play.buytoday.co.il is the one that should be found. */
+  async headers() {
+    return [
+      { source: "/mall", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
+      { source: "/mall/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
     ];
   },
   turbopack: {
     root: path.join(__dirname),
   },
   outputFileTracingRoot: path.join(__dirname),
+  // Server actions are capped at 1MB by default, which is smaller than a
+  // phone photograph. The back office uploads product and banner images
+  // through actions (the browser shrinks them first, but not below this).
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
   images: {
     remotePatterns: [
       // Product images increasingly come from wherever a manufacturer's own

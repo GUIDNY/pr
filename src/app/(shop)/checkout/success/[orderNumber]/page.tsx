@@ -9,6 +9,7 @@ import { browserPlacedOrder } from "@/lib/order-receipts";
 import { orderShippingAddress, formatShippingAddress } from "@/lib/order-address";
 import { PaymentConfirmation } from "@/components/checkout/payment-confirmation";
 import { MetaPurchase } from "@/components/analytics/meta-events";
+import { ReportOrderToMall } from "@/components/layout/mall-bridge";
 import { formatPrice, formatDateTime } from "@/lib/format";
 import type { OrderStatus, DeliveryMethod } from "@/lib/enums";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
@@ -59,6 +60,11 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
         captured={!awaitingGateway || customerHasPaid(order.paymentStatus)}
         value={order.total}
         contents={order.items.map((i) => ({ id: i.skuSnap, quantity: i.quantity }))}
+      />
+      <ReportOrderToMall
+        orderNumber={order.orderNumber}
+        total={order.total}
+        paid={!awaitingGateway || customerHasPaid(order.paymentStatus)}
       />
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
         <CheckCircle2 className="text-success size-16" strokeWidth={1.5} />

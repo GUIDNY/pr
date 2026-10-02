@@ -5,6 +5,7 @@ import { CategoryGrid } from "@/components/home/category-grid-mobile";
 import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
+import { MallPromo } from "@/components/home/mall-promo";
 import {
   getDeals,
   getBestSellers,
@@ -13,7 +14,7 @@ import {
   getNewArrivals,
   getDepartmentShowcases,
 } from "@/lib/queries/products";
-import { getHomepageSection, getFeaturedBrands } from "@/lib/queries/content";
+import { getHomepageSection, getFeaturedBrands, getPromoBanners } from "@/lib/queries/content";
 import { getCategoryTilesWithImages, getDepartmentCounts } from "@/lib/queries/categories";
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -50,6 +51,7 @@ export default async function HomePage() {
     newArrivals,
     showcases,
     departmentCounts,
+    banners,
   ] = await Promise.all([
       getHomepageSection("hero"),
       getHomepageSection("why-prec"),
@@ -62,6 +64,7 @@ export default async function HomePage() {
       getNewArrivals(8),
       getDepartmentShowcases({ departments: 8, perDepartment: 6 }),
       getDepartmentCounts(),
+      getPromoBanners(),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
@@ -101,7 +104,9 @@ export default async function HomePage() {
           order classes put products right after the banner — hero, deals
           grid, finder, brands, facts — because a shop shows a product and
           a price early. From lg: the wrapper is display:contents and the
-          document order below is the desktop's. */}
+          document order below is the desktop's: banner, facts, deals,
+          brands — the brands after the first products, so a product is on
+          the first screen of a laptop rather than a row of logos. */}
       <div className="flex flex-col lg:contents">
         <div className="order-1">
           <HeroBand
@@ -112,6 +117,7 @@ export default async function HomePage() {
             departments={departmentCounts}
             categoryTiles={categoryTiles}
             deals={deals}
+            banners={banners}
           />
         </div>
 
@@ -119,12 +125,21 @@ export default async function HomePage() {
           <UspBar />
         </div>
 
-        <div className="order-4">
-          <BrandStrip brands={brands} />
-        </div>
-
         <div className="order-2">
           <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" phoneGrid />
+        </div>
+
+        {/* The 3D mall, right after the first products and ahead of the
+            finder on a phone; between the deals and the brands on a
+            laptop. Late enough that the page has already shown it is a
+            shop with stock and prices, early enough that it is seen —
+            the footer link alone was not. See MallPromo. */}
+        <div className="order-3">
+          <MallPromo />
+        </div>
+
+        <div className="order-4">
+          <BrandStrip brands={brands} />
         </div>
 
         <div className="order-3 lg:hidden">
@@ -132,16 +147,22 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {firstShowcases.map((d) => (
-        <ProductRail
-          key={d.slug}
-          title={d.name}
-          subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
-          products={d.products}
-          viewAllHref={`/category/${d.slug}`}
-          viewAllLabel={`לכל ${d.name}`}
-        />
-      ))}
+      {/* Where the hero's tile scrolls to when there is nothing on sale —
+          see the note on it in hero-band.tsx. scroll-mt keeps the heading
+          clear of the sticky header, which would otherwise cover the first
+          rail's title the moment the anchor lands. */}
+      <div id="products" className="scroll-mt-20 lg:scroll-mt-36">
+        {firstShowcases.map((d) => (
+          <ProductRail
+            key={d.slug}
+            title={d.name}
+            subtitle={`${d.count.toLocaleString("he-IL")} מוצרים במלאי`}
+            products={d.products}
+            viewAllHref={`/category/${d.slug}`}
+            viewAllLabel={`לכל ${d.name}`}
+          />
+        ))}
+      </div>
 
       <CategoryGrid tiles={categoryTiles} />
 

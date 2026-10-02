@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { BrandPageView } from "@/components/brand/brand-page-view";
-import { getProductsByBrandSlug, getCurrentSlugForLegacyBrandSlug } from "@/lib/queries/products";
+import { getProductsByBrandSlug, getCurrentSlugForLegacyBrandSlug, LISTING_MIN_PRODUCTS } from "@/lib/queries/products";
 
 // The canonical brand page: no sort chosen, which is what a crawler asks for
 // and what nearly every visitor lands on.
@@ -26,13 +26,23 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     // The brand's own slug, never the one that was asked for: a page reached
     // through an old address must not declare that old address canonical.
     alternates: { canonical: `/brand/${brand.slug}` },
-    // A brand with nothing on the site is an empty page. It is already left
-    // out of the sitemap, but a page can be found without being offered — an
-    // old link, a menu, a crawler that guessed — and an empty listing indexed
-    // under a brand name is a result that disappoints whoever clicks it. It
-    // says so itself rather than relying on nobody finding it, and starts
-    // being indexable again on its own the moment it has a product.
-    robots: total === 0 ? { index: false, follow: true } : undefined,
+    /* A brand with almost nothing on the site is a thin page, and a thin
+       page indexed under a brand name is a result that disappoints whoever
+       clicks it.
+       
+       Fewer than LISTING_MIN_PRODUCTS rather than zero, and the change
+       matters: these were taken out of the sitemap, which stopped offering
+       them and did not deindex them. The URLs still answer 200, so Google
+       keeps what it already holds — and 105 of this site's 154 brand pages
+       are already sitting in "crawled, not indexed", which is Google having
+       made that judgement for itself.
+       
+       The same constant the sitemap reads, because a page offered in one
+       breath and refused in the next is the contradiction this is meant to
+       end. It says so itself rather than relying on nobody finding it, and
+       it starts being indexable again on its own the moment it has a third
+       product. */
+    robots: total < LISTING_MIN_PRODUCTS ? { index: false, follow: true } : undefined,
   };
 }
 

@@ -5,6 +5,32 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ALFRED_CHAT_HREF } from "@/lib/banners";
+import { ALFRED_OPEN_EVENT } from "@/lib/bottom-nav";
+
+/**
+ * A slide is a link to a page, or — when its target is the Alfred chat —
+ * a button that opens the chat panel where the person already is.
+ */
+function SlideLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
+  if (href === ALFRED_CHAT_HREF) {
+    return (
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new Event(ALFRED_OPEN_EVENT))}
+        className={cn("w-full cursor-pointer text-start", className)}
+        aria-label="פתיחת הצ'אט עם אלפרד"
+      >
+        {children}
+      </button>
+    );
+  }
+  return (
+    <Link href={href} className={className}>
+      {children}
+    </Link>
+  );
+}
 
 export type PromoSlide =
   | {
@@ -24,6 +50,15 @@ export type PromoSlide =
       // a small collage at the slide's end — what turns a coloured block
       // into a shop's banner without inventing artwork.
       images?: string[];
+    }
+  | {
+      // One designed picture, edge to edge; the words are in the picture.
+      kind: "image";
+      // The picture for the device this carousel is on: the caller picks
+      // the wide one for a phone or the square one for the desktop card.
+      src: string;
+      alt: string;
+      href: string;
     };
 
 /**
@@ -41,6 +76,7 @@ export function PromoCarousel({
   compact = false,
   stacked = false,
   slogan,
+  natural: naturalProp,
 }: {
   slides: PromoSlide[];
   className?: string;
@@ -55,6 +91,9 @@ export function PromoCarousel({
   // underneath rotates. A separate navy card above the promotions read as
   // a box on a box.
   slogan?: string;
+  // Draw picture slides at their own ratio instead of filling the slot.
+  // Decided from the slides when not given.
+  natural?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
@@ -99,6 +138,10 @@ export function PromoCarousel({
 
   if (slides.length === 0) return null;
 
+  // A set of designed pictures is shown as the pictures are: each at its
+  // own ratio, edge to edge, nothing drawn over it but the position dots.
+  const natural = naturalProp ?? (!stacked && slides.every((s) => s.kind === "image"));
+
   return (
     <div className={cn("relative", className)}>
       <div
@@ -114,7 +157,7 @@ export function PromoCarousel({
       >
         {slides.map((s, i) => (
           <div key={i} className="w-full shrink-0 snap-center">
-            <Slide slide={s} compact={compact} stacked={stacked} slogan={slogan} />
+            <Slide slide={s} compact={compact} stacked={stacked} slogan={slogan} natural={natural} />
           </div>
         ))}
       </div>
@@ -129,7 +172,7 @@ export function PromoCarousel({
               onClick={() => goTo(i)}
               className={cn(
                 "h-1.5 rounded-full transition-all",
-                i === index ? "bg-brand w-5" : s.kind === "promo" && s.tone === "light" ? "w-1.5 bg-black/20" : "w-1.5 bg-white/45"
+                i === index ? "bg-brand w-5" : s.kind === "promo" && s.tone === "light" ? "w-1.5 bg-black/20" : "w-1.5 bg-white/60 shadow"
               )}
             />
           ))}
@@ -156,7 +199,19 @@ function SloganStrip({ slogan, light }: { slogan: string; light: boolean }) {
   );
 }
 
-function Slide({ slide, compact, stacked, slogan }: { slide: PromoSlide; compact: boolean; stacked: boolean; slogan?: string }) {
+function Slide({
+  slide,
+  compact,
+  stacked,
+  slogan,
+  natural,
+}: {
+  slide: PromoSlide;
+  compact: boolean;
+  stacked: boolean;
+  slogan?: string;
+  natural: boolean;
+}) {
   if (slide.kind === "brand") {
     return (
       <div className="bg-primary text-primary-foreground relative flex h-full min-h-56 flex-col justify-center overflow-hidden p-5 pb-8 sm:min-h-64 sm:p-8">
@@ -192,10 +247,38 @@ function Slide({ slide, compact, stacked, slogan }: { slide: PromoSlide; compact
     );
   }
 
+  if (slide.kind === "image" && natural) {
+    // The picture as it was made: full width, its own height, nothing
+    // cropped. The width/height attributes only hold the space until it
+    // loads; then its real ratio takes over.
+    return (
+      <SlideLink href={slide.href} className="group relative block overflow-hidden bg-white">
+        <Image src={slide.src} alt={slide.alt} width={1600} height={700} sizes="(min-width: 1280px) 1024px, 100vw" className="h-auto w-full" priority />
+      </SlideLink>
+    );
+  }
+
+  if (slide.kind === "image") {
+    // The desktop card is a square, so a square picture fits it exactly;
+    // beside collage slides on a phone the slot has a fixed height and
+    // the picture fills it.
+    return (
+      <SlideLink
+        href={slide.href}
+        className={cn(
+          "group relative block overflow-hidden bg-white",
+          stacked ? "aspect-square w-full" : compact ? "h-full min-h-40 sm:min-h-44" : "h-full min-h-56 sm:min-h-64"
+        )}
+      >
+        <Image src={slide.src} alt={slide.alt} fill sizes={stacked ? "304px" : "100vw"} className="object-cover" priority />
+      </SlideLink>
+    );
+  }
+
   const tone = slide.tone;
   const images = (slide.images ?? []).slice(0, 3);
   return (
-    <Link
+    <SlideLink
       href={slide.href}
       className={cn(
         "group relative flex h-full gap-3 overflow-hidden p-5 pb-8 sm:p-6",
@@ -278,6 +361,6 @@ function Slide({ slide, compact, stacked, slogan }: { slide: PromoSlide; compact
           ))}
         </div>
       )}
-    </Link>
+    </SlideLink>
   );
 }

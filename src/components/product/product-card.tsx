@@ -9,7 +9,7 @@ import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import type { StockStatus } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 import { discountPercent } from "@/lib/format";
-import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
+import { FREE_DELIVERY_THRESHOLD, deliveryDaysFor } from "@/lib/delivery";
 
 export type ProductCardData = {
   id: string;
@@ -114,6 +114,7 @@ export function ProductCard({
             price={product.price}
             compareAtPrice={product.compareAtPrice}
             installmentMonths={product.installmentMonths}
+            showPercent={false}
             size="md"
           />
         </div>
@@ -127,18 +128,24 @@ export function ProductCard({
           )}
           {cardStatus !== "OUT_OF_STOCK" && (
             <span className="hidden items-center gap-1 sm:flex">
-              <Truck className="size-3.5" /> משלוח תוך {product.deliveryDays} ימים
+              <Truck className="size-3.5" /> משלוח תוך {deliveryDaysFor(product)} ימי עסקים
             </span>
           )}
         </div>
 
-        <AddToCartButton
-          productId={product.id}
-          disabled={product.stockStatus === "OUT_OF_STOCK"}
-          size="sm"
-          className="mt-2.5 h-9 w-full rounded-lg text-sm sm:mt-3"
-          label={product.stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : "הוספה לעגלה"}
-        />
+        {/* Pinned to the card's bottom edge: the line above wraps to two
+            lines when the free-delivery tag is on, and cards in one row
+            are the same height, so the button sits level across the row
+            whatever each card says above it. */}
+        <div className="mt-auto pt-2.5 sm:pt-3">
+          <AddToCartButton
+            productId={product.id}
+            disabled={product.stockStatus === "OUT_OF_STOCK"}
+            size="sm"
+            className="h-9 w-full rounded-lg text-sm"
+            label={product.stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : "הוספה לעגלה"}
+          />
+        </div>
       </div>
     </div>
   );

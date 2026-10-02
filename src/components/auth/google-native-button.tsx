@@ -57,9 +57,14 @@ export function useGoogleNativeAvailable(): boolean {
   return useSyncExternalStore(subscribe, () => socialPlugin() !== null, () => false);
 }
 
-export function GoogleNativeButton() {
+/**
+ * `redirectTo` wins over the `?redirect=` query when a page other than the
+ * login page hosts the button (checkout, which wants the customer straight
+ * back to the form). `compact` shortens the label for a two-up row.
+ */
+export function GoogleNativeButton({ redirectTo, compact = false }: { redirectTo?: string; compact?: boolean } = {}) {
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") ?? "/account";
+  const redirect = redirectTo ?? searchParams.get("redirect") ?? "/account";
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -132,7 +137,7 @@ export function GoogleNativeButton() {
           <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
           <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
         </svg>
-        {busy ? "מתחבר…" : "המשך עם Google"}
+        {busy ? "מתחבר…" : compact ? "Google" : "המשך עם Google"}
       </button>
       {error && <p className="text-destructive text-sm">{error}</p>}
     </div>

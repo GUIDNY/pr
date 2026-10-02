@@ -1,11 +1,22 @@
 "use client";
 
 import { ShoppingCart } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useCartStore } from "@/stores/cart-store";
+import { showsBottomNav } from "@/lib/bottom-nav";
 
-export function CartTrigger() {
+export function CartTrigger({ unlessTabBar = false }: {
+  // For the phone header: stay out of the way where the bottom tab bar
+  // already carries the cart with its count — two identical cart buttons
+  // on one screen crowd the header and say nothing twice. On the pages
+  // whose bottom edge is taken (product, checkout) the tab bar is gone,
+  // so the header cart is the cart there.
+  unlessTabBar?: boolean;
+}) {
   const itemCount = useCartStore((s) => s.cart.itemCount);
   const toggleDrawer = useCartStore((s) => s.toggleDrawer);
+  const pathname = usePathname();
+  if (unlessTabBar && showsBottomNav(pathname)) return null;
 
   return (
     <button

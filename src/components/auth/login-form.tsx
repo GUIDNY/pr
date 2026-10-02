@@ -3,8 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
-import { Eye, EyeOff, Phone } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { useIsNativeApp, useNativePlatform } from "@/lib/native-app";
 import { GoogleButton } from "@/components/auth/google-button";
 import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
@@ -16,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "@/actions/auth";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
-import { BUSINESS } from "@/lib/business";
+import { cn } from "@/lib/utils";
 
 /* What the social sign-in routes can bounce back with. Each says what
    happened and what to do about it — "שגיאה" on its own leaves somebody
@@ -133,48 +132,48 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
         return;
       }
       toast.success("התחברת בהצלחה");
+      /* A destination under /api/ is a route handler, not a page — today
+         that is /api/game/return, which forwards to the 3D mall on
+         play.buytoday.co.il. router.push cannot go there. It fetches the
+         target as an RSC payload, the fetch follows the handler's redirect
+         to the other origin, the browser refuses that as CORS, and Next
+         reads the refusal as the network being down and waits for it to
+         come back. The customer is signed in and looking at a login page
+         that never moves. A full navigation simply follows the redirect.
+         Everything that is a page keeps the soft navigation it had. */
+      if (!isBackOffice(result.role) && redirectTo.startsWith("/api/")) {
+        window.location.assign(redirectTo);
+        return;
+      }
       router.push(isBackOffice(result.role) ? backOfficeHome(result.role) : redirectTo);
       router.refresh();
     });
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col px-4 py-10 sm:py-16">
-      <div className="border-border bg-card rounded-2xl border p-6 shadow-sm sm:p-8">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <Image
-            src="/brand/logo.png"
-            alt="Buy Today"
-            width={512}
-            height={512}
-            className="mb-4 size-12 rounded-[22%]"
-          />
-          <h1 className="text-2xl font-black tracking-tight">התחברות לחשבון</h1>
-          <p className="text-muted-foreground mt-1.5 text-sm">
-אפשר להתחבר עם כתובת המייל או עם מספר הטלפון
-          </p>
-        </div>
+    <div>
+        <h1 className="sr-only">התחברות לחשבון</h1>
 
         {(showGoogle || showApple || showAppleNative || showGoogleNative) && (
           <>
-            <div className="flex flex-col gap-2.5">
-              {showGoogle && <GoogleButton />}
-              {showApple && <AppleButton />}
+            {/* The one-tap ways first, and on a phone side by side: two
+                short buttons read as "pick one", two tall ones as a list
+                to work through. */}
+            <div className={cn("grid gap-2", showGoogle && showApple ? "grid-cols-2 sm:grid-cols-1" : "grid-cols-1")}>
+              {showGoogle && <GoogleButton compact={showApple} />}
+              {showApple && <AppleButton compact={showGoogle} />}
               {showGoogleNative && <GoogleNativeButton />}
               {showAppleNative && <AppleNativeButton />}
             </div>
-            {/* A real separator rather than the word "or" floating between
-                two stacks — the rule is what tells you these are two ways to
-                do one thing, not two steps. */}
-            <div className="my-5 flex items-center gap-3">
+            <div className="my-4 flex items-center gap-3">
               <span className="bg-border h-px flex-1" />
-              <span className="text-muted-foreground text-xs font-medium">או עם סיסמה</span>
+              <span className="text-muted-foreground text-xs">או</span>
               <span className="bg-border h-px flex-1" />
             </div>
           </>
         )}
 
-        <form onSubmit={submit} className="flex flex-col gap-4">
+        <form onSubmit={submit} className="flex flex-col gap-3">
           <div>
             <Label htmlFor="identifier" className="mb-1.5">
               אימייל או טלפון
@@ -196,9 +195,12 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
           </div>
 
           <div>
-            <Label htmlFor="password" className="mb-1.5">
-              סיסמה
-            </Label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <Label htmlFor="password">סיסמה</Label>
+              <Link href="/forgot-password" className="text-muted-foreground hover:text-foreground text-xs hover:underline">
+                שכחתם?
+              </Link>
+            </div>
             {/* The reveal toggle is not a nicety on a phone keyboard: a
                 mistyped password that cannot be seen is the most common
                 reason somebody gives up here. */}
@@ -240,33 +242,10 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
             </p>
           )}
 
-          <Button type="submit" variant="brand" size="lg" disabled={isPending} className="h-12 text-base font-bold">
+          <Button type="submit" variant="brand" size="lg" disabled={isPending} className="mt-1 h-12 text-base font-bold">
             {isPending ? "מתחבר…" : "התחברות"}
           </Button>
         </form>
-
-        <div className="border-border mt-6 flex flex-col gap-3 border-t pt-5 text-center">
-          <Link href="/forgot-password" className="text-muted-foreground text-sm hover:underline">
-            שכחתם סיסמה?
-          </Link>
-          <p className="text-sm">
-            <span className="text-muted-foreground">אין לכם חשבון? </span>
-            <Link href="/register" className="text-brand font-bold hover:underline">
-              הרשמה
-            </Link>
-          </p>
-        </div>
-      </div>
-
-      {/* Still here alongside the reset link: somebody who has lost the
-          mailbox as well as the password has nothing a form can give them. */}
-      <p className="text-muted-foreground mt-5 text-center text-sm">
-        נתקעתם?{" "}
-        <a href={BUSINESS.phoneHref} className="text-brand font-semibold hover:underline">
-          <Phone className="ms-1 inline size-3.5" />
-          {BUSINESS.phone}
-        </a>
-      </p>
     </div>
   );
 }
