@@ -180,6 +180,19 @@
   html {
     @apply font-sans;
   }
+  /* iOS zooms the page in when a field with text smaller than 16px takes
+     focus, and inside the app's WebView the zoom never comes back out:
+     after one search or one line to Alfred the whole shop stays enlarged.
+     So on a touch screen no field is ever smaller than 16px. Desktop keeps
+     its sizes, and the native app also pins the viewport (see
+     components/layout/native-viewport.tsx) for the installs already stuck. */
+  @media (pointer: coarse) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    textarea,
+    select {
+      font-size: max(16px, 1em);
+    }
+  }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;
   }
