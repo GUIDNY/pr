@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { planCartMerge } from "@/lib/cart-merge";
+import { ATTRIBUTION_COOKIE, parseAttribution } from "@/lib/attribution";
 
 const CART_COOKIE = "prec_cart_sid";
 const CART_COOKIE_TTL = 60 * 60 * 24 * 90; // 90 days
@@ -188,7 +189,7 @@ export async function getOrCreateCart() {
     const existing = await db.cart.findUnique({ where: { userId: session.sub }, include: cartInclude });
     if (existing) return existing;
 
-    return db.cart.create({ data: { userId: session.sub }, include: cartInclude });
+    return db.cart.create({ data: { userId: session.sub, attribution: await currentAttribution() }, include: cartInclude });
   }
 
   const cookieStore = await cookies();
@@ -208,7 +209,16 @@ export async function getOrCreateCart() {
     maxAge: CART_COOKIE_TTL,
   });
 
-  return db.cart.create({ data: { sessionId: sid }, include: cartInclude });
+  return db.cart.create({ data: { sessionId: sid, attribution: await currentAttribution() }, include: cartInclude });
+}
+
+/** Where this visitor came from, as the browser recorded it — see
+    lib/attribution.ts. Kept on the cart from the moment it exists, so an
+    abandoned cart says which campaign it came from as well. */
+async function currentAttribution() {
+  const cookieStore = await cookies();
+  const parsed = parseAttribution(cookieStore.get(ATTRIBUTION_COOKIE)?.value);
+  return parsed ?? undefined;
 }
 
 /**

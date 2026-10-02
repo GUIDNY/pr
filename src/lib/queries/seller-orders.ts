@@ -8,6 +8,7 @@ import { SITE_URL } from "@/lib/site-url";
 import { NOTIFY_EVENTS, type NotifyEvent, type NotifyChannel } from "@/lib/notify/types";
 import { courierTrackingUrl } from "@/lib/couriers";
 import { channelReadiness } from "@/lib/notify";
+import { attributionFromJson, type Attribution } from "@/lib/attribution";
 
 /**
  * The orders queue as a salesperson needs it.
@@ -37,6 +38,9 @@ export type SellerOrderSummary = {
 
 export type SellerOrderDetail = SellerOrderSummary & {
   customerEmail: string | null;
+  /** Where the customer came from, as the browser recorded it. Null for
+      orders placed before the shop started keeping it. */
+  attribution: Attribution | null;
   customerNote: string | null;
   subtotal: number;
   discountTotal: number;
@@ -126,6 +130,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
     select: {
       ...LIST_SELECT,
       guestEmail: true,
+      attribution: true,
       customerNote: true,
       subtotal: true,
       discountTotal: true,
@@ -159,6 +164,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
   return {
     ...summary,
     customerEmail: row.user?.email ?? row.guestEmail ?? null,
+    attribution: attributionFromJson(row.attribution),
     customerNote: row.customerNote,
     subtotal: row.subtotal,
     discountTotal: row.discountTotal,

@@ -17,6 +17,8 @@ import { holdDays } from "@/lib/pelecard/client";
 import { rememberAddress } from "@/lib/address-book";
 import { retireGameCoupon } from "@/lib/game-wheel";
 import { awardPurchase } from "@/lib/game-levels";
+import { cookies } from "next/headers";
+import { ATTRIBUTION_COOKIE, attributionFromJson, parseAttribution } from "@/lib/attribution";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -147,6 +149,12 @@ export async function createOrderAction(input: CheckoutInput) {
       guestName: data.fullName,
       guestEmail: data.email,
       guestPhone: data.phone,
+      // Where this customer came from: the browser's record now, or the
+      // cart's from when it was made if the cookie has since gone.
+      attribution:
+        parseAttribution((await cookies()).get(ATTRIBUTION_COOKIE)?.value) ??
+        attributionFromJson(cart.attribution) ??
+        undefined,
       // The tick beside the phone field. Missing (an older client) means yes,
       // which is what the column defaults to as well.
       whatsappOptIn: data.whatsappOptIn ?? true,

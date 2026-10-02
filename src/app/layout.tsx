@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { SessionSummaryProvider } from "@/components/layout/session-summary-provider";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
+import { AttributionCapture } from "@/components/analytics/attribution-capture";
 import { Clarity } from "@/components/analytics/clarity";
 import { MetaPixel } from "@/components/analytics/meta-pixel";
 import { CartDrawer } from "@/components/cart/cart-drawer";
@@ -162,6 +163,7 @@ export default function RootLayout({
             <GoogleAnalytics />
             <Clarity />
             <MetaPixel />
+            <AttributionCapture />
           </TooltipProvider>
         </DirectionProvider>
       </body>

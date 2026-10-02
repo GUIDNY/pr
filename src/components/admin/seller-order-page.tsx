@@ -17,6 +17,7 @@ import {
   undoLastStatusAction, deleteOrderAction, resendNotificationAction,
 } from "@/actions/seller-orders";
 import { COURIERS } from "@/lib/couriers";
+import { describeTouch } from "@/lib/attribution";
 
 /**
  * One order, everything about it, and the one action it is actually waiting
@@ -225,6 +226,33 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
           </Field>
           {order.delivery.toCustomer && <Field label="כתובת">{order.delivery.address ?? "— חסרה —"}</Field>}
           {order.customerNote && <Field label="הערת הלקוח">{order.customerNote}</Field>}
+          {/* Where the customer came from. Two lines when the visit that
+              brought them and the click before the order differ — a Google
+              search in May and a Facebook ad today are both worth knowing. */}
+          <Field label="מקור ההגעה">
+            {order.attribution ? (
+              <div className="flex flex-col gap-0.5">
+                <span>
+                  {describeTouch(order.attribution.first)}
+                  <span className="text-muted-foreground text-xs">
+                    {" "}· {formatDateTime(new Date(order.attribution.first.at))}
+                    {order.attribution.first.landing && (
+                      <>
+                        {" "}· נחת/ה ב‑<span dir="ltr" className="break-all">{order.attribution.first.landing}</span>
+                      </>
+                    )}
+                  </span>
+                </span>
+                {order.attribution.last && describeTouch(order.attribution.last) !== describeTouch(order.attribution.first) && (
+                  <span className="text-muted-foreground text-xs">
+                    לפני ההזמנה: {describeTouch(order.attribution.last)} · {formatDateTime(new Date(order.attribution.last.at))}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="text-muted-foreground">לא נרשם (הזמנה מלפני שהאתר התחיל לשמור את זה)</span>
+            )}
+          </Field>
           {order.courier.name && (
             <>
               <Field label="שליח">{order.courier.name}</Field>
