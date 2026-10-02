@@ -180,21 +180,29 @@
   html {
     @apply font-sans;
   }
-  /* iOS zooms the page in when a field with text smaller than 16px takes
-     focus, and inside the app's WebView the zoom never comes back out:
-     after one search or one line to Alfred the whole shop stays enlarged.
-     So on a touch screen no field is ever smaller than 16px. Desktop keeps
-     its sizes, and the native app also pins the viewport (see
-     components/layout/native-viewport.tsx) for the installs already stuck. */
-  @media (pointer: coarse) {
-    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-    textarea,
-    select {
-      font-size: max(16px, 1em);
-    }
-  }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;
+  }
+}
+
+/* iOS zooms the page in when a field with text smaller than 16px takes
+   focus, and inside the app's WebView the zoom never comes back out: after
+   one search or one line to Alfred the whole shop stays enlarged. So on a
+   touch screen no field is ever smaller than 16px.
+
+   OUTSIDE every @layer, and that is the whole fix. The first version sat in
+   @layer base, where Tailwind's own `text-sm` on the search bar — a utility,
+   in a later layer — beat it regardless of specificity, so the field stayed
+   14px and the zoom came straight back. An unlayered rule wins over every
+   layer; the specificity and the !important are belt and braces for the
+   one-off inline style somebody adds in a year. Desktop keeps its sizes;
+   the native app also pins the viewport (components/layout/native-viewport.tsx)
+   for the installs already stuck. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em) !important;
   }
 }
 
