@@ -103,16 +103,20 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
   /* Google's is the same arrangement: the web keeps its redirect, the app gets
      the sheet, and the button appears only where a build can honour it. */
   const googleNativeReady = useGoogleNativeAvailable();
-  /* iOS only for now, for a reason that is not about the plugin.
+  /* Both platforms now, and no platform check — unlike Apple's above.
    *
-   * google-native-button.tsx passes iOSClientId, which is the only credential
-   * configured. Android needs its own OAuth client, and that client cannot be
-   * created until Play has signed the first upload and issued the certificate
-   * fingerprint it is registered against. Until then the sheet would open and
-   * fail, so Android shows no Google button rather than a broken one — Google
-   * refuses OAuth from a WebView, so the web button cannot stand in either. */
-  const showGoogleNative =
-    googleNativeEnabled && inApp && platform === "ios" && googleNativeReady;
+   * It was iOS only while the iOS client was the only credential configured:
+   * Android's OAuth client is registered against the certificate Play signs
+   * the app with, so it could not exist before the first upload. It does now,
+   * and Android's sheet is initialised with the web client id (see
+   * google-native-button.tsx), so there is no platform left without one.
+   *
+   * The plugin check carries the weight instead, and it is the honest one
+   * here: @capgo/capacitor-social-login answers the bridge only in a build
+   * that carries it, on either platform. There is also nothing to fall back
+   * to — Google refuses OAuth from a WebView, so the web button cannot stand
+   * in for a missing sheet the way Apple's redirect does. */
+  const showGoogleNative = googleNativeEnabled && inApp && googleNativeReady;
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/account";

@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { createSession, hashPassword } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
-import { googleNativeConfigured, verifyGoogleIdToken } from "@/lib/google-oauth";
+import { googleNativeClientIds, googleNativeConfigured, verifyGoogleIdToken } from "@/lib/google-oauth";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +27,30 @@ export const dynamic = "force-dynamic";
  * the same token back on a re-authorisation, which is why that one is pinned
  * to a server-issued value and this one is not.
  */
+/**
+ * The client ids the sheet has to be initialised with, read by the button
+ * just before it opens one.
+ *
+ * A fetch rather than a value baked into the page, so that the id the sheet
+ * is initialised with and the audience the POST below verifies against are
+ * the same string by construction. They used to be two reads of one variable
+ * — one at build time into the bundle, one at request time here — and that is
+ * exactly how a trailing newline pasted into a dashboard field got to read as
+ * configured on the server and as a different client id in the app, which the
+ * Google SDK answers by raising an NSException rather than failing to sign
+ * in. A crash on a button press, from an invisible character, found only by
+ * pulling the literal out of a deployed bundle.
+ *
+ * Public by nature: an OAuth client id travels in every authorisation request
+ * and identifies the app rather than authenticating it. Nothing here is a
+ * secret and the route takes no session.
+ */
+export async function GET() {
+  const ids = googleNativeClientIds();
+  if (!ids) return NextResponse.json({ error: "not_configured" }, { status: 503 });
+  return NextResponse.json(ids);
+}
+
 export async function POST(request: Request) {
   if (!googleNativeConfigured()) {
     return NextResponse.json({ error: "not_configured" }, { status: 503 });

@@ -12,11 +12,12 @@ import { useSearchParams } from "next/navigation";
  * host app could have drawn. The refusal is correct and nothing on this side
  * should try to get round it.
  *
- * What replaces it is not a page this app draws either. iOS presents Google's
- * own sheet, hands back a signed id_token, and the page posts that to
- * /api/auth/google/native from inside the WebView — so the session cookie is
- * set where the app can see it, which is what the redirect flow could not do
- * even when Safari let it through.
+ * What replaces it is not a page this app draws either. The phone presents
+ * Google's own sheet — iOS's and Android's are different sheets from
+ * different SDKs, but both end the same way — hands back a signed id_token,
+ * and the page posts that to /api/auth/google/native from inside the WebView,
+ * so the session cookie is set where the app can see it, which is what the
+ * redirect flow could not do even when Safari let it through.
  *
  * The plugin is reached through window.Capacitor.Plugins and deliberately not
  * imported, for the same reason as the Apple button: it is installed on the
@@ -24,7 +25,20 @@ import { useSearchParams } from "next/navigation";
  */
 
 type SocialLoginPlugin = {
-  initialize(options: { google?: { iOSClientId?: string } }): Promise<void>;
+  initialize(options: {
+    google?: {
+      /** iOS only. Google's iOS SDK derives its callback scheme from this. */
+      iOSClientId?: string;
+      /**
+       * Android only, and the name is Google's, not a mistake: Android's
+       * Credential Manager is handed the *web* client id as the audience to
+       * mint the id_token for. The Android client — the one carrying the
+       * APK's signing fingerprint — is what makes Google trust the caller,
+       * and is never named in a call.
+       */
+      webClientId?: string;
+    };
+  }): Promise<void>;
   login(options: {
     provider: "google";
     options: { scopes?: string[] };
@@ -71,31 +85,36 @@ export function GoogleNativeButton({ redirectTo, compact = false }: { redirectTo
   async function signIn() {
     setError(null);
     const plugin = socialPlugin();
-    /* Trimmed, and that is not tidiness.
-     *
-     * The server decides whether to render this button by reading the same
-     * variable through a trim, so a value that arrived with a trailing
-     * newline — what a paste into a dashboard field leaves behind — reads as
-     * configured there and is a different string here. Google derives its
-     * callback scheme by reversing this around the dots, so one invisible
-     * character produces a scheme the app never registered, and the SDK
-     * answers that by raising an NSException: a native crash on the button
-     * press rather than a sign-in that fails.
-     *
-     * That is not hypothetical. It is what this cost a TestFlight round to
-     * find, and the asymmetry between the two reads is what hid it. */
-    const iOSClientId = process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
-    if (!plugin || !iOSClientId) {
+    if (!plugin) {
       setError("ההתחברות עם Google אינה זמינה כאן");
       return;
     }
 
     setBusy(true);
     try {
+      /* Asked of the server rather than read from a baked-in value, and that
+         is not indirection for its own sake: it makes the id the sheet is
+         initialised with and the audience the server verifies against the
+         same string by construction. The two used to be separate reads of one
+         variable, and a trailing newline pasted into a dashboard field read
+         as configured on one side and as a different client id on the other.
+         Google derives its callback scheme by reversing the id around the
+         dots, so that one invisible character produced a scheme the app never
+         registered and the SDK answered with an NSException — a native crash
+         on the button press, which cost a TestFlight round to find. */
+      const configRes = await fetch("/api/auth/google/native");
+      if (!configRes.ok) throw new Error("config");
+      const { ios, web } = (await configRes.json()) as { ios?: string; web?: string };
+
+      /* One of the two is used and the other ignored, decided inside the
+         plugin by which platform it was compiled for. Sending both is simpler
+         than asking the bridge which one this is, and wrong on neither. */
+      if (!ios || !web) throw new Error("config");
+
       /* Idempotent, and cheap enough to do on every press rather than track
          whether it has happened — a sign-in that fails because an init was
          missed is far more expensive than a redundant call. */
-      await plugin.initialize({ google: { iOSClientId } });
+      await plugin.initialize({ google: { iOSClientId: ios, webClientId: web } });
 
       const result = await plugin.login({
         provider: "google",

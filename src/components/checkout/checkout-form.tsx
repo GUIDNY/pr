@@ -19,7 +19,7 @@ import { GoogleButton } from "@/components/auth/google-button";
 import { AppleButton } from "@/components/auth/apple-button";
 import { GoogleNativeButton, useGoogleNativeAvailable } from "@/components/auth/google-native-button";
 import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
-import { useIsNativeApp } from "@/lib/native-app";
+import { useIsNativeApp, useNativePlatform } from "@/lib/native-app";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
 import SiApplepay from "@icons-pack/react-simple-icons/icons/SiApplepay";
 import SiGooglepay from "@icons-pack/react-simple-icons/icons/SiGooglepay";
@@ -147,12 +147,26 @@ export function CheckoutForm({
      app the strip offers the native sheets instead, and only when the running
      build actually carries the plugin (asked of the bridge, not inferred). */
   const inApp = useIsNativeApp();
+  const platform = useNativePlatform();
   const googleNativeReady = useGoogleNativeAvailable();
   const appleNativeReady = useAppleNativeAvailable();
   const showGoogle = googleEnabled && !inApp;
-  const showApple = appleEnabled && !inApp;
+  /* The same four rules the login page states at length, and they have to be
+     the same four: a customer who meets a working pair of buttons on /login
+     and a dead one here learns not to trust either.
+
+     Apple keeps its redirect on Android — appleid.apple.com is listed in
+     allowNavigation, so the exchange stays inside the app — and loses it on
+     iOS, where the native sheet replaces it. */
+  const showApple = appleEnabled && (!inApp || platform === "android");
   const showGoogleNative = googleNativeEnabled && inApp && googleNativeReady;
-  const showAppleNative = appleNativeEnabled && inApp && appleNativeReady;
+  /* iOS only, and the platform check is not belt and braces:
+     @capacitor-community/apple-sign-in compiles into the Android project too
+     and answers the bridge there, so asking whether the plugin exists returns
+     true on a phone with no Apple sheet to open. Without this the black
+     button appears on Android and does nothing. */
+  const showAppleNative =
+    appleNativeEnabled && inApp && platform === "ios" && appleNativeReady;
   const quickSignIn = !signedIn && (showGoogle || showApple || showGoogleNative || showAppleNative);
   const twoUp = (showGoogle && showApple) || (showGoogleNative && showAppleNative);
   const [isPending, startTransition] = useTransition();

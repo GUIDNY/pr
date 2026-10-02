@@ -32,29 +32,56 @@ function clientSecret(): string | null {
   return value ? value : null;
 }
 
-/** Both halves present. The button is hidden until they are. */
 /**
- * The iOS OAuth client id, which is the audience Google puts in an id_token
- * issued to the native sign-in sheet — where the web client id is the
- * audience instead. The two are different credentials for the same project,
- * and a token minted for one is not valid for the other.
+ * The credentials the native sign-in sheet runs on, one per platform.
  *
- * Required rather than defaulted, for the same reason as Apple's bundle id:
- * an audience check that falls back to a guess is not a check.
+ * Google issues a separate OAuth client per platform and puts whichever one
+ * asked into the id_token's `aud`, so the two are not interchangeable: a
+ * token minted for one is not valid for the other, and the audience check
+ * below has to know both.
+ *
+ * iOS initialises the sheet with the **iOS** client and gets `aud` = that.
+ * Android initialises it with the **web** client — the one the site's own
+ * redirect flow already uses — and gets `aud` = that. Android's own client
+ * exists and is not named here on purpose: it carries the APK's signing
+ * fingerprint and is what lets Google trust the caller, but it is never sent
+ * in a request and never appears in a token.
+ *
+ * Both are read from the server's own environment and handed to the page by
+ * `GET /api/auth/google/native`, rather than inlined into the browser bundle
+ * at build time. That is deliberate and it is the fix for a real outage: the
+ * iOS id used to be read in both places, and a value pasted into a dashboard
+ * with a trailing newline read as configured on one side and as a different
+ * string on the other. Google derives its callback scheme by reversing the id
+ * around the dots, so one invisible character produced a scheme the app never
+ * registered and the SDK answered with a native crash. One reader cannot
+ * disagree with itself.
  */
-export function googleNativeConfigured(): boolean {
-  return iosClientId() !== null;
+export type GoogleNativeClientIds = { ios: string; web: string };
+
+export function googleNativeClientIds(): GoogleNativeClientIds | null {
+  const ios = iosClientId();
+  const web = clientId();
+  if (!ios || !web) return null;
+  return { ios, web };
 }
 
 /**
- * NEXT_PUBLIC_ on purpose, and read here as well as in the browser.
+ * Both platforms' credentials present. The button is hidden until they are.
  *
- * The page needs it to initialise the native sheet, so it has to reach the
- * client either way; an OAuth client id is a public identifier by design and
- * nothing is protected by hiding it. One variable for both sides beats two
- * that can drift apart — and two that disagree would fail as a signature that
- * verifies against the wrong audience, which reads like a broken login rather
- * than like a typo in a dashboard.
+ * Both, not either, and the asymmetry is only apparent: the web client id is
+ * `GOOGLE_CLIENT_ID`, without which the site's own Google sign-in does not
+ * work either. There is no configuration where one is deliberately set and
+ * the other deliberately not.
+ */
+export function googleNativeConfigured(): boolean {
+  return googleNativeClientIds() !== null;
+}
+
+/**
+ * NEXT_PUBLIC_ is a leftover from when the browser read this directly, and is
+ * harmless: an OAuth client id is a public identifier by design and nothing
+ * is protected by hiding it. Nothing reads it client-side any more.
  */
 function iosClientId(): string | null {
   const value = process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
@@ -179,17 +206,26 @@ const GOOGLE_JWKS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth
  * phone, where the email is a claim inside a string the caller supplies, so
  * anything less than a signature check would let anybody sign in as anybody.
  *
- * `aud` is the iOS client id and not the web one. Google issues a separate
- * credential per platform, and accepting either would mean accepting a token
- * minted for a different app.
+ * `aud` is this project's own clients and nothing else — the iOS one for a
+ * token from the iOS sheet, the web one for a token from Android's. Both are
+ * accepted because both are minted here; anything else is a token for a
+ * different app.
+ *
+ * Accepting the web client id is worth being explicit about, because it is
+ * also the audience of the tokens the site's own redirect flow receives. It
+ * is not a way in: a token carrying that audience can only be obtained by
+ * completing an authorisation against a registered redirect URI or a
+ * registered origin, which is the same bar Google sets for the flow next
+ * door. What it is not is a token anybody can mint.
  *
  * Both issuer spellings are allowed because Google uses both, and has for
  * years — a token signed by the same keys is rejected by the stricter of the
  * two for no reason anybody can act on.
  */
 export async function verifyGoogleIdToken(token: string): Promise<GoogleProfile | null> {
-  const audience = iosClientId();
-  if (!audience) return null;
+  const ids = googleNativeClientIds();
+  if (!ids) return null;
+  const audience = [ids.ios, ids.web];
 
   let claims: Record<string, unknown>;
   try {
