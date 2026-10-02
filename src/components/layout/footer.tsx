@@ -204,6 +204,10 @@ export async function Footer() {
               <a href={BUSINESS.phoneHref} className="text-primary-foreground/60 hover:text-primary-foreground flex items-center gap-1.5 text-sm">
                 <Phone className="size-3.5" /> {BUSINESS.phone}
               </a>
+              {/* The footer is where someone looks at 20:00 to find out
+                  whether calling is worth it, so the hours belong next to
+                  the number rather than one page away on /contact. */}
+              <span className="text-primary-foreground/40 mt-0.5 block text-xs">{BUSINESS.phoneHoursLabel}</span>
             </li>
             <li>
               {/* A separate line, because it is a separate number answered in

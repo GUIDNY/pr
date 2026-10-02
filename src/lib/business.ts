@@ -57,6 +57,24 @@ export const BUSINESS = {
   /** As schema.org wants it. */
   phoneE164: "+972-4-622-4041",
 
+  /* When a person actually picks it up.
+     Stated because the alternative is a customer calling at 19:00, getting
+     nothing, and concluding the shop is gone — and because Google reads
+     opening hours out of the structured data and shows them next to the
+     number in a search result. An unanswered call at an hour the result
+     said was open is the same broken promise as a delivery estimate that
+     does not match the page.
+
+     Written once, here, in the shape schema.org wants (24-hour, "HH:MM"),
+     and formatted for people where it is shown. The site has already been
+     through one number written out by hand in fifteen files. */
+  phoneHours: [
+    { days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"], opens: "10:30", closes: "18:00" },
+    { days: ["Friday"], opens: "10:30", closes: "13:00" },
+  ],
+  /** For the people-facing line. Saturday is absent above and said here. */
+  phoneHoursLabel: "א׳–ה׳ 10:30–18:00 · ו׳ 10:30–13:00 · שבת סגור",
+
   /* WhatsApp is a different number, and it is shown as its own channel
      rather than as a second way to reach the line above. A number labelled
      "WhatsApp" that does not answer WhatsApp is worse than not offering
@@ -106,6 +124,12 @@ export const BUSINESS = {
   /** wa.me takes digits only, international, with no plus and no leading zero. */
   whatsappHref: "https://wa.me/972553073072",
   whatsappE164: "+972-55-307-3072",
+  /* The one channel that answers at any hour — and it is worth saying what
+     answers. "24/7" next to a phone icon reads as "somebody is there",
+     which is not true at 02:00 and is the kind of small overclaim that
+     costs more than it buys. An assistant replies immediately whenever you
+     write; a person picks it up in the hours above. */
+  whatsappHoursLabel: "מענה אוטומטי מיידי בכל שעה · נציג בשעות הפעילות",
 
   /* The shop's own pages on the two networks it actually posts to.
      They are listed here rather than inline in the footer because the footer

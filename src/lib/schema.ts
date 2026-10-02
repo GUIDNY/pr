@@ -51,14 +51,41 @@ export function organizationSchema() {
     email: BUSINESS.email,
     description:
       "חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.",
-    contactPoint: {
-      "@type": "ContactPoint",
-      telephone: PHONE_E164,
-      contactType: "customer service",
-      areaServed: "IL",
-      availableLanguage: ["he"],
-      email: BUSINESS.email,
-    },
+    /* Two ways in, said separately, because they are open at different
+       times. One contactPoint carrying both the number and "always open"
+       would be a claim that the phone is answered at 02:00.
+
+       hoursAvailable is read by Google and shown beside the number in a
+       result, which is exactly why it has to be the real hours: a result
+       that says open, on a call nobody picks up, is the same broken
+       promise as a delivery estimate the page contradicts. */
+    contactPoint: [
+      {
+        "@type": "ContactPoint",
+        telephone: PHONE_E164,
+        contactType: "customer service",
+        areaServed: "IL",
+        availableLanguage: ["he"],
+        email: BUSINESS.email,
+        hoursAvailable: BUSINESS.phoneHours.map((h) => ({
+          "@type": "OpeningHoursSpecification",
+          dayOfWeek: h.days.map((d) => `https://schema.org/${d}`),
+          opens: h.opens,
+          closes: h.closes,
+        })),
+      },
+      {
+        "@type": "ContactPoint",
+        telephone: BUSINESS.whatsappE164,
+        contactType: "customer support",
+        areaServed: "IL",
+        availableLanguage: ["he"],
+        /* No hoursAvailable and no 24/7 claim either. An assistant replies
+           at any hour and a person does not, and schema.org has no way to
+           say that — so it says nothing rather than something untrue. The
+           contact page spells it out in words, where the distinction fits. */
+      },
+    ],
     // The shop's real street address, which is what lets Google tie this site
     // to the Business Profile and the Merchant Center account rather than
     // treating them as three unrelated things. No postalCode: it is not known

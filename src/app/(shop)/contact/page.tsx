@@ -40,21 +40,25 @@ export default function ContactPage() {
 
       <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
         <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-3">
-            <span className="bg-brand/10 text-brand flex size-10 items-center justify-center rounded-full">
+          <div className="flex items-start gap-3">
+            <span className="bg-brand/10 text-brand flex size-10 shrink-0 items-center justify-center rounded-full">
               <Phone className="size-4" />
             </span>
             <div>
               <p className="font-medium">טלפון</p>
               <a href={BUSINESS.phoneHref} className="text-muted-foreground text-sm hover:underline">{BUSINESS.phone}</a>
+              {/* Under the number, not beside it. Somebody deciding whether
+                  to call at 18:30 needs this before they tap, and a line
+                  they have to hunt for is a line they call anyway. */}
+              <p className="text-muted-foreground mt-0.5 text-xs">{BUSINESS.phoneHoursLabel}</p>
             </div>
           </div>
           {/* Its own row, not a second link on the phone line. WhatsApp is a
               different number answered in a different place, and a customer
               who taps "WhatsApp" expecting a chat and gets a dialler has
               been told something untrue. */}
-          <div className="flex items-center gap-3">
-            <span className="bg-brand/10 text-brand flex size-10 items-center justify-center rounded-full">
+          <div className="flex items-start gap-3">
+            <span className="bg-brand/10 text-brand flex size-10 shrink-0 items-center justify-center rounded-full">
               <MessageCircle className="size-4" />
             </span>
             <div>
@@ -67,6 +71,11 @@ export default function ContactPage() {
               >
                 {BUSINESS.whatsapp}
               </a>
+              {/* What answers, not just that something does. "24/7" beside a
+                  contact row reads as a person waiting, and the first
+                  customer who asks an assistant something only a person can
+                  answer learns otherwise at the worst moment. */}
+              <p className="text-muted-foreground mt-0.5 text-xs">{BUSINESS.whatsappHoursLabel}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
