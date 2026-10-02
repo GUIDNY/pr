@@ -5,6 +5,8 @@ import {
   migrateImageBatch,
   countImagesToMigrate,
   HOSTS_THAT_REFUSE_US,
+  renormaliseBatch,
+  countImagesToRenormalise,
 } from "@/lib/inventory/image-migration";
 
 /**
@@ -97,13 +99,49 @@ export async function GET(request: Request) {
     // more to try, whether or not this batch managed any of it.
     if (result.attempted === 0) break;
   }
-  console.log(`[image-migration cron] migrated=${migrated} failed=${failed} tried=${tried.length}`);
+
+  /* Whatever budget the migration did not need goes to re-framing the
+     photographs already here. Same window, same credential, no second
+     cron: the backlog of hotlinks is finite and shrinking, and when it
+     reaches the hosts that simply refuse us the run would otherwise spend
+     every night discovering that again and stopping.
+
+     Second rather than first because a hotlinked image is a risk — the
+     host can withdraw it tomorrow — and a badly framed one is only ugly.
+     Reaching for the urgent job while it exists is the right order even
+     though the other one is more visible. */
+  let reframed = 0;
+  let reframeFailed = 0;
+  if (configured) {
+    const reframeTried: string[] = [];
+    while (Date.now() - startedAt < TIME_BUDGET_MS) {
+      const r = await renormaliseBatch({
+        budgetMs: Math.max(0, TIME_BUDGET_MS - (Date.now() - startedAt)),
+        skipIds: reframeTried,
+      });
+      reframed += r.migrated;
+      reframeFailed += r.failed.length;
+      reframeTried.push(...r.attemptedIds);
+      for (const f of r.failed) {
+        if ("reason" in f) console.log(`[image-reframe cron] FAILED ${f.reason} :: ${f.from}`);
+      }
+      if (r.attempted === 0) break;
+    }
+  }
+
+  console.log(
+    `[image-migration cron] migrated=${migrated} failed=${failed} tried=${tried.length} ` +
+      `reframed=${reframed} reframeFailed=${reframeFailed}`,
+  );
 
   return NextResponse.json({
     configured,
     migrated,
     failed,
+    reframed,
+    reframeFailed,
     remaining: configured ? await countImagesToMigrate(undefined, HOSTS_THAT_REFUSE_US) : null,
+    remainingToReframe: configured ? await countImagesToRenormalise() : null,
     tookMs: Date.now() - startedAt,
   });
 }

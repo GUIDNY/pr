@@ -46,26 +46,111 @@ import { mayFetch } from "@/lib/inventory/robots-txt";
     so this only ever recovers detail, never invents it. The catalogue grows
     from about 45MB to roughly 127MB, which against 100GB of Pro storage is
     not a consideration. */
-const CANVAS = 1500;
+const CANVAS_MAX = 1500;
 const WEBP_QUALITY = 82;
 
-/* A photograph is padded onto a white square, never cropped and never
-   stretched — a cropped appliance loses the handle, a stretched one is the
-   wrong shape, and both are worse than white space.
+/**
+ * How much of the square the product is meant to occupy.
+ *
+ * The number that was missing. Padding every source onto a fixed 1500px
+ * square with withoutEnlargement sounds conservative and is not: a source
+ * whose product is 133x338 pixels keeps those pixels and gets 1500x1500 of
+ * white around them, so it reaches a category grid filling 2% of its card
+ * while the Philips shaver beside it fills 79%. Measured across 28 live
+ * cards the median was 39% and half were under 40%, which is why a grid of
+ * this catalogue looks ragged: every supplier bakes a different margin into
+ * its photographs and we were preserving all of them faithfully.
+ *
+ * So the margin is ours now, not theirs. Trim whatever white the source
+ * arrived with, then size the canvas to the content rather than the other
+ * way round, and every product lands at the same size on the page whatever
+ * it was shipped as.
+ */
+const TARGET_FILL = 0.86;
 
-   withoutEnlargement matters more than it looks. Without it a 350x238
-   source is interpolated up to fill 800x800: measurably blurrier and,
-   measured on a real catalogue image, 26KB against 13KB. The product keeps
-   its own pixels and the canvas does the rest. */
+/* How close to white still counts as background, 0-255 per channel. A
+   photographer's "white" sweep is rarely 255,255,255 — it falls off to
+   250ish at the corners, and a threshold of 0 trims nothing at all on most
+   real product shots. High enough to catch that, low enough to leave a
+   genuinely pale product (a white fridge on white) alone, because sharp
+   stops at the first row that differs. */
+const TRIM_THRESHOLD = 12;
+
+/* Below this the canvas is not worth squaring up: a thumbnail-sized source
+   blown onto its own small square is just a smaller version of the same
+   problem, and the browser scales it to the card either way. */
+const MIN_CONTENT_PX = 64;
+
+/**
+ * A photograph, trimmed of the margin its supplier chose and given ours.
+ *
+ * Still never cropped into the product and never stretched: trim only
+ * removes uniform background, and the resize is `contain`, so an appliance
+ * keeps its handle and its proportions. What changed is that the white is
+ * now a known quantity instead of whatever arrived.
+ *
+ * withoutEnlargement is gone deliberately, and it is the one real
+ * trade-off here. A small source scaled up to the canvas is softer than it
+ * was. It is also the right call: the card scales the image to its box
+ * regardless, so the browser would do the same interpolation on display —
+ * the only question is whether the product arrives at the box sized like
+ * its neighbours or at 2% of them. CANVAS_MAX caps the output so a large
+ * source is never inflated past what Merchant Center asks for.
+ *
+ * Every step is guarded rather than trusted. trim() throws on an image
+ * with no content at all and returns nothing useful on one with no uniform
+ * border, so a failure falls back to the untrimmed buffer and the image is
+ * padded the way it always was. An unreadable image is returned untouched
+ * rather than dropped.
+ */
 export async function normalizeProductImage(input: Buffer): Promise<Buffer> {
-  return sharp(input)
-    .resize(CANVAS, CANVAS, {
+  /* Flattened first, so a transparent PNG's padding is white and therefore
+     trimmable — and because Google reads transparency as a placeholder. */
+  const flat = await sharp(input)
+    .flatten({ background: "#ffffff" })
+    .toBuffer();
+
+  let content = flat;
+  let meta = await sharp(flat).metadata();
+
+  try {
+    const trimmed = await sharp(flat)
+      .trim({ background: "#ffffff", threshold: TRIM_THRESHOLD })
+      .toBuffer();
+    const trimmedMeta = await sharp(trimmed).metadata();
+    /* A trim that leaves almost nothing means the threshold ate the
+       product — a pale appliance on a pale sweep. Keep the original. */
+    if ((trimmedMeta.width ?? 0) >= MIN_CONTENT_PX && (trimmedMeta.height ?? 0) >= MIN_CONTENT_PX) {
+      content = trimmed;
+      meta = trimmedMeta;
+    }
+  } catch {
+    /* Uniform image, or a format sharp will not trim. Pad it as before. */
+  }
+
+  const longest = Math.max(meta.width ?? CANVAS_MAX, meta.height ?? CANVAS_MAX);
+  const canvas = Math.min(CANVAS_MAX, Math.max(MIN_CONTENT_PX, Math.round(longest / TARGET_FILL)));
+
+  /* Two steps, because one will not do it. `contain` scales the content
+     until it touches the box — ask it for the canvas directly and the
+     product ends up flush against the edge with no margin at all, which is
+     how the first version of this measured 100% fill and looked wrong. So
+     the content is fitted to the inner box and the margin is added after. */
+  const pad = Math.round((canvas * (1 - TARGET_FILL)) / 2);
+  const inner = canvas - pad * 2;
+
+  return sharp(content)
+    .resize(inner, inner, {
       fit: "contain",
-      withoutEnlargement: true,
       background: { r: 255, g: 255, b: 255, alpha: 1 },
     })
-    // A transparent PNG on a white canvas still carries an alpha channel,
-    // and Google treats transparency as a placeholder tell.
+    .extend({
+      top: pad,
+      bottom: pad,
+      left: pad,
+      right: pad,
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    })
     .flatten({ background: "#ffffff" })
     .webp({ quality: WEBP_QUALITY })
     .toBuffer();
@@ -592,6 +677,129 @@ async function attemptMigration(image: MigrationCandidate): Promise<MigrationOut
   } catch (e) {
     return { id: image.id, ok: false, from: image.url, reason: e instanceof Error ? e.message : "שגיאת העלאה" };
   }
+}
+
+/**
+ * The second pass: photographs already on our storage, framed by the old
+ * rule.
+ *
+ * Migrating an image and framing it well are different jobs, and for 1,001
+ * live cards the first was done months before the second was understood.
+ * Those files are ours, they load, and every one of them carries whatever
+ * margin its supplier baked in — so the catalogue is tidy about where its
+ * photographs live and ragged about how they look.
+ *
+ * Versioned by path rather than by a column. Overwriting a file in place
+ * is the obvious move and the wrong one: the CDN and every browser that
+ * has seen the old bytes keep serving them, for a cache lifetime nobody
+ * controls, so half the grid would quietly stay crooked. A new path is a
+ * new URL, served immediately, and the old object stays put as the undo.
+ *
+ * It also makes "done" answerable with a LIKE instead of a migration: an
+ * image under /v2/ has been through the current rule, and anything else
+ * has not.
+ */
+const RENORMALISE_TAG = "v2";
+
+export async function countImagesToRenormalise(): Promise<number> {
+  return db.productImage.count({ where: renormaliseWhere() });
+}
+
+function renormaliseWhere() {
+  return {
+    AND: [
+      { OR: [{ url: { contains: "buytoday.co.il" } }, { url: { contains: "supabase.co" } }] },
+      { NOT: { url: { contains: `/${RENORMALISE_TAG}/` } } },
+    ],
+  };
+}
+
+/**
+ * Re-frame one stored photograph.
+ *
+ * Narrower than migrateOneImage on purpose: the source is our own storage,
+ * so there is no host to be polite to, no robots.txt to read and no
+ * refusal to cool down. What is left is fetch, normalise, store, point.
+ *
+ * sourceImageUrl is never touched. It records where the photograph came
+ * from originally, and re-cropping it does not change that — overwriting
+ * it with our own previous URL would erase the only note of the real
+ * origin.
+ */
+export async function renormaliseOneImage(image: {
+  id: string;
+  url: string;
+  productId: string;
+}): Promise<MigrationOutcome> {
+  let input: Buffer;
+  try {
+    const res = await fetch(image.url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    if (!res.ok) return { id: image.id, ok: false, from: image.url, reason: `HTTP ${res.status}` };
+    const bytes = await res.arrayBuffer();
+    if (bytes.byteLength === 0) return { id: image.id, ok: false, from: image.url, reason: "קובץ ריק" };
+    input = Buffer.from(bytes);
+  } catch (e) {
+    return { id: image.id, ok: false, from: image.url, reason: e instanceof Error ? e.message : "שגיאת רשת" };
+  }
+
+  let output: Buffer;
+  try {
+    output = await normalizeProductImage(input);
+  } catch {
+    return { id: image.id, ok: false, from: image.url, reason: "לא תמונה תקינה" };
+  }
+
+  try {
+    const url = await uploadProductImage(
+      `migrated/${RENORMALISE_TAG}/${image.productId}/${image.id}.webp`,
+      output,
+      "image/webp",
+    );
+    await db.productImage.update({ where: { id: image.id }, data: { url } });
+    return { id: image.id, ok: true, from: image.url, to: url, bytes: output.length };
+  } catch (e) {
+    return { id: image.id, ok: false, from: image.url, reason: e instanceof Error ? e.message : "שגיאת העלאה" };
+  }
+}
+
+export async function renormaliseBatch(opts: {
+  budgetMs: number;
+  skipIds?: string[];
+}): Promise<BatchResult> {
+  const started = Date.now();
+  const failed: MigrationOutcome[] = [];
+  const attemptedIds: string[] = [];
+  let attempted = 0;
+  let migrated = 0;
+
+  while (Date.now() - started < opts.budgetMs) {
+    const next = await db.productImage.findFirst({
+      where: {
+        ...renormaliseWhere(),
+        ...(opts.skipIds?.length || attemptedIds.length
+          ? { id: { notIn: [...(opts.skipIds ?? []), ...attemptedIds] } }
+          : {}),
+      },
+      select: { id: true, url: true, productId: true },
+      orderBy: { id: "asc" },
+    });
+    if (!next) break;
+
+    attempted++;
+    attemptedIds.push(next.id);
+    const outcome = await renormaliseOneImage(next);
+    if (outcome.ok) migrated++;
+    else failed.push(outcome);
+  }
+
+  return {
+    attempted,
+    migrated,
+    failed,
+    attemptedIds,
+    remaining: await countImagesToRenormalise(),
+    configured: isProductImageStorageConfigured(),
+  };
 }
 
 export type BatchResult = {
