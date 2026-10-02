@@ -165,7 +165,15 @@ export function AlfredChatWidget() {
 
       <div
         className={cn(
-          "floating-launcher border-border bg-background fixed bottom-20 start-4 z-50 flex h-[min(32rem,70vh)] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border shadow-2xl transition-all duration-200 lg:bottom-6",
+          /* On a phone the chat is a sheet from the bottom edge, full width,
+             not a floating card: a card sized by the viewport width was the
+             thing that ended up half off-screen the moment iOS zoomed, and a
+             sheet has nowhere to drift. dvh, so the keyboard shrinks it
+             instead of pushing the input out of reach. From sm up it is the
+             floating card it always was. */
+          "floating-launcher border-border bg-background fixed z-50 flex flex-col overflow-hidden border shadow-2xl transition-all duration-200",
+          "max-sm:inset-x-0 max-sm:bottom-0 max-sm:h-[min(85dvh,40rem)] max-sm:w-full max-sm:rounded-t-2xl max-sm:border-x-0 max-sm:border-b-0 max-sm:pb-[env(safe-area-inset-bottom)]",
+          "sm:bottom-20 sm:start-4 sm:h-[min(32rem,70vh)] sm:w-[min(23rem,calc(100vw-2rem))] sm:rounded-2xl lg:bottom-6",
           open ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
         )}
       >
@@ -261,7 +269,7 @@ export function AlfredChatWidget() {
             // thing naming this field, and a placeholder is not a name.
             aria-label="תכתבו לאלפרד את המוצר שתרצו"
             disabled={isSending}
-            className="border-input flex-1 rounded-full border px-4 py-2 text-sm outline-none disabled:opacity-50"
+            className="border-input flex-1 rounded-full border px-4 py-2 text-base outline-none disabled:opacity-50 sm:text-sm"
           />
           <button
             type="button"
