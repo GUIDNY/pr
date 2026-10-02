@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useIsNativeApp } from "@/lib/native-app";
+import { useIsNativeApp, useNativePlatform } from "@/lib/native-app";
 import { GoogleButton } from "@/components/auth/google-button";
 import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
 import { GoogleNativeButton, useGoogleNativeAvailable } from "@/components/auth/google-native-button";
@@ -29,6 +29,7 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
      in the system browser and returning through a Universal Link — a native
      plugin and App Links, not a login page change. */
   const inApp = useIsNativeApp();
+  const platform = useNativePlatform();
   const showGoogle = googleEnabled && !inApp;
   /* Apple is hidden in the app for a narrower reason, and only until the next
      build. Its flow leaves for appleid.apple.com and form_posts back, and the
@@ -40,16 +41,40 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
      next page load. Flip this back once a build carrying that config ships. */
   /* The app gets the native sheet, the web keeps the redirect. Same provider,
      two buttons, because only one of them can work in each place. */
-  const showApple = appleEnabled && !inApp;
+  /* Android keeps the redirect, iOS keeps the sheet.
+   *
+   * Hiding this in "the app" was right while the app was only iOS, where the
+   * native sheet replaces it. Android has no sheet to replace it with, and
+   * Apple's redirect does work in its WebView — appleid.apple.com is listed in
+   * allowNavigation, so the exchange stays inside the app and the session
+   * cookie lands where the app can see it. Hidden on both, Android would have
+   * no way to sign in with Apple at all. */
+  const showApple = appleEnabled && (!inApp || platform === "android");
   /* And only when the running build carries the plugin. Being in the app is
      not enough: this page reaches every install at once, the plugin only the
      ones built since it was added. */
   const appleNativeReady = useAppleNativeAvailable();
-  const showAppleNative = appleNativeEnabled && inApp && appleNativeReady;
+  /* iOS only, and the platform check is not belt and braces.
+   *
+   * @capacitor-community/apple-sign-in is compiled into the Android project
+   * too and answers the bridge there, so asking whether the plugin exists
+   * returns true on a phone that has no Apple sheet to open. Without this the
+   * black button would appear on Android and do nothing. */
+  const showAppleNative =
+    appleNativeEnabled && inApp && platform === "ios" && appleNativeReady;
   /* Google's is the same arrangement: the web keeps its redirect, the app gets
      the sheet, and the button appears only where a build can honour it. */
   const googleNativeReady = useGoogleNativeAvailable();
-  const showGoogleNative = googleNativeEnabled && inApp && googleNativeReady;
+  /* iOS only for now, for a reason that is not about the plugin.
+   *
+   * google-native-button.tsx passes iOSClientId, which is the only credential
+   * configured. Android needs its own OAuth client, and that client cannot be
+   * created until Play has signed the first upload and issued the certificate
+   * fingerprint it is registered against. Until then the sheet would open and
+   * fail, so Android shows no Google button rather than a broken one — Google
+   * refuses OAuth from a WebView, so the web button cannot stand in either. */
+  const showGoogleNative =
+    googleNativeEnabled && inApp && platform === "ios" && googleNativeReady;
   const router = useRouter();
   /* Handed over by the confirmation page, so a guest who just ordered is asked
      for a password and nothing they have already typed. Only ever prefills

@@ -41,7 +41,10 @@ const UA_MARKER = "BuyTodayApp";
 
 declare global {
   interface Window {
-    Capacitor?: { isNativePlatform?: () => boolean };
+    Capacitor?: {
+      isNativePlatform?: () => boolean;
+      getPlatform?: () => string;
+    };
   }
 }
 
@@ -72,4 +75,51 @@ function subscribe() {
  */
 export function useIsNativeApp(): boolean {
   return useSyncExternalStore(subscribe, isNativeApp, () => false);
+}
+
+export type NativePlatform = "ios" | "android";
+
+/**
+ * Which app, when it is an app at all.
+ *
+ * "Inside the app" was a single bit for as long as there was one app, and the
+ * sign-in buttons were written against that bit. Android makes the two
+ * platforms disagree about every one of them:
+ *
+ *   Apple's redirect flow works in the Android WebView and is the only Apple
+ *   sign-in Android can have — there is no native sheet to replace it with.
+ *   Hiding it there leaves Android with no Apple button at all.
+ *
+ *   The native Apple sheet is iOS-only, but its plugin is compiled into the
+ *   Android project too and answers the bridge there. Asking only whether the
+ *   plugin exists would put a black Apple button on Android that cannot open
+ *   anything.
+ *
+ *   Google refuses OAuth from an embedded WebView on both, so its web button
+ *   stays hidden in both — but its native sheet needs an Android client id and
+ *   a registered signing fingerprint, neither of which exists yet.
+ *
+ * Capacitor answers this directly. The user agent is the fallback for the same
+ * reason isNativeApp has one: the page is loaded from the live site, so a
+ * bridge that failed to inject must not silently take a button away. An app
+ * whose platform cannot be determined gets no provider button rather than a
+ * broken one — every caller treats null as "not this platform".
+ */
+export function nativePlatform(): NativePlatform | null {
+  if (!isNativeApp()) return null;
+  try {
+    const reported = window.Capacitor?.getPlatform?.();
+    if (reported === "ios" || reported === "android") return reported;
+    const ua = window.navigator.userAgent;
+    if (/Android/i.test(ua)) return "android";
+    if (/iPhone|iPad|iPod/i.test(ua)) return "ios";
+  } catch {
+    // Same as isNativeApp: an unreadable bridge is not a platform.
+  }
+  return null;
+}
+
+/** As a React value, alongside useIsNativeApp and for the same reasons. */
+export function useNativePlatform(): NativePlatform | null {
+  return useSyncExternalStore(subscribe, nativePlatform, () => null);
 }
