@@ -6,6 +6,7 @@ import { colorInTitle } from "@/lib/catalog/variant-colors";
 import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
+import { resolveIntent } from "@/lib/alfred/intent";
 
 /**
  * Exactly what a product card renders, and nothing else.
@@ -707,16 +708,27 @@ export async function rankedSearchIds(query: string, take: number): Promise<stri
   const titleOnly = like
     .map((_, i) => `(CASE WHEN p.title ILIKE $${i + 1} THEN 1 ELSE 0 END)`)
     .join(" + ");
-  /* A word that names the row's own category outranks one that merely
-     appears in its title. "מקרן" is in the title of every soundbar (מקרן
-     קול) and every patio heater (מקרן חום), and with title and category
-     scored alike the two projectors tied with eleven soundbars and lost
-     on price. The shelf the word names comes first. */
-  const categoryOnly = like
-    .map((_, i) => `(CASE WHEN c.name ILIKE $${i + 1} THEN 1 ELSE 0 END)`)
-    .join(" + ");
-
   const params: unknown[] = [...like];
+
+  /* The shelf the words name comes first.
+     "מקרן" is in the title of every soundbar (מקרן קול) and every patio
+     heater (מקרן חום), and with every field scored alike the two
+     projectors tied with eleven soundbars and lost on price. A substring
+     on the category name cannot break that tie either: the category is
+     "מקרנים", with a plain nun, and the word ends in a final one. So the
+     same resolver Alfred uses reads the query (lib/alfred/intent.ts —
+     stems, prefixes, synonyms, longest phrase wins), and every row on the
+     shelf it names outranks every row that merely mentions the word. */
+  const intentSlugs = resolveIntent({ userMessages: [query] }).categorySlugs;
+  let shelfScore = "0";
+  if (intentSlugs.length > 0) {
+    const list = intentSlugs.map((slug) => {
+      params.push(slug);
+      return `$${params.length}`;
+    });
+    shelfScore = `(CASE WHEN c.slug IN (${list.join(", ")}) OR pc.slug IN (${list.join(", ")}) THEN 50 ELSE 0 END)`;
+  }
+
   let priceClause = "";
   if (maxPrice !== null) {
     params.push(maxPrice);
@@ -729,11 +741,12 @@ export async function rankedSearchIds(query: string, take: number): Promise<stri
     `
     WITH scored AS (
       SELECT p.id,
-             (${anyField}) * 10 + (${categoryOnly}) * 5 + (${titleOnly}) AS score,
+             ${shelfScore} + (${anyField}) * 10 + (${titleOnly}) AS score,
              p."isBestSeller" AS best,
              p.price AS price
       FROM "Product" p
       JOIN "Category" c ON c.id = p."categoryId"
+      LEFT JOIN "Category" pc ON pc.id = c."parentId"
       LEFT JOIN "Brand" b ON b.id = p."brandId"
       -- PUBLIC_PRODUCT_WHERE, by hand. This is raw SQL, so the constant
       -- cannot be spread here, and that is exactly how the NEEDS_REVIEW
