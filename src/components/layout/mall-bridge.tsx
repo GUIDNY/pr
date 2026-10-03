@@ -3,7 +3,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
-import { useIsNativeApp } from "@/lib/native-app";
 import { showsBottomNav } from "@/lib/bottom-nav";
 import {
   FROM_MALL_EVENT,
@@ -18,6 +17,7 @@ import {
 } from "@/lib/mall";
 import { cn } from "@/lib/utils";
 import { PAYMENT_CAPTURED_EVENT } from "@/components/analytics/meta-events";
+import { useMallInView } from "@/components/layout/mall-link";
 
 /**
  * The shop's half of the 3D mall's conversation — see lib/mall.ts for the
@@ -154,7 +154,7 @@ function readFromMall(): boolean {
  */
 export function BackToMallPill() {
   const fromMall = useSyncExternalStore(subscribeFromMall, readFromMall, () => false);
-  const inApp = useIsNativeApp();
+  const inApp = useMallInView();
   const pathname = usePathname();
 
   if (!fromMall || pathname.startsWith("/admin")) return null;
