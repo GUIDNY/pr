@@ -55,10 +55,11 @@ async function searchLadder(intent: ShoppingIntent): Promise<{ result: SearchRes
   };
   const scoped = intent.categorySlugs.length > 0 || intent.brandNames.length > 0;
   const notes: string[] = [];
+  const words = [...intent.phraseWords, ...intent.words].slice(0, 6);
 
-  let result = await searchForChat(intent.words, { ...base, maxPrice: intent.maxPrice ?? undefined });
+  let result = await searchForChat(words, { ...base, maxPrice: intent.maxPrice ?? undefined });
   if (result.products.length === 0 && scoped && intent.maxPrice !== null) {
-    result = await searchForChat(intent.words, { ...base, sort: "cheapest" });
+    result = await searchForChat(words, { ...base, sort: "cheapest" });
     if (result.products.length > 0) {
       notes.push(
         `הערה: אין אף דגם עד ${intent.maxPrice}₪ בתחום הזה. הרשימה למעלה היא הדגמים הזולים ביותר שיש, מעל התקציב — אומרים את זה ללקוח בכנות ונוקבים במחיר הזול ביותר.`
@@ -66,7 +67,7 @@ async function searchLadder(intent: ShoppingIntent): Promise<{ result: SearchRes
     }
   }
   if (result.products.length === 0 && intent.brandNames.length > 0 && intent.categorySlugs.length > 0) {
-    result = await searchForChat(intent.words, {
+    result = await searchForChat(words, {
       ...base,
       brandNames: [],
       maxPrice: intent.maxPrice ?? undefined,

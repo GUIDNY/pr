@@ -60,6 +60,8 @@ is("english", resolve("projector").categorySlugs, ["projectors"]);
 is("transliterated", resolve("פרוז'קטור לסלון").categorySlugs, ["projectors"]);
 is("מקרן קול is a soundbar", resolve("מקרן קול").categorySlugs, ["soundbars", "speakers"]);
 is("מקרני קול too", resolve("אילו מקרני קול יש?").categorySlugs, ["soundbars", "speakers"]);
+is("the phrase ranks soundbars above plain speakers", resolve("מקרני קול עד 2000").phraseWords, ["מקרן", "קול"]);
+is("a plain-word phrase is still handed over", resolve("מקרן").phraseWords, ["מקרן"]);
 is("מקרן חום is a heater", resolve("מקרן חום לחצר").categorySlugs, ["heaters", "heat-fans", "radiators"]);
 
 console.log("\nthe cheapest fridge, asked after the projector");

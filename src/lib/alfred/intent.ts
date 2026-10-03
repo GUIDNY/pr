@@ -62,6 +62,13 @@ export type ShoppingIntent = {
   /** The words left after category, brand, price and filler are removed —
       what the row scorer still has to work with ("65", "אינץ", "שקט"). */
   words: string[];
+  /** The lexicon phrase that resolved the category, as words for the
+      scorer. A phrase is often narrower than the shelf it maps to —
+      soundbars are filed under רמקולים — and without these the cheapest
+      plain speakers outranked every soundbar and Alfred said there were
+      none. Inside a shelf where every title carries the word they change
+      nothing. */
+  phraseWords: string[];
 };
 
 /* ------------------------------------------------------------------------
@@ -389,14 +396,13 @@ function prefixVariants(token: string): string[] {
   return out;
 }
 
-type Phrase = { stems: string[]; entry: number };
-
-function phraseStems(phrase: string): string[] {
-  return tokenize(phrase).map(stem);
-}
+type Phrase = { stems: string[]; words: string[]; entry: number };
 
 const CATEGORY_PHRASES: Phrase[] = LEXICON.flatMap((entry, i) =>
-  entry.phrases.map((p) => ({ stems: phraseStems(p), entry: i }))
+  entry.phrases.map((p) => {
+    const words = tokenize(p);
+    return { stems: words.map(stem), words, entry: i };
+  })
 );
 
 /** Does the lexicon phrase sit at position `at` of the customer's words? */
@@ -408,7 +414,7 @@ function phraseAt(tokenStems: string[][], at: number, phrase: string[]): boolean
   return true;
 }
 
-type Match = { entry: number; start: number; length: number };
+type Match = { entry: number; start: number; length: number; words: string[] };
 
 /** Every lexicon phrase found in the text, longest first, earliest first. */
 function findCategoryMatches(tokens: string[]): Match[] {
@@ -417,7 +423,7 @@ function findCategoryMatches(tokens: string[]): Match[] {
   for (const phrase of CATEGORY_PHRASES) {
     for (let i = 0; i < tokens.length; i++) {
       if (phraseAt(tokenStems, i, phrase.stems)) {
-        matches.push({ entry: phrase.entry, start: i, length: phrase.stems.length });
+        matches.push({ entry: phrase.entry, start: i, length: phrase.stems.length, words: phrase.words });
       }
     }
   }
@@ -587,5 +593,6 @@ export function resolveIntent(input: IntentInput): ShoppingIntent {
     maxPrice,
     sort,
     words: words.slice(0, 6),
+    phraseWords: best ? best.words.filter((w) => w.length >= 2) : [],
   };
 }
