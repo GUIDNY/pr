@@ -999,39 +999,86 @@ export type ChatProduct = {
 
 export type CategorySpread = { name: string; count: number; minPrice: number; maxPrice: number };
 
+export type ChatSearchOptions = {
+  limit?: number;
+  maxPrice?: number;
+  /** Leaf category slugs to stay inside. With this set the words may be
+      empty — "the cheapest fridge" has no scoring word left once "fridge"
+      has become the category, and the shelf itself is the answer. */
+  categorySlugs?: string[];
+  /** Brand names exactly as stored on Brand rows. */
+  brandNames?: string[];
+  sort?: "cheapest" | "priciest" | "popular";
+};
+
 export async function searchForChat(
   words: string[],
-  opts: { limit?: number; maxPrice?: number } = {}
+  opts: ChatSearchOptions = {}
 ): Promise<{ products: ChatProduct[]; spread: CategorySpread[]; totalMatches: number }> {
   const terms = words.filter((w) => w.length >= 2).slice(0, 6);
-  if (terms.length === 0) return { products: [], spread: [], totalMatches: 0 };
+  const categorySlugs = (opts.categorySlugs ?? []).slice(0, 40);
+  const brandNames = (opts.brandNames ?? []).slice(0, 10);
+  if (terms.length === 0 && categorySlugs.length === 0 && brandNames.length === 0) {
+    return { products: [], spread: [], totalMatches: 0 };
+  }
 
-  const limit = opts.limit ?? 10;
+  const limit = Math.max(1, Math.min(opts.limit ?? 10, 20));
   const priceCeiling = opts.maxPrice ?? null;
 
   /* Written as SQL because the ranking is the point and Prisma cannot
-     express "how many of these words did this row match". Every term is a
-     bound parameter — none of it is concatenated into the statement. */
-  const like = terms.map((t) => `%${t}%`);
-  const scoreSql = like
-    .map(
-      (_, i) =>
-        `(CASE WHEN p.title ILIKE $${i + 1} OR c.name ILIKE $${i + 1} OR COALESCE(b.name,'') ILIKE $${i + 1} OR COALESCE(p.model,'') ILIKE $${i + 1} THEN 1 ELSE 0 END)`
-    )
-    .join(" + ");
+     express "how many of these words did this row match". Every term,
+     slug, brand and price is a bound parameter — none of it is
+     concatenated into the statement. */
+  const params: unknown[] = [];
+  const bind = (value: unknown) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
 
-  const priceParam = like.length + 1;
-  const priceClause = priceCeiling !== null ? `AND p.price <= $${priceParam}` : "";
-  const params: unknown[] = [...like];
-  if (priceCeiling !== null) params.push(priceCeiling);
+  const wordScore =
+    terms.length > 0
+      ? terms
+          .map((t) => {
+            const ph = bind(`%${t}%`);
+            return `(CASE WHEN p.title ILIKE ${ph} OR c.name ILIKE ${ph} OR COALESCE(b.name,'') ILIKE ${ph} OR COALESCE(p.model,'') ILIKE ${ph} THEN 1 ELSE 0 END)`;
+          })
+          .join(" + ")
+      : "0";
+  /* Inside a resolved category every row is a hit, and the words only
+     rank them. Outside one, a row has to match a word to count at all —
+     that is what keeps "what are your delivery times" from returning a
+     shaver. */
+  const scoreSql = categorySlugs.length > 0 || brandNames.length > 0 ? `(${wordScore}) + 1` : `(${wordScore})`;
 
-  const sql = `
+  const clauses: string[] = [];
+  if (categorySlugs.length > 0) {
+    const list = categorySlugs.map((s) => bind(s)).join(", ");
+    clauses.push(`AND (c.slug IN (${list}) OR pc.slug IN (${list}))`);
+  }
+  if (brandNames.length > 0) {
+    clauses.push(`AND b.name IN (${brandNames.map((n) => bind(n)).join(", ")})`);
+  }
+  if (priceCeiling !== null) clauses.push(`AND p.price <= ${bind(priceCeiling)}`);
+  const extraWhere = clauses.join("\n        ");
+
+  const orderBy =
+    opts.sort === "cheapest"
+      ? "s.price ASC, s.score DESC"
+      : opts.sort === "priciest"
+        ? "s.price DESC, s.score DESC"
+        : opts.sort === "popular"
+          ? "s.best DESC, s.score DESC, s.cat_size DESC, s.price ASC"
+          : "s.score DESC, s.cat_size DESC, s.best DESC, s.price ASC";
+
+  const matchedCte = `
     WITH matched AS (
       SELECT p.id, p.title, p.slug, p.price, p."stockStatus", p."shortDescription", p.model,
+             p."isBestSeller" AS best,
              COALESCE(b.name, '') AS brand_name, c.name AS category_name,
-             (${scoreSql}) AS score
+             ${scoreSql} AS score
       FROM "Product" p
       JOIN "Category" c ON c.id = p."categoryId"
+      LEFT JOIN "Category" pc ON pc.id = c."parentId"
       LEFT JOIN "Brand" b ON b.id = p."brandId"
       -- PUBLIC_PRODUCT_WHERE, by hand. This is raw SQL, so the constant
       -- cannot be spread here, and that is exactly how the NEEDS_REVIEW
@@ -1041,8 +1088,10 @@ export async function searchForChat(
       WHERE p."isPublished" AND p."stockQty" > 0
         AND p."stockStatus" <> 'NEEDS_REVIEW'
         AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
-        ${priceClause}
-    ), hits AS (
+        ${extraWhere}
+    )`;
+
+  const sql = `${matchedCte}, hits AS (
       SELECT * FROM matched WHERE score > 0
     ), sized AS (
       SELECT h.*, COUNT(*) OVER (PARTITION BY h.category_name) AS cat_size FROM hits h
@@ -1051,27 +1100,11 @@ export async function searchForChat(
            s.brand_name, s.category_name, s.score, s.cat_size,
            (SELECT i.url FROM "ProductImage" i WHERE i."productId" = s.id ORDER BY i."sortOrder" ASC LIMIT 1) AS image_url
     FROM sized s
-    ORDER BY s.score DESC, s.cat_size DESC, s.price ASC
+    ORDER BY ${orderBy}
     LIMIT ${limit}
   `;
 
-  const spreadSql = `
-    WITH matched AS (
-      SELECT p.price, c.name AS category_name,
-             (${scoreSql}) AS score
-      FROM "Product" p
-      JOIN "Category" c ON c.id = p."categoryId"
-      LEFT JOIN "Brand" b ON b.id = p."brandId"
-      -- PUBLIC_PRODUCT_WHERE, by hand. This is raw SQL, so the constant
-      -- cannot be spread here, and that is exactly how the NEEDS_REVIEW
-      -- condition went missing from search while every Prisma query picked
-      -- it up for free. Any change to that constant has to be copied into
-      -- all three of these blocks; there is no compiler to notice.
-      WHERE p."isPublished" AND p."stockQty" > 0
-        AND p."stockStatus" <> 'NEEDS_REVIEW'
-        AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
-        ${priceClause}
-    )
+  const spreadSql = `${matchedCte}
     SELECT category_name, COUNT(*)::int AS count, MIN(price)::int AS min_price, MAX(price)::int AS max_price
     FROM matched WHERE score > 0
     GROUP BY category_name ORDER BY count DESC LIMIT 12

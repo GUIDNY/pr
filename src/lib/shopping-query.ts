@@ -5,8 +5,12 @@
 // it degrades gracefully — a query with no price phrase in it just
 // searches as plain text, same as before.
 const PRICE_PATTERNS = [
-  /(?:עד|מתחת ל-?|פחות מ-?)\s*₪?\s*([\d,]+)\s*(?:₪|ש"ח|ש״ח|שח)?/,
+  /(?:עד|מתחת ל-?|פחות מ-?|מקסימום|לא יותר מ-?|בתקציב של|תקציב של|התקציב שלי הוא|התקציב שלי|תקציב|בסביבות|סביב)\s*₪?\s*([\d,]+)\s*(?:₪|ש"ח|ש״ח|שח|שקל|שקלים)?/,
   /₪\s*([\d,]+)\s*(?:ומטה|לכל היותר)/,
+  // A sum with a currency mark and nothing else around it — "יש לי 1,990
+  // ₪" — is a budget; nobody names a price they are not bounded by.
+  /(?:^|\s)₪\s*([\d,]{3,})/,
+  /(?:^|\s)([\d,]{3,})\s*(?:₪|ש"ח|ש״ח|שח|שקל|שקלים)(?=\s|$|[.,!?])/,
 ];
 
 // Real product titles are often just "brand + model" with no description

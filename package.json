@@ -43,6 +43,7 @@
     "cap:ios": "cap sync ios && cap open ios",
     "seed:guides": "tsx scripts/seed-buying-guides.ts",
     "check:delivery": "tsx scripts/check-delivery-promise.ts",
+    "check:alfred": "tsx scripts/check-alfred-intent.ts",
     "seed:intros": "tsx scripts/seed-category-intros.ts"
   },
   "prisma": {

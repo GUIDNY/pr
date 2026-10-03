@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { searchForChat } from "@/lib/queries/products";
-import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
+import { searchForChat, type ChatSearchOptions } from "@/lib/queries/products";
+import { resolveIntent, type BrandRef, type ShoppingIntent } from "@/lib/alfred/intent";
 import { getChatbotSettings } from "@/lib/queries/chatbot-settings";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
 
@@ -25,53 +25,60 @@ const RATE_WINDOW_MS = 30 * 60 * 1000;
 
 type ChatTurn = { role: "user" | "model"; text: string };
 
-/* Words that mean the visitor is asking about the shop, not naming a thing
-   to buy.
+type SearchResult = Awaited<ReturnType<typeof searchForChat>>;
+const EMPTY_SEARCH: SearchResult = { products: [], spread: [], totalMatches: 0 };
+
+/* The brand names, for reading "בוש" or "samsung" out of a message. A
+   hundred and fifty short rows; refreshed every ten minutes per warm
+   instance rather than on every message. */
+let brandCache: { at: number; brands: BrandRef[] } | null = null;
+async function listBrands(): Promise<BrandRef[]> {
+  if (brandCache && Date.now() - brandCache.at < 10 * 60 * 1000) return brandCache.brands;
+  const brands = await db.brand.findMany({ select: { name: true } });
+  brandCache = { at: Date.now(), brands };
+  return brands;
+}
+
+/* The search, then the honest fallbacks.
  *
- * The product search underneath is a plain substring `contains`, and that is
- * a blunt instrument pointed at a catalogue of two thousand titles: any word
- * long enough to survive the length filter will be found inside *something*.
- * "מה זמן המשלוח שלכם?" returned an electric shaver, because "משלוח" appears
- * in its description, and the customer got a razor attached to an answer
- * about delivery times.
- *
- * The length filter alone cannot fix that — "המשלוח" is six letters. What
- * separates the two cases is not length but subject: these words belong to
- * questions about policy, and a question about policy wants a sentence, not
- * a shelf. Strip them, and if nothing is left, search for nothing.
- *
- * Only words that are never a product. "מקרר" and "בוש" are not here and
- * never will be. */
-const CONVERSATIONAL_WORDS = new Set([
-  // delivery, warranty, payment, returns — the policy questions
-  "משלוח", "המשלוח", "משלוחים", "המשלוחים", "לשלוח", "שליח", "שילוח",
-  "אחריות", "האחריות", "אחריותה", "תשלום", "התשלום", "לשלם", "תשלומים",
-  "החזרה", "החזרות", "להחזיר", "ביטול", "לבטל", "זיכוי", "החלפה", "להחליף",
-  "הזמנה", "ההזמנה", "הזמנות", "להזמין", "מחיר", "המחיר", "מחירים",
-  "חשבונית", "קבלה", "מבצע", "מבצעים", "הנחה", "הנחות", "קופון",
-  // the shop itself
-  "חנות", "החנות", "סניף", "סניפים", "כתובת", "הכתובת", "טלפון", "הטלפון",
-  "שעות", "פתוח", "סגור", "שירות", "השירות", "לקוחות", "עסקים",
-  // question and filler words long enough to slip past the length filter
-  "שלכם", "שלכן", "שלנו", "אצלכם", "איפה", "מתי", "כמה", "למה", "איך",
-  "אפשר", "אפשרי", "רוצה", "רציתי", "מחפש", "מחפשת", "צריך", "צריכה",
-  "תוכל", "תוכלי", "יכול", "יכולה", "בבקשה", "תודה", "שלום", "היי",
-  "שאלה", "שאלות", "לשאול", "לדעת", "להבין", "עוזר", "לעזור", "עזרה",
-  "יום", "ימים", "שבוע", "שבועות", "חודש", "חודשים", "היום", "מחר",
-  /* "זמן" was the one that got through on the very question this list was
-     written for, and it landed on the same shaver: its title reads
-     "משוב לחץ בזמן אמת". A word this ordinary will always be inside
-     something in a catalogue this size. */
-  "זמן", "הזמן", "זמנים", "זמני", "לוקח", "לוקחת", "מגיע", "מגיעה", "מגיעים",
-  "עולה", "עולים", "עולות", "כולל", "כוללת", "נמצא", "קיים", "זמין", "זמינות",
-  /* "אני רוצה מקרר חדש לבית" was searched as מקרר OR חדש OR לבית, and the
-     last two match most of a catalogue full of "חדש בקטלוג" and "מוצרי חשמל
-     לבית". They describe the shopper's situation, never the thing they
-     want. */
-  "חדש", "חדשה", "חדשים", "ישן", "ישנה", "לבית", "בבית", "הבית", "לדירה",
-  "בשביל", "עבור", "טוב", "טובה", "טובים", "הכי", "ממליץ", "ממליצים", "המלצה",
-  "משהו", "כזה", "כזאת", "איזה", "איזו", "בערך", "אולי", "צריכים", "רוצים",
-]);
+ * A customer with ₪1,500 for a projector whose cheapest is ₪1,990 should
+ * hear "the cheapest we have is ₪1,990", not "we have nothing" — so a
+ * budget that empties the shelf is lifted and the model is told. A brand
+ * the shop does not carry in that category is handled the same way: the
+ * category's other brands, with a note saying so. */
+async function searchLadder(intent: ShoppingIntent): Promise<{ result: SearchResult; notes: string[] }> {
+  const base: ChatSearchOptions = {
+    limit: 6,
+    categorySlugs: intent.categorySlugs,
+    brandNames: intent.brandNames,
+    sort: intent.sort ?? undefined,
+  };
+  const scoped = intent.categorySlugs.length > 0 || intent.brandNames.length > 0;
+  const notes: string[] = [];
+
+  let result = await searchForChat(intent.words, { ...base, maxPrice: intent.maxPrice ?? undefined });
+  if (result.products.length === 0 && scoped && intent.maxPrice !== null) {
+    result = await searchForChat(intent.words, { ...base, sort: "cheapest" });
+    if (result.products.length > 0) {
+      notes.push(
+        `הערה: אין אף דגם עד ${intent.maxPrice}₪ בתחום הזה. הרשימה למעלה היא הדגמים הזולים ביותר שיש, מעל התקציב — אומרים את זה ללקוח בכנות ונוקבים במחיר הזול ביותר.`
+      );
+    }
+  }
+  if (result.products.length === 0 && intent.brandNames.length > 0 && intent.categorySlugs.length > 0) {
+    result = await searchForChat(intent.words, {
+      ...base,
+      brandNames: [],
+      maxPrice: intent.maxPrice ?? undefined,
+    });
+    if (result.products.length > 0) {
+      notes.push(
+        `הערה: אין דגמים של ${intent.brandLabel} בקטגוריה הזו. הרשימה למעלה היא ממותגים אחרים — אומרים את זה ללקוח לפני שמציעים אותם.`
+      );
+    }
+  }
+  return { result, notes };
+}
 
 // The shipping/warranty/hours facts are NOT hardcoded here — they come
 // live from ChatbotSettings (editable at /admin/chatbot) on every request,
@@ -94,7 +101,14 @@ function buildPersona(settings: {
        on top or bottom, how big, what are you spending. Then they walk you
        to a specific machine. */
     `איך עונים כשמישהו מחפש מוצר:`,
-    `— לפני שממליצים על דגם, צריך לדעת לפחות שניים מהשלושה: איזה סוג/תצורה, איזה גודל או נפח, ומה התקציב. כל עוד לא יודעים שניים — שואלים, לא ממליצים.`,
+    `— בקטגוריה גדולה (עשרות דגמים מכמה סוגים), לפני שממליצים על דגם צריך לדעת לפחות שניים מהשלושה: איזה סוג/תצורה, איזה גודל או נפח, ומה התקציב. כל עוד לא יודעים שניים — שואלים, לא ממליצים.`,
+    /* The rule above is for a fridge department of 222. Pointed at a shelf
+       of two projectors it produced a clarifying question about a choice
+       that does not exist, and then — handed six soundbars — a denial that
+       the shelf exists at all. */
+    `— אם זוהתה קטגוריה והרשימה מסומנת "הרשימה המלאה" (קטגוריה קטנה) — לא שואלים שאלות בירור. מציגים את הדגמים שיש בשמם המלא ובמחירם, ואומרים איזה מהם מתאים לבקשה ולתקציב.`,
+    `— כשהלקוח מבקש את הזול ביותר, היקר ביותר או הנמכר ביותר — הרשימה כבר ממוינת לפי זה והדגם הראשון הוא התשובה. נוקבים בו מיד בשם המלא ובמחיר, בלי בירור. אם הוא מסוג צדדי ביחס לבקשה (למשל מקרר משרדי קטן כשביקשו "מקרר") — אומרים זאת במשפט ושואלים אם התכוונו לזה או למקרר ביתי מלא.`,
+    `— אסור לטעון שאין בחנות מוצרים מתחום שמופיע ב"מה שיש בחנות בפועל". אם זוהתה קטגוריה — יש בה מוצרים והם ברשימה; עונים עליהם.`,
     `— שאלה אחת בכל פעם. משפט קצר ואז השאלה, עם 2-3 אפשרויות קונקרטיות מתוך פירוט הקטגוריות (כמה דגמים יש מכל סוג ומאיזה מחיר) כדי שיהיה קל לענות.`,
     `— כששואלים שאלה מכוונת — אל תזכיר שום דגם ספציפי בשם. זה שלב הבירור, לא שלב ההצעה. מוכר טוב לא שם ארבעה מקררים על הדלפק כששאל "איזה סוג חיפשת".`,
     `— רק כשיש מספיק מידע: ממליצים על 1-2 דגמים בשם המלא (כולל קוד הדגם) ובמחיר, ולכל אחד משפט אחד שמסביר למה דווקא הוא מתאים למה שהלקוח ביקש — מתוך התיאור שניתן לך.`,
@@ -169,68 +183,17 @@ export async function POST(request: Request) {
     ? record.pinnedProductIds.filter((x): x is string => typeof x === "string").slice(0, 5)
     : [];
 
-  // searchProducts's word-matching is a plain substring `contains` — great
-  // for a real product query, but a short common word like "מה" (what) is a
-  // substring hit inside completely unrelated titles (e.g. "...נפתח מהקיר
-  // ..."), so a conversational question ("מה זמן המשלוח שלכם?") ends up
-  // "matching" random products that then get attached as cards under an
-  // answer that never mentions them. Stripping words under 3 real letters
-  // *before* they ever reach searchProducts (not just gating on whether one
-  // exists) fixes this — confirmed by hand: the raw message here 5-matched
-  // wall-mount arms via "מה", the filtered one correctly matches nothing.
-  //
-  // The length rule is necessary and not sufficient: "המשלוח" is six letters
-  // and still matched a shaver. CONVERSATIONAL_WORDS above catches the rest.
-  /* The search reads the conversation, not the last line of it.
-   *
-   * This is the bug that made Alfred invent two fridges. Asked "אני מחפש
-   * מקרר", then "4 דלתות", then "עד 5000 שקל וחשוב לי שיהיה גדול", the
-   * search ran on that last sentence alone — which contains no product word
-   * at all, because the product was named two turns earlier. The context
-   * arrived empty on the very turn a recommendation was due, and the model
-   * filled the gap itself: a Midea HQ-627WEN and a Hisense RQ68N4BIE, with
-   * volumes, prices and features. Neither exists.
-   *
-   * A shopper narrowing down does not repeat what they are shopping for, so
-   * the words that matter are spread across turns. Recent turns first, and
-   * only the customer's own words — echoing the model's replies back into
-   * the search would let one wrong guess feed itself. */
-  const recentUserText = [
-    message,
-    ...history
-      .filter((h) => h.role === "user")
-      .slice(-4)
-      .reverse()
-      .map((h) => h.text),
-  ].join(" ");
-
-  const { maxPrice } = parseShoppingQuery(message);
-  const seenWords = new Set<string>();
-  const substantiveWords = splitSearchWords(parseShoppingQuery(recentUserText).text)
-    .map((w) => w.replace(/[?!.,]/g, ""))
-    .filter((w) => {
-      if (w.length < 3 || CONVERSATIONAL_WORDS.has(w) || seenWords.has(w)) return false;
-      seenWords.add(w);
-      return true;
-    });
-
-  /* A budget with nothing else in it would match the whole catalogue under
-     that number, so the ceiling only applies alongside real words. */
-  const priceCeiling = substantiveWords.length > 0 && maxPrice !== null ? maxPrice : undefined;
+  /* What is the customer shopping for? Decided before any query runs — see
+     lib/alfred/intent.ts for why a substring search could not be trusted
+     with that question. The customer's own turns only, newest first; the
+     model's replies are never read back, so one wrong guess cannot feed
+     itself. */
+  const userMessages = [message, ...history.filter((h) => h.role === "user").map((h) => h.text).reverse()].slice(0, 6);
+  const intent = resolveIntent({ userMessages, brands: await listBrands() });
+  const hasTarget = intent.categorySlugs.length > 0 || intent.brandNames.length > 0 || intent.words.length > 0;
 
   const [search, settings, pinnedRows] = await Promise.all([
-    substantiveWords.length > 0
-      /* Six, and the same six become the cards below the reply.
-       *
-       * With ten in context and four on screen, Alfred recommended a Hitachi
-       * at ₪8,200 that the customer had no way to click — it was in the list
-       * the model read and not in the list it could see. Naming a product
-       * and not showing it wastes the recommendation, and the fix is for the
-       * two lists to be one list. Six is enough range to choose from; the
-       * breadth of the shop is carried by the category breakdown, not by
-       * how many examples are pasted in. */
-      ? searchForChat(substantiveWords, { limit: 6, maxPrice: priceCeiling })
-      : Promise.resolve({ products: [], spread: [], totalMatches: 0 }),
+    hasTarget ? searchLadder(intent) : Promise.resolve({ result: EMPTY_SEARCH, notes: [] as string[] }),
     getChatbotSettings(),
     pinnedIds.length > 0
       ? db.product.findMany({
@@ -267,29 +230,52 @@ export async function POST(request: Request) {
           .map((p) => `- ${p.title} | מותג: ${p.brandName} | מחיר: ${p.price}₪ | סטטוס מלאי: ${p.stockStatus}`)
           .join("\n")
       : "";
+
+  /* What was understood, in plain words, so the model answers the question
+     that was asked — "the cheapest fridge" is a sort inside a category, not
+     a paragraph about fridges in general. */
+  const understood = [
+    intent.categoryLabel ? `קטגוריה: ${intent.categoryLabel}` : null,
+    intent.brandLabel ? `מותג: ${intent.brandLabel}` : null,
+    intent.maxPrice !== null ? `תקציב: עד ${intent.maxPrice}₪` : null,
+    intent.sort === "cheapest"
+      ? "מיון מבוקש: הזול ביותר (הרשימה ממוינת מהזול ליקר, הראשון הוא הזול ביותר)"
+      : intent.sort === "priciest"
+        ? "מיון מבוקש: היקר/המשובח ביותר (הרשימה ממוינת מהיקר לזול)"
+        : intent.sort === "popular"
+          ? "מיון מבוקש: הנמכרים/המומלצים ביותר (הרשימה ממוינת לפי פופולריות)"
+          : null,
+  ].filter(Boolean);
+  const intentContext =
+    understood.length > 0 ? `מה הובן מהבקשה של הלקוח (זוהה מהמילים שלו): ${understood.join(" · ")}` : "";
+
   /* What the shop really holds for this question — the part that lets Alfred
      ask "which kind?" instead of describing whichever ten rows came back.
      Without it a model handed ten products says the shop has ten products'
      worth of range, which is how a customer asking for a fridge was told
      this shop sells mini-bars. */
   const spreadContext =
-    search.spread.length > 0
-      ? `מה שיש בחנות בפועל בתחום שנשאל (זה המקור היחיד לתיאור המגוון — סה"כ ${search.totalMatches} מוצרים):\n` +
-        search.spread
+    search.result.spread.length > 0
+      ? `מה שיש בחנות בפועל בתחום שנשאל (זה המקור היחיד לתיאור המגוון — סה"כ ${search.result.totalMatches} מוצרים):\n` +
+        search.result.spread
           .map((c) => `- ${c.name}: ${c.count} דגמים, ${c.minPrice}₪–${c.maxPrice}₪`)
           .join("\n")
       : "";
 
+  const complete = search.result.products.length > 0 && search.result.totalMatches <= search.result.products.length;
   const searchContext =
-    search.products.length > 0
-      ? "דגמים לדוגמה מתוך המלאי (רק דוגמאות, לא כל המגוון. אסור לשנות מחיר או סטטוס):\n" +
-        search.products
+    search.result.products.length > 0
+      ? (complete
+          ? "כל הדגמים שיש בתחום הזה (זו הרשימה המלאה — אין דגמים נוספים. אסור לשנות מחיר או סטטוס):\n"
+          : "דגמים לדוגמה מתוך המלאי (רק דוגמאות, לא כל המגוון. אסור לשנות מחיר או סטטוס):\n") +
+        search.result.products
           .map(
             (p) =>
               `- ${p.title} | מותג: ${p.brandName} | קטגוריה: ${p.categoryName} | מחיר: ${p.price}₪ | מלאי: ${p.stockStatus}` +
               (p.summary ? `\n  תיאור: ${p.summary}` : "\n  תיאור: (אין תיאור לדגם הזה)")
           )
-          .join("\n")
+          .join("\n") +
+        (search.notes.length > 0 ? `\n${search.notes.join("\n")}` : "")
       : pinnedProducts.length > 0
         ? ""
         : "לא נמצאו מוצרים תואמים לחיפוש על ההודעה האחרונה — אין להמציא מוצר; להציע ללקוח לנסח אחרת או להפנות לחיפוש באתר.";
@@ -300,12 +286,12 @@ export async function POST(request: Request) {
      of nothing — model codes, volumes, prices and features, none of them
      real. So when there is nothing to name, that outranks everything else
      and is stated last, where it is read last. */
-  const hasAnyProduct = search.products.length > 0 || pinnedProducts.length > 0;
+  const hasAnyProduct = search.result.products.length > 0 || pinnedProducts.length > 0;
   const emptyShelfRule = hasAnyProduct
     ? ""
     : "אזהרה מכריעה: לא קיבלת אף מוצר בהקשר הזה. חל איסור מוחלט לנקוב בשם דגם, בקוד דגם, במחיר או בנפח — גם אם הלקוח כבר ענה על הכל וגם אם זה נראה כמו הרגע להמליץ. במקום זה: שואלים שאלה ממקדת נוספת, או מציעים ללקוח לנסח אחרת ומפנים לחיפוש באתר.";
 
-  const productContext = [pinnedContext, spreadContext, searchContext, emptyShelfRule]
+  const productContext = [intentContext, pinnedContext, spreadContext, searchContext, emptyShelfRule]
     .filter(Boolean)
     .join("\n\n");
 
@@ -393,7 +379,7 @@ export async function POST(request: Request) {
      actually becomes a card, at the end of the stream. */
   const combinedProducts = [
     ...pinnedProducts.map((p) => ({ ...p, model: null as string | null, pinned: true })),
-    ...search.products
+    ...search.result.products
       .filter((p) => !pinnedProducts.some((pinned) => pinned.slug === p.slug))
       .map((p) => ({ ...p, pinned: false })),
   ]
