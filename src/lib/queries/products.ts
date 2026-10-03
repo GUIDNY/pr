@@ -707,6 +707,14 @@ export async function rankedSearchIds(query: string, take: number): Promise<stri
   const titleOnly = like
     .map((_, i) => `(CASE WHEN p.title ILIKE $${i + 1} THEN 1 ELSE 0 END)`)
     .join(" + ");
+  /* A word that names the row's own category outranks one that merely
+     appears in its title. "מקרן" is in the title of every soundbar (מקרן
+     קול) and every patio heater (מקרן חום), and with title and category
+     scored alike the two projectors tied with eleven soundbars and lost
+     on price. The shelf the word names comes first. */
+  const categoryOnly = like
+    .map((_, i) => `(CASE WHEN c.name ILIKE $${i + 1} THEN 1 ELSE 0 END)`)
+    .join(" + ");
 
   const params: unknown[] = [...like];
   let priceClause = "";
@@ -721,7 +729,7 @@ export async function rankedSearchIds(query: string, take: number): Promise<stri
     `
     WITH scored AS (
       SELECT p.id,
-             (${anyField}) * 10 + (${titleOnly}) AS score,
+             (${anyField}) * 10 + (${categoryOnly}) * 5 + (${titleOnly}) AS score,
              p."isBestSeller" AS best,
              p.price AS price
       FROM "Product" p
