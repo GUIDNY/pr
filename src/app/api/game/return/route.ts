@@ -27,15 +27,19 @@ export const dynamic = "force-dynamic";
 // finish the sign-in in the app and then throw the customer out of it. The
 // app stamps "BuyTodayApp" on its user agent (capacitor.config.ts). Both
 // destinations are fixed; only which of the two is chosen depends on the
-// request, so this is still not a redirect anybody can aim.
+// request, so this is still not a redirect anybody can aim. The Android
+// WebView's own "; wv)" token counts too, so an Android build whose stamp did
+// not take still lands back inside the app (Chrome, not Safari, on Android).
 const APP_UA_MARKER = "BuyTodayApp";
+const ANDROID_WEBVIEW = /; wv\)/;
 
 // ?checkout=1: the sign-in started in the game's checkout, and the game should
 // open it again. A flag with one value, appended to a fixed address; it aims
 // nothing.
 export function GET(request: Request) {
   const url = new URL(request.url);
-  const inApp = (request.headers.get("user-agent") ?? "").includes(APP_UA_MARKER);
+  const ua = request.headers.get("user-agent") ?? "";
+  const inApp = ua.includes(APP_UA_MARKER) || ANDROID_WEBVIEW.test(ua);
   const flags = url.searchParams.get("checkout") === "1" ? "signedin=1&checkout=1" : "signedin=1";
   const destination = inApp ? `${url.origin}/mall?${flags}` : `${GAME_ORIGIN}/?${flags}`;
   return NextResponse.redirect(destination, {

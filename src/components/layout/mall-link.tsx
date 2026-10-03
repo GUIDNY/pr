@@ -6,9 +6,44 @@ import { Gamepad2 } from "lucide-react";
 import SiApple from "@icons-pack/react-simple-icons/icons/SiApple";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useIsNativeApp } from "@/lib/native-app";
+import { isNativeApp } from "@/lib/native-app";
 import { APP_STORE_URL, mallHref } from "@/lib/mall";
 import { cn } from "@/lib/utils";
+
+/**
+ * Whether a link into the mall must stay in this view, at /mall, rather than
+ * open the game's own address in a new tab.
+ *
+ * Inside the app it must: the WebView hands a new tab, and any host other
+ * than buytoday.co.il, to the system browser, and the customer is out of the
+ * app (Safari on iOS, Chrome on Android). The app is recognised as
+ * isNativeApp recognises it, and also by the Android WebView's own "; wv)"
+ * token, so an Android build whose bridge or user-agent stamp did not take
+ * still keeps the customer inside. That token marks any Android WebView, an
+ * in-app browser included, where staying in the same view is right as well.
+ *
+ * The server cannot know, so it answers "stay" (the server snapshot below):
+ * the link is rendered as the same-view /mall link and the web swaps it for a
+ * new tab on hydration. The other way round, a tap that lands before the
+ * page has hydrated (the homepage card is near the top, and a mid-range
+ * Android phone can take seconds) followed the web's new-tab link straight
+ * out to Chrome. /mall works on the web too, so the early tap is harmless
+ * there.
+ */
+function subscribeNothing() {
+  return () => {};
+}
+function staysInView(): boolean {
+  if (isNativeApp()) return true;
+  try {
+    return /; wv\)/.test(window.navigator.userAgent);
+  } catch {
+    return false;
+  }
+}
+export function useMallInView(): boolean {
+  return useSyncExternalStore(subscribeNothing, staysInView, () => true);
+}
 
 /**
  * Any link into the 3D mall.
@@ -21,9 +56,8 @@ import { cn } from "@/lib/utils";
  * the rewrite in next.config.ts). The utm_source tells the two apart in
  * analytics and `medium` says which entrance it was — see mallHref.
  *
- * useIsNativeApp answers false on the server and corrects itself on
- * hydration, so the first paint is the web link and the app swaps it before
- * anybody can tap it.
+ * useMallInView answers "stay" on the server, so the first paint is the
+ * same-view link, and the web swaps in its new tab on hydration.
  */
 export function MallAnchor({
   medium,
@@ -36,7 +70,7 @@ export function MallAnchor({
   children: React.ReactNode;
   "aria-label"?: string;
 }) {
-  const inApp = useIsNativeApp();
+  const inApp = useMallInView();
   const href = mallHref(medium, inApp);
   if (inApp) {
     return (
@@ -104,9 +138,6 @@ function TileFace() {
   );
 }
 
-function subscribeNothing() {
-  return () => {};
-}
 /** A computer: a precise pointer and a wide screen, not a phone held sideways. */
 function isDesktop(): boolean {
   return window.matchMedia("(pointer: fine) and (min-width: 1024px)").matches;
@@ -119,7 +150,7 @@ function isAppleMobile(): boolean {
 }
 
 export function HeaderMallButton({ className }: { className?: string }) {
-  const inApp = useIsNativeApp();
+  const inApp = useMallInView();
   const appleMobile = useSyncExternalStore(subscribeNothing, isAppleMobile, () => false);
   const desktop = useSyncExternalStore(subscribeNothing, isDesktop, () => false);
   const [open, setOpen] = useState(false);
