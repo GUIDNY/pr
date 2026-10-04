@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { OrderStatus, PaymentStatus } from "@/lib/enums";
-import { statusesInStage, type OrderStage } from "@/lib/order-stage";
+import { ORDER_STAGES, statusesInStage, type OrderStage } from "@/lib/order-stage";
 import { messageFor } from "@/lib/notify/messages";
 import { waHref } from "@/lib/notify/whatsapp-link";
 import { SITE_URL } from "@/lib/site-url";
@@ -116,12 +116,10 @@ export async function getSellerOrdersByStage(stage: OrderStage): Promise<SellerO
 }
 
 export async function getSellerStageCounts(): Promise<Record<OrderStage, number>> {
-  const [open, processing, closed] = await Promise.all(
-    (["open", "processing", "closed"] as const).map((stage) =>
-      db.order.count({ where: { status: { in: statusesInStage(stage) } } }),
-    ),
+  const counts = await Promise.all(
+    ORDER_STAGES.map((stage) => db.order.count({ where: { status: { in: statusesInStage(stage) } } })),
   );
-  return { open, processing, closed };
+  return Object.fromEntries(ORDER_STAGES.map((stage, i) => [stage, counts[i]])) as Record<OrderStage, number>;
 }
 
 export async function getSellerOrderDetail(orderNumber: string): Promise<SellerOrderDetail | null> {

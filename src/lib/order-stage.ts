@@ -16,7 +16,13 @@ import type { OrderStatus } from "@/lib/enums";
  * The alternative — a default branch — is how a new status quietly lands in
  * "open" and stays there forever because nobody is looking for it.
  */
-export const ORDER_STAGES = ["open", "processing", "closed"] as const;
+/* "unpaid" is the shelf for an order whose payment never completed — the
+   customer reached the payment page and left. It used to sit in "open"
+   beside the orders that are actually waiting for the team, and with eight
+   of them to one real order the open tab was a list of abandoned carts with
+   a sale hidden in it. Last in the row, because it is where the team looks
+   only when chasing. */
+export const ORDER_STAGES = ["open", "processing", "closed", "unpaid"] as const;
 export type OrderStage = (typeof ORDER_STAGES)[number];
 
 const STAGE_OF: Record<OrderStatus, OrderStage> = {
@@ -25,9 +31,10 @@ const STAGE_OF: Record<OrderStatus, OrderStage> = {
   // order somebody has to ring about, and filing it under closed is how it
   // stops being anybody's problem.
   NEW: "open",
-  PAYMENT_PENDING: "open",
-  PAYMENT_FAILED: "open",
   PAID: "open",
+
+  PAYMENT_PENDING: "unpaid",
+  PAYMENT_FAILED: "unpaid",
 
   // Approved and moving. The order is out of the salesperson's hands and
   // into the warehouse's, the supplier's or the courier's.
@@ -58,13 +65,15 @@ export const STAGE_LABELS: Record<OrderStage, string> = {
   open: "הזמנות פתוחות",
   processing: "הזמנות בתהליך",
   closed: "הזמנות סגורות",
+  unpaid: "עגלות נטושות",
 };
 
 /** What a person is meant to do with the orders in each tab. */
 export const STAGE_HINTS: Record<OrderStage, string> = {
-  open: "ממתינות לבדיקה ולאישור תשלום",
+  open: "התשלום נתפס — ממתינות לבדיקה ולאישור",
   processing: "אושרו ויצאו לדרך — מעקב מול השליח",
   closed: "הסתיימו: נמסרו, בוטלו או זוכו",
+  unpaid: "טרם שולם: הלקוח הגיע לתשלום ולא השלים אותו — כאן מתקשרים ומזכירים",
 };
 
 export function isStage(value: string | undefined): value is OrderStage {
