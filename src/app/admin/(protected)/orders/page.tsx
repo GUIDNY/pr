@@ -1,18 +1,11 @@
 import Link from "next/link";
-import { AlertTriangle, Phone } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { getAdminOrders, getAdminOrderStatusCounts, getStaffUsers } from "@/lib/queries/admin-orders";
 import { OrdersFilterBar } from "@/components/admin/orders-filter-bar";
 import { OrdersStatusTabs } from "@/components/admin/orders-status-tabs";
-import { OrderStatusSelect } from "@/components/admin/order-status-select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { AdminOrdersTable } from "@/components/admin/admin-orders-table";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
-import {
-  PAYMENT_STATUS_LABELS,
-  PAYMENT_STATUS_COLORS,
-  type OrderStatus,
-  type PaymentStatus,
-} from "@/lib/enums";
-import { formatPrice, formatDateTime } from "@/lib/format";
+import { type OrderStatus } from "@/lib/enums";
 import { requireBackOffice } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { getSellerOrdersByStage, getSellerStageCounts } from "@/lib/queries/seller-orders";
@@ -23,17 +16,6 @@ import { isStage, STAGE_HINTS, TRASH_STAGE } from "@/lib/order-stage";
 export const metadata = { title: "הזמנות | Buy Today Admin" };
 
 const PAGE_SIZE = 20;
-
-/** "לפני 3 שעות" / "לפני יומיים" — how long this order has been where it is. */
-function ageLabel(hoursInStatus: number) {
-  const hours = Math.floor(hoursInStatus);
-  if (hours < 1) return "עכשיו";
-  if (hours < 24) return `לפני ${hours} שעות`;
-  const days = Math.floor(hours / 24);
-  if (days === 1) return "לפני יום";
-  if (days === 2) return "לפני יומיים";
-  return `לפני ${days} ימים`;
-}
 
 export default async function AdminOrdersPage({
   searchParams,
@@ -71,8 +53,13 @@ export default async function AdminOrdersPage({
   const sp = await searchParams;
   const page = Number(sp.page) || 1;
   const status = (sp.status as OrderStatus) ?? "ALL";
+  /* The bin is its own view rather than a thirteenth status chip: it cuts
+     across all of them, and an order in it is not in a status that anybody
+     is working. Its own parameter, so the status filter still means what it
+     says while you are in there. */
+  const bin = sp.bin === "1";
 
-  const [{ orders, total }, staff, { counts, total: grandTotal }] = await Promise.all([
+  const [{ orders, total }, staff, { counts, total: grandTotal, binned }] = await Promise.all([
     getAdminOrders({
       search: sp.search,
       status,
@@ -81,6 +68,7 @@ export default async function AdminOrdersPage({
       dateTo: sp.dateTo,
       page,
       pageSize: PAGE_SIZE,
+      bin,
     }),
     getStaffUsers(),
     getAdminOrderStatusCounts(),
@@ -107,110 +95,35 @@ export default async function AdminOrdersPage({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold">הזמנות</h1>
+        <h1 className="text-2xl font-bold">{bin ? "פח ההזמנות" : "הזמנות"}</h1>
         <span className="text-muted-foreground text-sm">{total} הזמנות בתצוגה</span>
       </div>
 
-      <OrdersStatusTabs
-        counts={counts}
-        total={grandTotal}
-        active={status}
-        buildHref={(s) => hrefWith({ status: s === "ALL" ? undefined : s })}
-      />
+      {bin ? (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Link
+            href="/admin/orders"
+            className="border-border hover:bg-muted rounded-full border px-3 py-1.5 text-sm font-medium"
+          >
+            ← חזרה להזמנות
+          </Link>
+          <p className="text-muted-foreground text-sm">
+            הוצאו מהתור ולא נמחקו. אפשר לשחזר, או למחוק מכאן לצמיתות.
+          </p>
+        </div>
+      ) : (
+        <>
+          <OrdersStatusTabs
+            counts={counts}
+            total={grandTotal}
+            active={status}
+            buildHref={(s) => hrefWith({ status: s === "ALL" ? undefined : s })}
+          />
+          <OrdersFilterBar staff={staff} />
+        </>
+      )}
 
-      <OrdersFilterBar staff={staff} />
-
-      <div className="border-border bg-card overflow-x-auto rounded-xl border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>מספר הזמנה</TableHead>
-              <TableHead>לקוח</TableHead>
-              <TableHead>נפתחה</TableHead>
-              <TableHead>עודכן</TableHead>
-              <TableHead>פריטים</TableHead>
-              <TableHead>תשלום</TableHead>
-              <TableHead>סכום</TableHead>
-              <TableHead>אחראי</TableHead>
-              <TableHead className="min-w-[180px]">סטטוס</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {orders.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="text-muted-foreground py-10 text-center">
-                  לא נמצאו הזמנות תואמות
-                </TableCell>
-              </TableRow>
-            ) : (
-              orders.map((order) => {
-                const orderStatus = order.status as OrderStatus;
-                const phone = order.user?.phone ?? order.guestPhone;
-
-                return (
-                  <TableRow key={order.id} className="hover:bg-muted/50">
-                    <TableCell>
-                      <Link
-                        href={`/admin/orders/${order.orderNumber}`}
-                        className="text-brand font-medium hover:underline"
-                      >
-                        {order.orderNumber}
-                      </Link>
-                    </TableCell>
-                    <TableCell>
-                      <div>{order.user?.name ?? order.guestName ?? "אורח"}</div>
-                      {phone && (
-                        <a
-                          href={`tel:${phone}`}
-                          className="text-muted-foreground hover:text-brand flex items-center gap-1 text-xs"
-                        >
-                          <Phone className="size-3" />
-                          {phone}
-                        </a>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                      {formatDateTime(order.createdAt)}
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {order.isStale ? (
-                        <span
-                          className="text-destructive flex items-center gap-1 font-medium"
-                          title={`ההזמנה לא זזה כבר ${Math.floor(order.hoursInStatus)} שעות`}
-                        >
-                          <AlertTriangle className="size-3.5" />
-                          {ageLabel(order.hoursInStatus)}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">{ageLabel(order.hoursInStatus)}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>{order.items.length}</TableCell>
-                    <TableCell>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          PAYMENT_STATUS_COLORS[order.paymentStatus as PaymentStatus]
-                        }`}
-                      >
-                        {PAYMENT_STATUS_LABELS[order.paymentStatus as PaymentStatus] ?? order.paymentStatus}
-                      </span>
-                    </TableCell>
-                    <TableCell className="font-semibold tabular-nums whitespace-nowrap">
-                      {formatPrice(order.total)}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{order.assignedTo?.name ?? "—"}</TableCell>
-                    <TableCell>
-                      {/* Changed here, in the row. Working through a morning's
-                          orders used to mean opening each one in turn. */}
-                      <OrderStatusSelect orderId={order.id} currentStatus={orderStatus} className="h-8 text-xs" />
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <AdminOrdersTable orders={orders} bin={bin} />
 
       {totalPages > 1 && (
         <Pagination className="mt-6">
@@ -224,6 +137,16 @@ export default async function AdminOrdersPage({
             ))}
           </PaginationContent>
         </Pagination>
+      )}
+
+      {!bin && binned > 0 && (
+        <Link
+          href="/admin/orders?bin=1"
+          className="text-muted-foreground hover:text-foreground mt-6 flex w-fit items-center gap-1.5 text-sm font-semibold"
+        >
+          <Trash2 className="size-4" />
+          פח ({binned})
+        </Link>
       )}
     </div>
   );

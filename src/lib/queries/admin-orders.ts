@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { ORDER_STALE_AFTER_HOURS, type OrderStatus } from "@/lib/enums";
+import { tookRealMoney } from "@/lib/queries/seller-orders";
 
 export type AdminOrderFilters = {
   search?: string;
@@ -10,14 +11,16 @@ export type AdminOrderFilters = {
   dateTo?: string;
   page?: number;
   pageSize?: number;
+  /** The bin instead of the queue: orders moved aside, not deleted. */
+  bin?: boolean;
 };
 
 export async function getAdminOrders(filters: AdminOrderFilters) {
-  /* The bin is a seller-view tab, but it has to hold here too: an order
-     moved to it should be gone from every list, and the manager's table is
-     a list. Without this a binned order stays visible — and editable —
-     behind a different URL. */
-  const where: Record<string, unknown> = { deletedAt: null };
+  /* An order in the bin is gone from every list — this table included —
+     until the bin itself is what you asked for. Without this half of the
+     filter a binned order stays visible, and editable, behind a different
+     URL. */
+  const where: Record<string, unknown> = { deletedAt: filters.bin ? { not: null } : null };
 
   if (filters.status && filters.status !== "ALL") where.status = filters.status;
   if (filters.assignedToId) where.assignedToId = filters.assignedToId;
@@ -46,7 +49,14 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
   const [orders, total] = await Promise.all([
     db.order.findMany({
       where,
-      include: { user: true, items: true, assignedTo: true },
+      include: {
+        user: true,
+        items: true,
+        assignedTo: true,
+        /* Two columns, only to answer "may this one be binned" — the same
+           question and the same rule as the seller list. */
+        payments: { select: { provider: true, status: true } },
+      },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -68,6 +78,7 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
       ...order,
       hoursInStatus,
       isStale: staleAfter !== null && hoursInStatus > staleAfter,
+      canDelete: !tookRealMoney(order.payments),
     };
   });
 
@@ -81,18 +92,17 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
  * filters: these are the numbers you navigate BY.
  */
 export async function getAdminOrderStatusCounts() {
-  const rows = await db.order.groupBy({
-    by: ["status"],
-    where: { deletedAt: null },
-    _count: { _all: true },
-  });
+  const [rows, binned] = await Promise.all([
+    db.order.groupBy({ by: ["status"], where: { deletedAt: null }, _count: { _all: true } }),
+    db.order.count({ where: { deletedAt: { not: null } } }),
+  ]);
   const counts: Record<string, number> = {};
   let total = 0;
   for (const row of rows) {
     counts[row.status] = row._count._all;
     total += row._count._all;
   }
-  return { counts, total };
+  return { counts, total, binned };
 }
 
 export async function getAdminOrderDetail(orderNumber: string) {
