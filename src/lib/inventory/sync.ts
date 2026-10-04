@@ -332,6 +332,10 @@ type ApplyResult = {
   priceChanges: number;
   stockChanges: number;
   seenSkus: Set<string>;
+  /** Products whose page now says something different: created, or
+      stock moved. The IndexNow submission at the end of the run is built
+      from this and nothing else — see the note beside it. */
+  changedProductIds: Set<string>;
 };
 
 // Alert types that describe a single row's current state, as opposed to a
@@ -546,6 +550,18 @@ async function applyOneRow(
     await db.product.update({ where: { id: existing.id }, data: stockOnlyUpdate });
     productId = existing.id;
     result.productsUpdated++;
+    /* The row is written on every run (lastExcelSyncAt has to move), so
+       updatedAt cannot say whether anything a visitor sees has changed.
+       This can: the three stock fields are the only ones the sync is
+       allowed to touch, and if none of them moved the page is the same
+       page. */
+    if (
+      existing.stockQty !== data.stockQty ||
+      existing.stockStatus !== data.stockStatus ||
+      JSON.stringify(existing.stockBreakdown ?? null) !== JSON.stringify(data.stockBreakdown ?? null)
+    ) {
+      result.changedProductIds.add(existing.id);
+    }
     if (existing.missingFromSourceSince) {
       await db.inventoryAlert.updateMany({
         where: { type: "MISSING_FROM_SOURCE", productId, isResolved: false },
@@ -561,6 +577,7 @@ async function applyOneRow(
       },
     });
     productId = created.id;
+    result.changedProductIds.add(created.id);
     result.productsAdded++;
     // A brand-new row arrives with a raw title, a broad category and no
     // content at all. It goes straight to the "טיפול" queue with its own
@@ -844,6 +861,7 @@ export async function applyRowsForSource(
     priceChanges: 0,
     stockChanges: 0,
     seenSkus: new Set(),
+    changedProductIds: new Set(),
   };
   // Overwritten (not merged) per product on every row that touches it, so
   // after the loop this reflects only the *last* processed row for each
@@ -1392,6 +1410,7 @@ export async function runFullSync(
     productsMissing = 0,
     priceChanges = 0,
     stockChanges = 0;
+  const changedProductIds = new Set<string>();
 
   for (const sourceId of scannedSourceIds) {
     const rows = perSourceRows.get(sourceId) ?? [];
@@ -1405,6 +1424,7 @@ export async function runFullSync(
     productsUpdated += result.productsUpdated;
     priceChanges += result.priceChanges;
     stockChanges += result.stockChanges;
+    result.changedProductIds.forEach((id) => changedProductIds.add(id));
     productsMissing += await markMissingProducts(
       sourceId,
       result.seenSkus,
@@ -1434,10 +1454,21 @@ export async function runFullSync(
   // Only what is on the site: a product that is unpublished or out of stock
   // has no page to re-crawl, and asking Bing to fetch a 404 is how a
   // submitter's URLs stop being trusted.
-  const touched = await db.product.findMany({
-    where: { ...PUBLIC_PRODUCT_WHERE, updatedAt: { gte: syncRun.startedAt } },
-    select: { slug: true },
-  });
+  //
+  // Only what actually changed. updatedAt moves on every row every run —
+  // lastExcelSyncAt is written whether or not stock moved — so reading it
+  // back submitted the whole catalogue on every sync, and Bing's own
+  // dashboard said so: a submitter that announces 1,300 unchanged pages as
+  // changed is deprioritised, which delays the ones that did change. The
+  // loop now records which rows were created or had stock move, and that
+  // set is the submission.
+  const touched =
+    changedProductIds.size > 0
+      ? await db.product.findMany({
+          where: { ...PUBLIC_PRODUCT_WHERE, id: { in: [...changedProductIds] } },
+          select: { slug: true },
+        })
+      : [];
   if (touched.length > 0) await submitUrls(productPaths(touched.map((p) => p.slug)));
 
   return db.inventorySyncRun.update({
