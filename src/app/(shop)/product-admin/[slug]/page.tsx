@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ProductPageView } from "@/components/product/product-page-view";
+import { getProductBySlug } from "@/lib/queries/products";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 
@@ -19,7 +20,26 @@ export const dynamic = "force-dynamic";
 // Belt and braces. The path is unreachable by rewrite alone and carries the
 // same content as the public page, but a duplicate that Google can reach is
 // a duplicate Google will judge, so it is never indexable.
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+/* The same title, description and canonical the public route emits, with
+   noindex on top. A staff session is rewritten here by the proxy for every
+   /product/ URL it opens, and this used to carry only the robots rule: the
+   tab read "Buy Today - הדרך החכמה לקנות אלקטרוניקה" and the page had no
+   canonical, which is what an admin's crawl-from-the-browser reported as
+   "every product page is noindex and untitled". The robots rule stays — a
+   preview that can show an unpublished product must not be indexed — and
+   everything else now matches the page a visitor gets, so the two branches
+   differ in exactly one line and nothing else. */
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const product = await getProductBySlug(slug);
+  if (!product) return { robots: { index: false, follow: false } };
+  return {
+    title: product.title,
+    description: product.shortDescription ?? product.description ?? undefined,
+    alternates: { canonical: `/product/${product.slug}` },
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function ProductAdminPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
