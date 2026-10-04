@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { openHoursBetween, STALE_AFTER_OPEN_HOURS } from "@/lib/inventory/office-hours";
 
 /**
  * Are the price sheets still arriving?
@@ -24,15 +25,6 @@ import { db } from "@/lib/db";
  * touches nothing but the database — no storage, no third party — so the
  * outages it reports cannot take it down with them.
  */
-
-/**
- * How long a gap is allowed before somebody is told.
- *
- * The agent runs twice a day, 04:30 and 12:30 UTC, so the widest healthy gap
- * is the sixteen hours from one midday to the next dawn. Eighteen leaves two
- * hours of slack for a late run without letting a whole missed cycle pass.
- */
-const STALE_AFTER_HOURS = 18;
 
 /**
  * The measure is when the agent was last *heard from*, not when a sync last
@@ -72,7 +64,11 @@ export type SyncFreshness = {
   /** Last time a workbook's bytes actually differed. Older than `lastSeenAt`
       whenever the supplier is simply quiet, which is not a fault. */
   lastUploadAt: Date | null;
+  /** Hours on the clock since the last report. What a person reads. */
   hoursSince: number | null;
+  /** Of those, the ones in which the agent could have reported at all.
+      What `stale` is actually measured against — see SERVER_WINDOW. */
+  openHoursSince: number | null;
   thresholdHours: number;
   lastRunFailed: boolean;
 };
@@ -101,17 +97,24 @@ export async function checkSyncFreshness(): Promise<SyncFreshness> {
 
   const lastUploadAt = newest(sources.map((s) => s.uploadedAt));
   const at = newest([lastUploadAt, ...sources.map((s) => s.lastScannedAt)]);
-  const hoursSince = at ? (Date.now() - at.getTime()) / 3_600_000 : null;
+  const now = new Date();
+  const hoursSince = at ? (now.getTime() - at.getTime()) / 3_600_000 : null;
+  /* The weekend does not count. The office powers its file server down from
+     Friday afternoon to Sunday morning, so a 45-hour silence across it is
+     the system working — and measuring it on a wall clock raised a CRITICAL
+     alert every Saturday on a healthy shop. */
+  const openHoursSince = at ? openHoursBetween(at, now) : null;
   /* Never having heard from it is stale too. A shop with products on the
      site and no sheet on record is not a state to treat as "early days". */
-  const stale = hoursSince === null || hoursSince > STALE_AFTER_HOURS;
+  const stale = openHoursSince === null || openHoursSince > STALE_AFTER_OPEN_HOURS;
 
   return {
     stale,
     lastSeenAt: at,
     lastUploadAt,
     hoursSince,
-    thresholdHours: STALE_AFTER_HOURS,
+    openHoursSince,
+    thresholdHours: STALE_AFTER_OPEN_HOURS,
     lastRunFailed: lastRun?.status === "FAILED",
   };
 }
@@ -142,7 +145,12 @@ export async function reconcileSyncStaleAlert(): Promise<SyncFreshness> {
   const message = freshness.stale
     ? hours === null
       ? "לא התקבל אף מחירון. המלאי והמחירים באתר אינם מעודכנים."
-      : `לא התקבל עדכון מהמחשב במשרד כבר ${Math.floor(hours)} שעות. המלאי והמחירים באתר עלולים להיות לא מעודכנים.`
+      : /* The wall-clock number, because that is the one a person can check
+           against their own memory of when the shop last did anything. The
+           open-hours figure is what decided to raise this and is the wrong
+           number to print — "9 hours" on a Sunday morning reads like a
+           non-event when the sheets are in fact two days old. */
+        `לא התקבל עדכון מהמחשב במשרד כבר ${Math.floor(hours)} שעות. המלאי והמחירים באתר עלולים להיות לא מעודכנים.`
     : "הסנכרון האחרון נכשל. המלאי והמחירים באתר עלולים להיות לא מעודכנים.";
 
   /* Rewritten rather than added to, so the open alert always states the

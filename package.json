@@ -44,7 +44,8 @@
     "seed:guides": "tsx scripts/seed-buying-guides.ts",
     "check:delivery": "tsx scripts/check-delivery-promise.ts",
     "check:alfred": "tsx scripts/check-alfred-intent.ts",
-    "seed:intros": "tsx scripts/seed-category-intros.ts"
+    "seed:intros": "tsx scripts/seed-category-intros.ts",
+    "check:watchdog": "tsx scripts/check-sync-watchdog.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

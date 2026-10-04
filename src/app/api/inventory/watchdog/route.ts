@@ -38,6 +38,7 @@ export async function GET(request: Request) {
     lastUploadAt: freshness.lastUploadAt,
     lastRunFailed: freshness.lastRunFailed,
     hoursSince: freshness.hoursSince === null ? null : Math.round(freshness.hoursSince * 10) / 10,
+    openHoursSince: freshness.openHoursSince,
     thresholdHours: freshness.thresholdHours,
   });
 }
