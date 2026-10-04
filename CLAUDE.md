@@ -156,6 +156,37 @@ a whole tab to one broad category on purpose (the tabs mix sub-types with no per
 category column), so a product parked in a department has **no spec schema to fill at
 all**. Correcting its category is a prerequisite for specs, not a nicety.
 
+## The sheet's dimensions column is mislabelled, and not row-consistent
+
+The source row carries a column headed `עומקXגובהXרוחב` — depth × height × width —
+present on 199 of the 202 products in the five cooling leaves, and it is the obvious
+place to read a width from. It is also wrong: on 166 of the 181 rows that can be
+checked against the description, the **first** number matches the stated width, not
+the third. The header's first and last labels are swapped against its own data — and
+on a handful of rows (LG GM-859RSCE, Bauknecht GKIE IL 3000, Maxwell MAX-RDNH440X)
+the order really is depth-first as labelled.
+
+A column whose field order varies row to row cannot be parsed, so it is used only to
+corroborate. `backfill-dimension-specs.ts` (`npm run check:dimensions`) reads width and
+depth out of `Product.description` — written from the manufacturer's figures, with the
+URL in `descriptionSourceUrl` — and writes nothing at all where the two disagree by
+more than 2 cm, listing those products for a person instead. 12 widths and 31 depths
+are withheld on that rule.
+
+Two things to know before adding to it: dimension values are stored as **bare numbers**
+(`"90.8"`), because `product-content.ts` appends the attribute's unit only to a value
+that is bare and `"60 ס"מ"` would render the unit twice; and `רוחב`/`עומק` must be
+matched immediately followed by the number, so that `רוחב נישה` and
+`רוחב מינימלי להתקנה` — the opening's measurement, not the appliance's — are skipped.
+
+The five cooling leaves also carry a legacy attribute set keyed `width`/`capacity`,
+while `seed-category-attributes.ts` uses `width_cm`/`capacity_liters` and does not
+cover those slugs at all. The filled seeded schema sits on the *department*
+(`refrigeration`), which is also why 71 products parked there have a width in their
+text and nowhere to put it. Adopting the seeder's keys on a leaf that already has
+`width` would leave two רוחב rows per category, so the legacy key stays until someone
+merges the two sets deliberately.
+
 ## Never invent product data
 
 Capacities, dimensions, energy ratings and the like must come from a real source, and

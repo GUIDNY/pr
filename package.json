@@ -46,7 +46,9 @@
     "check:alfred": "tsx scripts/check-alfred-intent.ts",
     "check:seo": "tsx scripts/check-product-seo-live.ts",
     "seed:intros": "tsx scripts/seed-category-intros.ts",
-    "check:watchdog": "tsx scripts/check-sync-watchdog.ts"
+    "check:watchdog": "tsx scripts/check-sync-watchdog.ts",
+    "check:dimensions": "tsx scripts/backfill-dimension-specs.ts",
+    "fix:dimensions": "tsx scripts/backfill-dimension-specs.ts --write"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
