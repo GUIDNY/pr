@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { db } from "@/lib/db";
+import { canonicalBrandName } from "@/lib/catalog/brand-aliases";
 
 // Turning a brand name from a sheet or an agent into a Brand row, without
 // falling over when the name has been edited since.
@@ -53,11 +54,30 @@ export const UNKNOWN_BRAND = "לא ידוע";
  * to carry their own near-copy of this — and one of the two copies is where
  * the bug lived.
  */
-export async function resolveBrandId(name: string | null | undefined): Promise<string> {
-  const brandName = (name ?? UNKNOWN_BRAND).trim() || UNKNOWN_BRAND;
+/* The name the sheet wrote, reduced to the brand it means: Hebrew and
+   variant spellings go to the Latin row that exists (lib/catalog/
+   brand-aliases.ts), and a name that matches an existing row apart from
+   case or spacing is that row. Only a name nothing matches may create. */
+function nameFor(name: string | null | undefined): string {
+  const raw = (name ?? "").trim();
+  return raw ? canonicalBrandName(raw) : UNKNOWN_BRAND;
+}
 
-  const byName = await db.brand.findFirst({ where: { name: brandName }, select: { id: true } });
-  if (byName) return byName.id;
+async function findByName(brandName: string): Promise<string | null> {
+  const exact = await db.brand.findFirst({ where: { name: brandName }, select: { id: true } });
+  if (exact) return exact.id;
+  const loose = await db.brand.findFirst({
+    where: { name: { equals: brandName, mode: "insensitive" } },
+    select: { id: true },
+  });
+  return loose?.id ?? null;
+}
+
+export async function resolveBrandId(name: string | null | undefined): Promise<string> {
+  const brandName = nameFor(name);
+
+  const byName = await findByName(brandName);
+  if (byName) return byName;
 
   // The renamed-brand case: some row already owns the slug this name
   // derives, which can only be because it was once called this.
@@ -111,9 +131,9 @@ export async function resolveBrandId(name: string | null | undefined): Promise<s
  * yet has no products, so that search could never have matched anyway.
  */
 export async function findBrandId(name: string | null | undefined): Promise<string | null> {
-  const brandName = (name ?? UNKNOWN_BRAND).trim() || UNKNOWN_BRAND;
-  const byName = await db.brand.findFirst({ where: { name: brandName }, select: { id: true } });
-  if (byName) return byName.id;
+  const brandName = nameFor(name);
+  const byName = await findByName(brandName);
+  if (byName) return byName;
   const bySlug = await db.brand.findUnique({
     where: { slug: brandSlugFor(brandName) },
     select: { id: true },

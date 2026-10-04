@@ -44,6 +44,7 @@
 
 import { CATEGORY_TREE } from "@/lib/category-tree";
 import { parseShoppingQuery } from "@/lib/shopping-query";
+import { BRAND_ALIASES } from "@/lib/catalog/brand-aliases";
 
 export type ChatSort = "cheapest" | "priciest" | "popular";
 
@@ -220,80 +221,6 @@ const LEXICON: LexiconEntry[] = [
   { slugs: ["car-accessories"], phrases: ["לרכב", "רכב", "לאוטו", "אוטו"] },
 ];
 
-/* Brands as customers type them in Hebrew → the Latin name on the Brand
-   row. Rows whose own name is Hebrew (טורנדו, אמקור) match directly and
-   need no entry. */
-const BRAND_ALIASES: Record<string, string> = {
-  "בוש": "Bosch",
-  "סמסונג": "Samsung",
-  "סאמסונג": "Samsung",
-  "אלג'י": "LG",
-  "אל ג'י": "LG",
-  "אלגי": "LG",
-  "סימנס": "Siemens",
-  "זימנס": "Siemens",
-  "מילה": "Miele",
-  "מיאלה": "Miele",
-  "האייר": "Haier",
-  "הייסנס": "Hisense",
-  "אלקטרולוקס": "Electrolux",
-  "גורנייה": "Gorenje",
-  "גורניה": "Gorenje",
-  "בלומברג": "Blomberg",
-  "סאוטר": "Sauter",
-  "דייסון": "Dyson",
-  "שארפ": "Sharp",
-  "יונדאי": "Hyundai",
-  "נינג'ה": "NINJA",
-  "נינגה": "NINJA",
-  "דלונגי": "De'Longhi",
-  "דה לונגי": "De'Longhi",
-  "סוני": "Sony",
-  "פיליפס": "Philips",
-  "מידאה": "Midea",
-  "סמג": "SMEG",
-  "קנווד": "Kenwood",
-  "בראון": "Braun",
-  "טפאל": "Tefal",
-  "היטאצ'י": "Hitachi",
-  "היטאצי": "Hitachi",
-  "בקו": "Beko",
-  "ליבהר": "Liebherr",
-  "לייבהר": "Liebherr",
-  "קונסטרוקטה": "Constructa",
-  "באוקנכט": "Bauknecht",
-  "זנוסי": "Zanussi",
-  "מורפי ריצ'רדס": "Morphy Richards",
-  "מורפי ריצארדס": "Morphy Richards",
-  "מורפי": "Morphy Richards",
-  "מורפי ריצארד": "Morphy Richards",
-  "פראטלי": "Fratelli",
-  "שיאומי": "Xiaomi",
-  "רובורוק": "roborock",
-  "ג'נרל": "GENERAL",
-  "גנרל": "GENERAL",
-  "ברטזוני": "Bertazzoni",
-  "אליקה": "Elica",
-  "פאבר": "FABER",
-  "וסטינגהאוס": "Westinghouse",
-  "שארק": "Shark",
-  "דרים": "Dreame",
-  "ג'יי בי אל": "JBL",
-  "קליפש": "Klipsch",
-  "אונקיו": "ONKYO",
-  "דנון": "Denon",
-  "וויויטק": "VIVITEK",
-  "ויויטק": "VIVITEK",
-  "רמינגטון": "Remington",
-  "קיצ'נאייד": "KitchenAid",
-  "מג'ימיקס": "Magimix",
-  "מולינקס": "Moulinex",
-  "רוונטה": "Rowenta",
-  "טקה": "TEKA",
-  "קנדי": "CANDY",
-  "אסקו": "ASKO",
-  "לופרה": "Lofra",
-};
 
 /* The same filler the route used to strip, kept in one place now. Words
    that describe the shopper's situation, never the thing they want. Any of

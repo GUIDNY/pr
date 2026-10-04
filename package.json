@@ -45,6 +45,7 @@
     "check:delivery": "tsx scripts/check-delivery-promise.ts",
     "check:alfred": "tsx scripts/check-alfred-intent.ts",
     "check:seo": "tsx scripts/check-product-seo-live.ts",
+    "check:brand-aliases": "tsx scripts/check-brand-aliases.ts",
     "seed:intros": "tsx scripts/seed-category-intros.ts",
     "check:watchdog": "tsx scripts/check-sync-watchdog.ts",
     "check:dimensions": "tsx scripts/backfill-dimension-specs.ts",
