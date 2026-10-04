@@ -56,6 +56,16 @@ export default async function AdminProductsPage({
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold">מוצרים</h1>
+        {/* The whole catalogue as one JSON file — every published product
+            with its description, spec values and images — for whoever is
+            building spec mappings or auditing content offline. */}
+        <Button variant="outline" size="sm" asChild>
+          {/* A plain anchor on purpose: the target is a route handler that
+              answers with a file download, not a page — a client-side
+              navigation would try to render it. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/admin/products/export">ייצוא קטלוג (JSON)</a>
+        </Button>
         <Button variant="brand" size="sm" asChild className="gap-1.5">
           <Link href="/admin/products/new">
             <Plus className="size-4" /> מוצר חדש

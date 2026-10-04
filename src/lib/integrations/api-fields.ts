@@ -44,7 +44,7 @@ export function unknownKeysIn(record: Record<string, unknown>, check: KeyCheck):
 // the top-level set is the batch flags plus every item field.
 export const ENRICH_ITEM_KEYS: KeyCheck = {
   known: [
-    "sku", "name", "title", "model", "colorName", "description", "descriptionSourceUrl",
+    "sku", "name", "title", "model", "gtin13", "colorName", "description", "descriptionSourceUrl",
     "technicalSpec", "specSourceUrl", "images", "removeImages", "appendImages", "replaceImages",
     "overwriteDescription", "brand", "category", "warranty", "supplier", "sourceUrl",
     "sourceBackfillOnly", "overwrite",
@@ -63,6 +63,13 @@ export const ENRICH_ITEM_KEYS: KeyCheck = {
     categorySlug: "category",
     brandName: "brand",
     color: "colorName",
+    // The barcode under every name it is written by. Stored as gtin13, sent
+    // to Google as g:gtin and to schema.org as gtin13 when it is 13 digits.
+    gtin: "gtin13",
+    ean: "gtin13",
+    ean13: "gtin13",
+    barcode: "gtin13",
+    upc: "gtin13",
     published: "isPublished",
     active: "isPublished",
     visible: "isPublished",
@@ -87,11 +94,16 @@ export const ENRICH_TOP_LEVEL_KEYS: KeyCheck = {
 // it is not.
 export const CREATE_ITEM_KEYS: KeyCheck = {
   known: [
-    "sku", "title", "brand", "category", "price", "model", "colorName", "description",
+    "sku", "title", "brand", "category", "price", "model", "gtin13", "colorName", "description",
     "descriptionSourceUrl", "technicalSpec", "specSourceUrl", "images", "warranty",
     "supplier", "stockQty", "sourceUrl",
   ],
   aliases: {
+    gtin: "gtin13",
+    ean: "gtin13",
+    ean13: "gtin13",
+    barcode: "gtin13",
+    upc: "gtin13",
     name: "title",
     productTitle: "title",
     desc: "description",
@@ -113,3 +125,32 @@ export const CREATE_TOP_LEVEL_KEYS: KeyCheck = {
   aliases: { ...CREATE_ITEM_KEYS.aliases, products: "items", data: "items", rows: "items", product: "items" },
 };
 
+// ---------------------------------------------------------------------------
+// /api/integrations/brands — the brand page's content, for the agent that
+// writes it. Everything on a Brand row that is text about the brand; never
+// the name or the slug, which are public in URLs and in product titles.
+// ---------------------------------------------------------------------------
+export const BRAND_ITEM_KEYS: KeyCheck = {
+  known: ["slug", "name", "description", "aboutContent", "pageContent", "seoTitle", "seoDesc", "logoUrl"],
+  aliases: {
+    brand: "slug",
+    brandSlug: "slug",
+    brandName: "name",
+    about: "aboutContent",
+    aboutText: "aboutContent",
+    content: "pageContent",
+    page: "pageContent",
+    pageText: "pageContent",
+    guide: "pageContent",
+    metaTitle: "seoTitle",
+    metaDescription: "seoDesc",
+    seoDescription: "seoDesc",
+    logo: "logoUrl",
+    image: "logoUrl",
+  },
+};
+const BRAND_BATCH_FLAGS = ["items", "dryRun"];
+export const BRAND_TOP_LEVEL_KEYS: KeyCheck = {
+  known: [...new Set([...BRAND_BATCH_FLAGS, ...BRAND_ITEM_KEYS.known])],
+  aliases: { ...BRAND_ITEM_KEYS.aliases, brands: "items", data: "items", rows: "items" },
+};

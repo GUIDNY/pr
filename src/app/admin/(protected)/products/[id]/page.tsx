@@ -17,6 +17,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
     slug: product.slug,
     sku: product.sku,
     model: product.model ?? "",
+    gtin13: product.gtin13 ?? "",
     brandId: product.brandId,
     categoryId: product.categoryId,
     supplierId: product.supplierId ?? undefined,

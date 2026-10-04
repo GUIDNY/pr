@@ -51,6 +51,11 @@ type EnrichItem = {
   // large share of sheets have no such column, so for most products this
   // arrives empty and stays that way unless it is set here.
   model?: string;
+  // The barcode (EAN-13 for most of this catalogue). Digits only, 8 to 14,
+  // separators tolerated; "" clears it. What Google matches a page to its
+  // own product entity by, and absent on 97% of the catalogue because the
+  // supplier sheets carry no barcode column — so this is the way it lands.
+  gtin13?: string;
   // A real, structured field — not scraped guesswork — for products whose
   // manufacturer sells the exact same model at multiple finishes, each
   // with its own real model number (e.g. Hidurit's M-LR8 "רוז גולד" vs
@@ -369,6 +374,18 @@ async function processItem(
   }
 
   if (item.model !== undefined) setField("model", item.model, product.model);
+  if (item.gtin13 !== undefined) {
+    const gtin = String(item.gtin13).replace(/[\s-]/g, "");
+    if (gtin && !/^\d{8,14}$/.test(gtin)) {
+      skipped.push({ field: "gtin13", reason: "digits only, 8 to 14 (separators are fine); send \"\" to clear" });
+    } else if (gtin) {
+      setField("gtin13", gtin, product.gtin13);
+    } else {
+      if (product.gtin13) overwritten.push({ field: "gtin13", previousValue: product.gtin13 });
+      updateData.gtin13 = null;
+      applied.push("gtin13 (cleared)");
+    }
+  }
   if (item.colorName !== undefined) setField("colorName", item.colorName, product.colorName);
   if (item.description !== undefined) setField("description", item.description, product.description);
 

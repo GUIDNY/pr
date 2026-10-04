@@ -40,6 +40,7 @@ type CreateItem = {
   category: string; // category slug — must already exist, never auto-created
   price: number;
   model?: string;
+  gtin13?: string;
   colorName?: string;
   description?: string;
   descriptionSourceUrl?: string;
@@ -58,6 +59,12 @@ async function processCreateItem(item: CreateItem, dryRun: boolean) {
 
   const title = (item.title ?? "").trim();
   if (!title) return { sku, created: false, error: "missing title" };
+
+  // The barcode: digits only, 8 to 14, separators tolerated. Checked here
+  // rather than stored as typed, because a malformed one is a rejected
+  // feed item later with no hint of where it came from.
+  const gtin13 = item.gtin13 === undefined ? null : item.gtin13.replace(/[\s-]/g, "");
+  if (gtin13 && !/^\d{8,14}$/.test(gtin13)) return { sku, created: false, error: "gtin13: digits only, 8 to 14" };
 
   const brandName = (item.brand ?? "").trim();
   if (!brandName) return { sku, created: false, error: "missing brand" };
@@ -154,6 +161,7 @@ async function processCreateItem(item: CreateItem, dryRun: boolean) {
       title,
       slug,
       model: item.model?.trim() || null,
+      gtin13: gtin13 || null,
       colorName: item.colorName?.trim() || null,
       brandId,
       categoryId: category.id,

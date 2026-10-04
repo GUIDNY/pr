@@ -75,6 +75,16 @@ export function ProductForm({
           <Input value={form.model ?? ""} onChange={(e) => update("model", e.target.value)} />
         </div>
         <div>
+          <Label className="mb-1.5">ברקוד (GTIN / EAN)</Label>
+          <Input
+            value={form.gtin13 ?? ""}
+            onChange={(e) => update("gtin13", e.target.value)}
+            dir="ltr"
+            inputMode="numeric"
+            placeholder="13 ספרות מהאריזה"
+          />
+        </div>
+        <div>
           <Label className="mb-1.5">מותג</Label>
           <Select value={form.brandId} onValueChange={(v) => update("brandId", v)}>
             <SelectTrigger className="w-full">
