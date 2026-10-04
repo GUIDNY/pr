@@ -10,6 +10,11 @@ export type CategoryNode = {
   children: { name: string; slug: string }[];
 };
 
+/* Every category slug in the database belongs here. The category route
+   resolves a slug against this list (findCategoryBySlug) while the sitemap
+   is built from the database, so a slug present there and absent here is a
+   URL the sitemap offers and the site answers 404 to — which is what
+   happened to ten categories, six of them with products on the shelf. */
 export const CATEGORY_TREE: CategoryNode[] = [
   {
     name: "טלוויזיות ומולטימדיה",
@@ -36,6 +41,9 @@ export const CATEGORY_TREE: CategoryNode[] = [
       { name: "אוזניות", slug: "headphones" },
       { name: "נגני בלוריי, DVD וסטרימרים", slug: "bluray-streamers" },
       { name: "חיווט וכבלים", slug: "cables" },
+      { name: "אביזרי AV ומפצלים", slug: "av-accessories" },
+      { name: "מיקרופונים ומערכות אלחוטיות", slug: "microphones" },
+      { name: "מתקנים לרמקולים", slug: "speaker-mounts" },
     ],
   },
   {
@@ -98,7 +106,10 @@ export const CATEGORY_TREE: CategoryNode[] = [
       { name: "כיריים גז", slug: "gas-cooktops" },
       { name: "כיריים קרמיות", slug: "ceramic-cooktops" },
       { name: "כיריים אינדוקציה", slug: "induction-cooktops" },
+      { name: "כיריים משולבות גז ואינדוקציה", slug: "hybrid-cooktops" },
       { name: "קולטי אדים", slug: "range-hoods" },
+      { name: "מגירות חימום", slug: "warming-drawers" },
+      { name: "אביזרים לתנורים ולמטבח", slug: "oven-kitchen-accessories" },
     ],
   },
   {
@@ -133,7 +144,17 @@ export const CATEGORY_TREE: CategoryNode[] = [
       { name: "מגהצים", slug: "irons" },
       { name: "קטלי יתושים", slug: "mosquito-killers" },
       { name: "בר מים", slug: "water-dispensers" },
+      // Filed under בר מים in the database (a third level this tree does
+      // not have); listed here so their pages resolve. The בר מים page
+      // still shows them — a category page lists its children's products.
+      { name: "ברזי מים", slug: "water-taps" },
+      { name: "טאבונים", slug: "tabuns" },
+      { name: "מנגלים ומטבחי חוץ", slug: "grills" },
       { name: "תאורה חכמה פיליפס Hue", slug: "smart-lighting" },
+      // A top-level category in the database with one product. A department
+      // of its own in the menu would be a department of one; as a child
+      // here its page exists and the menu hides it until it has stock.
+      { name: "אביזרים לרכב", slug: "car-accessories" },
     ],
   },
   {
