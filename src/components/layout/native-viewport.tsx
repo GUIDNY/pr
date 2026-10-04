@@ -26,7 +26,12 @@ export function NativeViewport() {
       meta.name = "viewport";
       document.head.appendChild(meta);
     }
-    meta.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover";
+    /* No viewport-fit=cover. It was here at first, and on Android it is an
+       instruction to lay the page out underneath the status bar: the
+       header's search box ended up with the clock and the signal bars
+       drawn over it. The default (auto) keeps the page inside the safe
+       area on both platforms, and pinning the scale does not need cover. */
+    meta.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no";
   }, [inApp]);
   return null;
 }
