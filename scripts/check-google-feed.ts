@@ -37,6 +37,7 @@ function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
        so the fixture exercises the lookup rather than only the fallback. */
     category: { name: "מדיח כלים", slug: "dishwasher-standard", parent: { name: "מטבח" } },
     images: [{ url: "https://example.com/a.jpg" }],
+    specs: [],
     ...over,
   };
 }
@@ -97,6 +98,18 @@ const rows: FeedProduct[] = [
     title: "מוצר בלי צבע בכותרת",
     variantGroupId: "vg_testgroup000002",
   }),
+  /* The spec table as product_detail: a name with an ampersand (escaped or
+     the file is unparseable), a dimension row (its own section), and an
+     empty value (dropped, not sent blank). */
+  product({
+    sku: "SPECS",
+    specs: [
+      { name: "נפח", value: "25 ליטר" },
+      { name: "A&B", value: "כן" },
+      { name: "רוחב", value: "47.6 ס\"מ" },
+      { name: "ריק", value: "   " },
+    ],
+  }),
 ];
 
 const xml = renderGoogleMerchantFeed(rows);
@@ -116,6 +129,16 @@ function check(name: string, ok: boolean, detail = "") {
 check("no unescaped ampersand", !/&(?!amp;|lt;|gt;|quot;|apos;)/.test(xml));
 check("no markup left in any value", !/<(?:p|br|h[1-6]|ul|ol|li|strong|em|div|span)\b/i.test(xml));
 check("no control characters", !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(xml));
+
+{
+  const specs = items.get("SPECS") ?? "";
+  check("product_detail is emitted", specs.includes("<g:product_detail>"));
+  check("product_detail carries the name and value", /<g:attribute_name>נפח<\/g:attribute_name>\s*<g:attribute_value>25 ליטר<\/g:attribute_value>/.test(specs));
+  check("product_detail escapes the name", specs.includes("<g:attribute_name>A&amp;B</g:attribute_name>"));
+  check("a dimension row sits in its own section", /<g:section_name>מידות<\/g:section_name>\s*<g:attribute_name>רוחב/.test(specs));
+  check("an empty value is dropped", !specs.includes("ריק"));
+  check("an item without specs has no product_detail", !(items.get("PLAIN") ?? "").includes("<g:product_detail>"));
+}
 
 // Stock states nobody has confirmed can ship today stay out of the feed
 // rather than being advertised as available.

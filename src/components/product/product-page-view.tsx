@@ -66,6 +66,7 @@ import {
   feedDescription,
 } from "@/lib/feeds/google-merchant";
 import { absoluteUrl } from "@/lib/site-url";
+import { structuredSpecs } from "@/lib/product-specs";
 import { colorInTitle } from "@/lib/catalog/variant-colors";
 import { formatDate, formatPrice } from "@/lib/format";
 import type { StockStatus } from "@/lib/enums";
@@ -188,6 +189,15 @@ export async function ProductPageView({
      because the supplier sheets have no colour column. */
   const feedColor = product.colorName ?? colorInTitle(product.title);
 
+  const productSpecs = structuredSpecs(allSpecRows);
+  const ratingSummary =
+    product.reviews.length > 0
+      ? {
+          count: product.reviews.length,
+          average: Math.round((product.reviews.reduce((sum, r) => sum + r.rating, 0) / product.reviews.length) * 10) / 10,
+        }
+      : null;
+
   const productJsonLd = offSiteForVisitors
     ? null
     : {
@@ -221,6 +231,40 @@ export async function ProductPageView({
         inProductGroupWithID: feedColor ? (product.variantGroupId ?? undefined) : undefined,
         image: product.images.map((img) => img.url),
         brand: { "@type": "Brand", name: product.brand.name },
+        /* The spec table, as facts a crawler can read as facts. Every
+           product page carried an empty additionalProperty while the
+           visible table said "נפח: 25 ליטר" in prose Google could not use;
+           the retailers that rank for a model number all state the same
+           rows structurally. The same rows the table renders, from the
+           same function, so the markup never claims a spec the page does
+           not show. */
+        additionalProperty:
+          productSpecs.length > 0
+            ? productSpecs.map((s) => ({ "@type": "PropertyValue", name: s.name, value: s.value }))
+            : undefined,
+        /* Ratings only from reviews real customers wrote and an admin
+           approved — the ones the reviews tab below shows. A rating in the
+           markup that the page does not display is the mismatch Google
+           removes rich results over, so both read product.reviews. */
+        ...(ratingSummary
+          ? {
+              aggregateRating: {
+                "@type": "AggregateRating",
+                ratingValue: ratingSummary.average,
+                reviewCount: ratingSummary.count,
+                bestRating: 5,
+                worstRating: 1,
+              },
+              review: product.reviews.slice(0, 10).map((r) => ({
+                "@type": "Review",
+                author: { "@type": "Person", name: r.authorName },
+                reviewRating: { "@type": "Rating", ratingValue: r.rating, bestRating: 5, worstRating: 1 },
+                name: r.title ?? undefined,
+                reviewBody: r.body ?? undefined,
+                datePublished: r.createdAt.toISOString().slice(0, 10),
+              })),
+            }
+          : {}),
         offers: {
           "@type": "Offer",
           url: absoluteUrl(`/product/${product.slug}`),

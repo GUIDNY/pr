@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { renderGoogleMerchantFeed } from "@/lib/feeds/google-merchant";
+import { specRowsFor, structuredSpecs } from "@/lib/product-specs";
 import { TEST_PRODUCT_SKUS } from "@/lib/test-products";
 
 // Served from /feeds/, not /api/, on purpose: robots.ts disallows /api for
@@ -41,11 +42,19 @@ export async function GET() {
       brand: { select: { name: true } },
       category: { select: { name: true, slug: true, parent: { select: { name: true } } } },
       images: { select: { url: true }, orderBy: { sortOrder: "asc" } },
+      // For product_detail — the same rows the product page's spec table
+      // and JSON-LD are built from. See lib/product-specs.ts.
+      extraSpecsRaw: true,
+      attributeValues: {
+        select: { value: true, attribute: { select: { label: true, unit: true, sortOrder: true } } },
+      },
     },
     orderBy: { sku: "asc" },
   });
 
-  return new Response(renderGoogleMerchantFeed(products), {
+  const rows = products.map((p) => ({ ...p, specs: structuredSpecs(specRowsFor(p).all) }));
+
+  return new Response(renderGoogleMerchantFeed(rows), {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
       "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",

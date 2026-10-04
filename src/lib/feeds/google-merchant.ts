@@ -1,4 +1,6 @@
 import { SITE_URL } from "@/lib/site-url";
+import type { StructuredSpec } from "@/lib/product-specs";
+import { DIMENSION_PATTERN } from "@/lib/product-content";
 import { BUSINESS } from "@/lib/business";
 import { computeDeliveryFee, HANDLING_DAYS, TRANSIT_DAYS } from "@/lib/delivery";
 import { colorInTitle } from "@/lib/catalog/variant-colors";
@@ -63,6 +65,10 @@ export const SCHEMA_CURRENCY = CURRENCY;
 const MAX_TITLE = 150;
 const MAX_DESCRIPTION = 5000;
 const MAX_ADDITIONAL_IMAGES = 10;
+/* Google sets no hard cap on product_detail entries; forty is well past
+   the longest real spec table here and keeps a runaway row list from
+   doubling the feed. */
+const MAX_PRODUCT_DETAILS = 40;
 
 function xmlEscape(value: string): string {
   return value
@@ -164,6 +170,9 @@ export type FeedProduct = {
   brand: { name: string };
   category: { name: string; slug: string; parent: { name: string } | null };
   images: { url: string }[];
+  /** The spec rows the product page shows, as name/value pairs — from
+      lib/product-specs, the same list the page's JSON-LD carries. */
+  specs: StructuredSpec[];
 };
 
 // Split from the query on purpose: every rule Google can reject an item over
@@ -229,6 +238,27 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
     if (gtin) lines.push(tag("g:gtin", gtin));
     if (p.model) lines.push(tag("g:mpn", p.model));
     if (!gtin && !p.model) lines.push(tag("g:identifier_exists", "no"));
+
+    /* The specifications, as data. product_detail is how a feed states
+       "נפח: 25 ליטר" so that it is a fact and not a phrase in the
+       description, and it was missing from every item while the page
+       showed the same table. Same rows as the page and its JSON-LD, so the
+       three cannot disagree — Google compares them. Google caps the name
+       at 100 characters and the value at 750. */
+    for (const spec of p.specs.slice(0, MAX_PRODUCT_DETAILS)) {
+      const name = clean(spec.name, 100);
+      const value = clean(spec.value, 750);
+      if (!name || !value) continue;
+      lines.push(
+        [
+          "    <g:product_detail>",
+          tag("g:section_name", DIMENSION_PATTERN.test(name) ? "מידות" : "מפרט", "      "),
+          tag("g:attribute_name", name, "      "),
+          tag("g:attribute_value", value, "      "),
+          "    </g:product_detail>",
+        ].join("\n"),
+      );
+    }
 
     /* Colour, and the grouping that makes it mean something.
     
