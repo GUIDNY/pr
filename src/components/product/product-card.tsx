@@ -73,7 +73,7 @@ export function ProductCard({
               alt=""
               fill
               className="bg-white object-contain p-3"
-              sizes="(min-width: 1024px) 25vw, 50vw"
+              sizes="(min-width: 1280px) 20vw, (min-width: 640px) 33vw, 50vw"
               // no-referrer: with images.unoptimized the browser fetches
               // these URLs directly, and most of them live on other Israeli
               // retailers' servers. Without this, every product view puts

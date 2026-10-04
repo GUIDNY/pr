@@ -24,7 +24,10 @@ import { GuideIntro } from "@/components/category/guide-intro";
 import { JsonLd } from "@/components/seo/json-ld";
 import { breadcrumbSchema, itemListSchema } from "@/lib/schema";
 
-const PAGE_SIZE = 24;
+/* Five cards to a row on a desktop, so a page is a multiple of five (and of
+   the three and two a narrower screen shows) — a last row of four under
+   rows of five reads as "something is missing". */
+const PAGE_SIZE = 30;
 // "Everything on one page" is really just a much larger page. Keeping it as
 // a page size rather than a separate no-limit path means the pagination
 // below keeps working unchanged: on almost every category it collapses to a
@@ -252,7 +255,7 @@ export async function CategoryPageView({
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
                 {products.map((p) => (
                   <ProductCard key={p.id} product={p} />
                 ))}

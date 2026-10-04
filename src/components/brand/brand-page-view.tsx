@@ -69,7 +69,7 @@ export async function BrandPageView({
       {products.length === 0 ? (
         <p className="text-muted-foreground py-16 text-center">אין כרגע מוצרים של מותג זה.</p>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
           {products.map((p) => (
             <ProductCard key={p.id} product={p} />
           ))}
