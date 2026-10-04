@@ -44,8 +44,39 @@ export function specRowsFor(product: SpecSource): ProductSpecs {
 export type StructuredSpec = { name: string; value: string };
 
 /* Labels that name the product rather than describe it; they are already
-   carried by their own fields (brand, mpn, sku) and would only repeat. */
-const NOT_A_SPEC = new Set(["מותג", "דגם", "מק\"ט", "יצרן", "תוצרת", "קוד דגם", "ברקוד"]);
+   carried by their own fields (brand, mpn, sku) and would only repeat.
+   Warranty and price are commercial terms, not properties of the machine —
+   "אחריות: שנה + 4 ב-199 ש"ח" is an offer, and an offer has its own
+   place in the markup. */
+const NOT_A_SPEC = new Set([
+  "מותג", "דגם", "מקט", "יצרן", "תוצרת", "קוד דגם", "ברקוד", "אחריות", "מחיר", "מחיר מומלץ",
+  "משלוח", "זמן אספקה", "הערות", "הערה", "מידע נוסף", "קישור", "מקור",
+]);
+
+/* Values that say nothing. A row reading "לא צוין" is a row the source did
+   not have; stating it as a property tells a crawler the product has an
+   attribute whose value is "unspecified", which is worse than silence. */
+const EMPTY_VALUES = new Set([
+  "לא צוין", "לא צויין", "לא ידוע", "אין", "אין מידע", "אין נתון", "לא רלוונטי", "ללא",
+  "-", "—", "–", "n/a", "na", "none", "null", "undefined", "tbd", "?",
+]);
+
+/* A price inside a spec value — "199 ש"ח", "₪1,990" — is a commercial term
+   that wandered into the table. */
+const LOOKS_LIKE_PRICE = /₪|ש"ח|ש״ח|שח\b|שקל|\bnis\b|\bils\b/i;
+
+/** One spelling for a label, so "סל\"ד סחיטה" and "סל״ד סחיטה" are the same
+    row rather than two rows with two values. Quotes of every kind are
+    dropped (they only ever mark an abbreviation), whitespace collapsed,
+    case folded for Latin. The display label keeps its first spelling. */
+export function specKey(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/["'״׳`’‘]/g, "")
+    .replace(/[\u0591-\u05C7]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
 
 /* Google's product_detail caps attribute names at 100 characters and
    values at 750; the schema.org side has no cap, but a "value" running to
@@ -62,9 +93,11 @@ export function structuredSpecs(rows: SpecRow[]): StructuredSpec[] {
   for (const row of rows) {
     const name = row.label.trim();
     const value = row.value.trim();
-    if (!name || !value || NOT_A_SPEC.has(name) || seen.has(name)) continue;
+    const key = specKey(name);
+    if (!key || !value || seen.has(key)) continue;
+    if (NOT_A_SPEC.has(key) || EMPTY_VALUES.has(value.toLowerCase()) || LOOKS_LIKE_PRICE.test(value)) continue;
     if (name.length > MAX_NAME || value.length > MAX_VALUE) continue;
-    seen.add(name);
+    seen.add(key);
     out.push({ name, value });
     if (out.length >= MAX_ROWS) break;
   }
