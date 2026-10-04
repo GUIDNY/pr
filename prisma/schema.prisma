@@ -597,6 +597,11 @@ model Order {
   // fields — and this is the only thing that tells them apart, so registering
   // that email again never hands these back. See claimGuestOrders.
   ownerDeletedAt     DateTime?
+  /// Moved to the bin by the back office, not deleted. Set means the order
+  /// is out of every queue and count but still here: the row, its items and
+  /// its history are untouched, and restoring it is one click. Only an order
+  /// that took no real money can get here — see trashOrdersAction.
+  deletedAt          DateTime?
   addressId          String?
   address            Address?  @relation(fields: [addressId], references: [id])
   deliveryMethod     String    @default("DELIVERY") // DELIVERY | PICKUP
@@ -648,6 +653,7 @@ model Order {
 
   @@index([status])
   @@index([userId])
+  @@index([deletedAt])
   complaints         Complaint[]
 }
 

@@ -22,10 +22,22 @@ import type { OrderStatus } from "@/lib/enums";
    of them to one real order the open tab was a list of abandoned carts with
    a sale hidden in it. Last in the row, because it is where the team looks
    only when chasing. */
-export const ORDER_STAGES = ["open", "processing", "closed", "unpaid"] as const;
+/* "trash" is the one tab that is not a set of statuses. Every other stage
+   answers "where is this order in its life"; the bin answers "is it in the
+   queue at all", which is Order.deletedAt and orthogonal to status — a
+   cancelled order and a never-paid one can both be litter. It is listed
+   here so it gets a tab and a count like the rest, and every query that
+   folds statuses into stages has to special-case it rather than look it up
+   in STAGE_OF. That is why STAGE_OF below stays a Record of statuses: a
+   fourteenth status still cannot be added without the compiler asking which
+   of the four real stages it belongs to, and the answer is never "trash". */
+export const ORDER_STAGES = ["open", "processing", "closed", "unpaid", "trash"] as const;
 export type OrderStage = (typeof ORDER_STAGES)[number];
 
-const STAGE_OF: Record<OrderStatus, OrderStage> = {
+/** The bin, which is a flag on the row rather than a status it reached. */
+export const TRASH_STAGE = "trash" satisfies OrderStage;
+
+const STAGE_OF: Record<OrderStatus, Exclude<OrderStage, typeof TRASH_STAGE>> = {
   // Nothing has been decided about these yet. PAYMENT_FAILED sits here too,
   // and deliberately: a failed payment is not a finished order, it is an
   // order somebody has to ring about, and filing it under closed is how it
@@ -66,6 +78,7 @@ export const STAGE_LABELS: Record<OrderStage, string> = {
   processing: "הזמנות בתהליך",
   closed: "הזמנות סגורות",
   unpaid: "עגלות נטושות",
+  trash: "פח",
 };
 
 /** What a person is meant to do with the orders in each tab. */
@@ -74,6 +87,7 @@ export const STAGE_HINTS: Record<OrderStage, string> = {
   processing: "אושרו ויצאו לדרך — מעקב מול השליח",
   closed: "הסתיימו: נמסרו, בוטלו או זוכו",
   unpaid: "טרם שולם: הלקוח הגיע לתשלום ולא השלים אותו — כאן מתקשרים ומזכירים",
+  trash: "הוצאו מהתור ולא נמחקו. אפשר לשחזר, או למחוק מכאן לצמיתות",
 };
 
 export function isStage(value: string | undefined): value is OrderStage {

@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { OrderStatus, PaymentStatus } from "@/lib/enums";
-import { ORDER_STAGES, statusesInStage, type OrderStage } from "@/lib/order-stage";
+import { ORDER_STAGES, statusesInStage, TRASH_STAGE, type OrderStage } from "@/lib/order-stage";
 import { messageFor } from "@/lib/notify/messages";
 import { waHref } from "@/lib/notify/whatsapp-link";
 import { SITE_URL } from "@/lib/site-url";
@@ -34,6 +34,10 @@ export type SellerOrderSummary = {
   delivery: { toCustomer: boolean; address: string | null; fee: number };
   itemCount: number;
   problems: OrderProblem[];
+  /** When it was moved to the bin, if it was. */
+  deletedAt: Date | null;
+  /** False for an order that took real money — it can be cancelled, never binned. */
+  canDelete: boolean;
 };
 
 export type SellerOrderDetail = SellerOrderSummary & {
@@ -93,6 +97,10 @@ const LIST_SELECT = {
   shipApartment: true,
   guestName: true,
   guestPhone: true,
+  deletedAt: true,
+  /* Only to answer "may this one be binned". Two columns rather than the
+     whole payment row, on a list that loads 200 of them. */
+  payments: { select: { provider: true, status: true } },
   user: { select: { name: true, phone: true } },
   items: {
     select: {
@@ -105,10 +113,27 @@ const LIST_SELECT = {
   },
 } as const;
 
+/**
+ * What belongs in a tab.
+ *
+ * The bin is the one tab that is not a set of statuses, so it is the one
+ * branch here: everywhere else `deletedAt: null` is the quiet half of the
+ * filter, and it is on every count as well as every list. A binned order
+ * that still showed in its old tab's number would be the worst of both —
+ * out of the list, present in the badge above it.
+ */
+function stageWhere(stage: OrderStage) {
+  if (stage === TRASH_STAGE) return { deletedAt: { not: null } };
+  return { status: { in: statusesInStage(stage) }, deletedAt: null };
+}
+
 export async function getSellerOrdersByStage(stage: OrderStage): Promise<SellerOrderSummary[]> {
   const rows = await db.order.findMany({
-    where: { status: { in: statusesInStage(stage) } },
-    orderBy: { createdAt: "desc" },
+    where: stageWhere(stage),
+    /* In the bin, most recently binned first — somebody who has just put
+       twenty orders there and wants one back is looking for the ones they
+       just moved, not the oldest order in the shop. */
+    orderBy: stage === TRASH_STAGE ? { deletedAt: "desc" } : { createdAt: "desc" },
     take: 200,
     select: LIST_SELECT,
   });
@@ -117,7 +142,7 @@ export async function getSellerOrdersByStage(stage: OrderStage): Promise<SellerO
 
 export async function getSellerStageCounts(): Promise<Record<OrderStage, number>> {
   const counts = await Promise.all(
-    ORDER_STAGES.map((stage) => db.order.count({ where: { status: { in: statusesInStage(stage) } } })),
+    ORDER_STAGES.map((stage) => db.order.count({ where: stageWhere(stage) })),
   );
   return Object.fromEntries(ORDER_STAGES.map((stage, i) => [stage, counts[i]])) as Record<OrderStage, number>;
 }
@@ -220,9 +245,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
     updates: buildUpdates(row, summary),
     previousStatus: row.statusHistory[0]?.fromStatus ?? null,
     readiness: channelReadiness(),
-    canDelete: !row.payments.some(
-      (p) => p.provider !== "DEMO" && (p.status === "CAPTURED" || p.status === "AUTHORIZED"),
-    ),
+    canDelete: !tookRealMoney(row.payments),
   };
 }
 
@@ -301,6 +324,8 @@ type ListRow = {
   shipApartment: string | null;
   guestName: string | null;
   guestPhone: string | null;
+  deletedAt: Date | null;
+  payments: { provider: string; status: string }[];
   user: { name: string; phone: string | null } | null;
   items: { titleSnap: string; skuSnap: string; quantity: number; priceSnap: number; product: { stockQty: number } | null }[];
 };
@@ -354,5 +379,22 @@ function toSummary(row: ListRow): SellerOrderSummary {
     delivery: { toCustomer, address: address || null, fee: row.deliveryFee },
     itemCount: row.items.reduce((sum, i) => sum + i.quantity, 0),
     problems,
+    deletedAt: row.deletedAt,
+    canDelete: !tookRealMoney(row.payments),
   };
+}
+
+/**
+ * The one rule that decides whether an order may be removed at all.
+ *
+ * A card that was charged or is being held makes the row a financial record
+ * — the shop's, the customer's and the gateway's — and no back-office button
+ * gets to make one of those disappear. Shared by the list, the order page
+ * and all three bin actions so the button a person sees and the check the
+ * server makes can never say different things.
+ */
+export function tookRealMoney(payments: { provider: string; status: string }[]): boolean {
+  return payments.some(
+    (p) => p.provider !== "DEMO" && (p.status === "CAPTURED" || p.status === "AUTHORIZED"),
+  );
 }

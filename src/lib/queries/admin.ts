@@ -21,9 +21,13 @@ export async function getDashboardStats() {
     topProducts,
     categoryRows,
   ] = await Promise.all([
-    db.order.count({ where: { createdAt: { gte: startOfToday } } }),
+    /* The three counts that are "how much work is there" skip the bin — an
+       order somebody binned is one they have decided is not work. The money
+       figures below do not need the filter: only an order that took no real
+       money can be binned at all, so none of them is ever CAPTURED. */
+    db.order.count({ where: { createdAt: { gte: startOfToday }, deletedAt: null } }),
     db.order.aggregate({ where: { createdAt: { gte: startOfToday }, paymentStatus: "CAPTURED" }, _sum: { total: true } }),
-    db.order.count({ where: { status: { in: ["NEW", "PAYMENT_PENDING", "PAID"] } } }),
+    db.order.count({ where: { status: { in: ["NEW", "PAYMENT_PENDING", "PAID"] }, deletedAt: null } }),
     db.order.count({ where: { status: "CANCELLED", createdAt: { gte: sevenDaysAgo } } }),
     db.order.count({ where: { status: { in: ["REFUND_PENDING", "REFUNDED"] }, createdAt: { gte: sevenDaysAgo } } }),
     db.order.findMany({
@@ -32,7 +36,7 @@ export async function getDashboardStats() {
     }),
     db.order.findMany({ where: { paymentStatus: "CAPTURED" }, select: { total: true } }),
     db.order.findMany({
-      where: { status: { in: ATTENTION_STATUSES }, createdAt: { lte: threeDaysAgo } },
+      where: { status: { in: ATTENTION_STATUSES }, createdAt: { lte: threeDaysAgo }, deletedAt: null },
       orderBy: { createdAt: "asc" },
       take: 10,
     }),

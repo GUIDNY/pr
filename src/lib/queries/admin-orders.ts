@@ -13,7 +13,11 @@ export type AdminOrderFilters = {
 };
 
 export async function getAdminOrders(filters: AdminOrderFilters) {
-  const where: Record<string, unknown> = {};
+  /* The bin is a seller-view tab, but it has to hold here too: an order
+     moved to it should be gone from every list, and the manager's table is
+     a list. Without this a binned order stays visible — and editable —
+     behind a different URL. */
+  const where: Record<string, unknown> = { deletedAt: null };
 
   if (filters.status && filters.status !== "ALL") where.status = filters.status;
   if (filters.assignedToId) where.assignedToId = filters.assignedToId;
@@ -77,7 +81,11 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
  * filters: these are the numbers you navigate BY.
  */
 export async function getAdminOrderStatusCounts() {
-  const rows = await db.order.groupBy({ by: ["status"], _count: { _all: true } });
+  const rows = await db.order.groupBy({
+    by: ["status"],
+    where: { deletedAt: null },
+    _count: { _all: true },
+  });
   const counts: Record<string, number> = {};
   let total = 0;
   for (const row of rows) {

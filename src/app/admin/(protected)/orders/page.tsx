@@ -16,9 +16,9 @@ import { formatPrice, formatDateTime } from "@/lib/format";
 import { requireBackOffice } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { getSellerOrdersByStage, getSellerStageCounts } from "@/lib/queries/seller-orders";
-import { SellerOrderRow } from "@/components/admin/seller-order-row";
+import { OrdersBulkList } from "@/components/admin/orders-bulk-list";
 import { OrderStageTabs } from "@/components/admin/order-stage-tabs";
-import { isStage, STAGE_HINTS } from "@/lib/order-stage";
+import { isStage, STAGE_HINTS, TRASH_STAGE } from "@/lib/order-stage";
 
 export const metadata = { title: "הזמנות | Buy Today Admin" };
 
@@ -59,14 +59,10 @@ export default async function AdminOrdersPage({
         <p className="text-muted-foreground text-sm">{STAGE_HINTS[stage]}</p>
         {orders.length === 0 ? (
           <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">
-            אין כאן הזמנות כרגע.
+            {stage === TRASH_STAGE ? "הפח ריק." : "אין כאן הזמנות כרגע."}
           </p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {orders.map((order) => (
-              <SellerOrderRow key={order.id} order={order} />
-            ))}
-          </div>
+          <OrdersBulkList orders={orders} stage={stage} />
         )}
       </div>
     );

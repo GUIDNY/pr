@@ -8,6 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { completeDebitByUid } from "@/lib/pelecard/client";
 import { notifyOrder } from "@/lib/notify";
 import type { NotifyEvent } from "@/lib/notify/types";
+import { tookRealMoney } from "@/lib/queries/seller-orders";
 
 /**
  * The two buttons on a salesperson's order card.
@@ -420,6 +421,155 @@ export async function deleteOrderAction(orderNumber: string): Promise<Result> {
   revalidatePath("/admin/orders");
   revalidatePath("/admin");
   return { success: true, error: null };
+}
+
+/**
+ * The bin: move, restore, destroy.
+ *
+ * Three actions rather than one with a mode, because they are three
+ * different promises and the UI should not be able to get them confused.
+ * Moving and restoring are reversible and need no ceremony. Destroying is
+ * not, and it is reachable from one place only — the bin tab — so that
+ * "clear out the test orders" and "delete fifteen orders for ever" cannot
+ * be the same click.
+ *
+ * All three take order NUMBERS, the thing a person reads on the screen, so
+ * that a mis-wired id cannot delete a row nobody chose. They are also all
+ * all-or-nothing on the money rule: one order in the selection that took
+ * real money stops the whole batch and names it, rather than quietly doing
+ * fourteen of the fifteen and leaving somebody to work out which.
+ */
+type BulkResult = Result & { count?: number };
+
+const LIMIT = 200;
+
+async function loadSelection(orderNumbers: string[], wantBinned: boolean) {
+  const unique = [...new Set(orderNumbers.filter(Boolean))];
+  if (unique.length === 0) return { error: "לא נבחרו הזמנות" as const, orders: [] };
+  if (unique.length > LIMIT) return { error: `אפשר עד ${LIMIT} הזמנות בפעולה אחת`, orders: [] };
+
+  const orders = await db.order.findMany({
+    where: { orderNumber: { in: unique } },
+    select: {
+      id: true,
+      orderNumber: true,
+      total: true,
+      paymentStatus: true,
+      deletedAt: true,
+      payments: { select: { provider: true, status: true } },
+    },
+  });
+  if (orders.length !== unique.length) {
+    return { error: "חלק מההזמנות כבר לא קיימות — רענן את הדף", orders: [] };
+  }
+
+  /* Checked even on restore. The rule is about what the row is, not about
+     which direction it is moving, and an order that took real money should
+     never have been in the bin to begin with. */
+  const paid = orders.filter((o) => tookRealMoney(o.payments));
+  if (paid.length > 0) {
+    return {
+      error: `נגבה כסף אמיתי ב-${paid.length} מההזמנות שנבחרו (${paid
+        .slice(0, 3)
+        .map((o) => o.orderNumber)
+        .join(", ")}${paid.length > 3 ? "…" : ""}). אלה רישומים כספיים — אפשר לבטל אותן, לא למחוק.`,
+      orders: [],
+    };
+  }
+
+  const wrongSide = orders.filter((o) => (o.deletedAt !== null) !== wantBinned);
+  if (wrongSide.length > 0) {
+    return { error: "חלק מההזמנות כבר לא במצב הזה — רענן את הדף", orders: [] };
+  }
+
+  return { error: null, orders };
+}
+
+/** "העבר לפח" — out of every queue and count, still here. */
+export async function trashOrdersAction(orderNumbers: string[]): Promise<BulkResult> {
+  const session = await requireBackOffice();
+  const { error, orders } = await loadSelection(orderNumbers, false);
+  if (error) return { success: false, error };
+
+  await db.order.updateMany({
+    where: { id: { in: orders.map((o) => o.id) } },
+    data: { deletedAt: new Date() },
+  });
+  for (const order of orders) {
+    await logAudit({
+      actorId: session.sub,
+      action: "ORDER_TRASHED",
+      entityType: "Order",
+      entityId: order.id,
+      metadata: { orderNumber: order.orderNumber, total: order.total },
+    });
+  }
+
+  revalidateOrderLists();
+  return { success: true, error: null, count: orders.length };
+}
+
+/** "שחזר" — back to whichever tab its status puts it in. */
+export async function restoreOrdersAction(orderNumbers: string[]): Promise<BulkResult> {
+  const session = await requireBackOffice();
+  const { error, orders } = await loadSelection(orderNumbers, true);
+  if (error) return { success: false, error };
+
+  await db.order.updateMany({
+    where: { id: { in: orders.map((o) => o.id) } },
+    data: { deletedAt: null },
+  });
+  for (const order of orders) {
+    await logAudit({
+      actorId: session.sub,
+      action: "ORDER_RESTORED",
+      entityType: "Order",
+      entityId: order.id,
+      metadata: { orderNumber: order.orderNumber },
+    });
+  }
+
+  revalidateOrderLists();
+  return { success: true, error: null, count: orders.length };
+}
+
+/**
+ * "מחק לצמיתות" — the row and everything hanging off it.
+ *
+ * Only from the bin, so nothing is destroyed that was not first set aside
+ * and looked at a second time. Items, payments, notifications, notes and
+ * history cascade; the audit lines are written first, because afterwards
+ * there is no row left to point at and they are the only record that these
+ * orders ever existed.
+ */
+export async function purgeOrdersAction(orderNumbers: string[]): Promise<BulkResult> {
+  const session = await requireBackOffice();
+  const { error, orders } = await loadSelection(orderNumbers, true);
+  if (error) return { success: false, error };
+
+  for (const order of orders) {
+    await logAudit({
+      actorId: session.sub,
+      action: "ORDER_DELETED",
+      entityType: "Order",
+      entityId: order.id,
+      metadata: {
+        orderNumber: order.orderNumber,
+        total: order.total,
+        paymentStatus: order.paymentStatus,
+        via: "bulk-purge",
+      },
+    });
+  }
+  const { count } = await db.order.deleteMany({ where: { id: { in: orders.map((o) => o.id) } } });
+
+  revalidateOrderLists();
+  return { success: true, error: null, count };
+}
+
+function revalidateOrderLists() {
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin");
 }
 
 /**
