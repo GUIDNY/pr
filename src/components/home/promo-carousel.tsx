@@ -7,6 +7,19 @@ import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ALFRED_CHAT_HREF } from "@/lib/banners";
 import { ALFRED_OPEN_EVENT } from "@/lib/bottom-nav";
+import { MallAnchor } from "@/components/layout/mall-link";
+import { MALL_WEB_ORIGIN } from "@/lib/mall";
+
+/* A banner aimed at the 3D mall — its own address, or the shop's /mall — is
+   a mall link, not a page link: in the app a link to play.buytoday.co.il is
+   handed to the system browser and the customer is out of the app, and a
+   client-side push to /mall would try to fetch a rewrite as a page.
+   MallAnchor sends the app to /mall in the same view and the web to the
+   game in a new tab. Admins paste the game's address into banners, so this
+   is decided here rather than asked of them. */
+function isMallHref(href: string): boolean {
+  return href.startsWith(MALL_WEB_ORIGIN) || href === "/mall" || href.startsWith("/mall?") || href.startsWith("/mall/");
+}
 
 /**
  * A slide is a link to a page, or — when its target is the Alfred chat —
@@ -23,6 +36,13 @@ function SlideLink({ href, className, children }: { href: string; className?: st
       >
         {children}
       </button>
+    );
+  }
+  if (isMallHref(href)) {
+    return (
+      <MallAnchor medium="banner" className={className}>
+        {children}
+      </MallAnchor>
     );
   }
   return (
@@ -234,13 +254,13 @@ function Slide({
           <p className="max-w-md text-[1.7rem] leading-tight font-black text-balance sm:text-3xl">{slide.title}</p>
           <p className="text-primary-foreground/75 max-w-sm text-sm">{slide.subtitle}</p>
           {slide.ctaLabel && slide.ctaHref && (
-            <Link
+            <SlideLink
               href={slide.ctaHref}
               className="bg-brand text-brand-foreground hover:bg-brand-hover mt-1 inline-flex h-10 items-center gap-1.5 rounded-lg px-5 text-sm font-bold shadow-sm transition-colors"
             >
               {slide.ctaLabel}
               <ArrowLeft className="size-4" />
-            </Link>
+            </SlideLink>
           )}
         </div>
       </div>
