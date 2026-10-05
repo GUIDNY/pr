@@ -30,6 +30,11 @@ export type BatchResult = {
   rowsAfter: number;
   attributesToCreate: { category: string; key: string; label: string }[];
   labelMismatches: { slug: string; key: string; file: string; db: string }[];
+  /** Products the file holds fewer rows for than the database does. A
+      replacement file is built from the database, so fewer means a key
+      the builder dropped — the hand-off's first version would have lost
+      187 rows this way, silently. Listed so it is never silent here. */
+  losingRows: { slug: string; before: number; after: number }[];
   problems: RowProblem[];
   written: boolean;
 };
@@ -93,6 +98,7 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
      once. */
   const toCreate = new Map<string, { categoryId: string; categorySlug: string; key: string; label: string; unit: string | null; inputType: string; sortOrder: number }>();
   const labelMismatches: BatchResult["labelMismatches"] = [];
+  const losingRows: BatchResult["losingRows"] = [];
   let rowsBefore = 0;
   let rowsAfter = 0;
 
@@ -100,6 +106,9 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
     const rows = wanted.get(p.slug) ?? [];
     rowsBefore += p.attributeValues.length;
     rowsAfter += rows.length;
+    if (rows.length < p.attributeValues.length) {
+      losingRows.push({ slug: p.slug, before: p.attributeValues.length, after: rows.length });
+    }
     const have = attrByCategory.get(p.categoryId) ?? new Map();
     for (const row of rows) {
       const existing = have.get(row.key);
@@ -131,6 +140,7 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
     rowsAfter,
     attributesToCreate: [...toCreate.values()].map((a) => ({ category: a.categorySlug, key: a.key, label: a.label })),
     labelMismatches,
+    losingRows,
     problems,
     written: false,
   };

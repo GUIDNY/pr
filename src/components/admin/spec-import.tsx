@@ -23,6 +23,7 @@ type Totals = {
   rowsAfter: number;
   attributesToCreate: BatchResult["attributesToCreate"];
   labelMismatches: BatchResult["labelMismatches"];
+  losingRows: BatchResult["losingRows"];
   problems: RowProblem[];
 };
 
@@ -34,6 +35,7 @@ const empty = (): Totals => ({
   rowsAfter: 0,
   attributesToCreate: [],
   labelMismatches: [],
+  losingRows: [],
   problems: [],
 });
 
@@ -107,6 +109,7 @@ export function SpecImport() {
         totals.rowsAfter += r.rowsAfter;
         totals.attributesToCreate.push(...r.attributesToCreate);
         totals.labelMismatches.push(...r.labelMismatches);
+        totals.losingRows.push(...r.losingRows);
         totals.problems.push(...r.problems);
         setProgress(Math.round(((i + batch.length) / products.length) * 100));
       }
@@ -206,7 +209,15 @@ function Report({ title, totals, schemaResult }: { title: string; totals: Totals
         <dd>{n(totals.unknownSlugs.length)}</dd>
         <dt className="text-muted-foreground">תווית שונה מהמסד</dt>
         <dd>{n(totals.labelMismatches.length)}</dd>
+        <dt className={totals.losingRows.length > 0 ? "text-destructive font-medium" : "text-muted-foreground"}>מוצרים שיאבדו שורות</dt>
+        <dd className={totals.losingRows.length > 0 ? "text-destructive font-medium" : ""}>{n(totals.losingRows.length)}</dd>
       </dl>
+      {totals.losingRows.length > 0 && (
+        <p className="text-destructive text-sm">
+          לקובץ יש פחות שורות מאשר במסד עבור המוצרים האלה. קובץ החלפה נבנה מהמסד, אז פחות אומר מפתח שהבילדר השמיט.
+          לא להחליף לפני שזה מוסבר.
+        </p>
+      )}
       {schemaResult && (
         <p className="text-muted-foreground">
           סכמה: {schemaResult.categoriesMatched} קטגוריות, {schemaResult.attributesCreated} תכונות חדשות, {schemaResult.attributesUpdated} עודכנו
@@ -221,6 +232,9 @@ function Report({ title, totals, schemaResult }: { title: string; totals: Totals
       )}
       {totals.attributesToCreate.length > 0 && (
         <Details label={`תכונות שייווצרו (${totals.attributesToCreate.length})`} lines={totals.attributesToCreate.map((a) => `${a.category} · ${a.key} (${a.label})`)} />
+      )}
+      {totals.losingRows.length > 0 && (
+        <Details label={`מוצרים שיאבדו שורות (${totals.losingRows.length})`} lines={totals.losingRows.map((l) => `${l.slug}: ${l.before} → ${l.after}`)} />
       )}
       {totals.labelMismatches.length > 0 && (
         <Details
