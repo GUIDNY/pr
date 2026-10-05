@@ -13,6 +13,20 @@ export const NOTIFY_EVENTS = [
 ] as const;
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number];
 
+/**
+ * A template that is not one of the four, because it is not addressed to a
+ * customer.
+ *
+ * Meta's rule is about opening a conversation, not about who is on the other
+ * end, so telling the shop's own owner that a complaint came in needs an
+ * approved template exactly as a customer message does. It is kept out of
+ * NOTIFY_EVENTS deliberately: that list is what the order page's updates
+ * panel renders with a resend button beside each row, and an internal alert
+ * appearing there is a button somebody eventually presses at a customer.
+ */
+export const INTERNAL_TEMPLATE_EVENTS = ["COMPLAINT_ALERT"] as const;
+export type TemplateEvent = NotifyEvent | (typeof INTERNAL_TEMPLATE_EVENTS)[number];
+
 export const NOTIFY_CHANNELS = ["EMAIL", "SMS", "WHATSAPP"] as const;
 export type NotifyChannel = (typeof NOTIFY_CHANNELS)[number];
 
@@ -51,7 +65,7 @@ export type Message = {
    * advance, so the free text above cannot be sent there — this is the
    * same sentence, cut to the template's shape.
    */
-  template?: { event: NotifyEvent; params: string[] };
+  template?: { event: TemplateEvent; params: string[] };
 };
 
 export type SendResult = { ok: true; providerMessageId?: string } | { ok: false; error: string };

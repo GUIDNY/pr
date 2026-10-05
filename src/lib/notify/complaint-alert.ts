@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { SITE_URL } from "@/lib/site-url";
-import { emailChannel } from "./channels";
+import { emailChannel, whatsappChannel } from "./channels";
 import { ownerAlertRecipients, ownerPushConfigured, pushToOwnerDevices } from "./owner-alert";
 import {
   COMPLAINT_CATEGORY_LABELS,
@@ -19,12 +19,16 @@ import {
  * An order sends a push and a mail the moment it lands; a person who is
  * already unhappy got less than that.
  *
- * It is the same two lanes as the order alert and deliberately not a
- * WhatsApp message to the owner. Meta lets a business open a conversation
- * only with a template it approved in advance, so a WhatsApp alert would be
- * a template to write, submit and wait for — and the push already reaches
- * the same phone in the same second, without asking Meta's permission to
- * tell the owner about his own shop.
+ * Three lanes: the push the owner already has for orders, a mail carrying
+ * the whole thread, and WhatsApp.
+ *
+ * WhatsApp is the one that can be switched off by doing nothing, and that
+ * is on purpose. Meta lets a business open a conversation only with a
+ * template it approved in advance — even to the owner's own number — so
+ * this lane sends only once OWNER_WHATSAPP names a number and the
+ * complaint_alert template exists. Until then the push and the mail carry
+ * the alert on their own, and nothing here fails or logs an error about a
+ * template that was never submitted.
  *
  * Never throws. It runs on the ingest path, which runs after the customer
  * already has the bot's answer, and the rule there is that everything after
@@ -54,7 +58,9 @@ export async function notifyOwnerOfComplaint(
   const recipients = ownerAlertRecipients();
   const mail = recipients.length > 0 && emailChannel.configured();
   const push = ownerPushConfigured();
-  if (!mail && !push) return;
+  const waTo = process.env.OWNER_WHATSAPP?.trim() || null;
+  const wa = waTo !== null && whatsappChannel.configured();
+  if (!mail && !push && !wa) return;
 
   const complaint = await db.complaint.findUnique({
     where: { id: complaintId },
@@ -95,15 +101,38 @@ export async function notifyOwnerOfComplaint(
     .filter(Boolean)
     .join(" | ");
 
+  /* What the customer actually said, in one line. Empty when the ticket was
+     opened by a bare "כן" to the bot's offer, which is a real case and the
+     one where a blank slot would be worst: Meta rejects a template parameter
+     that is empty, so the absence is said out loud instead. */
+  const summary = said.replace(/\s+/g, " ").trim().slice(0, 160) ||
+    "הלקוח אישר פתיחת פנייה בבוט בלי לפרט — התוכן בשיחת הוואטסאפ";
+
   await Promise.all([
     push
       ? pushToOwnerDevices(
           heading,
-          [who, phone, category, said.slice(0, 160)].filter(Boolean).join(" · "),
+          [who, phone, category, summary].filter(Boolean).join(" · "),
           "buytoday-complaints",
         ).catch(() => undefined)
       : null,
     mail ? mailOwner() : null,
+    wa
+      ? whatsappChannel
+          .send(waTo!, {
+            subject: heading,
+            // Never sent: WhatsApp uses the template below. It is here
+            // because a Message without a body is a Message that breaks the
+            // day somebody logs one.
+            body: `${heading}\n${who} · ${phone}\n${summary}`,
+            // {{1}} ticket · {{2}} severity · {{3}} name · {{4}} phone · {{5}} what they said
+            template: {
+              event: "COMPLAINT_ALERT",
+              params: [String(complaint.ticketNumber), severity, who, phone, summary],
+            },
+          })
+          .catch(() => undefined)
+      : null,
   ]);
 
   async function mailOwner() {

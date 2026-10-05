@@ -190,6 +190,8 @@ const WHATSAPP_TEMPLATE_DEFAULTS: Record<string, string> = {
   PAYMENT_APPROVED: "payment_approved",
   SHIPPED: "order_shipped",
   DELIVERED: "order_delivered",
+  // Not a customer message: the shop telling itself a complaint came in.
+  COMPLAINT_ALERT: "complaint_alert",
 };
 
 /** An Israeli number as the API wants it: digits only, country code first. */
