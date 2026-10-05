@@ -49,9 +49,31 @@ export const COURIERS: Courier[] = [
   },
 ];
 
+/**
+ * Our own driver, which is not a courier and deliberately not in the list above.
+ *
+ * A delivery we make ourselves has no consignment number and no carrier
+ * system behind it, so there is nothing to track and no page to send anybody
+ * to. It is stored in `Order.courierName` as this exact string, and that is
+ * what the shipped notification keys on: it tells the customer the order has
+ * left and that we will call to arrange handover, instead of a tracking line
+ * that would lead nowhere.
+ *
+ * A string rather than a column because `courierName` already answers "who
+ * is carrying this", and a boolean beside it is a second answer to the same
+ * question — the kind that eventually disagrees with the first.
+ */
+export const INTERNAL_DELIVERY_NAME = "משלוח פנימי";
+
+/** True when the order is going out with our own driver rather than a courier. */
+export function isInternalDelivery(courierName: string | null | undefined): boolean {
+  return (courierName ?? "").trim() === INTERNAL_DELIVERY_NAME;
+}
+
 /** The tracking link for a consignment, or null when the courier publishes none. */
 export function courierTrackingUrl(courierName: string | null, number: string | null): string | null {
   if (!courierName || !number) return null;
+  if (isInternalDelivery(courierName)) return null;
   const courier = COURIERS.find(
     (c) => c.name === courierName || courierName.includes(c.name) || c.name.includes(courierName),
   );

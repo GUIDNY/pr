@@ -9,6 +9,7 @@ import { completeDebitByUid } from "@/lib/pelecard/client";
 import { notifyOrder } from "@/lib/notify";
 import type { NotifyEvent } from "@/lib/notify/types";
 import { tookRealMoney } from "@/lib/queries/seller-orders";
+import { INTERNAL_DELIVERY_NAME } from "@/lib/couriers";
 
 /**
  * The two buttons on a salesperson's order card.
@@ -143,9 +144,19 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
  * pattern is a 404 in front of a customer who is already wondering where
  * their fridge is.
  */
+/**
+ * The order leaves the shop, with a courier or with our own driver.
+ *
+ * `internal` is the second case and it changes three things at once, which
+ * is why it is a flag here rather than a courier the salesperson types: the
+ * carrier name becomes ours, the tracking fields are dropped rather than
+ * trusted (a number left in the form from a previous attempt would otherwise
+ * be sent to the customer as a consignment that does not exist), and the
+ * shipped notification switches to the wording with no tracking line in it.
+ */
 export async function markShippedAction(
   orderNumber: string,
-  courier: { name: string; trackingNumber: string; trackingUrl: string },
+  courier: { name: string; trackingNumber: string; trackingUrl: string; internal?: boolean },
 ): Promise<Result> {
   const session = await requireBackOffice();
   const order = await db.order.findUnique({ where: { orderNumber } });
@@ -157,8 +168,11 @@ export async function markShippedAction(
   if (order.paymentStatus !== "CAPTURED") {
     return { success: false, error: "אין תשלום מאושר להזמנה הזאת." };
   }
-  const name = courier.name.trim();
+  const internal = courier.internal === true;
+  const name = internal ? INTERNAL_DELIVERY_NAME : courier.name.trim();
   if (!name) return { success: false, error: "צריך לציין חברת שליחויות" };
+  const trackingNumber = internal ? null : courier.trackingNumber.trim() || null;
+  const trackingUrl = internal ? null : courier.trackingUrl.trim() || null;
 
   await db.order.update({
     where: { id: order.id },
@@ -166,8 +180,8 @@ export async function markShippedAction(
       status: "SHIPPED",
       shippedAt: new Date(),
       courierName: name,
-      trackingNumber: courier.trackingNumber.trim() || null,
-      trackingUrl: courier.trackingUrl.trim() || null,
+      trackingNumber,
+      trackingUrl,
     },
   });
   await db.orderStatusHistory.create({
@@ -176,7 +190,9 @@ export async function markShippedAction(
       fromStatus: order.status,
       toStatus: "SHIPPED",
       changedById: session.sub,
-      note: `יצא עם ${name}${courier.trackingNumber.trim() ? ` · מעקב ${courier.trackingNumber.trim()}` : ""}`,
+      note: internal
+        ? "יצא עם שליח שלנו (משלוח פנימי) — ללא מספר מעקב"
+        : `יצא עם ${name}${trackingNumber ? ` · מעקב ${trackingNumber}` : ""}`,
     },
   });
   await logAudit({
@@ -184,7 +200,7 @@ export async function markShippedAction(
     action: "ORDER_SHIPPED",
     entityType: "Order",
     entityId: order.id,
-    metadata: { courier: name },
+    metadata: { courier: name, internal },
   });
 
   await notifyOrder(order.id, "SHIPPED");

@@ -1,6 +1,7 @@
 import type { Message, NotifyEvent } from "./types";
 import { formatPrice } from "@/lib/format";
 import { BUSINESS } from "@/lib/business";
+import { isInternalDelivery } from "@/lib/couriers";
 
 export type OrderForMessage = {
   orderNumber: string;
@@ -57,6 +58,22 @@ export function messageFor(event: NotifyEvent, order: OrderForMessage): Message 
       };
 
     case "SHIPPED": {
+      /* Our own driver: the order has left, and there is deliberately
+         nothing to follow it with. No consignment number exists, so a
+         tracking line here could only point at our own order page — which
+         repeats what this message already says and reads like a carrier
+         link that goes nowhere. What the customer actually needs instead is
+         to know somebody will call before arriving. */
+      if (isInternalDelivery(order.courierName)) {
+        const next = `נתקשר אליך לתיאום המסירה · ${BUSINESS.phone}`;
+        return {
+          subject: `ההזמנה יצאה אליך · ${order.orderNumber}`,
+          body: `היי ${name}, הזמנה ${order.orderNumber} יצאה אליך עם שליח שלנו.\n${next}`,
+          // {{1}} name · {{2}} order number · {{3}} the line that replaces tracking
+          template: { event, params: [name, order.orderNumber, `שליח שלנו בדרך אליך. ${next}`] },
+        };
+      }
+
       // The courier's own tracking link when there is one, ours when there is
       // not. Never both: two links in one message is a message where the
       // customer picks the wrong one.

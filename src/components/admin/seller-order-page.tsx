@@ -41,6 +41,10 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
   const [error, setError] = useState<string | null>(null);
   const [shipOpen, setShipOpen] = useState(false);
   const [courier, setCourier] = useState({ name: "", trackingNumber: "", trackingUrl: "" });
+  /* Who is carrying it. "internal" is our own driver: there is no company to
+     name and no consignment to track, so the three fields below go away
+     rather than sit there inviting a number that does not exist. */
+  const [shipMode, setShipMode] = useState<"courier" | "internal">("courier");
   /* Deleting is two clicks, and the second one is the one that is armed. Not
      a confirm() dialog: those are dismissed by muscle memory, and this is the
      only irreversible button on the page. */
@@ -150,30 +154,72 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
         {shipOpen && (
           <div className="border-border mt-3 flex flex-col gap-2 rounded-xl border p-3">
             <p className="text-sm font-bold">פרטי המשלוח</p>
-            <input
-              value={courier.name}
-              onChange={(e) => setCourier({ ...courier, name: e.target.value })}
-              placeholder="חברת שליחויות (למשל: חץ, בראל, דואר ישראל)"
-              className="border-border rounded-lg border px-3 py-2 text-sm"
-            />
-            <input
-              value={courier.trackingNumber}
-              onChange={(e) => setCourier({ ...courier, trackingNumber: e.target.value })}
-              placeholder="מספר מעקב (אופציונלי)"
-              className="border-border rounded-lg border px-3 py-2 text-sm"
-            />
-            <input
-              value={courier.trackingUrl}
-              onChange={(e) => setCourier({ ...courier, trackingUrl: e.target.value })}
-              placeholder="קישור מעקב אצל השליח (אופציונלי)"
-              dir="ltr"
-              className="border-border rounded-lg border px-3 py-2 text-sm"
-            />
+            {/* The choice first, because it decides what the rest of the form
+                even asks for — and because picking it after typing a courier
+                is how a tracking number ends up on a delivery that has none. */}
+            <div className="flex gap-2">
+              {(
+                [
+                  { id: "courier", label: "חברת שליחויות" },
+                  { id: "internal", label: "משלוח פנימי (שליח שלנו)" },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setShipMode(option.id)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-sm font-bold ${
+                    shipMode === option.id
+                      ? "border-brand bg-brand/10 text-brand"
+                      : "border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {shipMode === "courier" ? (
+              <>
+                <input
+                  value={courier.name}
+                  onChange={(e) => setCourier({ ...courier, name: e.target.value })}
+                  placeholder="חברת שליחויות (למשל: חץ, בראל, דואר ישראל)"
+                  className="border-border rounded-lg border px-3 py-2 text-sm"
+                />
+                <input
+                  value={courier.trackingNumber}
+                  onChange={(e) => setCourier({ ...courier, trackingNumber: e.target.value })}
+                  placeholder="מספר מעקב (אופציונלי)"
+                  className="border-border rounded-lg border px-3 py-2 text-sm"
+                />
+                <input
+                  value={courier.trackingUrl}
+                  onChange={(e) => setCourier({ ...courier, trackingUrl: e.target.value })}
+                  placeholder="קישור מעקב אצל השליח (אופציונלי)"
+                  dir="ltr"
+                  className="border-border rounded-lg border px-3 py-2 text-sm"
+                />
+              </>
+            ) : (
+              /* Says what the customer will be told, because that is the part
+                 of this choice that is not obvious from its name. */
+              <p className="text-muted-foreground bg-muted/50 rounded-lg px-3 py-2 text-xs leading-relaxed">
+                ההזמנה יוצאת עם שליח שלנו. הלקוח יקבל הודעה שההזמנה יצאה אליו ושניצור קשר לתיאום
+                המסירה — בלי מספר מעקב ובלי קישור מעקב, כי אין לנו כאלה.
+              </p>
+            )}
             <div className="flex gap-2">
               <button
                 type="button"
-                disabled={pending || !courier.name.trim()}
-                onClick={() => run(() => markShippedAction(order.orderNumber, courier))}
+                disabled={pending || (shipMode === "courier" && !courier.name.trim())}
+                onClick={() =>
+                  run(() =>
+                    markShippedAction(order.orderNumber, {
+                      ...courier,
+                      internal: shipMode === "internal",
+                    }),
+                  )
+                }
                 className="bg-brand text-brand-foreground rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50"
               >
                 {pending ? "שולח…" : "אשר יציאה ושלח עדכון ללקוח"}

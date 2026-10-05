@@ -2,6 +2,7 @@ import type { NotifyEvent } from "./types";
 import { formatPrice } from "@/lib/format";
 import { SITE_URL } from "@/lib/site-url";
 import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
+import { isInternalDelivery } from "@/lib/couriers";
 
 /**
  * The order email, as HTML.
@@ -67,7 +68,7 @@ const PAGE = "#f5f4f2";
  */
 type Accent = { title: string; lead: string };
 
-function accentFor(event: NotifyEvent, toCustomer: boolean): Accent {
+function accentFor(event: NotifyEvent, toCustomer: boolean, internal: boolean): Accent {
   switch (event) {
     case "ORDER_RECEIVED":
       return {
@@ -84,7 +85,12 @@ function accentFor(event: NotifyEvent, toCustomer: boolean): Accent {
     case "SHIPPED":
       return {
         title: "ההזמנה יצאה אליך",
-        lead: "החבילה בדרך. אפשר לעקוב אחריה בקישור שלמטה.",
+        // Our own driver has no tracking page, so the lead must not promise
+        // one — pointing at a link that is not there is how a mail generates
+        // the phone call it was supposed to prevent.
+        lead: internal
+          ? "ההזמנה יצאה עם שליח שלנו. נתקשר אליך לתיאום המסירה."
+          : "החבילה בדרך. אפשר לעקוב אחריה בקישור שלמטה.",
       };
     case "DELIVERED":
       return {
@@ -139,7 +145,8 @@ function totalsRow(label: string, value: string, colour = MUTED) {
  * button above the receipt is a button pressed before the receipt is read.
  */
 export function renderOrderEmail(event: NotifyEvent, order: OrderForEmail): string {
-  const accent = accentFor(event, order.deliveryToCustomer);
+  const internal = isInternalDelivery(order.courierName);
+  const accent = accentFor(event, order.deliveryToCustomer, internal);
   const first = order.customerName.split(" ")[0];
 
   const items = order.items
@@ -179,15 +186,28 @@ export function renderOrderEmail(event: NotifyEvent, order: OrderForEmail): stri
      rule as the SMS, for the same reason: two links is a link pressed wrong. */
   const hasCourierLink = event === "SHIPPED" && Boolean(order.trackingUrl);
   const ctaHref = hasCourierLink ? order.trackingUrl! : order.trackUrl;
-  const ctaLabel = hasCourierLink ? "מעקב אצל השליח" : "מעקב אחרי ההזמנה";
+  /* Our own delivery has nothing to follow, so the button says what the page
+     it opens actually shows — the order — rather than offering tracking the
+     customer was just told does not exist. */
+  const ctaLabel = hasCourierLink
+    ? "מעקב אצל השליח"
+    : event === "SHIPPED" && internal
+      ? "פרטי ההזמנה"
+      : "מעקב אחרי ההזמנה";
 
   const courierBlock =
-    event === "SHIPPED" && (order.courierName || order.trackingNumber)
-      ? `<div style="background:${BRAND_TINT};border-radius:12px;padding:16px 18px;margin-top:20px;">
+    event === "SHIPPED" && internal
+      ? /* "חברת שליחויות: משלוח פנימי" names us as a delivery company, which
+           is both wrong and confusing. Our own delivery says so plainly. */
+        `<div style="background:${BRAND_TINT};border-radius:12px;padding:16px 18px;margin-top:20px;">
+            <div style="font-family:${FONT};font-size:14px;color:${INK};">משלוח: <strong>שליח שלנו</strong> — נתקשר אליך לתיאום המסירה</div>
+          </div>`
+      : event === "SHIPPED" && (order.courierName || order.trackingNumber)
+        ? `<div style="background:${BRAND_TINT};border-radius:12px;padding:16px 18px;margin-top:20px;">
             ${order.courierName ? `<div style="font-family:${FONT};font-size:14px;color:${INK};padding-bottom:${order.trackingNumber ? "5px" : "0"};">חברת שליחויות: <strong>${esc(order.courierName)}</strong></div>` : ""}
             ${order.trackingNumber ? `<div style="font-family:${FONT};font-size:14px;color:${INK};">מספר מעקב: <strong>${esc(order.trackingNumber)}</strong></div>` : ""}
           </div>`
-      : "";
+        : "";
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="he" xmlns="http://www.w3.org/1999/xhtml">
