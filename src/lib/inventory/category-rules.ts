@@ -35,7 +35,15 @@
 //   • "מקרר יין אינטגרלי" goes to יינות, which also keeps the Le Imperial
 //     line together — its JCF201 had already landed there from its title.
 
-export type CategoryRule = { slug: string; match: RegExp };
+/**
+ * `not` is the Hebrew prefix problem, and it earned its place: "לטלוויזיה"
+ * is "for a television" and "למיקסר" is "for a mixer" — an accessory, named
+ * after the thing it hangs on. Matching on the noun alone filed 15 screen
+ * arms and a TV dust cover as televisions, and 7 speaker brackets as
+ * speakers. A rule that cannot say "this word, but not in that phrase"
+ * cannot tell a product from its accessory.
+ */
+export type CategoryRule = { slug: string; match: RegExp; not?: RegExp };
 
 export type Classification = {
   /** null when nothing in the text names a type. */
@@ -88,10 +96,19 @@ export const CATEGORY_RULES: Record<string, CategoryRule[]> = {
 
   "ovens-cooktops": [
     { slug: "range-hoods", match: /קולט(י)? אדים|מנדף/ },
+    // A hob that is both has its own leaf, so it has to be asked about
+    // before either half of it.
+    { slug: "hybrid-cooktops", match: /משולב(ות|ת)?[\s\S]*(גז[\s\S]*אינדוקציה|אינדוקציה[\s\S]*גז)/ },
     { slug: "induction-cooktops", match: /אינדוקציה/ },
-    { slug: "ceramic-cooktops", match: /קרמי(ות|ת)?/ },
+    // "קרמי" on its own also describes a coating — a kettle, a heater
+    // element, an enamelled grate. Only a hob is a ceramic hob.
+    { slug: "ceramic-cooktops", match: /כיריים[\s\S]*קרמי|קרמי[\s\S]*כיריים/ },
     { slug: "gas-cooktops", match: /כיריים[\s\S]*גז|גז[\s\S]*כיריים/ },
-    { slug: "combi-oven", match: /תנור משולב|משולב מיקרוגל/ },
+    /* In this shop תנור משולב is a freestanding cooker — oven with a hob on
+       top — not an oven with a microwave in it. "תנור בנוי משולב מיקרוגל" is
+       a built-in oven and says so, so it is excluded here rather than
+       re-filed onto the cooker shelf. 17 of them were. */
+    { slug: "combi-oven", match: /תנור משולב|משולב מיקרוגל/, not: /תנור בנוי/ },
     { slug: "built-in-oven", match: /תנור בנוי|תנור אפייה|\bתנור\b/ },
   ],
 
@@ -148,21 +165,24 @@ export const CATEGORY_RULES: Record<string, CategoryRule[]> = {
 
   "tv-multimedia": [
     { slug: "projector-screens", match: /מסך למקרן|מסכים למקרנים|מסך הקרנה/ },
-    { slug: "tv-mounts", match: /מתקן(י)? תלי{1,2}ה|זרוע לטלוויזיה/ },
+    { slug: "tv-mounts", match: /מתקן(י)? תלי{1,2}ה|זרוע[\s\S]{0,25}לטלוויזיה|עגלת מסך/ },
     { slug: "tv-stands", match: /שולחן טלוויזיה|מעמד לטלוויזיה/ },
     { slug: "projectors", match: /מקרן(?! קול)/ },
-    { slug: "tvs", match: /טלוויזיה|טלוויזיות|\bTV\b/i },
+    { slug: "tvs", match: /טלוויזיה|טלוויזיות|\bTV\b/i, not: /לטלוויזיה|מתקן|זרוע|כיסוי|עגלה|עגלת|מדף|רגלי{1,2}ם/ },
   ],
 
   "audio-home-theater": [
     { slug: "soundbars", match: /מקרן קול|סאונד ?בר|sound ?bar/i },
-    { slug: "subwoofers", match: /סאב ?וופר|subwoofer/i },
+    /* Half the soundbars and every 5.1 set in the catalog say "עם סאב וופר
+       אלחוטי" in the title. The subwoofer leaf is for one sold on its own. */
+    { slug: "subwoofers", match: /סאב ?וופר|subwoofer/i, not: /מקרן קול|סאונד ?בר|sound ?bar|סט רמקולים|ערוצים/i },
     { slug: "portable-speakers", match: /רמקול נייד|בידורית/ },
     { slug: "receivers-amplifiers", match: /רסיבר|מגבר/ },
     { slug: "headphones", match: /אוזניות/ },
     { slug: "bluray-streamers", match: /בלו.?ריי|blu.?ray|סטרימר|\bDVD\b/i },
     { slug: "cables", match: /\bכבל|חיווט/ },
-    { slug: "speakers", match: /רמקול/ },
+    { slug: "speaker-mounts", match: /(מתקן|מתקני|מתקנים|סטנד|סטנדים|כן|כנים)[\s\S]{0,20}לרמקול/ },
+    { slug: "speakers", match: /רמקול/, not: /לרמקול|מתקן|סטנד/ },
   ],
 
   "computers-communication": [
@@ -185,7 +205,9 @@ export function classifyProduct(
   for (const source of ["title", "description"] as const) {
     const text = source === "title" ? title : description;
     if (!text) continue;
-    const hits = rules.filter((r) => r.match.test(text)).map((r) => r.slug);
+    const hits = rules
+      .filter((r) => r.match.test(text) && !(r.not && r.not.test(text)))
+      .map((r) => r.slug);
     if (hits.length > 0) {
       return { slug: hits[0], from: source, alsoMatched: hits.slice(1) };
     }

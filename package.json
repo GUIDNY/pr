@@ -50,7 +50,8 @@
     "seed:intros": "tsx scripts/seed-category-intros.ts",
     "check:watchdog": "tsx scripts/check-sync-watchdog.ts",
     "check:dimensions": "tsx scripts/backfill-dimension-specs.ts",
-    "fix:dimensions": "tsx scripts/backfill-dimension-specs.ts --write"
+    "fix:dimensions": "tsx scripts/backfill-dimension-specs.ts --write",
+    "check:leaf-categories": "tsx scripts/check-leaf-categories.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
