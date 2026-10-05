@@ -16,6 +16,10 @@
 //   it is how the signal on the old URL moves to the new one instead of being
 //   lost when the old one quietly ages out of the index.
 //
+// It no longer sends everything every time — see the flags below. The default
+// run is what changed this week, capped; the whole-sitemap send is an explicit
+// --all for a template change that touched every page.
+//
 // Reads the live sitemap rather than the database, so it needs no connection
 // and no secrets — which also means it can be run from anywhere, by anyone
 // who can reach the site.
@@ -43,22 +47,59 @@ const BATCH = 10_000;
 const dryRun = process.argv.includes("--dry-run");
 const sitemapFile = argValue("--sitemap-file");
 
+/* Incremental by default. Bing's own IndexNow page says it in so many
+   words — "Avoid IndexNow Batch Mode to prevent excessive server load and
+   potential indexing delays" — and the numbers here agreed: 11,400 URLs
+   submitted, 150 indexed. A run used to send the whole sitemap plus every
+   legacy redirect, 4,176 addresses, whether or not one of them had changed.
+   Re-sending unchanged addresses is not a signal, it is noise that delays
+   the few that did change.
+
+   So a run sends only URLs whose sitemap <lastmod> moved inside the window
+   (--since, days or an ISO date, default 7), newest first, at most --max of
+   them (default 500). --all ignores the window for the one case it exists
+   for, a template change that altered every page without touching any
+   row — and even then the cap holds, so a full resend is spread over days
+   by whoever runs it. The legacy redirects are sent only with --legacy:
+   once is what a 301 needs, and once has happened. */
+const sendAll = process.argv.includes("--all");
+const includeLegacy = process.argv.includes("--legacy");
+const sinceArg = argValue("--since") ?? "7";
+const since = /^\d+(\.\d+)?$/.test(sinceArg) ? Date.now() - Number(sinceArg) * 864e5 : Date.parse(sinceArg);
+if (Number.isNaN(since)) {
+  console.error(`--since must be a number of days or an ISO date, got ${sinceArg}`);
+  process.exit(1);
+}
+const max = Number(argValue("--max") ?? "500");
+
 function argValue(flag: string): string | null {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? (process.argv[i + 1] ?? null) : null;
 }
 
-async function sitemapUrls(): Promise<string[]> {
+type SitemapEntry = { url: string; lastmod: number | null };
+
+async function sitemapUrls(): Promise<SitemapEntry[]> {
   if (sitemapFile) {
+    // A plain list of URLs, one per line, dated now so --since keeps them.
     return readFileSync(sitemapFile, "utf8")
       .split("\n")
       .map((line) => line.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((url) => ({ url, lastmod: Date.now() }));
   }
   const res = await fetch(`${SITE}/sitemap.xml`, { headers: { accept: "application/xml" } });
   if (!res.ok) throw new Error(`sitemap.xml returned ${res.status}`);
   const xml = await res.text();
-  return [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim());
+  return [...xml.matchAll(/<url>([\s\S]*?)<\/url>/g)]
+    .map((m) => {
+      const block = m[1];
+      const url = block.match(/<loc>([^<]+)<\/loc>/)?.[1].trim() ?? "";
+      const mod = block.match(/<lastmod>([^<]+)<\/lastmod>/)?.[1];
+      const lastmod = mod ? Date.parse(mod) : null;
+      return { url, lastmod: lastmod !== null && Number.isNaN(lastmod) ? null : lastmod };
+    })
+    .filter((e) => e.url);
 }
 
 function legacyUrls(): string[] {
@@ -87,7 +128,7 @@ async function send(urls: string[]) {
 }
 
 async function main() {
-  let current: string[] = [];
+  let current: SitemapEntry[] = [];
   try {
     current = await sitemapUrls();
     console.log(`sitemap:  ${current.length} urls`);
@@ -101,13 +142,27 @@ async function main() {
     console.warn(`sitemap:  unavailable (${message}) — dry run continues without it`);
   }
 
-  const legacy = legacyUrls();
-  console.log(`redirects: ${legacy.length} urls`);
+  const changed = sendAll ? current : current.filter((e) => e.lastmod !== null && e.lastmod >= since);
+  console.log(
+    sendAll
+      ? "window:   --all, every sitemap url"
+      : `window:   ${changed.length} urls changed since ${new Date(since).toISOString().slice(0, 10)}`,
+  );
+  const ordered = changed.sort((a, b) => (b.lastmod ?? 0) - (a.lastmod ?? 0)).map((e) => e.url);
+
+  const legacy = includeLegacy ? legacyUrls() : [];
+  if (includeLegacy) console.log(`redirects: ${legacy.length} urls (--legacy)`);
 
   // The same address can be in both lists — a product renamed twice has its
   // oldest slug in history and its current one in the sitemap.
-  const all = [...new Set([...current, ...legacy])].filter((u) => u.startsWith(SITE));
-  console.log(`total:    ${all.length} unique urls on ${HOST}`);
+  const unique = [...new Set([...ordered, ...legacy])].filter((u) => u.startsWith(SITE));
+  const all = unique.slice(0, max);
+  const heldBack = unique.length - all.length;
+  console.log(`total:    ${all.length} urls to send on ${HOST}${heldBack > 0 ? ` (${heldBack} more held back by --max ${max}; run again tomorrow)` : ""}`);
+  if (all.length === 0) {
+    console.log("nothing changed in the window — nothing sent");
+    return;
+  }
 
   if (dryRun) {
     const out = "indexnow-bulk.json";
