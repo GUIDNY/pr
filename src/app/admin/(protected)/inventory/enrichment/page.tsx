@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import { getEnrichmentCandidates, getEnrichmentSummary } from "@/lib/queries/admin-enrichment";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { EnrichmentReviewCard } from "@/components/admin/enrichment-review-card";
@@ -7,6 +8,7 @@ import { Sparkles } from "lucide-react";
 export const metadata = { title: "העשרת מוצרים | Buy Today Admin" };
 
 export default async function InventoryEnrichmentPage() {
+  await requireCatalogPage();
   const [candidates, summary] = await Promise.all([getEnrichmentCandidates("PENDING"), getEnrichmentSummary()]);
 
   return (

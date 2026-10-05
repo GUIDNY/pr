@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { getInventoryAlerts } from "@/lib/queries/admin-inventory";
@@ -20,6 +21,7 @@ export default async function InventoryAlertsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  await requireCatalogPage();
   const sp = await searchParams;
   const resolved = sp.resolved === "true";
   const { alerts, total } = await getInventoryAlerts({ resolved });

@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import {
   getInventorySummary,
   getInventoryProducts,
@@ -35,6 +36,7 @@ export default async function AdminInventoryPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  await requireCatalogPage();
   const sp = await searchParams;
   const page = Number(sp.page) || 1;
 

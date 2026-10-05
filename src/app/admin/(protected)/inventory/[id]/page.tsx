@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ExternalLink, Pencil } from "lucide-react";
@@ -27,6 +28,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default async function InventoryProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireCatalogPage();
   const { id } = await params;
   const product = await getInventoryProductDetail(id);
   if (!product) notFound();

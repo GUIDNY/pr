@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { AlertTriangle, ExternalLink } from "lucide-react";
 import { getAttentionItems } from "@/lib/queries/admin-inventory";
@@ -24,6 +25,7 @@ const ROW_KIND = {
 } as const;
 
 export default async function AttentionInventoryPage() {
+  await requireCatalogPage();
   // One entry per product. A product can hold more than one reason at once —
   // the sheet created it this morning AND it arrived with no photo — so the
   // counts below overlap and deliberately add up to more than the total.

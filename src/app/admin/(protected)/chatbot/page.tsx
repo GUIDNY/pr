@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import { MessageCircle } from "lucide-react";
 import { getChatbotSettings } from "@/lib/queries/chatbot-settings";
 import { ChatbotSettingsForm } from "@/components/admin/chatbot-settings-form";
@@ -5,6 +6,7 @@ import { ChatbotSettingsForm } from "@/components/admin/chatbot-settings-form";
 export const metadata = { title: "אלפרד - צ'אט בוט | Buy Today Admin" };
 
 export default async function AdminChatbotPage() {
+  await requireCatalogPage();
   const settings = await getChatbotSettings();
 
   return (

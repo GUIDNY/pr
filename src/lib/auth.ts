@@ -1,10 +1,11 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import { db } from "@/lib/db";
 import type { UserRole } from "@/lib/enums";
 import { hashPassword, verifyPassword } from "@/lib/auth-seed-helpers";
-import { canManageCatalog, isBackOffice, isSiteAdmin } from "@/lib/permissions";
+import { backOfficeHome, canManageCatalog, isBackOffice, isSiteAdmin } from "@/lib/permissions";
 
 export { hashPassword, verifyPassword };
 
@@ -120,6 +121,28 @@ export async function requireSiteAdmin() {
   if (!session || !isSiteAdmin(session.role)) {
     throw new Error("UNAUTHORIZED");
   }
+  return session;
+}
+
+/**
+ * A page that belongs to running the shop, opened by someone who may not.
+ *
+ * The sidebar already hides every catalog link from a seller, and that was
+ * being treated as the answer — the layout even says so. It is not: hiding
+ * a link is presentation, and /admin/products typed into the address bar
+ * still rendered supplier costs, as did /admin/pelecard-test with a live
+ * card terminal on it. Twenty pages were reachable that way.
+ *
+ * Redirects rather than throwing, unlike requireAdmin: this is a person
+ * who is legitimately signed in and simply landed somewhere that is not
+ * their job, and an error page tells them they did something wrong. They
+ * get the back office they do have. requireAdmin stays as it is, because
+ * an action is not a place you can arrive at by mistake.
+ */
+export async function requireCatalogPage() {
+  const session = await getSession();
+  if (!session || !isBackOffice(session.role)) redirect("/admin/login");
+  if (!canManageCatalog(session.role)) redirect(backOfficeHome(session.role));
   return session;
 }
 

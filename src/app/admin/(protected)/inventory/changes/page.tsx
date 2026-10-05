@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { getRecentChanges } from "@/lib/queries/admin-inventory";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
@@ -28,6 +29,7 @@ export default async function InventoryChangesPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  await requireCatalogPage();
   const sp = await searchParams;
   const page = Number(sp.page) || 1;
   const { events, total } = await getRecentChanges({ page, pageSize: PAGE_SIZE });

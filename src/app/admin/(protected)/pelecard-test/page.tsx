@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   isPelecardConsoleAvailable,
@@ -25,6 +26,7 @@ export const dynamic = "force-dynamic";
  * it is not hidden or disabled: it does not exist.
  */
 export default async function PelecardTestPage() {
+  await requireCatalogPage();
   /* The page always exists now, and that is the change. It used to 404 whenever
      the console was unavailable — which on the live site is always, by design —
      so the one screen that could say why checkout was in demo mode was the one

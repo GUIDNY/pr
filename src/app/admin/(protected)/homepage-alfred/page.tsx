@@ -1,9 +1,11 @@
+import { requireCatalogPage } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AlfredWidgetManager } from "@/components/admin/alfred-widget-manager";
 
 export const metadata = { title: "אלפרד ממליץ - דף הבית | Buy Today Admin" };
 
 export default async function AdminHomepageAlfredPage() {
+  await requireCatalogPage();
   const [section, products] = await Promise.all([
     db.homepageSection.findUnique({ where: { key: "alfred-widget" } }),
     // Every real, in-stock deal is a valid candidate — not capped to the

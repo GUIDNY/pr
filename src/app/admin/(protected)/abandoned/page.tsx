@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { Phone, MessageCircle } from "lucide-react";
 import { getAbandonedCarts, DEFAULT_MIN_VALUE } from "@/lib/queries/abandoned-carts";
@@ -30,6 +31,7 @@ export default async function AbandonedCartsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  await requireCatalogPage();
   const sp = await searchParams;
   const status = (TABS.find((t) => t.value === sp.status)?.value ?? "NEW") as CartFollowUpStatus | "ALL";
   const { carts, totalValue } = await getAbandonedCarts({ status });

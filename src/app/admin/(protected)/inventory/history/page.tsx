@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import { getSyncHistory } from "@/lib/queries/admin-inventory";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { InventorySyncButton } from "@/components/admin/inventory-sync-button";
@@ -21,6 +22,7 @@ const STATUS_STYLES: Record<SyncRunStatus, string> = {
 };
 
 export default async function InventoryHistoryPage() {
+  await requireCatalogPage();
   const { runs } = await getSyncHistory();
 
   return (

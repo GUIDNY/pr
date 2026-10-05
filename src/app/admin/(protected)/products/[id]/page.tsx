@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -8,6 +9,7 @@ import type { ProductInput } from "@/lib/product-schema";
 import type { StockStatus } from "@/lib/enums";
 
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireCatalogPage();
   const { id } = await params;
   const [product, options] = await Promise.all([getAdminProductById(id), getFormOptions()]);
   if (!product) notFound();

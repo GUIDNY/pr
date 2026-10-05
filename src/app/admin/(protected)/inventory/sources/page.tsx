@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { SourceUploadForm } from "@/components/admin/source-upload-form";
@@ -10,6 +11,7 @@ import { isStorageConfigured } from "@/lib/inventory/storage";
 export const metadata = { title: "מקורות נתונים | Buy Today Admin" };
 
 export default async function InventorySourcesPage() {
+  await requireCatalogPage();
   const [sources, storageReady] = await Promise.all([
     db.inventorySource.findMany({ orderBy: { filename: "asc" } }),
     Promise.resolve(isStorageConfigured()),

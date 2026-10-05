@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { ProductForm } from "@/components/admin/product-form";
@@ -28,6 +29,7 @@ const EMPTY: ProductInput = {
 };
 
 export default async function NewProductPage() {
+  await requireCatalogPage();
   const options = await getFormOptions();
 
   return (

@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { AlertTriangle, Clock, CheckCircle2, Inbox } from "lucide-react";
 import { getComplaints, getComplaintMetrics, getAssignableStaff } from "@/lib/queries/admin-complaints";
@@ -71,6 +72,7 @@ function Metric({
 }
 
 export default async function ComplaintsPage({ searchParams }: { searchParams: Promise<SP> }) {
+  await requireCatalogPage();
   const sp = await searchParams;
   const status = (sp.status as ComplaintStatus | "ALL" | undefined) ?? "OPEN_ONLY";
 

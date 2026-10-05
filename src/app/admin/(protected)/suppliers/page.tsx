@@ -1,9 +1,11 @@
+import { requireCatalogPage } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SuppliersManager } from "@/components/admin/suppliers-manager";
 
 export const metadata = { title: "ספקים | Buy Today Admin" };
 
 export default async function AdminSuppliersPage() {
+  await requireCatalogPage();
   const suppliers = await db.supplier.findMany({
     include: { _count: { select: { products: true } } },
     orderBy: { name: "asc" },

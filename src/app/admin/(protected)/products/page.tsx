@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { Plus, Search, PackageCheck, PackageX, Boxes } from "lucide-react";
 import { getAdminProducts, getStockSummary } from "@/lib/queries/admin-products";
@@ -35,6 +36,7 @@ export default async function AdminProductsPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
+  await requireCatalogPage();
   const sp = await searchParams;
   const page = Number(sp.page) || 1;
   const availability = (sp.availability as Availability) ?? undefined;

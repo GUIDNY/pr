@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, EyeOff, Phone, ShieldAlert } from "lucide-react";
@@ -33,6 +34,7 @@ const ROLE_STYLE: Record<ComplaintMessageRole, string> = {
 };
 
 export default async function ComplaintPage({ params }: { params: Promise<{ id: string }> }) {
+  await requireCatalogPage();
   const { id } = await params;
   const [complaint, staff] = await Promise.all([getComplaintDetail(id), getAssignableStaff()]);
   if (!complaint) notFound();

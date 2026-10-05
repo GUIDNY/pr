@@ -1,3 +1,4 @@
+import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { AlertTriangle, ExternalLink, Banknote, Wrench } from "lucide-react";
 import { getUrgentReviewProducts, getBrandOptions } from "@/lib/queries/admin-inventory";
@@ -43,6 +44,7 @@ function currentValueFor(
 }
 
 export default async function UrgentReviewInventoryPage() {
+  await requireCatalogPage();
   const [items, brands] = await Promise.all([getUrgentReviewProducts(), getBrandOptions()]);
 
   const reasons = items.map((item) => ({
