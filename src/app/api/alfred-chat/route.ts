@@ -5,6 +5,8 @@ import { searchForChat, type ChatSearchOptions } from "@/lib/queries/products";
 import { resolveIntent, type BrandRef, type ShoppingIntent } from "@/lib/alfred/intent";
 import { getChatbotSettings } from "@/lib/queries/chatbot-settings";
 import { clientKey, rateLimit } from "@/lib/rate-limit";
+import { gameCorsHeaders, gamePreflight } from "@/lib/game-api";
+import { GAME_ORIGIN } from "@/lib/game-profile";
 
 // Public-facing chat endpoint behind the "Alfred" widget — no bearer auth
 // (unlike /api/integrations/*, which are for trusted external agents, not
@@ -140,7 +142,41 @@ function buildPersona(settings: {
   return lines.join("\n");
 }
 
+/* The same Alfred, also in the 3D mall.
+ *
+ * The game at play.buytoday.co.il talks to this endpoint as a sales rep standing
+ * next to the player: same persona, same live settings, same search. It is
+ * another origin, so it gets CORS — naming exactly the game's origin, as every
+ * /api/game/* route does. Inside the app the game is served from /mall on this
+ * host and needs none. Nothing here is personal, so no credentials are read;
+ * the rate limit applies the same to both. */
+function mallPersona(place: string | null): string {
+  return [
+    `הפעם אתה מדבר עם הלקוח מתוך הקניון התלת־ממדי של BuyToday: אתה הנציג שעומד לידו בקניון, עם אותו ידע ואותם כללים בדיוק.`,
+    place ? `הלקוח נמצא עכשיו ב${place === "לובי" ? "לובי של הקניון" : `מחלקת ${place}`}.` : ``,
+    `המוצרים בקניון הם המוצרים האמיתיים של האתר, באותם מחירים, ואפשר לקנות אותם ישר מהקניון ("קנה עכשיו" בכרטיס המוצר או "לעגלה").`,
+  ].filter(Boolean).join("\n");
+}
+
+export function OPTIONS() {
+  return gamePreflight("POST, OPTIONS");
+}
+
 export async function POST(request: Request) {
+  const res = await answer(request);
+  if (request.headers.get("origin") === GAME_ORIGIN) {
+    for (const [k, v] of Object.entries(gameCorsHeaders())) res.headers.set(k, v);
+  }
+  return res;
+}
+
+/* Where in the mall the customer is talking from: a department's name, never
+   free text — anything else is dropped, so the game cannot be used to write
+   instructions into the prompt. Hebrew letters, spaces and a few punctuation
+   marks, forty characters at most, is every department name there is. */
+const MALL_PLACE = /^[\u0590-\u05FF ,'"\u05BE\u05F3\u05F4·-]{1,40}$/;
+
+async function answer(request: Request): Promise<Response> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "הצ'אט לא זמין כרגע" }, { status: 503 });
@@ -164,7 +200,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   }
 
-  const record = body as { message?: unknown; history?: unknown; pinnedProductIds?: unknown };
+  const record = body as { message?: unknown; history?: unknown; pinnedProductIds?: unknown; pinnedSlugs?: unknown; channel?: unknown; mallPlace?: unknown };
+  const fromMall = record.channel === "mall";
+  const mallPlace = fromMall && typeof record.mallPlace === "string" && MALL_PLACE.test(record.mallPlace) ? record.mallPlace : null;
   const message = typeof record.message === "string" ? record.message.trim() : "";
   if (!message) return NextResponse.json({ error: "empty message" }, { status: 400 });
   if (message.length > MAX_MESSAGE_LENGTH) return NextResponse.json({ error: "ההודעה ארוכה מדי" }, { status: 400 });
@@ -183,6 +221,10 @@ export async function POST(request: Request) {
   const pinnedIds: string[] = Array.isArray(record.pinnedProductIds)
     ? record.pinnedProductIds.filter((x): x is string => typeof x === "string").slice(0, 5)
     : [];
+  // The mall knows its products by slug: the one the customer is standing next to.
+  const pinnedSlugs: string[] = Array.isArray(record.pinnedSlugs)
+    ? record.pinnedSlugs.filter((x): x is string => typeof x === "string" && /^[a-z0-9-]{1,120}$/.test(x)).slice(0, 3)
+    : [];
 
   /* What is the customer shopping for? Decided before any query runs — see
      lib/alfred/intent.ts for why a substring search could not be trusted
@@ -196,9 +238,9 @@ export async function POST(request: Request) {
   const [search, settings, pinnedRows] = await Promise.all([
     hasTarget ? searchLadder(intent) : Promise.resolve({ result: EMPTY_SEARCH, notes: [] as string[] }),
     getChatbotSettings(),
-    pinnedIds.length > 0
+    pinnedIds.length > 0 || pinnedSlugs.length > 0
       ? db.product.findMany({
-          where: { id: { in: pinnedIds }, ...PUBLIC_PRODUCT_WHERE },
+          where: { OR: [{ id: { in: pinnedIds } }, { slug: { in: pinnedSlugs } }], ...PUBLIC_PRODUCT_WHERE },
           select: {
             id: true,
             title: true,
@@ -212,8 +254,7 @@ export async function POST(request: Request) {
       : Promise.resolve([]),
   ]);
 
-  const pinnedProducts = pinnedIds
-    .map((id) => pinnedRows.find((r) => r.id === id))
+  const pinnedProducts = [...pinnedIds.map((id) => pinnedRows.find((r) => r.id === id)), ...pinnedSlugs.map((sl) => pinnedRows.find((r) => r.slug === sl))]
     .filter((r): r is NonNullable<typeof r> => !!r)
     .map((r) => ({
       title: r.title,
@@ -226,7 +267,9 @@ export async function POST(request: Request) {
 
   const pinnedContext =
     pinnedProducts.length > 0
-      ? "מוצרים שמוצגים ללקוח כרגע על המסך בווידג'ט 'אלפרד ממליץ' (הכי רלוונטיים לשיחה הזו):\n" +
+      ? (fromMall
+          ? "המוצר שהלקוח עומד לידו עכשיו בקניון (אם הוא שואל על \"זה\" או \"המוצר הזה\" — זה המוצר):\n"
+          : "מוצרים שמוצגים ללקוח כרגע על המסך בווידג'ט 'אלפרד ממליץ' (הכי רלוונטיים לשיחה הזו):\n") +
         pinnedProducts
           .map((p) => `- ${p.title} | מותג: ${p.brandName} | מחיר: ${p.price}₪ | סטטוס מלאי: ${p.stockStatus}`)
           .join("\n")
@@ -320,7 +363,7 @@ export async function POST(request: Request) {
         body: JSON.stringify({
           systemInstruction: {
             parts: [
-              { text: `${buildPersona(settings)}\n\nהקשר פנימי לתשובה הזו בלבד (לא לצטט כמו שהוא):\n${productContext}` },
+              { text: `${buildPersona(settings)}${fromMall ? `\n${mallPersona(mallPlace)}` : ""}\n\nהקשר פנימי לתשובה הזו בלבד (לא לצטט כמו שהוא):\n${productContext}` },
             ],
           },
           contents,
