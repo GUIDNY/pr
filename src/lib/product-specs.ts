@@ -63,7 +63,10 @@ const EMPTY_VALUES = new Set([
 
 /* A price inside a spec value — "199 ש"ח", "₪1,990" — is a commercial term
    that wandered into the table. */
-const LOOKS_LIKE_PRICE = /₪|ש"ח|ש״ח|שח\b|שקל|\bnis\b|\bils\b/i;
+/* \b is ASCII-only in JavaScript and never fires beside a Hebrew letter, so
+   "199 שח" is matched as a digit, optional space, שח, and then anything
+   that is not a letter. */
+const LOOKS_LIKE_PRICE = /₪|ש"ח|ש״ח|שקל|\bnis\b|\bils\b|\d\s*שח(?!\p{L})/iu;
 
 /** One spelling for a label, so "סל\"ד סחיטה" and "סל״ד סחיטה" are the same
     row rather than two rows with two values. Quotes of every kind are

@@ -66,6 +66,9 @@ export default async function AdminProductsPage({
           {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
           <a href="/admin/products/export">ייצוא קטלוג (JSON)</a>
         </Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link href="/admin/products/import-specs">ייבוא מפרטים</Link>
+        </Button>
         <Button variant="brand" size="sm" asChild className="gap-1.5">
           <Link href="/admin/products/new">
             <Plus className="size-4" /> מוצר חדש
