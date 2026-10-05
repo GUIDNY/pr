@@ -129,15 +129,22 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
                 <dt className="text-muted-foreground text-xs">שם</dt>
                 <dd>{complaint.customerName ?? complaint.user?.name ?? "לא ידוע"}</dd>
               </div>
-              <div>
-                <dt className="text-muted-foreground text-xs">וואטסאפ</dt>
-                <dd>
-                  <a href={waHref} target="_blank" rel="noreferrer" className="text-brand inline-flex items-center gap-1 font-mono" dir="ltr">
-                    <Phone className="size-3.5" />
-                    {complaint.waId}
-                  </a>
-                </dd>
-              </div>
+              {complaint.channel === "MALL" ? (
+                <div>
+                  <dt className="text-muted-foreground text-xs">מקור</dt>
+                  <dd>דיווח מהצ&apos;אט בקניון התלת־ממדי</dd>
+                </div>
+              ) : (
+                <div>
+                  <dt className="text-muted-foreground text-xs">וואטסאפ</dt>
+                  <dd>
+                    <a href={waHref} target="_blank" rel="noreferrer" className="text-brand inline-flex items-center gap-1 font-mono" dir="ltr">
+                      <Phone className="size-3.5" />
+                      {complaint.waId}
+                    </a>
+                  </dd>
+                </div>
+              )}
               {complaint.user && (
                 <div>
                   <dt className="text-muted-foreground text-xs">חשבון באתר</dt>

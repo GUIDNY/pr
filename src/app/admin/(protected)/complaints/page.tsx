@@ -222,7 +222,7 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
                     <Link href={`/admin/complaints/${c.id}`} className="block">
                       <span className="block font-medium">{c.customerName ?? "ללא שם"}</span>
                       <span className="text-muted-foreground block font-mono text-xs" dir="ltr">
-                        {c.waId}
+                        {c.waId === "mall" ? "קניון" : c.waId}
                       </span>
                     </Link>
                   </TableCell>
