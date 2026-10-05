@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { redactSensitive } from "@/lib/complaints/redact";
 import { deriveSeverity, raiseSeverity, deriveCategory, deriveSubject } from "@/lib/complaints/severity";
 import { storeComplaintMedia } from "@/lib/complaints/media";
+import { notifyOwnerOfComplaint } from "@/lib/notify/complaint-alert";
 import {
   CLOSED_COMPLAINT_STATUSES,
   COMPLAINT_OPENING_INTENTS,
@@ -152,6 +153,8 @@ export async function POST(request: Request) {
   let severity: ComplaintSeverity;
   let created = false;
 
+  let escalated = false;
+
   if (existing) {
     complaintId = existing.id;
     ticketNumber = existing.ticketNumber;
@@ -161,6 +164,12 @@ export async function POST(request: Request) {
       existing.severity as ComplaintSeverity,
       deriveSeverity({ text: customer.text, customerMessageCount }),
     );
+    /* Crossing into HIGH or CRITICAL on a thread that was calmer, not every
+       message on an angry one — the second is a notification people learn to
+       swipe away, and the alert that gets swiped away is the alert that is
+       not there on the day it matters. */
+    escalated =
+      severity !== existing.severity && (severity === "HIGH" || severity === "CRITICAL");
     await db.complaint.update({
       where: { id: complaintId },
       data: {
@@ -253,6 +262,20 @@ export async function POST(request: Request) {
     // waMessageId is the guard, and two concurrent retries of the same
     // message must not make one of them 500.
     await db.complaintMessage.createMany({ data: messages, skipDuplicates: true });
+  }
+
+  /* The shop is told. Awaited rather than left floating, because this runs
+     on a serverless function that stops the moment the response is returned
+     — and wrapped, because the whole point of this route's ordering is that
+     anything after the customer's reply may fail without touching them. */
+  if (created || escalated) {
+    try {
+      await notifyOwnerOfComplaint(complaintId, created ? "NEW" : "ESCALATED");
+    } catch {
+      /* The complaint is saved. An alert that did not go is not a reason to
+         tell n8n the message was lost, which would make it retry and
+         duplicate the thread. */
+    }
   }
 
   return NextResponse.json({

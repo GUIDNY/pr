@@ -137,9 +137,27 @@ export function renderOwnerPush(order: AlertOrder): { title: string; body: strin
 }
 
 async function sendOwnerPush(order: AlertOrder): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { title, body } = renderOwnerPush(order);
+  /* One thread on the phone for all of the shop's orders, so they stack
+     rather than scatter between other apps' alerts. */
+  return pushToOwnerDevices(title, body, "buytoday-orders");
+}
+
+/**
+ * The push itself, with nothing about orders in it.
+ *
+ * Separated out when complaints needed the same phone: the service, the
+ * token, the timeout and the three ways a 200 still means "nobody got it"
+ * are properties of the channel, not of what is being announced, and a
+ * second copy of them is a second place to fix the day the service changes.
+ */
+export async function pushToOwnerDevices(
+  title: string,
+  body: string,
+  groupType: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const base = process.env.OWNER_PUSH_URL?.trim();
   if (!base) return { ok: false, error: "OWNER_PUSH_URL is not set" };
-  const { title, body } = renderOwnerPush(order);
   let url: URL;
   try {
     url = new URL(base);
@@ -148,9 +166,7 @@ async function sendOwnerPush(order: AlertOrder): Promise<{ ok: true } | { ok: fa
   }
   url.searchParams.set("title", title);
   url.searchParams.set("body", body);
-  /* One thread on the phone for all of the shop's orders, so they stack
-     rather than scatter between other apps' alerts. */
-  url.searchParams.set("groupType", "buytoday-orders");
+  url.searchParams.set("groupType", groupType);
   try {
     const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(8000) });
     const text = await res.text();
