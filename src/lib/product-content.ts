@@ -22,7 +22,14 @@
 // `kind` is only ever set for a yes/no attribute. It exists because such a
 // row is readable in the spec table, where it sits next to its label, and
 // meaningless in the highlight strip, which shows values on their own.
-export type SpecRow = { label: string; value: string; kind?: "boolean" };
+export type SpecRow = {
+  label: string;
+  value: string;
+  kind?: "boolean";
+  /** The CategoryAttribute key, when the row came from one. Rows mined out
+      of text or out of extraSpecsRaw have a label and no key. */
+  key?: string;
+};
 export type FeatureItem = { title: string; body: string };
 
 export type ProductContent = {
@@ -566,7 +573,7 @@ function normalizeSpecValue(raw: string): { value: string; kind?: "boolean" } {
 }
 
 export function buildSpecRows(
-  attributeValues: { value: string; attribute: { label: string; unit: string | null; sortOrder: number } }[],
+  attributeValues: { value: string; attribute: { key?: string; label: string; unit: string | null; sortOrder: number } }[],
   extraSpecsRaw: string | null | undefined,
   parsedFromText: SpecRow[] = [],
 ): SpecRow[] {
@@ -574,6 +581,7 @@ export function buildSpecRows(
     .slice()
     .sort((a, b) => a.attribute.sortOrder - b.attribute.sortOrder)
     .map((av) => ({
+      key: av.attribute.key,
       label: av.attribute.label,
       // A scraped value often already carries its unit ("1.3 ליטר"); only a
       // bare number is actually missing one.
@@ -628,4 +636,74 @@ const FACT_VALUE_MAX = 48;
 
 export function pickHighlights(rows: SpecRow[], max = 6): SpecRow[] {
   return rows.filter((r) => r.value && r.value.length <= FACT_VALUE_MAX).slice(0, max);
+}
+
+/* The chips under the title, in the order a buyer decides.
+
+   They used to be the first four rows the spec table happened to hold,
+   which is the category's own sortOrder — and sortOrder is a display order
+   for a full table, not a ranking. On a fridge it opened with צבע and
+   סדרה; on a washing machine with מתח. The numbers somebody actually
+   chooses between sat four rows down, inside a tab.
+
+   One ordered list rather than a list per category, because the keys are
+   already category-specific: `capacity_kg` only exists on a washing
+   machine and `screen_size_in` only on a television, so a single ranking
+   expresses "the kilograms before the spin speed before the energy class"
+   for all 97 of them without 97 lists to keep in step. A key that is not
+   here is not excluded — it falls in behind the ones that are, still in
+   sortOrder. */
+const CHIP_RANK: string[] = [
+  // The headline number — the one the product is argued about in. Every
+  // one of these is specific to a handful of categories, which is what
+  // lets a single list serve all of them.
+  "screen_size_in", "capacity_kg", "place_settings", "total_liters", "capacity_liters",
+  "cavity_liters", "btu", "cooling_btu", "burners_count", "cooking_zones", "pressure_bar",
+  "channels", "audio_power_w", "mw_power_w", "power_watts", "total_power_w",
+  // The second number, and the letter everyone compares.
+  "energy_rating", "spin_rpm", "resolution", "refresh_rate_hz", "panel_type", "hdr",
+  "processor", "backlight", "model_year", "fridge_liters", "freezer_liters",
+  "freezer_position", "doors", "defrost_method", "programs_count", "compressor_type",
+  "speeds", "temp_range", "smart_os", "noise_db", "annual_kwh", "water_per_cycle_l",
+  "shabbat_mode",
+  // Fit and kind. A built-in appliance is bought on its width.
+  "width_cm", "installation_type", "load_type", "ignition", "grates", "vesa", "surface",
+  "structure", "motor_type", "heating_element", "power_levels", "control", "display",
+  "hdmi_count", "bluetooth_version", "audio_format", "freq_response", "material",
+  "body_material", "finish",
+];
+const CHIP_RANK_OF = new Map(CHIP_RANK.map((key, i) => [key, i]));
+
+/* Said in the title, in the brand line or in the warranty block already.
+   A chip that repeats what is two centimetres above it costs one of four
+   slots and tells the reader nothing. `series` earns its place here rather
+   than its 392 rows: a model line is a name, not a reason to buy. */
+const CHIP_SKIP_KEYS = new Set(["brand", "model", "sku", "made_in", "warranty_text", "warranty_months", "series", "color"]);
+const CHIP_SKIP_LABELS = new Set(["מותג", "דגם", "אחריות", "תוצרת", 'מק"ט', "יצרן", "סדרה", "צבע"]);
+const CHIP_VALUE_MAX = 24;
+
+/**
+ * Up to `max` chips for the top of the product page.
+ *
+ * Ranked, not filtered: everything eligible stays in the running, so a
+ * product whose specs are all unranked still gets chips rather than none.
+ */
+export function pickChips(rows: SpecRow[], max = 4): SpecRow[] {
+  return rows
+    .map((row, index) => ({ row, index }))
+    .filter(
+      ({ row }) =>
+        row.kind !== "boolean" &&
+        row.value.length > 0 &&
+        row.value.length <= CHIP_VALUE_MAX &&
+        !(row.key && CHIP_SKIP_KEYS.has(row.key)) &&
+        !CHIP_SKIP_LABELS.has(row.label),
+    )
+    .sort((a, b) => {
+      const ra = CHIP_RANK_OF.get(a.row.key ?? "") ?? CHIP_RANK.length;
+      const rb = CHIP_RANK_OF.get(b.row.key ?? "") ?? CHIP_RANK.length;
+      return ra !== rb ? ra - rb : a.index - b.index;
+    })
+    .slice(0, max)
+    .map(({ row }) => row);
 }

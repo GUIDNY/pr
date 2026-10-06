@@ -50,7 +50,15 @@ const EMPTY_VALUES = new Set([
 /* \b is ASCII-only in JavaScript and never fires beside a Hebrew letter, so
    "199 שח" is matched as a digit, optional space, שח, and then anything
    that is not a letter. */
-const LOOKS_LIKE_PRICE = /₪|ש"ח|ש״ח|שקל|\bnis\b|\bils\b|\d\s*שח(?!\p{L})/iu;
+/* A price is not a spec — but "משקל" contains "שקל", and `\b` is ASCII-only
+   in JavaScript, so a Hebrew letter is never a word character and the
+   boundary never fires. Twelve honest rows were refused that way, eleven of
+   them "לפי משקל ולפי זמן" on a defrost key. The currency words are fenced
+   with letter lookarounds instead, which hold in any script; the plural
+   שקלים is allowed through the fence on purpose, because "1,200 שקלים" is a
+   price and should still be refused. */
+const LOOKS_LIKE_PRICE =
+  /₪|(?<!\p{L})ש["״]ח(?!\p{L})|(?<!\p{L})שקל(?:ים)?(?!\p{L})|\bnis\b|\bils\b|\d\s*שח(?!\p{L})/iu;
 
 function str(value: unknown): string {
   return typeof value === "string" ? value.trim() : typeof value === "number" ? String(value) : "";

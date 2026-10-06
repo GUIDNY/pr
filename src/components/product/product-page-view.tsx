@@ -39,7 +39,7 @@ import {
   ProductSections,
 } from "@/components/product/product-overview";
 import { ProductSpecTable, ProductDimensionsBlock } from "@/components/product/product-spec-table";
-import { parseProductContent, buildSpecRows, splitDimensions, pickHighlights } from "@/lib/product-content";
+import { parseProductContent, buildSpecRows, splitDimensions, pickHighlights, pickChips } from "@/lib/product-content";
 import { StockBadge } from "@/components/product/stock-badge";
 import { CompareButton } from "@/components/product/compare-button";
 import { ProductReviewFlagButton } from "@/components/product/product-review-flag-button";
@@ -136,10 +136,9 @@ export async function ProductPageView({
   // a table of one because it happened to have a single CategoryAttribute.
   const allSpecRows = buildSpecRows(product.attributeValues, product.extraSpecsRaw, content.specs);
   const { specs: specRows, dimensions: dimensionRows } = splitDimensions(allSpecRows);
-  // Chips under the title: the first four real specs, skipping the rows
-  // that repeat the brand line or belong in the warranty block.
-  const KEY_SPEC_SKIP = new Set(["מותג", "דגם", "אחריות", "תוצרת", "מק\"ט", "יצרן"]);
-  const keySpecs = specRows.filter((r) => r.kind !== "boolean" && !KEY_SPEC_SKIP.has(r.label) && r.value.length <= 24).slice(0, 4);
+  // Chips under the title. Ranked by what the product is chosen on rather
+  // than by the category's table order — see pickChips.
+  const keySpecs = pickChips(specRows);
   // The highlight strip is drawn from the same list the spec table shows in
   // full, so the two can never disagree — but not simply its first six rows:
   // a yes/no row ("סאב-ווופר אלחוטי") carries no meaning as a bare value.
