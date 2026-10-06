@@ -35,6 +35,9 @@ export type BatchResult = {
       the builder dropped — the hand-off's first version would have lost
       187 rows this way, silently. Listed so it is never silent here. */
   losingRows: { slug: string; before: number; after: number }[];
+  /** Products whose rows the file reproduces exactly. Not rewritten, and
+      their `updatedAt` is left where it is — see the transaction below. */
+  unchanged: number;
   problems: RowProblem[];
   written: boolean;
 };
@@ -74,7 +77,9 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
       slug: true,
       categoryId: true,
       category: { select: { slug: true } },
-      attributeValues: { select: { id: true } },
+      /* The values themselves, not just a count: a product whose rows the
+         file reproduces exactly is left alone — see `changed` below. */
+      attributeValues: { select: { attributeId: true, value: true } },
     },
   });
   const bySlug = new Map(products.map((p) => [p.slug, p]));
@@ -99,6 +104,12 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
   const toCreate = new Map<string, { categoryId: string; categorySlug: string; key: string; label: string; unit: string | null; inputType: string; sortOrder: number }>();
   const labelMismatches: BatchResult["labelMismatches"] = [];
   const losingRows: BatchResult["losingRows"] = [];
+  /* Which attribute each existing row belongs to, by key. A row whose
+     attribute is not in this map hangs off a category the product has since
+     left — it does not render on the page and the replacement drops it,
+     which counts as a change. */
+  const keyOfAttribute = new Map(attributes.map((a) => [a.id, a.key]));
+  const changed = new Set<string>();
   let rowsBefore = 0;
   let rowsAfter = 0;
 
@@ -106,6 +117,7 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
     const rows = wanted.get(p.slug) ?? [];
     rowsBefore += p.attributeValues.length;
     rowsAfter += rows.length;
+    if (differs(p.attributeValues, rows, keyOfAttribute)) changed.add(p.id);
     if (rows.length < p.attributeValues.length) {
       losingRows.push({ slug: p.slug, before: p.attributeValues.length, after: rows.length });
     }
@@ -141,6 +153,7 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
     attributesToCreate: [...toCreate.values()].map((a) => ({ category: a.categorySlug, key: a.key, label: a.label })),
     labelMismatches,
     losingRows,
+    unchanged: products.length - changed.size,
     problems,
     written: false,
   };
@@ -168,6 +181,7 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
 
   const ops = [];
   for (const p of products) {
+    if (!changed.has(p.id)) continue;
     const rows = wanted.get(p.slug) ?? [];
     const have = attrByCategory.get(p.categoryId) ?? new Map();
     const data = rows
@@ -176,6 +190,27 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
     ops.push(db.productAttributeValue.deleteMany({ where: { productId: p.id } }));
     if (data.length > 0) ops.push(db.productAttributeValue.createMany({ data }));
   }
+
+  /* The product row is touched so its date moves with its content.
+     ProductAttributeValue has no timestamps of its own, and sitemap.ts
+     dates a product URL by Product.updatedAt — so without this the specs
+     change, the page changes, and the sitemap keeps telling Google the
+     page is as old as it was. IndexNow has the same problem from the other
+     side: it submits what changed since a date, and nothing here would
+     have changed.
+     Only the products that really changed, which is the whole reason the
+     comparison above exists. A sitemap that says every product was
+     modified this morning is one Google learns to discount wholesale —
+     the file's own header says so. */
+  if (changed.size > 0) {
+    ops.push(
+      db.product.updateMany({
+        where: { id: { in: [...changed] } },
+        data: { updatedAt: new Date() },
+      }),
+    );
+  }
+
   await db.$transaction(ops);
 
   await logAudit({
@@ -183,10 +218,42 @@ export async function importSpecBatchAction(batch: ProductSpecs[], apply: boolea
     action: "PRODUCT_SPECS_IMPORTED",
     entityType: "Product",
     entityId: `batch:${products[0]?.slug ?? "?"}..${products[products.length - 1]?.slug ?? "?"}`,
-    metadata: { products: products.length, rowsBefore, rowsAfter, attributesCreated: toCreate.size },
+    metadata: {
+      products: products.length,
+      rewritten: changed.size,
+      rowsBefore,
+      rowsAfter,
+      attributesCreated: toCreate.size,
+    },
   });
 
   return { ...result, written: true };
+}
+
+/**
+ * Whether the file's rows for a product say anything the database does not
+ * already say.
+ *
+ * Compared by key and value rather than by count: the same number of rows
+ * with one value corrected is a change, and a row pointing at an attribute
+ * of a category the product has left is a change too, because the
+ * replacement deletes it. Equal means the write is skipped entirely — which
+ * saves the write, and, more to the point, keeps the product's date honest.
+ */
+function differs(
+  existing: { attributeId: string; value: string }[],
+  wanted: SpecRowInput[],
+  keyOfAttribute: Map<string, string>,
+): boolean {
+  if (existing.length !== wanted.length) return true;
+  const have = new Map<string, string>();
+  for (const row of existing) {
+    const key = keyOfAttribute.get(row.attributeId);
+    if (!key) return true;
+    have.set(key, row.value);
+  }
+  if (have.size !== wanted.length) return true;
+  return wanted.some((row) => have.get(row.key) !== row.value);
 }
 
 export type SchemaResult = {

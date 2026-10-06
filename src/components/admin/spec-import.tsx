@@ -24,6 +24,7 @@ type Totals = {
   attributesToCreate: BatchResult["attributesToCreate"];
   labelMismatches: BatchResult["labelMismatches"];
   losingRows: BatchResult["losingRows"];
+  unchanged: number;
   problems: RowProblem[];
 };
 
@@ -36,6 +37,7 @@ const empty = (): Totals => ({
   attributesToCreate: [],
   labelMismatches: [],
   losingRows: [],
+  unchanged: 0,
   problems: [],
 });
 
@@ -110,6 +112,7 @@ export function SpecImport() {
         totals.attributesToCreate.push(...r.attributesToCreate);
         totals.labelMismatches.push(...r.labelMismatches);
         totals.losingRows.push(...r.losingRows);
+        totals.unchanged += r.unchanged;
         totals.problems.push(...r.problems);
         setProgress(Math.round(((i + batch.length) / products.length) * 100));
       }
@@ -209,6 +212,10 @@ function Report({ title, totals, schemaResult }: { title: string; totals: Totals
         <dd>{n(totals.unknownSlugs.length)}</dd>
         <dt className="text-muted-foreground">תווית שונה מהמסד</dt>
         <dd>{n(totals.labelMismatches.length)}</dd>
+        {/* Not written at all, and their date in the sitemap stays where it
+            is. A product the file reproduces exactly is not a change. */}
+        <dt className="text-muted-foreground">ללא שינוי (לא ייכתבו)</dt>
+        <dd>{n(totals.unchanged)}</dd>
         <dt className={totals.losingRows.length > 0 ? "text-destructive font-medium" : "text-muted-foreground"}>מוצרים שיאבדו שורות</dt>
         <dd className={totals.losingRows.length > 0 ? "text-destructive font-medium" : ""}>{n(totals.losingRows.length)}</dd>
       </dl>
