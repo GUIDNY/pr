@@ -5,11 +5,21 @@ import { BookOpen, Calendar } from "lucide-react";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { getPublishedArticles } from "@/lib/queries/articles";
 import { formatDate } from "@/lib/format";
+import { absoluteUrl } from "@/lib/site-url";
+
+const TITLE = "מדריכי קנייה ומאמרים";
+const DESCRIPTION = "מדריכי קנייה, טיפים והשוואות למוצרי חשמל ואלקטרוניקה — איך לבחור נכון לפני שקונים.";
 
 export const metadata: Metadata = {
-  title: "מדריכי קנייה ומאמרים",
-  description: "מדריכי קנייה, טיפים והשוואות למוצרי חשמל ואלקטרוניקה — איך לבחור נכון לפני שקונים.",
+  title: TITLE,
+  description: DESCRIPTION,
   alternates: { canonical: "/articles" },
+  /* openGraph and twitter stated here as well as title and description:
+     Next merges metadata per key, so a page that leaves them out inherits
+     the root layout's blocks whole, and this page was shared as the
+     homepage. */
+  openGraph: { title: TITLE, description: DESCRIPTION, url: absoluteUrl("/articles"), type: "website" },
+  twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
 export default async function ArticlesPage() {

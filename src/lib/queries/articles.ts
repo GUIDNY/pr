@@ -39,8 +39,20 @@ export type ArticleBlock =
 // it means the two cannot disagree.
 //
 // Marked-up text is stripped: schema.org wants the answer, not the emphasis.
+/** The question/answer pairs the page renders, as plain text — the only
+    source the article's FAQPage markup is built from (lib/schema.ts,
+    articleGraphSchema). Empty when the article has no שאלות נפוצות block. */
+export function faqItems(blocks: ArticleBlock[]): { q: string; a: string }[] {
+  return blocks
+    .flatMap((b) => (b.type === "faq" ? b.items : []))
+    .map(({ q, a }) => ({ q: stripInline(q).trim(), a: stripInline(a).trim() }))
+    .filter((it) => it.q.length > 0 && it.a.length > 0);
+}
+
+/** A standalone FAQPage for the static pages (page/[slug]), which have no
+    article entity to hang it on. Articles use articleGraphSchema instead. */
 export function faqEntities(blocks: ArticleBlock[]) {
-  const items = blocks.flatMap((b) => (b.type === "faq" ? b.items : []));
+  const items = faqItems(blocks);
   if (items.length === 0) return null;
   return {
     "@context": "https://schema.org",
@@ -48,8 +60,8 @@ export function faqEntities(blocks: ArticleBlock[]) {
     inLanguage: "he-IL",
     mainEntity: items.map(({ q, a }) => ({
       "@type": "Question",
-      name: stripInline(q),
-      acceptedAnswer: { "@type": "Answer", text: stripInline(a) },
+      name: q,
+      acceptedAnswer: { "@type": "Answer", text: a },
     })),
   };
 }

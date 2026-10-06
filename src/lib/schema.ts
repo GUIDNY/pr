@@ -9,6 +9,16 @@ import { BUSINESS, SISTER_SITE } from "@/lib/business";
 
 export const SITE_NAME = BUSINESS.name;
 
+/* Stable identities for the two entities every page can point at. An
+   article's author and publisher used to be a fresh anonymous
+   { "@type": "Organization", name } on each page, which to an engine is a
+   different organisation from the one the homepage describes. One @id,
+   stated on the homepage and referenced everywhere else, is what makes
+   "published by Buy Today" resolve to the entity with the phone number,
+   the registration number and the Merchant Center account. */
+export const ORGANIZATION_ID = `${SITE_URL}/#organization`;
+export const WEBSITE_ID = `${SITE_URL}/#website`;
+
 /** The shop's phone number, as it appears in the header, footer and mobile nav. */
 const PHONE_E164 = BUSINESS.phoneE164;
 
@@ -19,6 +29,7 @@ export function organizationSchema() {
   return {
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": ORGANIZATION_ID,
     name: SITE_NAME,
     // The company behind the shop. Google checks the name, phone and address
     // it finds here against the Business Profile and the Merchant Center
@@ -136,6 +147,8 @@ export function webSiteSchema() {
   return {
     "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": WEBSITE_ID,
+    publisher: { "@id": ORGANIZATION_ID },
     name: SITE_NAME,
     url: SITE_URL,
     inLanguage: "he-IL",
@@ -185,4 +198,73 @@ export function itemListSchema(name: string, items: { slug: string; title: strin
       url: absoluteUrl(`/product/${p.slug}`),
     })),
   };
+}
+
+export type ArticleFaqItem = { q: string; a: string };
+
+/**
+ * An article, as one graph.
+ *
+ * Three separate blocks — Article, FAQPage, BreadcrumbList — leave an engine
+ * to guess which is the page's main entity and whether the FAQ belongs to
+ * the article or stands alone. A @graph says it: the WebPage, the
+ * BlogPosting that is its main entity, and (when the article carries a
+ * שאלות נפוצות section) the FAQPage that is part of the same page. Author
+ * and publisher point at the Organization the homepage declares.
+ *
+ * The FAQ items are the ones the page renders — see faqItems in
+ * queries/articles — so the markup can never claim a question the reader
+ * does not see, which is the rule Google removes FAQ markup over.
+ */
+export function articleGraphSchema(input: {
+  path: string;
+  headline: string;
+  description: string;
+  imageUrl?: string | null;
+  datePublished: string;
+  dateModified: string;
+  faq: ArticleFaqItem[];
+}) {
+  const url = absoluteUrl(input.path);
+  const pageId = `${url}#webpage`;
+  const articleId = `${url}#article`;
+  const graph: Record<string, unknown>[] = [
+    {
+      "@type": "WebPage",
+      "@id": pageId,
+      url,
+      name: input.headline,
+      inLanguage: "he-IL",
+      isPartOf: { "@id": WEBSITE_ID },
+      mainEntity: { "@id": articleId },
+    },
+    {
+      "@type": "BlogPosting",
+      "@id": articleId,
+      mainEntityOfPage: { "@id": pageId },
+      url,
+      headline: input.headline.slice(0, 110),
+      description: input.description,
+      inLanguage: "he-IL",
+      datePublished: input.datePublished,
+      dateModified: input.dateModified,
+      ...(input.imageUrl ? { image: [input.imageUrl] } : {}),
+      author: { "@id": ORGANIZATION_ID },
+      publisher: { "@id": ORGANIZATION_ID },
+    },
+  ];
+  if (input.faq.length > 0) {
+    graph.push({
+      "@type": "FAQPage",
+      "@id": `${url}#faq`,
+      isPartOf: { "@id": pageId },
+      inLanguage: "he-IL",
+      mainEntity: input.faq.map(({ q, a }) => ({
+        "@type": "Question",
+        name: q,
+        acceptedAnswer: { "@type": "Answer", text: a },
+      })),
+    });
+  }
+  return { "@context": "https://schema.org", "@graph": graph };
 }

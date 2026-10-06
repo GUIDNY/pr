@@ -1,12 +1,13 @@
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/seo/json-ld";
-import { breadcrumbSchema } from "@/lib/schema";
+import { articleGraphSchema, breadcrumbSchema } from "@/lib/schema";
+import { absoluteUrl } from "@/lib/site-url";
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { Calendar, ArrowLeft } from "lucide-react";
 import { Breadcrumb, BreadcrumbList, BreadcrumbItem, BreadcrumbLink, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
-import { getArticleBySlug, parseArticleContent, faqEntities } from "@/lib/queries/articles";
+import { getArticleBySlug, parseArticleContent, faqItems } from "@/lib/queries/articles";
 import { ContentBlocks } from "@/components/content/content-blocks";
 import { formatDate } from "@/lib/format";
 
@@ -16,6 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!article) return {};
   const title = article.seoTitle ?? article.title;
   const description = article.seoDesc ?? article.excerpt;
+  const images = article.coverImageUrl ? [{ url: article.coverImageUrl }] : undefined;
   return {
     title,
     description,
@@ -23,11 +25,18 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     openGraph: {
       title,
       description,
+      url: absoluteUrl(`/articles/${article.slug}`),
       type: "article",
       publishedTime: article.publishedAt.toISOString(),
       modifiedTime: article.updatedAt.toISOString(),
-      images: article.coverImageUrl ? [{ url: article.coverImageUrl }] : undefined,
+      images,
     },
+    /* Stated, not inherited. The root layout declares a twitter block with
+       the site's name and tagline, and Next merges metadata per key, not
+       per field: a page that sets openGraph and says nothing about twitter
+       keeps the root's twitter block whole. Every article was shared on X
+       and in iMessage as "Buy Today - הדרך החכמה לקנות אלקטרוניקה". */
+    twitter: { card: "summary_large_image", title, description, images: images?.map((i) => i.url) },
   };
 }
 
@@ -37,22 +46,21 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
   if (!article) notFound();
 
   const blocks = parseArticleContent(article.content);
-  const faq = faqEntities(blocks);
 
-  // Structured data for AI/answer-engine and rich-result extraction — the
-  // opening paragraph doubles as the schema's description so an engine
-  // quoting this article and one reading the JSON-LD land on the same text.
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Article",
+  // One graph: the page, the posting that is its main entity, and the FAQ
+  // when the article has one — see articleGraphSchema for why it is one
+  // block and not three. The opening paragraph doubles as the description
+  // so an engine quoting this article and one reading the JSON-LD land on
+  // the same text, and the FAQ items are the ones the page renders.
+  const jsonLd = articleGraphSchema({
+    path: `/articles/${article.slug}`,
     headline: article.title,
     description: article.excerpt,
-    image: article.coverImageUrl ? [article.coverImageUrl] : undefined,
+    imageUrl: article.coverImageUrl,
     datePublished: article.publishedAt.toISOString(),
     dateModified: article.updatedAt.toISOString(),
-    author: { "@type": "Organization", name: "Buy Today" },
-    publisher: { "@type": "Organization", name: "Buy Today" },
-  };
+    faq: faqItems(blocks),
+  });
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -64,13 +72,6 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
           { name: article.title, path: `/articles/${article.slug}` },
         ])}
       />
-      {/*
-        A separate FAQPage entity rather than a @graph: schema.org allows a
-        page to carry several top-level types, and Google reads Article and
-        FAQPage independently. Built from the questions the page renders —
-        see faqEntities — so the two can never disagree.
-      */}
-      {faq && <JsonLd data={faq} />}
 
       <Breadcrumb>
         <BreadcrumbList>
