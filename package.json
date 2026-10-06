@@ -47,7 +47,7 @@
     "check:seo": "tsx scripts/check-product-seo-live.ts",
     "check:brand-aliases": "tsx scripts/check-brand-aliases.ts",
     "check:spec-import": "tsx scripts/check-spec-import.ts",
-    "check:articles": "tsx scripts/check-article-schema.ts",
+    "check:articles": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-article-schema.ts",
     "seed:intros": "tsx scripts/seed-category-intros.ts",
     "check:watchdog": "tsx scripts/check-sync-watchdog.ts",
     "check:dimensions": "tsx scripts/backfill-dimension-specs.ts",
