@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
@@ -209,6 +210,32 @@ export async function countLiveProductsInCategory(slug: string): Promise<number>
     },
   });
 }
+
+/**
+ * One photograph from a category, for the card a shared link produces.
+ *
+ * A category page is shared as often as a product page and had nothing to
+ * show for it — /category/heaters alone draws 579 impressions, and in
+ * WhatsApp it arrived as a text card. The same PUBLIC_PRODUCT_WHERE the
+ * grid uses, so the picture is one the page really shows; null when the
+ * shelf is empty, and then no image is claimed at all.
+ */
+export const categoryShareImage = cache(async (slug: string): Promise<string | null> => {
+  const category = await db.category.findUnique({
+    where: { slug },
+    select: { id: true, children: { select: { id: true } } },
+  });
+  if (!category) return null;
+  const product = await db.product.findFirst({
+    where: {
+      ...PUBLIC_PRODUCT_WHERE,
+      categoryId: { in: [category.id, ...category.children.map((c) => c.id)] },
+    },
+    orderBy: { updatedAt: "desc" },
+    select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
+  });
+  return product?.images[0]?.url ?? null;
+});
 
 export type SubcategoryTile = { slug: string; name: string; count: number; imageUrl: string | null };
 

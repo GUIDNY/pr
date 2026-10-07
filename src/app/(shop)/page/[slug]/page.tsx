@@ -4,6 +4,7 @@ import { getCmsPage } from "@/lib/queries/content";
 import { parseArticleContent, faqEntities } from "@/lib/queries/articles";
 import { ContentBlocks } from "@/components/content/content-blocks";
 import { JsonLd } from "@/components/seo/json-ld";
+import { aboutPageSchema } from "@/lib/schema";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -39,6 +40,15 @@ export default async function CmsPage({ params }: { params: Promise<{ slug: stri
           given in faqEntities: a hand-kept copy disagrees with the page the
           first time somebody edits one of them. */}
       {faq && <JsonLd data={faq} />}
+      {/* The one CMS page that is about the business rather than about a
+          policy. The others — terms, privacy, returns — are pages the shop
+          publishes, not pages about it, and typing them AboutPage would
+          make four entities claim to be the same one. */}
+      {slug === "about" && (
+        <JsonLd
+          data={aboutPageSchema({ path: `/page/${slug}`, name: page.title })}
+        />
+      )}
       <h1 className="mb-6 text-3xl font-bold">{page.title}</h1>
       {blocks.length > 0 ? (
         <ContentBlocks blocks={blocks} />

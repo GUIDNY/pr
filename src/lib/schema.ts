@@ -1,5 +1,6 @@
 import { SITE_URL, absoluteUrl } from "@/lib/site-url";
 import { BUSINESS, SISTER_SITE } from "@/lib/business";
+import { CATEGORY_TREE } from "@/lib/category-tree";
 
 // Schema.org builders shared by the pages that emit structured data.
 //
@@ -106,8 +107,15 @@ export function organizationSchema() {
       "@type": "PostalAddress",
       streetAddress: BUSINESS.street,
       addressLocality: BUSINESS.city,
+      addressRegion: BUSINESS.region,
       addressCountry: BUSINESS.country,
     },
+    /* What this shop sells, named rather than left to be inferred from a
+       catalogue an engine has to crawl first. Taken from CATEGORY_TREE —
+       the departments, which are the level a person would name — so the
+       list cannot drift from the site's own navigation, and adding a
+       department adds it here with nothing to remember. */
+    knowsAbout: CATEGORY_TREE.map((department) => department.name),
     /* The other places this same business exists. sameAs is how Google is
        told that the Instagram account, the Facebook page and this domain are
        one entity rather than three unrelated ones — the same consolidation
@@ -127,11 +135,41 @@ export function organizationSchema() {
        one business with two fronts. The footer and the about page say the
        same thing in words, for the reader rather than the crawler. */
     sameAs: [
+      BUSINESS.googleBusinessProfile,
       BUSINESS.instagram,
       BUSINESS.facebook,
       BUSINESS.threads,
       SISTER_SITE.url,
       SISTER_SITE.facebook,
+    ].filter(Boolean),
+  };
+}
+
+/**
+ * A page that is about the business itself.
+ *
+ * /page/about carried no structured data at all: 564 words that say who
+ * this shop is, and nothing joining them to the entity they describe. The
+ * graph says it in one move — this page, the organization it is about, and
+ * the site it belongs to — through the same @ids the homepage and the
+ * articles already declare, so an engine reading any of the three is
+ * reading about one thing rather than three.
+ */
+export function aboutPageSchema(input: { path: string; name: string; description?: string | null }) {
+  const url = absoluteUrl(input.path);
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "AboutPage",
+        "@id": `${url}#webpage`,
+        url,
+        name: input.name,
+        ...(input.description ? { description: input.description } : {}),
+        inLanguage: "he-IL",
+        isPartOf: { "@id": WEBSITE_ID },
+        mainEntity: { "@id": ORGANIZATION_ID },
+      },
     ],
   };
 }

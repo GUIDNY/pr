@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { shareMetadata } from "@/lib/seo/share-metadata";
 import { CategoryPageView } from "@/components/category/category-page-view";
 import { findCategoryBySlug } from "@/lib/category-tree";
-import { countLiveProductsInCategory } from "@/lib/queries/categories";
+import { countLiveProductsInCategory, categoryShareImage } from "@/lib/queries/categories";
 
 // The canonical category page: no filter, no sort, no page number — which is
 // what a crawler asks for and what nearly every visitor lands on.
@@ -53,12 +53,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
      counting against the site. The sitemap and this tag now read the same
      constant, which is the only way the two stay in step. */
   const live = await countLiveProductsInCategory(slug);
+  /* A picture from the shelf itself, so a shared category link is a card
+     with a product on it rather than a line of text. */
+  const image = await categoryShareImage(slug);
 
   return {
     ...shareMetadata({
       title: name,
       description: `${name} - מגוון רחב במחירים הטובים ביותר, משלוח עד הבית ואחריות יבואן רשמי.`,
       path: `/category/${slug}`,
+      image,
     }),
     ...(live < LISTING_MIN_PRODUCTS ? { robots: { index: false, follow: true } } : {}),
   };

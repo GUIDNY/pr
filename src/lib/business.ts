@@ -157,6 +157,13 @@ export const BUSINESS = {
      while PREC's page answers 200 — so a request from a server cannot tell
      a live page from a dead one, and a dead link in sameAs is worse than a
      stale one. */
+  /* The Business Profile, which is the one sameAs that ties this schema to
+     the knowledge panel and to Maps. Empty until somebody pastes the real
+     address in, and empty means the entry is simply not emitted — the rule
+     the sameAs list already follows: nothing goes in it that is not a
+     profile the shop controls, and a guessed Maps URL is a claim about an
+     entity that may not be ours. */
+  googleBusinessProfile: "",
   instagram: "https://www.instagram.com/buytoday.co.il/",
   facebook: "https://www.facebook.com/buytoday.co.il",
   /* Declared alongside the other two rather than instead of them. Verified
@@ -166,6 +173,12 @@ export const BUSINESS = {
      profile are one business. */
   threads: "https://www.threads.net/@buytoday.co.il",
 
+  /* The district Hadera is in. Not a business fact somebody has to supply —
+     a geographic one — and addressRegion is read when Google matches this
+     address against the Business Profile. postalCode stays absent: it is
+     the one part nobody here knows, and the rule at the top of this file
+     holds. */
+  region: "מחוז חיפה",
   street: "דוד אלעזר 27",
   city: "חדרה",
   /** ISO 3166-1 alpha-2, which is the form schema.org expects. */
