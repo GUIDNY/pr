@@ -51,6 +51,10 @@ export default function ContactPage() {
                   to call at 18:30 needs this before they tap, and a line
                   they have to hunt for is a line they call anyway. */}
               <p className="text-muted-foreground mt-0.5 text-xs">{BUSINESS.phoneHoursLabel}</p>
+              {/* And the other half of the answer, because the two are
+                  different and a visitor reading only the line above
+                  concludes the shop itself shuts at 18:00. */}
+              <p className="text-muted-foreground mt-1 text-xs">{BUSINESS.orderingHoursLabel}</p>
             </div>
           </div>
           {/* Its own row, not a second link on the phone line. WhatsApp is a

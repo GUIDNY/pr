@@ -75,6 +75,15 @@ export const BUSINESS = {
   /** For the people-facing line. Saturday is absent above and said here. */
   phoneHoursLabel: "א׳–ה׳ 10:30–18:00 · ו׳ 10:30–13:00 · שבת סגור",
 
+  /* The shop and the telephone are open at different times, and saying so
+     is the whole point. The Business Profile says "open 24 hours", which
+     is true of the thing it describes — orders are taken at 02:00 and the
+     checkout does not close. phoneHours above is true of a different
+     thing, the line somebody picks up, and moving it to 24/7 to match the
+     profile would put "open now" beside a number that rings out at two in
+     the morning. So both are stated, each about itself. */
+  orderingHoursLabel: "אפשר להזמין באתר בכל שעה, כל ימות השבוע",
+
   /* WhatsApp is a different number, and it is shown as its own channel
      rather than as a second way to reach the line above. A number labelled
      "WhatsApp" that does not answer WhatsApp is worse than not offering
