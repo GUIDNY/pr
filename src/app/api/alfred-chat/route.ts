@@ -407,7 +407,12 @@ async function answer(request: Request): Promise<Response> {
     { role: "user", parts: [{ text: message }] },
   ];
 
-  const callGemini = (model: string) =>
+  /* Each attempt has its own budget. The primary gets the full thirty
+     seconds a long answer can take; a retry and the fallbacks get less,
+     because a model that is refusing or hanging is not going to write a
+     long answer, and five attempts at thirty seconds each would hold a
+     customer for two and a half minutes before telling them anything. */
+  const callGemini = (model: string, timeoutMs = 30000) =>
     fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
       {
@@ -448,7 +453,7 @@ async function answer(request: Request): Promise<Response> {
             thinkingConfig: { thinkingLevel: "minimal" },
           },
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(timeoutMs),
       }
     );;
 
@@ -466,7 +471,7 @@ async function answer(request: Request): Promise<Response> {
     geminiRes = await callGemini(GEMINI_MODEL);
     if (RETRYABLE.has(geminiRes.status)) {
       await new Promise((resolve) => setTimeout(resolve, 1500));
-      geminiRes = await callGemini(GEMINI_MODEL);
+      geminiRes = await callGemini(GEMINI_MODEL, 20000);
     }
     if (RETRYABLE.has(geminiRes.status)) {
       const configured = process.env.GEMINI_FALLBACK_MODEL;
@@ -475,7 +480,14 @@ async function answer(request: Request): Promise<Response> {
       );
       for (const fallbackModel of fallbacks) {
         console.warn(`[alfred] gemini ${geminiRes.status} on ${GEMINI_MODEL}; trying ${fallbackModel}`);
-        geminiRes = await callGemini(fallbackModel);
+        try {
+          geminiRes = await callGemini(fallbackModel, 12000);
+        } catch (error) {
+          /* A fallback that hangs is a fallback that failed; the next one
+             gets its turn rather than the whole request dying here. */
+          console.warn(`[alfred] ${fallbackModel} did not answer: ${(error as Error).message}`);
+          continue;
+        }
         if (!RETRYABLE.has(geminiRes.status)) break;
       }
     }
