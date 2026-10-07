@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { shareMetadata } from "@/lib/seo/share-metadata";
 import { notFound, permanentRedirect } from "next/navigation";
 import { BrandPageView } from "@/components/brand/brand-page-view";
 import { getProductsByBrandSlug, getCurrentSlugForLegacyBrandSlug, LISTING_MIN_PRODUCTS } from "@/lib/queries/products";
@@ -21,11 +22,14 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { brand, total } = await getProductsByBrandSlug(slug);
   if (!brand) return {};
   return {
-    title: brand.name,
-    description: brand.description ?? undefined,
     // The brand's own slug, never the one that was asked for: a page reached
     // through an old address must not declare that old address canonical.
-    alternates: { canonical: `/brand/${brand.slug}` },
+    ...shareMetadata({
+      title: brand.name,
+      description: brand.description ?? undefined,
+      path: `/brand/${brand.slug}`,
+      image: brand.logoUrl,
+    }),
     /* A brand with almost nothing on the site is a thin page, and a thin
        page indexed under a brand name is a result that disappoints whoever
        clicks it.

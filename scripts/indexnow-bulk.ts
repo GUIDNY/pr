@@ -27,6 +27,11 @@
 // Run:  npm run indexnow:bulk
 //       npm run indexnow:bulk -- --dry-run     (prints and writes the payload,
 //                                               sends nothing)
+//       npm run indexnow:bulk -- --urls https://…/a,https://…/b
+//                                              (exactly these, nothing else —
+//                                               no sitemap read, no window,
+//                                               no cap: the list IS the
+//                                               intent)
 //       npm run indexnow:bulk -- --sitemap-file urls.txt
 //                                              (one URL per line, for a machine
 //                                               that cannot reach the site but
@@ -46,6 +51,18 @@ const BATCH = 10_000;
 
 const dryRun = process.argv.includes("--dry-run");
 const sitemapFile = argValue("--sitemap-file");
+/* A list named on the command line, for the case this script was otherwise
+   wrong for: eleven article URLs after a deploy that changed their markup
+   and nothing else. Reading the sitemap would be a round trip to decide
+   something already decided, and --since would then drop them, because a
+   change to a page's schema does not move its lastmod. So this path skips
+   the sitemap, the window and the cap: somebody typed the addresses, which
+   is a stronger statement of intent than any of the three. */
+const urlsArg = argValue("--urls");
+const explicitUrls = (urlsArg ?? "")
+  .split(/[,\s]+/)
+  .map((u) => u.trim())
+  .filter(Boolean);
 
 /* Incremental by default. Bing's own IndexNow page says it in so many
    words — "Avoid IndexNow Batch Mode to prevent excessive server load and
@@ -128,6 +145,8 @@ async function send(urls: string[]) {
 }
 
 async function main() {
+  if (urlsArg !== null) return sendExplicit();
+
   let current: SitemapEntry[] = [];
   try {
     current = await sitemapUrls();
@@ -183,6 +202,34 @@ async function main() {
     ok = (await send(all.slice(i, i + BATCH))) && ok;
   }
   if (!ok) process.exit(1);
+}
+
+/** --urls: these addresses, in this order, and nothing added to them. */
+async function sendExplicit() {
+  const offHost = explicitUrls.filter((u) => !u.startsWith(SITE));
+  if (offHost.length > 0) {
+    // IndexNow answers 422 for a URL outside the declared host and rejects
+    // the whole request with it, so the list is refused here rather than
+    // sent and bounced.
+    console.error(`not on ${HOST}:\n  ${offHost.join("\n  ")}`);
+    process.exit(1);
+  }
+  const urls = [...new Set(explicitUrls)];
+  if (urls.length === 0) {
+    console.error("--urls was given nothing to send");
+    process.exit(1);
+  }
+  console.log(`explicit: ${urls.length} urls on ${HOST}`);
+  if (dryRun) {
+    const out = "indexnow-bulk.json";
+    writeFileSync(
+      out,
+      JSON.stringify({ host: HOST, key: INDEXNOW_KEY, keyLocation: `${SITE}/${INDEXNOW_KEY}.txt`, urlList: urls }, null, 2),
+    );
+    console.log(`dry run — wrote ${out}, sent nothing`);
+    return;
+  }
+  if (!(await send(urls))) process.exit(1);
 }
 
 main().catch((error) => {

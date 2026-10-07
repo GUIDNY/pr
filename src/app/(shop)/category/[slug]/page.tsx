@@ -1,5 +1,6 @@
 import { LISTING_MIN_PRODUCTS } from "@/lib/queries/products";
 import type { Metadata } from "next";
+import { shareMetadata } from "@/lib/seo/share-metadata";
 import { CategoryPageView } from "@/components/category/category-page-view";
 import { findCategoryBySlug } from "@/lib/category-tree";
 import { countLiveProductsInCategory } from "@/lib/queries/categories";
@@ -54,9 +55,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const live = await countLiveProductsInCategory(slug);
 
   return {
-    title: name,
-    description: `${name} - מגוון רחב במחירים הטובים ביותר, משלוח עד הבית ואחריות יבואן רשמי.`,
-    alternates: { canonical: `/category/${slug}` },
+    ...shareMetadata({
+      title: name,
+      description: `${name} - מגוון רחב במחירים הטובים ביותר, משלוח עד הבית ואחריות יבואן רשמי.`,
+      path: `/category/${slug}`,
+    }),
     ...(live < LISTING_MIN_PRODUCTS ? { robots: { index: false, follow: true } } : {}),
   };
 }

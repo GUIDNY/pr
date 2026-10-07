@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { shareMetadata } from "@/lib/seo/share-metadata";
 import { notFound, permanentRedirect } from "next/navigation";
 import { ProductPageView } from "@/components/product/product-page-view";
 import { getProductBySlug, getCurrentSlugForLegacySlug } from "@/lib/queries/products";
@@ -33,14 +34,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // canonical is indistinguishable from a 404 to anything reading the page —
   // which is exactly how it looked when this was checked in production.
   if (!product || !product.isPublished || product.images.length === 0) return {};
-  return {
+  // Always the product's own slug, never the requested one: a legacy
+  // address renders nothing here (the page redirects before this matters),
+  // and the live page must never point a canonical at a URL that 301s.
+  return shareMetadata({
     title: product.title,
     description: product.shortDescription ?? product.description ?? undefined,
-    // Always the product's own slug, never the requested one: a legacy
-    // address renders nothing here (the page redirects before this matters),
-    // and the live page must never point a canonical at a URL that 301s.
-    alternates: { canonical: `/product/${product.slug}` },
-  };
+    path: `/product/${product.slug}`,
+    image: product.images[0]?.url,
+  });
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
