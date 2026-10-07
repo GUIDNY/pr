@@ -17,6 +17,9 @@ import { absoluteUrl } from "@/lib/site-url";
  * So the rule is that no page writes an openGraph block by hand. It calls
  * this, and the three stay in step by construction.
  */
+/** The shop's mark, for a page that has no picture of its own. */
+const FALLBACK_IMAGE = "/brand/logo-buytoday-v2.png";
+
 export function shareMetadata(input: {
   title: string;
   description?: string | null;
@@ -28,7 +31,15 @@ export function shareMetadata(input: {
   type?: "website" | "article";
 }): Metadata {
   const description = input.description?.trim() || undefined;
-  const images = input.image ? [{ url: absolute(input.image) }] : undefined;
+  /* A card with nothing on it is the thing this file exists to stop, so a
+     page with no picture of its own falls back to the shop's mark rather
+     than to no image key at all — a category whose shelf is empty is still
+     shared, and it arrived as a line of text.
+     The mark is 512×512 with transparency, which is a weaker card than a
+     purpose-made 1200×630 photograph would be; it is here because it is
+     stable and owned, and a banner would silently change the fallback the
+     next time marketing replaces it. */
+  const images = [{ url: absolute(input.image || FALLBACK_IMAGE) }];
   return {
     title: input.title,
     description,
@@ -44,7 +55,7 @@ export function shareMetadata(input: {
       card: "summary_large_image",
       title: input.title,
       description,
-      images: images?.map((i) => i.url),
+      images: images.map((i) => i.url),
     },
   };
 }

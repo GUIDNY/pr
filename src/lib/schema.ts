@@ -135,7 +135,7 @@ export function organizationSchema() {
        one business with two fronts. The footer and the about page say the
        same thing in words, for the reader rather than the crawler. */
     sameAs: [
-      BUSINESS.googleBusinessProfile,
+      ...BUSINESS.googleBusinessProfiles,
       BUSINESS.instagram,
       BUSINESS.facebook,
       BUSINESS.threads,

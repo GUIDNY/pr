@@ -157,13 +157,20 @@ export const BUSINESS = {
      while PREC's page answers 200 — so a request from a server cannot tell
      a live page from a dead one, and a dead link in sameAs is worse than a
      stale one. */
-  /* The Business Profile, which is the one sameAs that ties this schema to
-     the knowledge panel and to Maps. Empty until somebody pastes the real
-     address in, and empty means the entry is simply not emitted — the rule
-     the sameAs list already follows: nothing goes in it that is not a
-     profile the shop controls, and a guessed Maps URL is a claim about an
+  /* The Business Profiles, plural, which are the sameAs entries that tie
+     this schema to the knowledge panel and to Maps.
+     Two, because there are two and both are ours — the same "one business
+     with two shopfronts" that already puts prec.co.il in this list. The
+     thin profile matches this domain, which is the association Google can
+     verify; the older one carries the reviews and the panel. Declaring one
+     forfeits whichever half it is not.
+     Long form only — the maps.app.goo.gl short link is a redirect, and a
+     sameAs that resolves through a redirect is an identity claim whose
+     target can be changed by somebody else.
+     Empty until the real addresses are pasted in, and empty entries are
+     dropped rather than emitted: a guessed Maps URL is a claim about an
      entity that may not be ours. */
-  googleBusinessProfile: "",
+  googleBusinessProfiles: [] as string[],
   instagram: "https://www.instagram.com/buytoday.co.il/",
   facebook: "https://www.facebook.com/buytoday.co.il",
   /* Declared alongside the other two rather than instead of them. Verified
