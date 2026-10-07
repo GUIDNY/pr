@@ -15,9 +15,44 @@ import { GAME_ORIGIN } from "@/lib/game-profile";
 export const dynamic = "force-dynamic";
 
 const GEMINI_MODEL = "gemini-3.6-flash";
-/* Tried once when the primary answers 503/429 twice in a row. Override with
-   GEMINI_FALLBACK_MODEL in Vercel; an empty value disables the fallback. */
-const GEMINI_FALLBACK_MODEL = "gemini-3.6-flash-lite";
+
+/* The model tried once when the primary answers 503/429 twice in a row.
+ *
+ * Not a name written here: the first version of this said
+ * "gemini-3.6-flash-lite", Google answered 404, and a customer who had
+ * already waited through two 503s got the same error as before. Model
+ * names are Google's to change, so the fallback is read from Google's own
+ * ListModels when it is needed: another "flash" model that supports
+ * streaming, lighter ("lite") first, then anything else in the family.
+ * Cached per warm instance for an hour. GEMINI_FALLBACK_MODEL in Vercel
+ * overrides the choice; an empty value disables the fallback. */
+let fallbackCache: { at: number; model: string | null } | null = null;
+async function discoverFallbackModel(apiKey: string): Promise<string | null> {
+  if (fallbackCache && Date.now() - fallbackCache.at < 60 * 60 * 1000) return fallbackCache.model;
+  let model: string | null = null;
+  try {
+    const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
+      headers: { "X-goog-api-key": apiKey },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (res.ok) {
+      const json = (await res.json()) as { models?: { name?: string; supportedGenerationMethods?: string[] }[] };
+      const names = (json.models ?? [])
+        .filter((m) => (m.supportedGenerationMethods ?? []).includes("streamGenerateContent"))
+        .map((m) => (m.name ?? "").replace(/^models\//, ""))
+        .filter((n) => n && n !== GEMINI_MODEL && /flash/i.test(n) && !/preview|exp|tts|image|audio|live|embedding/i.test(n));
+      const rank = (n: string) => (/lite/i.test(n) ? 0 : 1) * 1000 - (parseFloat(n.match(/(\d+(?:\.\d+)?)/)?.[1] ?? "0") || 0);
+      model = names.sort((a, b) => rank(a) - rank(b))[0] ?? null;
+      console.warn(`[alfred] fallback model chosen from ListModels: ${model ?? "none"} (${names.length} candidates)`);
+    } else {
+      console.error(`[alfred] ListModels ${res.status}`);
+    }
+  } catch (error) {
+    console.error("[alfred] ListModels failed:", (error as Error).message);
+  }
+  fallbackCache = { at: Date.now(), model };
+  return model;
+}
 const MAX_HISTORY_TURNS = 10;
 const MAX_MESSAGE_LENGTH = 1000;
 
@@ -401,7 +436,6 @@ async function answer(request: Request): Promise<Response> {
      429 are retried — a 400 or 403 is the same answer however often it is
      asked. */
   const RETRYABLE = new Set([429, 503]);
-  const fallbackModel = process.env.GEMINI_FALLBACK_MODEL ?? GEMINI_FALLBACK_MODEL;
   let geminiRes: Response;
   try {
     geminiRes = await callGemini(GEMINI_MODEL);
@@ -409,9 +443,13 @@ async function answer(request: Request): Promise<Response> {
       await new Promise((resolve) => setTimeout(resolve, 1500));
       geminiRes = await callGemini(GEMINI_MODEL);
     }
-    if (RETRYABLE.has(geminiRes.status) && fallbackModel && fallbackModel !== GEMINI_MODEL) {
-      console.warn(`[alfred] gemini ${geminiRes.status} twice on ${GEMINI_MODEL}; trying ${fallbackModel}`);
-      geminiRes = await callGemini(fallbackModel);
+    if (RETRYABLE.has(geminiRes.status)) {
+      const configured = process.env.GEMINI_FALLBACK_MODEL;
+      const fallbackModel = configured !== undefined ? configured.trim() : await discoverFallbackModel(apiKey);
+      if (fallbackModel && fallbackModel !== GEMINI_MODEL) {
+        console.warn(`[alfred] gemini ${geminiRes.status} twice on ${GEMINI_MODEL}; trying ${fallbackModel}`);
+        geminiRes = await callGemini(fallbackModel);
+      }
     }
   } catch (error) {
     /* The customer sees "we are busy"; the log has to say which of the very
