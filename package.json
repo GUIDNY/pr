@@ -49,6 +49,8 @@
     "check:spec-import": "tsx scripts/check-spec-import.ts",
     "check:articles": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-article-schema.ts",
     "seed:intros": "tsx scripts/seed-category-intros.ts",
+    "check:article-faq": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed-article-faq.ts",
+    "fix:article-faq": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed-article-faq.ts --write",
     "check:watchdog": "tsx scripts/check-sync-watchdog.ts",
     "check:dimensions": "tsx scripts/backfill-dimension-specs.ts",
     "fix:dimensions": "tsx scripts/backfill-dimension-specs.ts --write",
