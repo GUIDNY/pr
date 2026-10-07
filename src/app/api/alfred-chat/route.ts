@@ -15,6 +15,9 @@ import { GAME_ORIGIN } from "@/lib/game-profile";
 export const dynamic = "force-dynamic";
 
 const GEMINI_MODEL = "gemini-3.6-flash";
+/* Tried once when the primary answers 503/429 twice in a row. Override with
+   GEMINI_FALLBACK_MODEL in Vercel; an empty value disables the fallback. */
+const GEMINI_FALLBACK_MODEL = "gemini-3.6-flash-lite";
 const MAX_HISTORY_TURNS = 10;
 const MAX_MESSAGE_LENGTH = 1000;
 
@@ -344,19 +347,9 @@ async function answer(request: Request): Promise<Response> {
     { role: "user", parts: [{ text: message }] },
   ];
 
-  let geminiRes: Response;
-  try {
-    /* streamGenerateContent, not generateContent.
-     *
-     * The whole answer took just over five seconds to arrive, and all five
-     * were a blank bubble with three dots in it. The model does not take
-     * five seconds to start — it takes five seconds to finish, and waiting
-     * for the last word before showing the first is a choice this code was
-     * making on the customer's behalf. Streaming the same answer puts the
-     * first words on screen in well under a second. Nothing about the reply
-     * changes; only how long the shop looks broken. */
-    geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse`,
+  const callGemini = (model: string) =>
+    fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-goog-api-key": apiKey },
@@ -397,7 +390,29 @@ async function answer(request: Request): Promise<Response> {
         }),
         signal: AbortSignal.timeout(30000),
       }
-    );
+    );;
+
+  /* Google's 503 "high demand" is a spike, and a spike is measured in
+     seconds: every one in the log so far came in a burst of a minute and
+     was gone. A customer who typed a question is not well served by being
+     told to come back; the request is made again after a short pause, and
+     if the model is still refusing, once more on the fallback model
+     (GEMINI_FALLBACK_MODEL, the lighter sibling by default). Only 503 and
+     429 are retried — a 400 or 403 is the same answer however often it is
+     asked. */
+  const RETRYABLE = new Set([429, 503]);
+  const fallbackModel = process.env.GEMINI_FALLBACK_MODEL ?? GEMINI_FALLBACK_MODEL;
+  let geminiRes: Response;
+  try {
+    geminiRes = await callGemini(GEMINI_MODEL);
+    if (RETRYABLE.has(geminiRes.status)) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      geminiRes = await callGemini(GEMINI_MODEL);
+    }
+    if (RETRYABLE.has(geminiRes.status) && fallbackModel && fallbackModel !== GEMINI_MODEL) {
+      console.warn(`[alfred] gemini ${geminiRes.status} twice on ${GEMINI_MODEL}; trying ${fallbackModel}`);
+      geminiRes = await callGemini(fallbackModel);
+    }
   } catch (error) {
     /* The customer sees "we are busy"; the log has to say which of the very
        different things went wrong, or the next person debugging this is
@@ -416,7 +431,10 @@ async function answer(request: Request): Promise<Response> {
        between them by trying a different key is how an afternoon goes. */
     const detail = await geminiRes.text().catch(() => "");
     console.error(`[alfred] gemini ${geminiRes.status}:`, detail.slice(0, 500));
-    return NextResponse.json({ error: "השירות עמוס כרגע, נסו שוב בעוד רגע" }, { status: 502 });
+    const message = RETRYABLE.has(geminiRes.status)
+      ? "אלפרד עמוס כרגע ולא הצליח לענות. נסו שוב בעוד דקה, או התקשרו אלינו."
+      : "השירות עמוס כרגע, נסו שוב בעוד רגע";
+    return NextResponse.json({ error: message }, { status: 502 });
   }
 
   /* Every product the model was shown — the reply decides which of them
