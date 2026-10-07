@@ -37,13 +37,27 @@ async function discoverFallbackModel(apiKey: string): Promise<string | null> {
     });
     if (res.ok) {
       const json = (await res.json()) as { models?: { name?: string; supportedGenerationMethods?: string[] }[] };
-      const names = (json.models ?? [])
-        .filter((m) => (m.supportedGenerationMethods ?? []).includes("streamGenerateContent"))
+      const all = (json.models ?? [])
+        .filter((m) => {
+          const methods = m.supportedGenerationMethods ?? [];
+          return methods.length === 0 || methods.includes("generateContent") || methods.includes("streamGenerateContent");
+        })
         .map((m) => (m.name ?? "").replace(/^models\//, ""))
-        .filter((n) => n && n !== GEMINI_MODEL && /flash/i.test(n) && !/preview|exp|tts|image|audio|live|embedding/i.test(n));
+        .filter((n) => n && n !== GEMINI_MODEL && !/tts|image|audio|live|embedding|veo|imagen|aqa/i.test(n));
+      /* Strict first — a stable flash sibling — then anything flash, then
+         anything at all that answers text. A preview model is a worse
+         fallback than a stable one and a better one than an error. */
+      const tiers = [
+        all.filter((n) => /flash/i.test(n) && !/preview|exp/i.test(n)),
+        all.filter((n) => /flash/i.test(n)),
+        all,
+      ];
+      const names = tiers.find((t) => t.length > 0) ?? [];
       const rank = (n: string) => (/lite/i.test(n) ? 0 : 1) * 1000 - (parseFloat(n.match(/(\d+(?:\.\d+)?)/)?.[1] ?? "0") || 0);
       model = names.sort((a, b) => rank(a) - rank(b))[0] ?? null;
-      console.warn(`[alfred] fallback model chosen from ListModels: ${model ?? "none"} (${names.length} candidates)`);
+      console.warn(
+        `[alfred] fallback model chosen from ListModels: ${model ?? "none"} (${names.length} candidates of ${all.length} text models; sample: ${all.slice(0, 12).join(", ")})`,
+      );
     } else {
       console.error(`[alfred] ListModels ${res.status}`);
     }
