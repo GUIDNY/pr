@@ -26,10 +26,10 @@ const GEMINI_MODEL = "gemini-3.6-flash";
  * streaming, lighter ("lite") first, then anything else in the family.
  * Cached per warm instance for an hour. GEMINI_FALLBACK_MODEL in Vercel
  * overrides the choice; an empty value disables the fallback. */
-let fallbackCache: { at: number; model: string | null } | null = null;
-async function discoverFallbackModel(apiKey: string): Promise<string | null> {
-  if (fallbackCache && Date.now() - fallbackCache.at < 60 * 60 * 1000) return fallbackCache.model;
-  let model: string | null = null;
+let fallbackCache: { at: number; models: string[] } | null = null;
+async function discoverFallbackModels(apiKey: string): Promise<string[]> {
+  if (fallbackCache && Date.now() - fallbackCache.at < 60 * 60 * 1000) return fallbackCache.models;
+  let models: string[] = [];
   try {
     const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200", {
       headers: { "X-goog-api-key": apiKey },
@@ -54,9 +54,20 @@ async function discoverFallbackModel(apiKey: string): Promise<string | null> {
       ];
       const names = tiers.find((t) => t.length > 0) ?? [];
       const rank = (n: string) => (/lite/i.test(n) ? 0 : 1) * 1000 - (parseFloat(n.match(/(\d+(?:\.\d+)?)/)?.[1] ?? "0") || 0);
-      model = names.sort((a, b) => rank(a) - rank(b))[0] ?? null;
+      /* Three, spread across families: when a 503 is the project being
+         throttled rather than one model being busy, the lite sibling of
+         the same generation is throttled with it, and an older generation
+         is the one that answers. */
+      const sorted = names.sort((a, b) => rank(a) - rank(b));
+      const families = new Set<string>();
+      models = sorted.filter((n) => {
+        const family = n.match(/^gemini-(\d+(?:\.\d+)?)/)?.[1] ?? n;
+        if (families.has(family)) return false;
+        families.add(family);
+        return true;
+      }).slice(0, 3);
       console.warn(
-        `[alfred] fallback model chosen from ListModels: ${model ?? "none"} (${names.length} candidates of ${all.length} text models; sample: ${all.slice(0, 12).join(", ")})`,
+        `[alfred] fallback models from ListModels: ${models.join(", ") || "none"} (${names.length} candidates of ${all.length} text models; sample: ${all.slice(0, 12).join(", ")})`,
       );
     } else {
       console.error(`[alfred] ListModels ${res.status}`);
@@ -64,8 +75,8 @@ async function discoverFallbackModel(apiKey: string): Promise<string | null> {
   } catch (error) {
     console.error("[alfred] ListModels failed:", (error as Error).message);
   }
-  fallbackCache = { at: Date.now(), model };
-  return model;
+  fallbackCache = { at: Date.now(), models };
+  return models;
 }
 const MAX_HISTORY_TURNS = 10;
 const MAX_MESSAGE_LENGTH = 1000;
@@ -459,10 +470,13 @@ async function answer(request: Request): Promise<Response> {
     }
     if (RETRYABLE.has(geminiRes.status)) {
       const configured = process.env.GEMINI_FALLBACK_MODEL;
-      const fallbackModel = configured !== undefined ? configured.trim() : await discoverFallbackModel(apiKey);
-      if (fallbackModel && fallbackModel !== GEMINI_MODEL) {
-        console.warn(`[alfred] gemini ${geminiRes.status} twice on ${GEMINI_MODEL}; trying ${fallbackModel}`);
+      const fallbacks = (configured !== undefined ? [configured.trim()] : await discoverFallbackModels(apiKey)).filter(
+        (m) => m && m !== GEMINI_MODEL,
+      );
+      for (const fallbackModel of fallbacks) {
+        console.warn(`[alfred] gemini ${geminiRes.status} on ${GEMINI_MODEL}; trying ${fallbackModel}`);
         geminiRes = await callGemini(fallbackModel);
+        if (!RETRYABLE.has(geminiRes.status)) break;
       }
     }
   } catch (error) {
