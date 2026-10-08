@@ -515,6 +515,16 @@ export async function ProductPageView({
               compareAtPrice={product.compareAtPrice}
               installmentMonths={product.installmentMonths}
             />
+          ) : isSoldOut ? (
+            /* No price on something nobody can buy. A number with no
+               button under it is an offer the page cannot honour, and the
+               one it would be compared against when the product returns is
+               the one set on the day it returns — not this one.
+               The Offer in the JSON-LD keeps its price: schema.org
+               requires one, and an Offer without it is not an Offer. It
+               carries availability OutOfStock beside it, which is what an
+               engine reads. */
+            null
           ) : (
             <PriceBlock
               price={product.price}
