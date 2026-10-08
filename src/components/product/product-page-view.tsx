@@ -535,12 +535,19 @@ export async function ProductPageView({
             {!isSoldOut && deliveryFee === 0 ? (
               <span className="bg-success/10 text-success rounded px-2 py-0.5 text-xs font-semibold">משלוח חינם</span>
             ) : null}
-            <span className="text-muted-foreground flex items-center gap-1 text-sm">
-              <Truck className="size-4" />
-              {deliveryFee === 0
-                ? `עד הבית תוך ${deliveryDaysFor(product)} ימי עסקים`
-                : `משלוח ${formatPrice(deliveryFee)} · תוך ${deliveryDaysFor(product)} ימי עסקים`}
-            </span>
+            {/* Not on a product that cannot be ordered. The free-delivery
+                chip above was already gated and this line was not, so a
+                sold-out page read "אזל מהמלאי · עד הבית תוך 3 ימי עסקים" —
+                a delivery promise about an order nobody can place, two
+                centimetres from the sentence saying so. */}
+            {!isSoldOut && (
+              <span className="text-muted-foreground flex items-center gap-1 text-sm">
+                <Truck className="size-4" />
+                {deliveryFee === 0
+                  ? `עד הבית תוך ${deliveryDaysFor(product)} ימי עסקים`
+                  : `משלוח ${formatPrice(deliveryFee)} · תוך ${deliveryDaysFor(product)} ימי עסקים`}
+              </span>
+            )}
           </div>
 
           {isSoldOut ? (
