@@ -15,11 +15,14 @@ import {
   CreditCard,
   GalleryHorizontal,
   TicketPercent,
+  Coins,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { isPelecardSandbox } from "@/lib/pelecard/config";
 import { isBackOffice, canManageCatalog, isSiteAdmin } from "@/lib/permissions";
+import { canSeePriceList } from "@/lib/price-list-access";
+import { db } from "@/lib/db";
 
 /**
  * `catalog: true` means the link belongs to running the shop rather than to
@@ -33,6 +36,11 @@ import { isBackOffice, canManageCatalog, isSiteAdmin } from "@/lib/permissions";
 const NAV = [
   { href: "/admin", label: "לוח בקרה", icon: LayoutDashboard, exact: true, catalog: true },
   { href: "/admin/orders", label: "הזמנות", icon: ShoppingBag },
+  /* Under orders, because that is where the two people who were given it
+     already are. `priceList: true` is its own flag and not `catalog`: the
+     catalog links are a role's business and this one is a named list of
+     addresses — see lib/price-list-access.ts. */
+  { href: "/admin/prices", label: "מחירים ועלויות", icon: Coins, priceList: true },
   { href: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart, catalog: true },
   { href: "/admin/complaints", label: "תלונות", icon: AlertTriangle, catalog: true },
   { href: "/admin/products", label: "מוצרים", icon: Package, catalog: true },
@@ -67,7 +75,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
      it is rather than which gateway it happens to be pointed at. */
   const full = canManageCatalog(session.role);
   const owner = isSiteAdmin(session.role);
-  const visible = NAV.filter((item) => (full || !item.catalog) && (owner || !("ownerOnly" in item && item.ownerOnly)));
+  const viewer = await db.user.findUnique({ where: { id: session.sub }, select: { email: true } });
+  const prices = canSeePriceList(viewer?.email, session.role);
+  const visible = NAV.filter(
+    (item) =>
+      (full || !item.catalog) &&
+      (owner || !("ownerOnly" in item && item.ownerOnly)) &&
+      (prices || !("priceList" in item && item.priceList)),
+  );
   const nav = full
     ? [
         ...visible,
