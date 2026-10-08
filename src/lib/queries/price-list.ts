@@ -24,12 +24,14 @@ export type PriceRow = {
   stockQty: number;
   isPublished: boolean;
   brand: string;
+  category: string;
 };
 
-export type PriceListFilter = "ALL" | "PUBLISHED" | "NO_COST" | "BELOW_COST";
+export type PriceListFilter = "ALL" | "PUBLISHED" | "NO_PRICE" | "NO_COST" | "BELOW_COST";
 
 export async function getPriceList(opts: {
   search?: string;
+  categorySlug?: string;
   filter?: PriceListFilter;
   page?: number;
   pageSize?: number;
@@ -46,8 +48,13 @@ export async function getPriceList(opts: {
       { model: { contains: search, mode: "insensitive" } },
     ];
   }
+  if (opts.categorySlug) where.category = { slug: opts.categorySlug };
   if (opts.filter === "PUBLISHED") where.isPublished = true;
   if (opts.filter === "NO_COST") where.supplierCost = null;
+  /* A product with no price at all. Its own filter because it is its own
+     problem: 94 of them, none published, and they were being counted as
+     "sold below cost" when the truth is that nobody has priced them. */
+  if (opts.filter === "NO_PRICE") where.price = { lte: 0 };
   /* Sold for less than it cost. Prisma cannot compare two columns in a
      `where`, and filtering the page after the fact would make the count at
      the top mean "however many happen to be on page one" — so the ids come
@@ -69,6 +76,7 @@ export async function getPriceList(opts: {
         stockQty: true,
         isPublished: true,
         brand: { select: { name: true } },
+        category: { select: { name: true } },
       },
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * pageSize,
@@ -87,19 +95,41 @@ export async function getPriceList(opts: {
     stockQty: p.stockQty,
     isPublished: p.isPublished,
     brand: p.brand?.name ?? "",
+    category: p.category?.name ?? "",
   }));
 
   return { rows, total, page, pageSize };
 }
 
-/** The products sold for less than they cost. The one filter that pays for
-    the screen on its own, so it is a column comparison in SQL rather than
-    an approximation in TypeScript. */
+/**
+ * The products sold for less than they cost.
+ *
+ * `price > 0` is the whole correction. Without it this counted 48, and 37
+ * of those were products with no price at all — a zero is cheaper than any
+ * cost, so every unpriced row looked like a loss. The real number is 11,
+ * and the other 37 belong under NO_PRICE, which is a different thing to do
+ * something about.
+ *
+ * A column comparison in SQL rather than an approximation in TypeScript,
+ * because Prisma cannot compare two columns in a `where`.
+ */
 async function belowCostIds(): Promise<string[]> {
   const found = await db.$queryRaw<{ id: string }[]>`
-    select id from "Product" where "supplierCost" is not null and price < "supplierCost"
+    select id from "Product"
+    where "supplierCost" is not null and price > 0 and price < "supplierCost"
   `;
   return found.map((r) => r.id);
+}
+
+/** The categories that have products, for the picker. */
+export async function getPriceListCategories(): Promise<{ slug: string; name: string; count: number }[]> {
+  const categories = await db.category.findMany({
+    select: { slug: true, name: true, _count: { select: { products: true } } },
+    orderBy: { name: "asc" },
+  });
+  return categories
+    .filter((c) => c._count.products > 0)
+    .map((c) => ({ slug: c.slug, name: c.name, count: c._count.products }));
 }
 
 export async function getBelowCostCount(): Promise<number> {

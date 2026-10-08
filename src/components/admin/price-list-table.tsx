@@ -95,6 +95,7 @@ function PriceRowLine({ row }: { row: PriceRow }) {
             <div className="min-w-0">
               <p className="line-clamp-2 font-medium">{row.title}</p>
               <p className="text-muted-foreground mt-0.5 text-xs">
+                {row.category && <span className="text-foreground/70 font-medium">{row.category} · </span>}
                 {row.brand && <span>{row.brand} · </span>}
                 מק״ט {row.sku}
                 {!row.isPublished && <span className="text-warning-foreground"> · לא מפורסם</span>}
