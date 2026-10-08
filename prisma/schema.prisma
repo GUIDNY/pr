@@ -80,6 +80,8 @@ model User {
   gameProfile       GameProfile?
   gameSpins         GameSpin[]
   memberCoupons     MemberCoupon[]
+  walletEntries     WalletEntry[]
+  walletTopups      WalletTopup[]
 }
 
 model Address {
@@ -624,7 +626,7 @@ model Order {
   /// The advertising-consent box as it was at checkout, kept with the order
   /// so a guest's consent has a record and a time (createdAt).
   marketingOptIn     Boolean   @default(false)
-  paymentMethod      String? // DEMO_CARD | CASH_ON_DELIVERY
+  paymentMethod      String? // DEMO_CARD | CASH_ON_DELIVERY | PELECARD | WALLET
   supplierId         String?
   supplier           Supplier? @relation(fields: [supplierId], references: [id])
   assignedToId       String?
@@ -650,6 +652,7 @@ model Order {
   statusHistory OrderStatusHistory[]
   notes         OrderNote[]
   notifications OrderNotification[]
+  walletEntries WalletEntry[]
 
   @@index([status])
   @@index([userId])
@@ -707,7 +710,7 @@ model Payment {
   id        String   @id @default(cuid())
   orderId   String
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  provider  String   @default("DEMO") // DEMO | PELECARD
+  provider  String   @default("DEMO") // DEMO | PELECARD | WALLET
   amount    Float
   status    String // PENDING | AUTHORIZED | CAPTURED | FAILED | REFUNDED
   reference String?
@@ -1106,4 +1109,73 @@ model MemberCoupon {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+/// One line of a customer's BuyToday balance (יתרה לקניות) — shekels for
+/// buying products, prepaid by card. Nothing to do with the 3D mall's game
+/// coins, which have no money value at all (see lib/game-wheel.ts).
+///
+/// A ledger and never a balance column: the balance is the sum of these
+/// rows, and a row is never updated or deleted once written. A mistake is
+/// corrected with an ADJUST row that says who and why, so the history of
+/// every shekel stays readable. See lib/wallet.ts.
+///
+/// Integer agorot, signed: TOPUP, BONUS, REFUND and a positive ADJUST add,
+/// SPEND and a negative ADJUST subtract. Not the Float the orders use —
+/// a running sum of floats drifts, and this one is money a customer holds.
+///
+/// The two unique keys are the idempotency: a top-up is credited (TOPUP +
+/// BONUS) once, an order is paid (SPEND) once and refunded (REFUND) once,
+/// whatever retries and redeliveries happen around them. Postgres treats
+/// NULLs as distinct, so ADJUST rows (no order, no top-up) are unaffected.
+model WalletEntry {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  amountAgorot Int
+  kind         String // TOPUP | BONUS | SPEND | REFUND | ADJUST
+  orderId      String?
+  order        Order?       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  topupId      String?
+  topup        WalletTopup? @relation(fields: [topupId], references: [id], onDelete: Restrict)
+  note         String?
+  /// The back-office account behind an ADJUST or a refund; null for the
+  /// customer's own top-ups and purchases.
+  createdById  String?
+  createdAt    DateTime     @default(now())
+
+  @@unique([topupId, kind])
+  @@unique([orderId, kind])
+  @@index([userId, createdAt])
+}
+
+/// A card payment into the balance, for one of the fixed packages
+/// (lib/wallet.ts WALLET_PACKAGES). Created PENDING when the Pelecard form
+/// is opened; only the server-side callback, after asking Pelecard, may
+/// turn it PAID — which is the moment its WalletEntry rows are written.
+model WalletTopup {
+  id                    String        @id @default(cuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  packageId             String
+  /// What the card is charged, and the integer the callback checks the
+  /// charged sum against.
+  paidAgorot            Int
+  /// What the balance receives: paidAgorot plus the package's bonus.
+  creditAgorot          Int
+  status                String        @default("PENDING") // PENDING | PAID | FAILED
+  environment           String? // sandbox | production
+  confirmationKey       String?
+  pelecardTransactionId String?
+  pelecardStatusCode    String?
+  approvalNo            String?
+  cardLast4             String?
+  rawResponse           Json?
+  createdAt             DateTime      @default(now())
+  paidAt                DateTime?
+  updatedAt             DateTime      @updatedAt
+  entries               WalletEntry[]
+
+  @@index([userId, createdAt])
+  @@index([status])
 }

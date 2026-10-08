@@ -232,7 +232,7 @@ export function renderOwnerEmail(order: AlertOrder): string {
           ${phone ? fact("טלפון", phone, `tel:${phone.replace(/[^\d+]/g, "")}`) : fact("טלפון", "אין טלפון — אי אפשר להתקשר")}
           ${email ? fact("מייל", email, `mailto:${email}`) : ""}
           ${fact("תשלום", PAYMENT_TEXT[order.paymentStatus] ?? order.paymentStatus)}
-          ${order.paymentMethod ? fact("אמצעי", order.paymentMethod === "PELECARD" ? "כרטיס אשראי (פלאקארד)" : order.paymentMethod) : ""}
+          ${order.paymentMethod ? fact("אמצעי", order.paymentMethod === "PELECARD" ? "כרטיס אשראי (פלאקארד)" : order.paymentMethod === "WALLET" ? "יתרת BuyToday" : order.paymentMethod) : ""}
           ${fact("מסירה", toCustomer ? (address ?? "משלוח — בלי כתובת!") : "איסוף עצמי")}
           ${order.customerNote ? fact("הערה", order.customerNote) : ""}
         </table>

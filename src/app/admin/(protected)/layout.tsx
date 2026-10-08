@@ -15,11 +15,13 @@ import {
   CreditCard,
   GalleryHorizontal,
   TicketPercent,
+  Wallet,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { isPelecardSandbox } from "@/lib/pelecard/config";
 import { isBackOffice, canManageCatalog, isSiteAdmin } from "@/lib/permissions";
+import { walletEnabled } from "@/lib/wallet";
 
 /**
  * `catalog: true` means the link belongs to running the shop rather than to
@@ -67,7 +69,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
      it is rather than which gateway it happens to be pointed at. */
   const full = canManageCatalog(session.role);
   const owner = isSiteAdmin(session.role);
-  const visible = NAV.filter((item) => (full || !item.catalog) && (owner || !("ownerOnly" in item && item.ownerOnly)));
+  /* Customers' BuyToday balances — listed only while the feature is on. */
+  const navItems = walletEnabled()
+    ? [...NAV, { href: "/admin/wallet", label: "יתרות לקוחות", icon: Wallet, catalog: true }]
+    : NAV;
+  const visible = navItems.filter((item) => (full || !item.catalog) && (owner || !("ownerOnly" in item && item.ownerOnly)));
   const nav = full
     ? [
         ...visible,

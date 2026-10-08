@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Package, MapPin, Heart, KeyRound, Trash2, Trophy } from "lucide-react";
+import { LayoutDashboard, Package, MapPin, Heart, KeyRound, Trash2, Trophy, Wallet } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
+import { walletEnabled } from "@/lib/wallet";
 
 const NAV = [
   { href: "/account", label: "סקירה כללית", icon: LayoutDashboard },
@@ -21,6 +22,11 @@ export default async function AccountLayout({ children }: { children: React.Reac
   // belonging to a user who no longer exists — and only getSession can tell.
   if (!session) redirect("/login?redirect=/account");
 
+  // The balance is listed only while WALLET_ENABLED is on; the page checks too.
+  const nav = walletEnabled()
+    ? [...NAV.slice(0, 2), { href: "/account/wallet", label: "היתרה שלי", icon: Wallet }, ...NAV.slice(2)]
+    : NAV;
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]">
@@ -29,7 +35,7 @@ export default async function AccountLayout({ children }: { children: React.Reac
             <p className="font-semibold">{session.name}</p>
           </div>
           <nav className="mt-2 flex flex-col gap-1">
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}

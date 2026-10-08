@@ -517,3 +517,34 @@ export type BotIntent = (typeof BOT_INTENTS)[number];
 // of the story, and a thread with the calm parts removed misleads whoever
 // reads it.
 export const COMPLAINT_OPENING_INTENTS: BotIntent[] = ["complaint", "human_request"];
+
+// How an order was paid. CASH_ON_DELIVERY is no longer offered at checkout
+// but stays here because orders placed that way still have to render.
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  PELECARD: "כרטיס אשראי",
+  DEMO_CARD: "כרטיס (הדגמה)",
+  CASH_ON_DELIVERY: "מזומן באספקה",
+  WALLET: "יתרת BuyToday",
+};
+
+// The BuyToday balance (lib/wallet.ts). Shekels for buying products — not
+// the 3D mall's game coins, which are worth nothing outside the game.
+export const WALLET_ENTRY_KINDS = ["TOPUP", "BONUS", "SPEND", "REFUND", "ADJUST"] as const;
+export type WalletEntryKind = (typeof WALLET_ENTRY_KINDS)[number];
+
+export const WALLET_ENTRY_KIND_LABELS: Record<WalletEntryKind, string> = {
+  TOPUP: "טעינת יתרה",
+  BONUS: "בונוס טעינה",
+  SPEND: "תשלום על הזמנה",
+  REFUND: "זיכוי הזמנה",
+  ADJUST: "עדכון ידני",
+};
+
+export const WALLET_TOPUP_STATUSES = ["PENDING", "PAID", "FAILED"] as const;
+export type WalletTopupStatus = (typeof WALLET_TOPUP_STATUSES)[number];
+
+export const WALLET_TOPUP_STATUS_LABELS: Record<WalletTopupStatus, string> = {
+  PENDING: "ממתין לאישור",
+  PAID: "נטען",
+  FAILED: "לא הושלם",
+};

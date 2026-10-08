@@ -17,6 +17,7 @@ import { holdDays } from "@/lib/pelecard/client";
 import { rememberAddress } from "@/lib/address-book";
 import { retireGameCoupon } from "@/lib/game-wheel";
 import { awardPurchase } from "@/lib/game-levels";
+import { payOrderFromWallet, shekelsToAgorot, walletBalanceAgorot, walletEnabled } from "@/lib/wallet";
 import { cookies } from "next/headers";
 import { ATTRIBUTION_COOKIE, attributionFromJson, parseAttribution } from "@/lib/attribution";
 
@@ -79,7 +80,7 @@ export async function createOrderAction(input: CheckoutInput) {
      order on any other lane is final as placed, so it is remembered now.
      rememberAddress reuses an identical address instead of adding it again. */
   let addressId: string | undefined;
-  if (keepsAddress && session && data.paymentMethod !== "PELECARD") {
+  if (keepsAddress && session && data.paymentMethod !== "PELECARD" && data.paymentMethod !== "WALLET") {
     addressId = await rememberAddress(session.sub, {
       fullName: data.fullName,
       phone: data.phone,
@@ -118,6 +119,22 @@ export async function createOrderAction(input: CheckoutInput) {
       return { success: false as const, error: "התשלום בכרטיס אינו זמין כרגע. נסו שוב או בחרו תשלום במזומן." };
     }
   }
+  /* THE BALANCE LANE. The whole order from the customer's BuyToday balance,
+     or not at all — part balance, part card is not built. Checked here
+     before an order exists, so a customer whose balance does not cover the
+     basket is told so without leaving an order behind; checked again, under
+     a lock, by payOrderFromWallet, which is the check that counts. The
+     account is the one on the cookie: a balance belongs to a session, never
+     to an email typed into the form. */
+  const payWithWallet = data.paymentMethod === "WALLET";
+  if (payWithWallet) {
+    if (!walletEnabled() || !session) {
+      return { success: false as const, error: "התשלום מהיתרה אינו זמין כרגע." };
+    }
+    if ((await walletBalanceAgorot(session.sub)) < shekelsToAgorot(total) || total <= 0) {
+      return { success: false as const, error: "היתרה אינה מכסה את ההזמנה. אפשר לשלם בכרטיס." };
+    }
+  }
   /* The demo card rehearses a deposit, not a charge.
      Its whole job is to let the back office be walked end to end without a
      real card, and a rehearsal that skips the step the shop actually runs on
@@ -130,8 +147,8 @@ export async function createOrderAction(input: CheckoutInput) {
      no money, so making it wait on that would leave the one safe way to test
      the flow switched off for the same reason as the risky one. */
   const demoCard = data.paymentMethod === "DEMO_CARD";
-  const paymentStatus = payWithPelecard ? "PENDING" : demoCard ? "AUTHORIZED" : "PENDING";
-  const orderStatus = payWithPelecard ? "PAYMENT_PENDING" : demoCard ? "NEW" : "NEW";
+  const paymentStatus = payWithPelecard || payWithWallet ? "PENDING" : demoCard ? "AUTHORIZED" : "PENDING";
+  const orderStatus = payWithPelecard || payWithWallet ? "PAYMENT_PENDING" : demoCard ? "NEW" : "NEW";
 
   const order = await db.order.create({
     data: {
@@ -226,7 +243,8 @@ export async function createOrderAction(input: CheckoutInput) {
 
   // A personal wheel coupon is spent by an order that is final as placed; a
   // gateway order spends it when the payment clears (the Pelecard callback).
-  if (!payWithPelecard) await retireGameCoupon(summary.couponCode);
+  // A balance order spends it when the balance is charged (afterOrderPaid).
+  if (!payWithPelecard && !payWithWallet) await retireGameCoupon(summary.couponCode);
 
   if (!payWithPelecard && paymentStatus === "AUTHORIZED") {
     const last4 = data.cardNumber ? data.cardNumber.replace(/\s/g, "").slice(-4) : null;
@@ -267,6 +285,15 @@ export async function createOrderAction(input: CheckoutInput) {
     };
   }
 
+  /* Paid from the balance now, before the cart is touched: a refusal leaves
+     the customer their cart and the order marked PAYMENT_FAILED. On success
+     payOrderFromWallet has already run afterOrderPaid — coupon, cashback,
+     address book and both mails — so the mails below are skipped for it. */
+  if (payWithWallet) {
+    const paid = await payOrderFromWallet(order.id, session!.sub);
+    if (!paid.ok) return { success: false as const, error: paid.error };
+  }
+
   // clear the cart now that the order owns a snapshot of its contents,
   // including the checkout contact details kept in case this order was never
   // finished — the order holds them from here on, and leaving them behind
@@ -292,8 +319,10 @@ export async function createOrderAction(input: CheckoutInput) {
   // one message that goes out without anybody pressing anything. It is also
   // the only one whose absence a customer notices immediately: a shop that
   // takes an order and says nothing is a shop they assume lost it.
-  await notifyOrder(order.id, "ORDER_RECEIVED");
-  await notifyOwnerOfNewOrder(order.id);
+  if (!payWithWallet) {
+    await notifyOrder(order.id, "ORDER_RECEIVED");
+    await notifyOwnerOfNewOrder(order.id);
+  }
 
   return {
     success: true as const,

@@ -14,7 +14,9 @@ export const checkoutSchema = z.object({
   // PELECARD is the gateway flow: the card is entered on Pelecard's page, so
   // this form has no card fields to validate — which is exactly why it needs
   // to be its own value rather than a DEMO_CARD with the fields left empty.
-  paymentMethod: z.enum(["DEMO_CARD", "PELECARD", "CASH_ON_DELIVERY"]),
+  // WALLET pays the whole order from the signed-in customer's BuyToday
+  // balance (lib/wallet.ts); the server decides whether it may.
+  paymentMethod: z.enum(["DEMO_CARD", "PELECARD", "CASH_ON_DELIVERY", "WALLET"]),
   cardNumber: z.string().optional(),
   cardExpiry: z.string().optional(),
   cardCvv: z.string().optional(),

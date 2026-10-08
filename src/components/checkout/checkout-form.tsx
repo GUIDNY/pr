@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { CreditCard, Home, MapPin, Minus, PackageOpen, Plus, ShieldCheck, Ticket, Truck, Store, Lock, RotateCcw, Trash2 } from "lucide-react";
+import { CreditCard, Home, MapPin, Wallet, Minus, PackageOpen, Plus, ShieldCheck, Ticket, Truck, Store, Lock, RotateCcw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -102,6 +102,7 @@ export function CheckoutForm({
   payViaGateway = false,
   isStaff = false,
   canEditWhilePaying = false,
+  walletAgorot = null,
 }: {
   /** Whether the viewer has an account; a guest sees the one-tap sign-in. */
   signedIn?: boolean;
@@ -138,6 +139,10 @@ export function CheckoutForm({
       whether an edit is allowed to land; this only decides whether the fields
       accept typing. */
   canEditWhilePaying?: boolean;
+  /** The signed-in customer's BuyToday balance in agorot, or null when the
+      feature is off or nobody is signed in. Shown and offered only; the
+      order action re-checks it under a lock before anything is spent. */
+  walletAgorot?: number | null;
 }) {
   const cart = useCartStore((s) => s.cart);
   const setCart = useCartStore((s) => s.setCart);
@@ -258,6 +263,17 @@ export function CheckoutForm({
   const needsAddress = requiresAddress(deliveryMethod);
   const deliveryFee = deliveryMethod === "DELIVERY" ? cart.deliveryFee : 0;
   const orderTotal = Math.max(0, cart.subtotal - cart.discount + deliveryFee);
+
+  /* THE BALANCE, when it covers the whole order. Offered first and chosen by
+     default, because a customer who bought balance did it to stop typing
+     cards — and while it is chosen the card form must not open on its own
+     (readyToPay below), or a gateway order would be created for a basket
+     about to be paid from the balance. Part balance, part card is not
+     offered: it covers everything or it is not shown. */
+  const walletCovers =
+    walletAgorot !== null && orderTotal > 0 && walletAgorot >= Math.round(orderTotal * 100);
+  const [walletChosen, setWalletChosen] = useState(true);
+  const payFromWallet = walletCovers && walletChosen;
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => {
@@ -403,6 +419,7 @@ export function CheckoutForm({
     !isEditingCart &&
     !payment &&
     !stranded &&
+    !payFromWallet &&
     form.paymentMethod === "DEMO_CARD" &&
     detailsCompleteFor(form);
 
@@ -471,8 +488,11 @@ export function CheckoutForm({
          "מספר כרטיס לא תקין". */
       const payload = {
         ...form,
-        paymentMethod:
-          payViaGateway && form.paymentMethod === "DEMO_CARD" ? "PELECARD" : form.paymentMethod,
+        paymentMethod: payFromWallet
+          ? "WALLET"
+          : payViaGateway && form.paymentMethod === "DEMO_CARD"
+            ? "PELECARD"
+            : form.paymentMethod,
       };
       const result = await createOrderAction(payload as CheckoutInput);
       if (!result.success) {
@@ -879,6 +899,46 @@ export function CheckoutForm({
             </div>
           ) : (
           <>
+          {walletCovers && (
+            <div className="mb-4 flex flex-col gap-2">
+              <RadioGroup
+                value={walletChosen ? "WALLET" : "CARD"}
+                onValueChange={(v) => setWalletChosen(v === "WALLET")}
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+              >
+                <Label
+                  htmlFor="pay-wallet"
+                  className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                >
+                  <RadioGroupItem value="WALLET" id="pay-wallet" />
+                  <Wallet className="size-4" />
+                  <span>
+                    <span className="block">תשלום מהיתרה</span>
+                    <span className="text-muted-foreground block text-xs tabular-nums">
+                      יתרה: {formatPrice((walletAgorot ?? 0) / 100, { decimals: true })}
+                    </span>
+                  </span>
+                </Label>
+                <Label
+                  htmlFor="pay-card"
+                  className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                >
+                  <RadioGroupItem value="CARD" id="pay-card" />
+                  <CreditCard className="size-4" />
+                  <span className="block">תשלום בכרטיס</span>
+                </Label>
+              </RadioGroup>
+              {payFromWallet && (
+                <p className="text-muted-foreground bg-muted rounded-md p-3 text-xs leading-relaxed">
+                  ההזמנה תשולם כולה מיתרת BuyToday שלכם, בלי להזין כרטיס. אחרי התשלום יישארו ביתרה{" "}
+                  <span className="tabular-nums">
+                    {formatPrice(((walletAgorot ?? 0) - Math.round(orderTotal * 100)) / 100, { decimals: true })}
+                  </span>
+                  .
+                </p>
+              )}
+            </div>
+          )}
           {/* With the gateway on, the card is entered on Pelecard's own secure
               page — this site never sees, transmits or stores a card number,
               which is both the PCI requirement and the gateway's own. */}
@@ -890,7 +950,7 @@ export function CheckoutForm({
 
               It names the thing that is missing, because the alternative is a
               section that stays blank for a reason only the code knows. */}
-          {form.paymentMethod === "DEMO_CARD" && payViaGateway && (
+          {!payFromWallet && form.paymentMethod === "DEMO_CARD" && payViaGateway && (
             <p className="text-muted-foreground bg-muted flex items-center gap-2 rounded-md p-3 text-xs leading-relaxed">
               <ShieldCheck className="size-4 shrink-0" />
               {detailsCompleteFor(form)
@@ -916,7 +976,7 @@ export function CheckoutForm({
 
               So it looks like the form and cannot be typed into, which is the
               honest half of the idea. */}
-          {form.paymentMethod === "DEMO_CARD" && payViaGateway && !detailsCompleteFor(form) && (
+          {!payFromWallet && form.paymentMethod === "DEMO_CARD" && payViaGateway && !detailsCompleteFor(form) && (
             <div aria-hidden className="mt-3 flex select-none flex-col gap-3 opacity-40">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {["שם בעל הכרטיס/חברה", "מספר כרטיס"].map((label) => (
@@ -970,7 +1030,7 @@ export function CheckoutForm({
               copy and nothing here is charged, and those two facts together are
               exactly how somebody comes to believe they have paid when they
               have not. The notice is the part that must never be copied away. */}
-          {form.paymentMethod === "DEMO_CARD" && !payViaGateway && (
+          {!payFromWallet && form.paymentMethod === "DEMO_CARD" && !payViaGateway && (
             <div className="flex flex-col gap-3">
               <p className="border-amber-300 bg-amber-50 text-amber-900 flex items-center gap-2 rounded-md border p-2 text-xs font-medium dark:bg-amber-950/30 dark:text-amber-200">
                 <ShieldCheck className="size-4 shrink-0" />
@@ -1209,14 +1269,18 @@ export function CheckoutForm({
             variant="brand"
             size="lg"
             className="w-full"
-            disabled={isPending || (payViaGateway && !detailsCompleteFor(form))}
+            disabled={isPending || ((payViaGateway || payFromWallet) && !detailsCompleteFor(form))}
             onClick={submit}
           >
             {isPending
               ? "מבצע הזמנה..."
-              : payViaGateway && !detailsCompleteFor(form)
-                ? "מלאו את הפרטים — התשלום ייפתח מעצמו"
-                : `בצע הזמנה - ${formatPrice(cart.total)}`}
+              : payFromWallet
+                ? detailsCompleteFor(form)
+                  ? `תשלום מהיתרה - ${formatPrice(orderTotal)}`
+                  : "מלאו את הפרטים כדי לשלם מהיתרה"
+                : payViaGateway && !detailsCompleteFor(form)
+                  ? "מלאו את הפרטים — התשלום ייפתח מעצמו"
+                  : `בצע הזמנה - ${formatPrice(cart.total)}`}
           </Button>
         )}
         {/* The three things a first-time buyer on a phone checks before

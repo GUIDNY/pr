@@ -10,6 +10,7 @@ import { notifyOrder } from "@/lib/notify";
 import type { NotifyEvent } from "@/lib/notify/types";
 import { tookRealMoney } from "@/lib/queries/seller-orders";
 import { INTERNAL_DELIVERY_NAME } from "@/lib/couriers";
+import { walletRefundExists } from "@/lib/wallet";
 
 /**
  * The two buttons on a salesperson's order card.
@@ -340,10 +341,20 @@ export async function undoLastStatusAction(orderNumber: string): Promise<Result>
     select: {
       id: true,
       status: true,
+      paymentMethod: true,
       statusHistory: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!order) return { success: false, error: "הזמנה לא נמצאה" };
+
+  /* A balance-paid order that was cancelled or refunded has had its money
+     put back in the customer's balance, and the customer may already have
+     spent it. Undoing the status would bring back an order whose payment is
+     gone, so it is refused; reopening one is a decision for a person, not
+     for an undo button. */
+  if (order.paymentMethod === "WALLET" && (await walletRefundExists(order.id))) {
+    return { success: false, error: "ההזמנה שולמה מהיתרה והסכום כבר הוחזר ללקוח, לכן אי אפשר לבטל את הפעולה." };
+  }
 
   const last = order.statusHistory[0];
   if (!last || !last.fromStatus) {

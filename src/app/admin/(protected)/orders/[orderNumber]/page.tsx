@@ -15,6 +15,7 @@ import {
   DELIVERY_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_COLORS,
+  PAYMENT_METHOD_LABELS,
   type OrderStatus,
   type DeliveryMethod,
   type PaymentStatus,
@@ -222,7 +223,9 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
             <h2 className="mb-3 flex items-center gap-2 font-semibold">
               <CreditCard className="size-4" /> תשלום
             </h2>
-            <p className="text-sm">שיטה: {order.paymentMethod === "CASH_ON_DELIVERY" ? "מזומן באספקה" : "כרטיס אשראי"}</p>
+            <p className="text-sm">
+              שיטה: {order.paymentMethod === "WALLET" ? PAYMENT_METHOD_LABELS.WALLET : order.paymentMethod === "CASH_ON_DELIVERY" ? "מזומן באספקה" : "כרטיס אשראי"}
+            </p>
             {/* Was printed raw, so the back office read "CAPTURED" on a
                 Hebrew screen. */}
             <p className="mt-1 flex items-center gap-1.5 text-sm">

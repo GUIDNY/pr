@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import type { SellerOrderDetail } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
-import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/enums";
+import { ORDER_STATUS_LABELS, PAYMENT_METHOD_LABELS, type OrderStatus } from "@/lib/enums";
 import { NOTIFY_CHANNEL_LABELS, NOTIFY_EVENT_LABELS } from "@/lib/notify/types";
 import { stageOf } from "@/lib/order-stage";
 import { formatPrice, formatDateTime } from "@/lib/format";
@@ -328,7 +328,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
           <Field label="סה״כ להזמנה">
             <span className="font-black">{formatPrice(order.total)}</span>
           </Field>
-          <Field label="אמצעי תשלום">{order.paymentMethod ?? "—"}</Field>
+          <Field label="אמצעי תשלום">{order.paymentMethod ? (PAYMENT_METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod) : "—"}</Field>
           {order.paid ? (
             <>
               <Field label={order.paymentStatus === "AUTHORIZED" ? "נתפס בכרטיס" : "נגבה בפועל"}>

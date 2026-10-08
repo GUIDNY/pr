@@ -5,6 +5,7 @@ import { paymentLaneFor } from "@/lib/pelecard/config";
 import { canManageCatalog } from "@/lib/permissions";
 import { googleOAuthConfigured, googleNativeConfigured } from "@/lib/google-oauth";
 import { appleOAuthConfigured, appleNativeConfigured } from "@/lib/apple-oauth";
+import { walletBalanceAgorot, walletEnabled } from "@/lib/wallet";
 
 export const metadata = { title: "תשלום" };
 
@@ -26,6 +27,11 @@ export default async function CheckoutPage() {
         select: { city: true, street: true, houseNo: true, apartment: true, phone: true },
       })
     : null;
+
+  /* The BuyToday balance, for a signed-in viewer while the feature is on.
+     Only read behind the flag: with it off the tables may not exist yet. The
+     form uses it to offer "תשלום מהיתרה"; the order action checks it again. */
+  const walletAgorot = user && walletEnabled() ? await walletBalanceAgorot(user.id) : null;
   return (
     <CheckoutForm
       // A guest is offered one-tap sign-in above the contact fields: with an
@@ -64,6 +70,7 @@ export default async function CheckoutPage() {
          account, so that was most people. The action now accepts a guest who
          holds this browser's receipt for the order. */
       canEditWhilePaying
+      walletAgorot={walletAgorot}
     />
   );
 }

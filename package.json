@@ -31,6 +31,7 @@
     "check:cart": "tsx scripts/check-cart-merge.ts",
     "check:game": "tsx scripts/check-game-profile.ts",
     "db:game-profile": "tsx scripts/create-game-profile-table.ts",
+    "db:wallet": "tsx scripts/create-wallet-tables.ts",
     "check:lane": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-payment-lane.ts",
     "check:pelecard": "NODE_OPTIONS=--conditions=react-server tsx scripts/pelecard-scenarios.mts",
     "check:complaints": "tsx scripts/check-complaints.ts",
