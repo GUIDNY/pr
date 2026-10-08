@@ -1,23 +1,18 @@
 import { NextResponse } from "next/server";
-import { rememberAddress } from "@/lib/address-book";
-import { retireGameCoupon } from "@/lib/game-wheel";
-import { awardPurchase } from "@/lib/game-levels";
-import { timingSafeEqual as nodeTimingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import {
   validateByUniqueKey,
   getTransaction,
-  normalizeFeedback,
   CLEARERS,
   holdThenCapture,
   holdDays,
   authorizationUidFrom,
   type PelecardFeedback,
 } from "@/lib/pelecard/client";
+import { readFeedback, readsAsRefusal, secretMatches } from "@/lib/pelecard/feedback";
 import { pelecardConfig, callbackSecret } from "@/lib/pelecard/config";
 import { customerHasPaid } from "@/lib/order-signal";
-import { notifyOrder } from "@/lib/notify";
-import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
+import { afterOrderPaid } from "@/lib/order-paid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,63 +21,6 @@ export const dynamic = "force-dynamic";
    The browser's return to GoodURL marks nothing: anyone can type that address,
    and a shop that trusts it hands out orders for free. Every check below has a
    specific forgery it exists to stop, so none of them is optional. */
-
-function secretMatches(given: string, expected: string): boolean {
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  // Compare lengths first — timingSafeEqual throws on a mismatch — and still
-  // run the comparison so the answer doesn't depend on where they diverge.
-  if (a.length !== b.length) return false;
-  return nodeTimingSafeEqual(a, b);
-}
-
-/**
- * Reads Pelecard's notification whatever shape it arrives in.
- *
- * We ask for JSON at init, and the first real transaction proved that is not
- * what turns up: the body came in a form Request.json() could not parse, this
- * route answered 400 twice, Pelecard treated the unacknowledged notification
- * as a failed transaction and sent the customer to the error page — for a
- * payment that may well have gone through at their end.
- *
- * So the parser accepts what a gateway actually sends: JSON, form-encoded, or
- * a query string. An unreadable body is no longer a reason to reject a
- * notification we can still identify from our own callback URL.
- *
- * Whatever the encoding, the result goes through normalizeFeedback(), because
- * the field names are not the ones the browser return uses either — see there.
- */
-async function readFeedback(req: Request): Promise<{ feedback: PelecardFeedback; raw: string }> {
-  const raw = await req.text().catch(() => "");
-  if (!raw.trim()) return { feedback: {}, raw };
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") {
-      return { feedback: normalizeFeedback(parsed as Record<string, unknown>), raw };
-    }
-  } catch {
-    // Not JSON — fall through to the form encoding.
-  }
-
-  try {
-    const form = Object.fromEntries(new URLSearchParams(raw)) as Record<string, unknown>;
-    // A form-encoded body cannot nest, so Pelecard flattens ResultData back
-    // into a JSON string under that key. Unwrapping it here means the
-    // normaliser sees the same shape either way.
-    if (typeof form.ResultData === "string") {
-      try {
-        form.ResultData = JSON.parse(form.ResultData);
-      } catch {
-        delete form.ResultData;
-      }
-    }
-    return { feedback: normalizeFeedback(form), raw };
-  } catch {
-    console.error("[pelecard] unreadable callback body", { sample: raw.slice(0, 200) });
-    return { feedback: {}, raw };
-  }
-}
 
 /**
  * The columns worth having as columns.
@@ -342,98 +280,11 @@ export async function POST(req: Request) {
     }),
   ]);
 
-  // A personal coupon from the mall's wheel is good for one paid order.
-  await retireGameCoupon(order.couponCode);
-  // the club: cashback on this order, and any level gift it reaches
-  await awardPurchase(orderId);
-
-  /* The payment is real, so the address it was paid for goes into the
-     account's address book now, once (rememberAddress reuses an identical
-     one). Taken from the order's own copy, which is the address the customer
-     finished with. Never allowed to fail the callback: a book entry is a
-     convenience, the payment record is not. */
-  if (order.userId && order.deliveryMethod === "DELIVERY") {
-    try {
-      const shipped = await db.order.findUnique({
-        where: { id: orderId },
-        select: { shipCity: true, shipStreet: true, shipHouseNo: true, shipApartment: true, guestName: true, guestPhone: true, customerNote: true },
-      });
-      if (shipped?.shipCity && shipped.shipStreet && shipped.shipHouseNo) {
-        const addressId = await rememberAddress(order.userId, {
-          fullName: shipped.guestName ?? "",
-          phone: shipped.guestPhone ?? "",
-          city: shipped.shipCity,
-          street: shipped.shipStreet,
-          houseNo: shipped.shipHouseNo,
-          apartment: shipped.shipApartment,
-          notes: shipped.customerNote,
-        });
-        await db.order.update({ where: { id: orderId }, data: { addressId } });
-      }
-    } catch (error) {
-      console.error("[pelecard] could not file the address", error);
-    }
-  }
-
-  /* Both mails go out here rather than at order creation, because on this
-     lane the order exists before the customer has paid: it is created, the
-     customer is sent to the gateway, and plenty of them never come back.
-     Alerting on that would fill the shop's inbox with abandoned carts and
-     tell a customer their order was received when it was not. The card
-     clearing is the moment the order is real. */
-  await notifyOrder(orderId, "ORDER_RECEIVED");
-  await notifyOwnerOfNewOrder(orderId);
+  /* Everything a paid order sets off — the wheel coupon retired, the club's
+     cashback, the address filed, both mails — in one function shared with
+     the balance lane (lib/wallet.ts), so an order paid from the BuyToday
+     balance is followed through exactly the way a card-paid one is. */
+  await afterOrderPaid(order);
 
   return NextResponse.json({ ok: true });
-}
-
-/**
- * Whether Pelecard's answer to ValidateByUniqueKey is a NO.
- *
- * The check above it asks only whether the answer was empty, and an empty
- * answer is what a forged notification gets: it carries a UniqueKey Pelecard
- * has never issued, so there is nothing to confirm and the order is refused.
- * That is the gate that matters and it holds.
- *
- * What it does not cover is Pelecard answering, and answering no. Their manual
- * documents this call as returning 1 or 0, and a 0 is not empty — so a
- * transaction their own validation rejects reads to the check above as
- * confirmation, and the order is marked paid. An order packed and shipped
- * against a payment the clearing company refused.
- *
- * The right fix is to require an affirmative, and it is not written yet for an
- * honest reason: no transaction has ever completed against this terminal, so
- * the exact shape of a YES is unknown. Requiring a shape guessed from the
- * manual would fail every valid payment the day it is wrong, which is worse
- * than what it replaces.
- *
- * So this is the half that can be written without seeing one: refuse every
- * shape that is unambiguously a NO, and go on accepting the rest. It cannot
- * reject a valid payment — nothing here matches an approval — and it closes
- * the case where Pelecard said no and we heard yes.
- *
- * WHEN THE FIRST REAL TRANSACTION LANDS, read what came back and replace this
- * with the positive check. That is the version that belongs here.
- */
-function readsAsRefusal(validation: unknown): boolean {
-  if (validation === 0 || validation === false || validation === "0") return true;
-
-  if (typeof validation === "object" && validation !== null) {
-    const record = validation as Record<string, unknown>;
-
-    /* An error envelope. Pelecard use this shape on init, and a non-zero
-       ErrCode there has never meant anything but a refusal. */
-    const error = record.Error as { ErrCode?: unknown } | undefined;
-    if (error && error.ErrCode !== undefined && String(error.ErrCode) !== "0") return true;
-
-    /* The documented 1/0, under whichever of the plausible names it arrives.
-       Only an explicit zero counts: a key that is absent, or holds anything
-       else, falls through to being accepted as before. */
-    for (const key of ["Result", "result", "Status", "status", "ResultCode", "Value"]) {
-      const value = record[key];
-      if (value === 0 || value === false || value === "0") return true;
-    }
-  }
-
-  return false;
 }
