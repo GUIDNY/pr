@@ -78,7 +78,8 @@ async function issue(userId: string, reward: Reward): Promise<IssuedCoupon> {
 
 /** Where an account stands: today's check-in, the streak, the days, and the coupons still usable. */
 export async function checkinStatus(userId: string) {
-  const rows = await db.gameSpin.findMany({ where: { userId }, orderBy: { day: "desc" }, select: { day: true, prize: true, code: true } });
+  // the prize machine keeps its plays in the same table (day "claw:…", lib/game-claw.ts): they are not check-ins
+  const rows = await db.gameSpin.findMany({ where: { userId, NOT: { day: { startsWith: "claw:" } } }, orderBy: { day: "desc" }, select: { day: true, prize: true, code: true } });
   const today = israelDay();
   const days = new Set(rows.map((r) => r.day));
   let streak = 0;
