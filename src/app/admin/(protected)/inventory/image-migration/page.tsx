@@ -18,8 +18,9 @@ export default async function ImageMigrationPage() {
   const session = await getSession();
   if (!session || !isSiteAdmin(session.role)) redirect("/admin/inventory");
 
-  const [prec, everything, readiness] = await Promise.all([
+  const [prec, electrolux, everything, readiness] = await Promise.all([
     countImagesToMigrate(["prec.co.il"]),
+    countImagesToMigrate(["electrolux-medialibrary.com"]),
     countImagesToMigrate(undefined, HOSTS_THAT_REFUSE_US),
     getImageReadiness(),
   ]);
@@ -34,6 +35,25 @@ export default async function ImageMigrationPage() {
             key: "all",
             label: "כל השאר",
             note: `${everything} תמונות חיצוניות. מארחים חסומים לא נכללים, וגם לא prec.co.il — הוא מסרב לבקשות שלנו.`,
+          },
+          {
+            key: "electrolux",
+            label: "אלקטרולוקס — חוסם את Merchant Center",
+            /* Its own button because this host is the only one in the
+               catalogue whose robots.txt forbids Googlebot-Image the exact
+               paths our images sit on — four Allow prefixes and then
+               Disallow: /, and ours is not one of the four. Google cannot
+               download the picture, so it cannot run the quality check, so
+               it disapproves the product: seven of them in Merchant
+               Center, with a message that blames OUR robots.txt and is
+               wrong. The file answers 200 to us, so the migration works;
+               it is the crawler that is refused, not us. */
+            hosts: ["electrolux-medialibrary.com"],
+            note:
+              `${electrolux} תמונות על services.electrolux-medialibrary.com. ` +
+              `ה-robots.txt של המארח אוסר על Googlebot-Image דווקא את הנתיבים שלנו, ולכן גוגל לא יכולה ` +
+              `להוריד את התמונה, לא מריצה בדיקת איכות, ודוחה את המוצר — שבעה מוצרים לא מאושרים ב-Merchant Center. ` +
+              `אחרי ההעברה הסטטוס יתעדכן בזחילה הבאה; אין טעם לבקש בדיקה מחדש לפני כן.`,
           },
           {
             key: "prec",

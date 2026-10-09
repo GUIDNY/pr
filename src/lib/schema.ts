@@ -254,6 +254,57 @@ export type ArticleFaqItem = { q: string; a: string };
  * queries/articles — so the markup can never claim a question the reader
  * does not see, which is the rule Google removes FAQ markup over.
  */
+/**
+ * A brand's shelf, as one graph.
+ *
+ * Brand pages emitted nothing at all — not a breadcrumb, not a type, not a
+ * link to the shop — while the homepage declares an Organization and every
+ * product page a Product. Ninety pages that an engine could only read as
+ * prose.
+ *
+ * CollectionPage rather than Product: the page is a list of things for
+ * sale, and saying Product here would make ninety pages claim to be one
+ * item each. The ItemList inside names the products actually on the page,
+ * in the order they are shown, which is the part an answer engine lifts.
+ */
+export function brandGraphSchema(input: {
+  path: string;
+  name: string;
+  description: string;
+  products: { slug: string; title: string }[];
+}) {
+  const url = absoluteUrl(input.path);
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "CollectionPage",
+        "@id": `${url}#webpage`,
+        url,
+        name: input.name,
+        description: input.description,
+        inLanguage: "he-IL",
+        isPartOf: { "@id": WEBSITE_ID },
+        publisher: { "@id": ORGANIZATION_ID },
+        ...(input.products.length > 0
+          ? {
+              mainEntity: {
+                "@type": "ItemList",
+                numberOfItems: input.products.length,
+                itemListElement: input.products.map((p, i) => ({
+                  "@type": "ListItem",
+                  position: i + 1,
+                  url: absoluteUrl(`/product/${p.slug}`),
+                  name: p.title,
+                })),
+              },
+            }
+          : {}),
+      },
+    ],
+  };
+}
+
 export function articleGraphSchema(input: {
   path: string;
   headline: string;

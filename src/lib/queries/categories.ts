@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { SITE_URL } from "@/lib/site-url";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
 
@@ -226,15 +227,30 @@ export const categoryShareImage = cache(async (slug: string): Promise<string | n
     select: { id: true, children: { select: { id: true } } },
   });
   if (!category) return null;
-  const product = await db.product.findFirst({
+  /* Our own domain only. The first live product's photograph is often
+     still hotlinked from the importer that supplied it — five category
+     cards were being served from semicom, lastprice and lior-electric,
+     three of them competitors. A share card is the shop's face; it does
+     not get to be somebody else's server. Returning null here falls the
+     card back to the shop's mark, which is ours. */
+  const products = await db.product.findMany({
     where: {
       ...PUBLIC_PRODUCT_WHERE,
       categoryId: { in: [category.id, ...category.children.map((c) => c.id)] },
+      images: { some: { url: { startsWith: `${SITE_URL}/` } } },
     },
     orderBy: { updatedAt: "desc" },
-    select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
+    take: 1,
+    select: {
+      images: {
+        where: { url: { startsWith: `${SITE_URL}/` } },
+        orderBy: { sortOrder: "asc" },
+        take: 1,
+        select: { url: true },
+      },
+    },
   });
-  return product?.images[0]?.url ?? null;
+  return products[0]?.images[0]?.url ?? null;
 });
 
 export type SubcategoryTile = { slug: string; name: string; count: number; imageUrl: string | null };

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { shareMetadata } from "@/lib/seo/share-metadata";
 import { notFound, permanentRedirect } from "next/navigation";
 import { BrandPageView } from "@/components/brand/brand-page-view";
+import { JsonLd } from "@/components/seo/json-ld";
+import { brandGraphSchema, breadcrumbSchema } from "@/lib/schema";
+import { brandMetaDescription } from "@/lib/seo/brand-description";
 import { getProductsByBrandSlug, getCurrentSlugForLegacyBrandSlug, LISTING_MIN_PRODUCTS } from "@/lib/queries/products";
 
 // The canonical brand page: no sort chosen, which is what a crawler asks for
@@ -26,7 +29,11 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     // through an old address must not declare that old address canonical.
     ...shareMetadata({
       title: brand.name,
-      description: brand.description ?? undefined,
+      /* Not brand.description: it is a tagline — "הנדסה גרמנית מדויקת,
+         מאז 1886" is 29 characters, and Google writes its own snippet
+         rather than show one that short. The generated line says what the
+         page actually holds. */
+      description: brandMetaDescription(brand.name, total),
       path: `/brand/${brand.slug}`,
       image: brand.logoUrl,
     }),
@@ -56,12 +63,34 @@ export default async function BrandPage({ params }: { params: Promise<{ slug: st
   // A renamed brand keeps answering at the address it was linked from — see
   // lib/legacy-slug-redirects.ts for why the same rules also live in
   // next.config, and what happens when they only live here.
-  const { brand } = await getProductsByBrandSlug(slug);
+  const { brand, products, total } = await getProductsByBrandSlug(slug);
   if (!brand) {
     const current = await getCurrentSlugForLegacyBrandSlug(slug);
     if (current) permanentRedirect(`/brand/${current}`);
     notFound();
   }
 
-  return <BrandPageView slug={slug} />;
+  return (
+    <>
+      {/* The page said nothing about itself in machine-readable form —
+          ninety brand pages with no type, no breadcrumb and no link back
+          to the shop. */}
+      <JsonLd
+        data={brandGraphSchema({
+          path: `/brand/${brand.slug}`,
+          name: brand.name,
+          description: brandMetaDescription(brand.name, total),
+          products: products.map((p) => ({ slug: p.slug, title: p.title })),
+        })}
+      />
+      <JsonLd
+        data={breadcrumbSchema([
+          { name: "ראשי", path: "/" },
+          { name: "מותגים", path: "/brands" },
+          { name: brand.name, path: `/brand/${brand.slug}` },
+        ])}
+      />
+      <BrandPageView slug={slug} />
+    </>
+  );
 }
