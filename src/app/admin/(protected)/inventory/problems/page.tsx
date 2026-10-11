@@ -67,9 +67,10 @@ export default async function ProblemProductsPage() {
               </span>
             </h2>
             <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-              הספק שינה את המק״ט בשורה, ולכן נוצרה רשומה שנייה לאותו מוצר. הייבוא לא עושה את זה יותר — אבל אלה שכבר
-              קיימות דורשות החלטה: איזו רשומה נשארת (זו עם התמונות והכתובת הציבורית) ולאיזו עובר המלאי.{" "}
-              <strong className="text-foreground">אף אחת מהן לא מוצגת באתר כרגע.</strong>
+אותו דגם ואותו גוון בשתי רשומות — בדרך כלל כי המחירון מחזיק את המוצר בשתי שורות, אחת עם מק״ט ואחת בלי,
+              ואנחנו ממנים מק״ט לשורה שאין לה. הזיווג דורש שהגוון יסכים, אחרת תנור לבן היה מוצע למיזוג עם אותו תנור
+              בנירוסטה. <strong className="text-foreground">אף אחת מהן לא מוצגת באתר כרגע</strong>, וההחלטה היא איזו
+              רשומה נשארת — זו עם התמונות והכתובת הציבורית — ולאיזו עובר המלאי.
             </p>
           </header>
           <table className="w-full text-sm">
@@ -90,7 +91,8 @@ export default async function ProblemProductsPage() {
                       {d.orphan.title.slice(0, 34)}
                     </Link>
                     <p className="text-muted-foreground mt-0.5 text-xs">
-                      מק״ט {d.orphan.sku} · {d.orphan.stockQty} יח׳ ·{" "}
+                      מק״ט {d.orphan.sku} · {d.orphan.stockQty} יח׳
+                      {d.orphan.colour && ` · ${d.orphan.colour}`} ·{" "}
                       {d.orphan.images > 0 ? (
                         <span className="text-success-foreground font-semibold">{d.orphan.images} תמונות</span>
                       ) : (
@@ -104,7 +106,8 @@ export default async function ProblemProductsPage() {
                       {d.live.title.slice(0, 34)}
                     </Link>
                     <p className="text-muted-foreground mt-0.5 text-xs">
-                      מק״ט {d.live.sku} · {d.live.stockQty} יח׳ ·{" "}
+                      מק״ט {d.live.sku} · {d.live.stockQty} יח׳
+                      {d.live.colour && ` · ${d.live.colour}`} ·{" "}
                       {d.live.images > 0 ? `${d.live.images} תמונות` : "אין תמונה"}
                       {d.live.quarantined && (
                         <span className="text-destructive font-semibold"> · סומן לא לפרסם</span>

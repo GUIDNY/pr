@@ -598,9 +598,9 @@ export async function getProblemProducts(limit = 300): Promise<ProblemProduct[]>
 
 export type DuplicatePair = {
   /** The record the price list no longer points at. */
-  orphan: ProductLine & { enriched: boolean };
+  orphan: ProductLine & { enriched: boolean; colour: string };
   /** The record holding the sheet row now. */
-  live: ProductLine & { enriched: boolean; quarantined: boolean };
+  live: ProductLine & { enriched: boolean; quarantined: boolean; colour: string };
   model: string;
   /** Stock counted twice while both records carry it. */
   ghostValue: number;
@@ -638,7 +638,7 @@ export async function getDuplicatePairs(limit = 60): Promise<DuplicatePair[]> {
         stockQty: { gt: 0 },
         model: { not: null },
       },
-      select: { ...PRODUCT_LINE_SELECT, model: true, enrichmentStatus: true },
+      select: { ...PRODUCT_LINE_SELECT, model: true, enrichmentStatus: true, colorName: true },
     }),
     db.product.findMany({
       where: {
@@ -646,32 +646,57 @@ export async function getDuplicatePairs(limit = 60): Promise<DuplicatePair[]> {
         missingFromSourceSince: null,
         model: { not: null },
       },
-      select: { ...PRODUCT_LINE_SELECT, model: true, enrichmentStatus: true },
+      select: { ...PRODUCT_LINE_SELECT, model: true, enrichmentStatus: true, colorName: true },
     }),
   ]);
 
   const key = (m: string | null) => (m ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-  const liveByModel = new Map<string, (typeof live)[number]>();
+  /* Every live record per model, not the first: a model can legitimately
+     appear more than once, and picking one arbitrarily is how a white oven
+     gets paired with a stainless one. */
+  const liveByModel = new Map<string, (typeof live)[number][]>();
   for (const p of live) {
     const k = key(p.model);
     /* Four characters, the same floor modelsAreTheSame uses: a bare "750"
        or "85" would pair half the catalogue with itself. */
     if (k.length < 4) continue;
-    if (!liveByModel.has(k)) liveByModel.set(k, p);
+    const bucket = liveByModel.get(k);
+    if (bucket) bucket.push(p);
+    else liveByModel.set(k, [p]);
   }
 
   const pairs: DuplicatePair[] = [];
   for (const o of orphans) {
     const k = key(o.model);
     if (k.length < 4) continue;
-    const twin = liveByModel.get(k);
-    if (!twin || twin.id === o.id) continue;
+    /* The colour has to agree, and this is the correction that matters.
+       Matching on the model alone put real colour variants in this list:
+       a Bosch HBG537ES4Y in white against the same oven in stainless, a
+       Crystal MGH66GW in black induction against the same hob in white
+       glass. Those are two products and always were, and offering them for
+       merging is offering to delete one of them. The sheet names the finish
+       in its own צבע column and the enrichment copies it to colorName, so
+       when both sides say something they have to say the same thing;
+       silence on either side is not evidence either way and still pairs. */
+    const twin = (liveByModel.get(k) ?? []).find((c) => {
+      if (c.id === o.id) return false;
+      const a = (o.colorName ?? "").trim();
+      const b = (c.colorName ?? "").trim();
+      if (a === "" || b === "") return true;
+      return a === b;
+    });
+    if (!twin) continue;
     pairs.push({
-      orphan: { ...toLine(o), enriched: o.enrichmentStatus === "ENRICHED" },
+      orphan: {
+        ...toLine(o),
+        enriched: o.enrichmentStatus === "ENRICHED",
+        colour: (o.colorName ?? "").trim(),
+      },
       live: {
         ...toLine(twin),
         enriched: twin.enrichmentStatus === "ENRICHED",
         quarantined: (twin.enrichmentStatus ?? "").includes("DO_NOT_PUBLISH"),
+        colour: (twin.colorName ?? "").trim(),
       },
       model: o.model ?? "",
       ghostValue: o.price * o.stockQty,
