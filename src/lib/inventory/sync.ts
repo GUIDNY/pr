@@ -164,9 +164,41 @@ export async function findExistingProductWithPath(
    */
   modelIndex?: { index: TempSkuModelIndex; claimedSkus: Set<string> },
 ) {
-  const positionMatch = await db.product.findFirst({
+  /* Every product that claims this row, not the first one the database
+     happens to return.
+     findFirst with no ordering was the whole defect. 143 positions in this
+     catalogue are claimed by two or three products — 290 records — and the
+     winner was whichever row Postgres handed back. The loser then got no
+     row at all: 155 of them, 154 already reported as gone from the price
+     list. And it is worse than arbitrary, because the model guard below
+     then *refuses* a wrong claimant instead of trying the right one, so a
+     row would fall through to the fallbacks while the product it actually
+     names sat at that very position, unlooked-at.
+     Three products claim מקררים row 3 — a Homex HRF80W, a Midea HS-121L and
+     a Sirius MREF-109-W. One office fridge per row is what the sheet means;
+     which one is a question the row itself answers, in its model column. */
+  const claimants = await db.product.findMany({
     where: { sourceId, sourceSheet: row.sheetName, sourceRowRef: row.rowIndex },
+    orderBy: { createdAt: "asc" },
   });
+
+  /* The claimant the row names, when the row names one of them. Containment
+     after stripping, the same assertion used everywhere else here, and
+     unique or nothing: two claimants that both read as this row's model
+     means the model is not deciding anything and guessing is what produced
+     this mess. */
+  const namedByTheRow = claimants.filter((p) => modelsAreTheSame(p.model, row.model));
+  const positionMatch =
+    namedByTheRow.length === 1
+      ? namedByTheRow[0]
+      : claimants.length === 1
+        ? claimants[0]
+        : null;
+
+  // A contested row is reported once per run by reconcileRowClaimedTwice,
+  // not here: upsertAlert resolves every open alert of a type for a source
+  // before writing the new one, so 143 contested rows raised from inside
+  // this loop would leave exactly one alert standing.
 
   if (positionMatch) {
     /* A row that kept its place and changed its number.
@@ -1264,6 +1296,83 @@ export async function applyRowsForSource(
   return result;
 }
 
+/**
+ * One alert per row that more than one product claims.
+ *
+ * Reconciled from the database rather than raised inside the row loop, for
+ * two reasons. upsertAlert resolves every open alert of a type for a source
+ * before writing the new one — right for a fault a source has one of, and
+ * wrong here, where 143 rows are contested at once and only the last would
+ * survive. And the condition is a property of the catalogue, not of a row
+ * being read: a position stops being contested when somebody merges the
+ * pair, which no sync run observes.
+ *
+ * Keyed on the first claimant so each contested row owns one alert, and so
+ * the dedup upsertAlert does per product applies per row here.
+ */
+export async function reconcileRowClaimedTwice(syncRunId: string | null): Promise<number> {
+  const contested = await db.$queryRaw<
+    { sourceId: string; sourceSheet: string; sourceRowRef: number; ids: string[]; labels: string[] }[]
+  >`
+    select "sourceId", "sourceSheet", "sourceRowRef",
+           array_agg(id order by "createdAt") as ids,
+           array_agg(coalesce(sku, '?') || coalesce(' / ' || model, '') order by "createdAt") as labels
+    from "Product"
+    where "sourceId" is not null and "sourceSheet" is not null and "sourceRowRef" is not null
+    group by "sourceId", "sourceSheet", "sourceRowRef"
+    having count(*) > 1
+  `;
+
+  const keep = new Set<string>();
+  for (const row of contested) {
+    const owner = row.ids[0];
+    keep.add(owner);
+    const message =
+      `${row.sourceSheet} שורה ${row.sourceRowRef}: ${row.ids.length} מוצרים מחוברים לשורה אחת ` +
+      `(${row.labels.join(" · ")}). השורה מתעדכנת רק למוצר שהדגם בה מצביע עליו; ` +
+      `האחרים לא מתעדכנים ממנה בכלל, וצריך להחליט אם זה אותו מוצר פעמיים או מוצרים שונים.`;
+    const open = await db.inventoryAlert.findFirst({
+      where: { type: "ROW_CLAIMED_TWICE", productId: owner, isResolved: false },
+    });
+    if (!open) {
+      await db.inventoryAlert.create({
+        data: {
+          type: "ROW_CLAIMED_TWICE",
+          severity: "CRITICAL",
+          productId: owner,
+          sourceId: row.sourceId,
+          syncRunId,
+          message,
+          metadata: JSON.stringify({
+            sheet: row.sourceSheet,
+            rowIndex: row.sourceRowRef,
+            productIds: row.ids,
+          }),
+        },
+      });
+    } else if (open.message !== message) {
+      await db.inventoryAlert.update({ where: { id: open.id }, data: { message, syncRunId } });
+    }
+  }
+
+  /* And closed for every row that is no longer contested — the only signal a
+     merge ever gives us. */
+  const stale = await db.inventoryAlert.findMany({
+    where: { type: "ROW_CLAIMED_TWICE", isResolved: false },
+    select: { id: true, productId: true },
+  });
+  for (const alert of stale) {
+    if (!alert.productId || !keep.has(alert.productId)) {
+      await db.inventoryAlert.update({
+        where: { id: alert.id },
+        data: { isResolved: true, resolvedAt: new Date() },
+      });
+    }
+  }
+
+  return contested.length;
+}
+
 export async function markMissingProducts(
   sourceId: string,
   seenSkus: Set<string>,
@@ -1898,6 +2007,7 @@ export async function runFullSync(
   // DB-ground-truth reconciliation, independent of which sources' files
   // actually changed this run — see reconcileSourceConflictAlerts for why.
   await reconcileSourceConflictAlerts(syncRun.id);
+  await reconcileRowClaimedTwice(syncRun.id);
   await reconcileUrgentMissingMedia();
   await reconcileMissingImage();
 

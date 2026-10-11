@@ -265,6 +265,7 @@ export const INVENTORY_ALERT_TYPES = [
      of thing as a row with a blank column, and it must not be reported in
      the same breath. */
   "SHEET_NOT_MAPPED",
+  "ROW_CLAIMED_TWICE",
   /* A tab that does map, and is being read, but has not moved a product in
      days. Raised from outside the sync by sync-watchdog.ts, for the same
      reason SYNC_STALE is: a tab that silently stops producing updates
@@ -296,6 +297,7 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   SYNC_STALE: "הסנכרון לא רץ",
   PRICE_BELOW_COST: "מחיר מתחת לעלות הספק",
   SHEET_NOT_MAPPED: "לשונית במחירון לא זוהתה",
+  ROW_CLAIMED_TWICE: "שורה אחת במחירון נתבעת על ידי כמה מוצרים",
   SHEET_STALE: "לשונית לא מתעדכנת",
 };
 
