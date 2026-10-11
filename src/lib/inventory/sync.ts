@@ -680,9 +680,29 @@ async function applyOneRow(
     resolved !== existing.price &&
     !resolvedIsBelowCost;
 
+  /* The supplier's cost, kept current.
+     This was written once, at creation, and never again — so 231 products
+     carried a cost the sheet had moved on from, 77 of them live. It is not a
+     field anybody owns: nothing in the app writes it, the price screen
+     refuses to let it be edited on purpose, and every consumer wants
+     today's number. The margin column on the price screen is computed from
+     it, which means a person deciding one of the prices this sync will not
+     touch was reading a margin against a cost from weeks ago. Four products
+     read as "sold below cost" on 11 October purely because the stored figure
+     was old; the sheet's row said otherwise.
+     Only when the row carries one. A tab without a cost column must not
+     erase a cost we already have — that would be the sheet's silence
+     overwriting its own earlier statement. */
+  const adoptCost =
+    existing !== null &&
+    rowCost !== null &&
+    rowCost > 0 &&
+    rowCost !== existing.supplierCost;
+
   const stockOnlyUpdate = {
     ...(renumberedSku ? { sku: renumberedSku, isTemporarySku: false } : {}),
     ...(adoptPrice ? { price: resolved } : {}),
+    ...(adoptCost ? { supplierCost: rowCost } : {}),
     stockStatus: data.stockStatus,
     stockQty: data.stockQty,
     stockBreakdown: data.stockBreakdown,
