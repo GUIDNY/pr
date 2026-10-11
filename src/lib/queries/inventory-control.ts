@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { normaliseSheetName } from "@/lib/inventory/sheet-map";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 
 /**
  * The one page that answers "what happened in the last sync, and what do I
@@ -738,4 +739,28 @@ export async function getDuplicatePairs(limit = 60): Promise<DuplicatePair[]> {
     });
   }
   return pairs.sort((a, b) => b.ghostValue - a.ghostValue).slice(0, limit);
+}
+
+/**
+ * Every product a customer can actually buy right now.
+ *
+ * The one list in the back office that answers "what are we selling",
+ * rather than "what is wrong". The inventory summary bar counts 1,624
+ * products with stock, the shop serves 1,225, and until this existed there
+ * was nowhere to see the second number as a list — the gap had to be asked
+ * for and measured each time.
+ *
+ * PUBLIC_PRODUCT_WHERE verbatim, not a copy of its conditions. That
+ * constant is what the storefront, the search, the Finder, the compare
+ * page and the Merchant feed all read; a second hand-rolled version of it
+ * here would be the seventh place to drift, which is the exact rot the
+ * comment on that constant describes.
+ */
+export async function getLiveProducts(): Promise<ProductLine[]> {
+  const rows = await db.product.findMany({
+    where: PUBLIC_PRODUCT_WHERE,
+    select: PRODUCT_LINE_SELECT,
+    orderBy: [{ category: { name: "asc" } }, { title: "asc" }],
+  });
+  return rows.map(toLine);
 }

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * Five tabs, set by the owner on 11 October.
+ * Six tabs. Five were set by the owner on 11 October; the sixth is his too.
  *
  * There were ten. "כל המוצרים" answered where a SKU is, and the other nine
  * were every other thing the catalogue can be asked, each equally
@@ -21,6 +21,11 @@ import { cn } from "@/lib/utils";
  */
 const TABS = [
   { href: "/admin/inventory", label: "כל המוצרים", exact: true },
+  /* Added 12 October, and it is the only tab here that is not a problem
+     list. Every other one answers "what is wrong"; this answers "what are
+     we selling", which had no page at all — the summary bar's 1,624 and the
+     shop's 1,225 could only be reconciled by asking someone to measure it. */
+  { href: "/admin/inventory/live", label: "מוצרים באתר" },
   { href: "/admin/inventory/new", label: "מוצרים חדשים מהסנכרון" },
   { href: "/admin/inventory/price-gaps", label: "בעיית מחיר" },
   { href: "/admin/inventory/no-image", label: "ללא תמונה" },
