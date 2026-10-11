@@ -182,18 +182,26 @@ export async function findExistingProductWithPath(
     orderBy: { createdAt: "asc" },
   });
 
-  /* The claimant the row names, when the row names one of them. Containment
-     after stripping, the same assertion used everywhere else here, and
-     unique or nothing: two claimants that both read as this row's model
-     means the model is not deciding anything and guessing is what produced
-     this mess. */
-  const namedByTheRow = claimants.filter((p) => modelsAreTheSame(p.model, row.model));
+  /* A record already reported as gone from the price list is not competing
+     for this row, and that single condition is most of the problem.
+     Of 142 contested positions, 134 have exactly one claimant still in the
+     price list — the others left it weeks ago and are only still pointing
+     at the row as bookkeeping. One is genuinely ambiguous. So treating all
+     claimants as contenders turned one real question into 142, and the
+     answer to 134 of them was already in the database.
+     Falling back to the full set when nothing is left matters: 7 positions
+     have no claimant in the price list at all, and a row that names one of
+     them is how that product comes back. */
+  const contenders = claimants.filter((p) => p.missingFromSourceSince === null);
+  const pool = contenders.length > 0 ? contenders : claimants;
+
+  /* Within that pool, the claimant the row names. Containment after
+     stripping, the same assertion used everywhere else here, and unique or
+     nothing: two that both read as this row's model means the model is not
+     deciding anything, and guessing is what produced this mess. */
+  const namedByTheRow = pool.filter((p) => modelsAreTheSame(p.model, row.model));
   const positionMatch =
-    namedByTheRow.length === 1
-      ? namedByTheRow[0]
-      : claimants.length === 1
-        ? claimants[0]
-        : null;
+    namedByTheRow.length === 1 ? namedByTheRow[0] : pool.length === 1 ? pool[0] : null;
 
   // A contested row is reported once per run by reconcileRowClaimedTwice,
   // not here: upsertAlert resolves every open alert of a type for a source
@@ -1309,6 +1317,12 @@ export async function applyRowsForSource(
  *
  * Keyed on the first claimant so each contested row owns one alert, and so
  * the dedup upsertAlert does per product applies per row here.
+ *
+ * Counting only claimants still in the price list, for the same reason the
+ * matcher does: 142 positions have more than one record pointing at them,
+ * but in 134 of those exactly one is still in the price list and the rest
+ * are bookkeeping. Alerting on all 142 would bury the one row where two
+ * live products really do want the same line.
  */
 export async function reconcileRowClaimedTwice(syncRunId: string | null): Promise<number> {
   const contested = await db.$queryRaw<
@@ -1319,6 +1333,7 @@ export async function reconcileRowClaimedTwice(syncRunId: string | null): Promis
            array_agg(coalesce(sku, '?') || coalesce(' / ' || model, '') order by "createdAt") as labels
     from "Product"
     where "sourceId" is not null and "sourceSheet" is not null and "sourceRowRef" is not null
+      and "missingFromSourceSince" is null
     group by "sourceId", "sourceSheet", "sourceRowRef"
     having count(*) > 1
   `;
