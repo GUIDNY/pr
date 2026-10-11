@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { reconcileSyncStaleAlert } from "@/lib/inventory/sync-watchdog";
+import { reconcileSyncStaleAlert, reconcileStaleSheetAlerts } from "@/lib/inventory/sync-watchdog";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 
@@ -31,9 +31,25 @@ export async function GET(request: Request) {
     }
   }
 
-  const freshness = await reconcileSyncStaleAlert();
+  /* Two questions on the same schedule: are the sheets arriving at all, and
+     is every tab inside them still producing updates. The second is here
+     rather than in the sync for the same reason the first is — four tabs of
+     one workbook went dead for 35 days while the run that should have
+     noticed reported SUCCESS every day, because the other twenty-six tabs
+     kept it honest-looking. */
+  const [freshness, sheets] = await Promise.all([
+    reconcileSyncStaleAlert(),
+    reconcileStaleSheetAlerts(),
+  ]);
+  const staleSheets = sheets.filter((s) => s.stale);
   return NextResponse.json({
     stale: freshness.stale,
+    staleSheets: staleSheets.map((s) => ({
+      sheetName: s.sheetName,
+      lagDays: s.lagDays,
+      livePublished: s.livePublished,
+      lastUpdateAt: s.lastUpdateAt,
+    })),
     lastSeenAt: freshness.lastSeenAt,
     lastUploadAt: freshness.lastUploadAt,
     lastRunFailed: freshness.lastRunFailed,

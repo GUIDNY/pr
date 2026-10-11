@@ -54,7 +54,8 @@
     "check:watchdog": "tsx scripts/check-sync-watchdog.ts",
     "check:dimensions": "tsx scripts/backfill-dimension-specs.ts",
     "fix:dimensions": "tsx scripts/backfill-dimension-specs.ts --write",
-    "check:leaf-categories": "tsx scripts/check-leaf-categories.ts"
+    "check:leaf-categories": "tsx scripts/check-leaf-categories.ts",
+    "check:sheets": "tsx scripts/check-sheet-map.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

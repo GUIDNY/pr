@@ -23,12 +23,23 @@ export const INVENTORY_SOURCES: { key: SourceKey; filename: string }[] = [
 ];
 
 // sourceKey -> sheetName -> category slug (leaf or department)
+//
+// Names are stored canonically — trimmed, inner runs of whitespace collapsed
+// — and matched through normaliseSheetName() below, so a tab the supplier
+// types as "מסכים " and a tab they type as "מסכים" are the same tab.
+//
+// They did not used to be. These keys were transcribed from the workbooks
+// with the supplier's stray spaces intact and matched exactly, which made a
+// space load-bearing; when normalizer.ts began trimming the incoming name
+// the two sides stopped agreeing and four tabs silently stopped importing
+// for 35 days. check:sheets now fails if a key is added that carries
+// whitespace a lookup would have to forgive.
 export const SHEET_CATEGORY_MAP: Record<SourceKey, Record<string, string>> = {
   electronics: {
     "מקרנים+DVD+סטרימר סמארט +ממירים": "projectors",
     "רמקולים בידוריות ואוזניות": "speakers",
     "רסיברים ומערכות סטריאו": "receivers-amplifiers",
-    " מתקניי תליה וכבלים": "tv-mounts",
+    "מתקניי תליה וכבלים": "tv-mounts",
   },
   "small-appliances": {
     "גריל גז ומערכות מים": "water-dispensers",
@@ -41,19 +52,19 @@ export const SHEET_CATEGORY_MAP: Record<SourceKey, Record<string, string>> = {
     "שואבים ומכונות שטיפה": "vacuum-cleaners",
     "מוצרי טיפוח": "personal-care",
     "מאוררים + קטלנים ומטהרים": "fans",
-    "מכונות קפה + מטחנות קפה ": "coffee-machines",
+    "מכונות קפה + מטחנות קפה": "coffee-machines",
     "מוצרי חורף": "heaters",
   },
   "white-goods-screens": {
     כיריים: "gas-cooktops",
-    "מסכים ": "tvs",
+    "מסכים": "tvs",
     "מ. כביסה": "washing-machines",
     מייבשים: "dryers",
     מדיחים: "dishwasher-standard",
     "ת.בנוי": "built-in-oven",
     "ת. משולב": "combi-oven",
     מקררים: "refrigeration",
-    "מקפיאים ": "freezers",
+    "מקפיאים": "freezers",
     קולטים: "range-hoods",
     מזגנים: "split-ac",
   },
@@ -67,19 +78,86 @@ export const NON_PRODUCT_SHEETS: Record<SourceKey, string[]> = {
   "white-goods-screens": [],
 };
 
+/**
+ * A tab name with its whitespace taken out of the comparison.
+ *
+ * This function exists because of a 35-day outage, and the shape of it is
+ * worth keeping in mind before touching anything here.
+ *
+ * The keys in the maps above were transcribed from the real workbooks on
+ * 2026-08-17, faithfully — including the stray spaces the supplier typed:
+ * "מסכים ", "מקפיאים ", "מכונות קפה + מטחנות קפה ", " מתקניי תליה וכבלים".
+ * Faithful is the right way to transcribe a source. The lookup was then an
+ * exact string match, which made the stray space load-bearing.
+ *
+ * On 2026-09-09 normalizer.ts started trimming the incoming tab name —
+ * correctly, to stop a supplier's retyped space being read as a renamed tab
+ * and duplicating every SKU-less row under it. From that moment the two
+ * sides disagreed: a trimmed "מסכים" never matched the key "מסכים ", the
+ * lookup returned null, and sync.ts dropped every row in those four tabs
+ * before touching a product. The sheets were read every day. The rows were
+ * parsed every day. 123 live products worth ₪538,000 went 35 days without a
+ * stock or availability update, and a customer rang about a TV mount that
+ * had left the price list in September.
+ *
+ * So: whitespace is not part of a tab's name, on either side, ever. Both the
+ * stored keys and the incoming name go through here, and
+ * scripts/check-sheet-map.ts fails the build if a key is ever added that
+ * would depend on it — because a normaliser nobody can see is one trim away
+ * from being bypassed again.
+ */
+export function normaliseSheetName(name: string): string {
+  return String(name ?? "").trim().replace(/\s+/g, " ");
+}
+
+/* Built once at module load from the literals above, so the literals stay a
+   faithful transcription of the workbook and every lookup is still
+   whitespace-insensitive. */
+const NORMALISED_SHEET_CATEGORY_MAP: Record<SourceKey, Record<string, string>> = Object.fromEntries(
+  Object.entries(SHEET_CATEGORY_MAP).map(([sourceKey, map]) => [
+    sourceKey,
+    Object.fromEntries(Object.entries(map).map(([name, slug]) => [normaliseSheetName(name), slug])),
+  ]),
+) as Record<SourceKey, Record<string, string>>;
+
 export function categoryForSheet(sourceKey: SourceKey, sheetName: string): string | null {
-  return SHEET_CATEGORY_MAP[sourceKey]?.[sheetName] ?? null;
+  const scoped = NORMALISED_SHEET_CATEGORY_MAP[sourceKey]?.[normaliseSheetName(sheetName)];
+  if (scoped) return scoped;
+  /* A tab we know from somewhere else. The supplier has written the mount
+     tab both as " מתקניי תליה וכבלים" and as "מוצרי תלייה וכבלים" —
+     different words, not different whitespace, so no normaliser unifies
+     them — and 187 products sat under the second name alone. Falling back
+     to the unscoped table means any tab name this project has ever seen
+     resolves, whichever workbook it arrives in.
+     Safe because no tab name maps to two different categories across the
+     three sources; check:sheets asserts exactly that, so this fallback
+     cannot start guessing the day someone adds a colliding name. */
+  return categoryForUnscopedSheet(sheetName);
 }
 
 export function isProductSheet(sourceKey: SourceKey, sheetName: string): boolean {
-  return !(NON_PRODUCT_SHEETS[sourceKey] ?? []).includes(sheetName);
+  const name = normaliseSheetName(sheetName);
+  return !(NON_PRODUCT_SHEETS[sourceKey] ?? []).some((s) => normaliseSheetName(s) === name);
+}
+
+/** Every tab name the project knows, for check:sheets and for reporting a
+    tab that matched none of them. */
+export function allKnownSheetNames(): { source: string; name: string; slug: string }[] {
+  const out: { source: string; name: string; slug: string }[] = [];
+  for (const [sourceKey, map] of Object.entries(SHEET_CATEGORY_MAP)) {
+    for (const [name, slug] of Object.entries(map)) out.push({ source: sourceKey, name, slug });
+  }
+  for (const [name, slug] of Object.entries(EXTRA_TAB_CATEGORY_MAP)) {
+    out.push({ source: "extra-tab", name, slug });
+  }
+  return out;
 }
 
 // Google Sheets tab names seen so far that don't exactly match an Excel
 // sheet name (different wording/spacing for the same category) — the
 // spreadsheets appear to be live replacements for individual Excel tabs.
-const EXTRA_TAB_CATEGORY_MAP: Record<string, string> = {
-  "גריל מערכות גז מים ": "water-dispensers",
+export const EXTRA_TAB_CATEGORY_MAP: Record<string, string> = {
+  "גריל מערכות גז מים": "water-dispensers",
   "מוצרי תלייה וכבלים": "tv-mounts",
 };
 
@@ -89,13 +167,19 @@ const EXTRA_TAB_CATEGORY_MAP: Record<string, string> = {
 // all sources first, then a small set of known naming variants, then null
 // (surfaced to the admin as needing a manual category, never guessed).
 export function categoryForUnscopedSheet(sheetName: string): string | null {
-  const trimmed = sheetName.trim();
+  const wanted = normaliseSheetName(sheetName);
   for (const map of Object.values(SHEET_CATEGORY_MAP)) {
     for (const [name, slug] of Object.entries(map)) {
-      if (name.trim() === trimmed) return slug;
+      if (normaliseSheetName(name) === wanted) return slug;
     }
   }
-  return EXTRA_TAB_CATEGORY_MAP[sheetName] ?? null;
+  /* Normalised here too. This table is the one with the whitespace-bearing
+     Google Sheets variants in it ("גריל מערכות גז מים "), and an exact
+     match on those is the same trap one table over. */
+  for (const [name, slug] of Object.entries(EXTRA_TAB_CATEGORY_MAP)) {
+    if (normaliseSheetName(name) === wanted) return slug;
+  }
+  return null;
 }
 
 // A tab's yellow section dividers ("אוזניות", "מנגלים ומטבחי חוץ...",

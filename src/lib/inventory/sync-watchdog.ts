@@ -172,3 +172,184 @@ export async function reconcileSyncStaleAlert(): Promise<SyncFreshness> {
 
   return freshness;
 }
+
+/**
+ * Is every tab of every price list still producing updates?
+ *
+ * checkSyncFreshness above asks whether the sheets are arriving. This asks
+ * the question one level down, which is the question nobody was asking when
+ * four tabs of the white-goods workbook stopped resolving to a category on
+ * 9 September and nothing lit up for 35 days.
+ *
+ * The reason the file-level check could not see it is worth stating plainly,
+ * because it is the whole design constraint here: the workbook changed every
+ * single day. Twenty-six of its thirty tabs were being read and applied
+ * normally, so `uploadedAt` moved, `lastScannedAt` moved, the run reported
+ * SUCCESS, and four dead tabs were invisible inside a healthy file.
+ *
+ * Which also rules out the obvious implementation. "A tab that has not
+ * updated in seven days" would cry wolf on every quiet workbook: the sync
+ * skips a source whose sha256 is unchanged, so a supplier who sends nothing
+ * for a week leaves every tab in that file untouched, correctly. Measuring a
+ * tab against the calendar reports that as thirty faults.
+ *
+ * So each tab is measured against *its own workbook's* other tabs. A tab
+ * that has not moved while its neighbours moved yesterday is the fault that
+ * actually happened; a workbook where nothing moved is a quiet supplier, and
+ * SYNC_STALE is already watching for the case where that silence is real.
+ */
+export const SHEET_LAG_DAYS = 7;
+
+export type SheetFreshness = {
+  sheetName: string;
+  sourceId: string;
+  /** Last run that wrote a row of this tab. */
+  lastUpdateAt: Date | null;
+  /** The newest tab in the same workbook, which is the yardstick. */
+  sourceLastUpdateAt: Date | null;
+  /** Days this tab lags the rest of its own workbook. */
+  lagDays: number | null;
+  /** What it is costing: products on the site whose stock is frozen. */
+  livePublished: number;
+  stale: boolean;
+};
+
+export async function checkSheetFreshness(): Promise<SheetFreshness[]> {
+  /* select, and grouped in the database: this runs on a cron against a
+     catalogue of 2,218 sheet-backed products and has no business pulling
+     rows back to count them here. */
+  const grouped = await db.product.groupBy({
+    by: ["sourceId", "sourceSheet"],
+    where: { sourceId: { not: null }, sourceSheet: { not: null } },
+    _max: { lastExcelSyncAt: true },
+    _count: { _all: true },
+  });
+
+  /* Counted separately rather than filtered into the group above, because a
+     tab holding only unpublished products is still a tab that stopped
+     updating — it just is not costing anything yet, and the alert should say
+     so instead of not existing. */
+  const liveGrouped = await db.product.groupBy({
+    by: ["sourceSheet"],
+    where: {
+      sourceId: { not: null },
+      sourceSheet: { not: null },
+      isPublished: true,
+      stockQty: { gt: 0 },
+    },
+    _count: { _all: true },
+  });
+  const liveBySheet = new Map(liveGrouped.map((g) => [g.sourceSheet ?? "", g._count._all]));
+
+  const newestBySource = new Map<string, Date>();
+  for (const g of grouped) {
+    const at = g._max.lastExcelSyncAt;
+    if (!g.sourceId || !at) continue;
+    const current = newestBySource.get(g.sourceId);
+    if (!current || at > current) newestBySource.set(g.sourceId, at);
+  }
+
+  const now = new Date();
+  return grouped
+    .filter((g): g is typeof g & { sourceId: string; sourceSheet: string } =>
+      g.sourceId !== null && g.sourceSheet !== null,
+    )
+    .map((g) => {
+      const lastUpdateAt = g._max.lastExcelSyncAt;
+      const sourceLastUpdateAt = newestBySource.get(g.sourceId) ?? null;
+      /* Against the workbook's own newest tab, and `now` only as a backstop
+         for a workbook with no readable timestamp at all. */
+      const yardstick = sourceLastUpdateAt ?? now;
+      const lagDays =
+        lastUpdateAt === null
+          ? null
+          : (yardstick.getTime() - lastUpdateAt.getTime()) / 86_400_000;
+      return {
+        sheetName: g.sourceSheet,
+        sourceId: g.sourceId,
+        lastUpdateAt,
+        sourceLastUpdateAt,
+        lagDays: lagDays === null ? null : Math.round(lagDays * 10) / 10,
+        livePublished: liveBySheet.get(g.sourceSheet) ?? 0,
+        stale: lagDays === null || lagDays >= SHEET_LAG_DAYS,
+      };
+    })
+    .sort((a, b) => (b.lagDays ?? 0) - (a.lagDays ?? 0));
+}
+
+/**
+ * Raise one alert per lagging tab, and withdraw it when the tab catches up.
+ *
+ * One per tab and not one summary, because the first thing a person does
+ * with this is go and look at that tab in the workbook, and an alert that
+ * names four tabs is an alert that gets half-read. Keyed on the tab name in
+ * `metadata` so several can be open at once — four were, in September.
+ */
+export async function reconcileStaleSheetAlerts(): Promise<SheetFreshness[]> {
+  const sheets = await checkSheetFreshness();
+  const stale = sheets.filter((s) => s.stale);
+
+  const open = await db.inventoryAlert.findMany({
+    where: { type: "SHEET_STALE", isResolved: false },
+    select: { id: true, message: true, metadata: true },
+  });
+  const sheetOf = (metadata: string | null): string | null => {
+    if (!metadata) return null;
+    try {
+      const parsed: unknown = JSON.parse(metadata);
+      const name = (parsed as { sheetName?: unknown })?.sheetName;
+      return typeof name === "string" ? name : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const stillStale = new Set(stale.map((s) => s.sheetName));
+  const resolveIds = open
+    .filter((a) => {
+      const name = sheetOf(a.metadata);
+      return name === null || !stillStale.has(name);
+    })
+    .map((a) => a.id);
+  if (resolveIds.length > 0) {
+    await db.inventoryAlert.updateMany({
+      where: { id: { in: resolveIds } },
+      data: { isResolved: true, resolvedAt: new Date() },
+    });
+  }
+
+  for (const sheet of stale) {
+    const days = sheet.lagDays === null ? null : Math.floor(sheet.lagDays);
+    const message =
+      `הלשונית "${sheet.sheetName}" לא עודכנה ${days === null ? "אף פעם" : `${days} יום`} ` +
+      `בזמן ששאר הלשוניות באותה חוברת מתעדכנות. ` +
+      (sheet.livePublished > 0
+        ? `${sheet.livePublished} מוצרים מפורסמים ממנה מציגים מלאי ומחיר שאינם מתעדכנים.`
+        : `אין ממנה מוצרים מפורסמים כרגע.`);
+    const existing = open.find((a) => sheetOf(a.metadata) === sheet.sheetName);
+    if (existing) {
+      if (existing.message !== message) {
+        await db.inventoryAlert.update({ where: { id: existing.id }, data: { message } });
+      }
+    } else {
+      await db.inventoryAlert.create({
+        data: {
+          type: "SHEET_STALE",
+          /* CRITICAL, like SYNC_STALE and for the same reason: the shop is
+             selling against numbers nobody is maintaining. A WARNING here
+             would sit in the same pile this change exists to empty. */
+          severity: "CRITICAL",
+          sourceId: sheet.sourceId,
+          message,
+          metadata: JSON.stringify({
+            sheetName: sheet.sheetName,
+            lagDays: sheet.lagDays,
+            livePublished: sheet.livePublished,
+          }),
+        },
+      });
+    }
+  }
+
+  return sheets;
+}

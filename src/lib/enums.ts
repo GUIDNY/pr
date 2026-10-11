@@ -251,6 +251,27 @@ export const INVENTORY_ALERT_TYPES = [
      drift apart silently, and on 30 September fourteen live products had
      drifted past each other. */
   "PRICE_BELOW_COST",
+  /* A whole tab of the price list produced nothing, and the run said
+     SUCCESS anyway.
+     The one this is named after: on 2026-09-09 four tabs stopped resolving
+     to a category, and the only thing that reported it was UNMATCHED_ROW,
+     once per row — 3,829 of them a day, in the same alert type as the
+     thousands of "this row has no stock data" warnings, with 2,530 already
+     auto-resolved. The information was all there and no person could ever
+     have found it. It ran for 35 days and ended with a customer on the
+     phone about a TV mount that had left the price list in September.
+     So: one alert, per tab, CRITICAL, naming the tab and what it cost. A
+     fault that takes out a whole category of the shop is not the same kind
+     of thing as a row with a blank column, and it must not be reported in
+     the same breath. */
+  "SHEET_NOT_MAPPED",
+  /* A tab that does map, and is being read, but has not moved a product in
+     days. Raised from outside the sync by sync-watchdog.ts, for the same
+     reason SYNC_STALE is: a tab that silently stops producing updates
+     cannot be noticed by the run that is failing to produce them. The
+     file-level check could not see this — the workbook changed every day
+     because 26 other tabs changed. */
+  "SHEET_STALE",
 ] as const;
 export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
 
@@ -274,6 +295,8 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   MANUAL_URGENT: "סומן לטיפול דחוף ידנית",
   SYNC_STALE: "הסנכרון לא רץ",
   PRICE_BELOW_COST: "מחיר מתחת לעלות הספק",
+  SHEET_NOT_MAPPED: "לשונית במחירון לא זוהתה",
+  SHEET_STALE: "לשונית לא מתעדכנת",
 };
 
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;

@@ -404,14 +404,24 @@ async function applyOneRow(
 
   const categoryId = await resolveCategoryId(row.categorySlug);
   if (!categoryId) {
-    await upsertAlert({
-      type: "UNMATCHED_ROW",
-      severity: "WARNING",
-      sourceId,
-      syncRunId,
-      sourceSku: existing?.sku ?? row.sku,
-      message: `לא נמצאה קטגוריה מתאימה לגיליון "${row.sheetName}"`,
-    });
+    /* Two different faults used to share this alert, and the louder one
+       buried the worse one. A tab that maps to nothing takes out every row
+       it has — 2,530 identical warnings a day for "מסכים" alone — and is
+       reported once per sheet as SHEET_NOT_MAPPED by the caller, which is
+       the only form a person can act on. A row whose tab *did* map to a
+       slug that has no category row in the database is a different and much
+       rarer problem, and that one still belongs here, named by slug so it
+       can actually be looked up. */
+    if (row.categorySlug) {
+      await upsertAlert({
+        type: "UNMATCHED_ROW",
+        severity: "WARNING",
+        sourceId,
+        syncRunId,
+        sourceSku: existing?.sku ?? row.sku,
+        message: `הגיליון "${row.sheetName}" מופה לקטגוריה "${row.categorySlug}" שאינה קיימת במסד`,
+      });
+    }
     return null;
   }
 
@@ -1377,6 +1387,96 @@ export async function runFullSync(
       }
     }
     findDuplicates(rows);
+
+    /* One alert per tab that resolved to no category, before a single row is
+       applied.
+       Read off the normalised rows rather than re-running the lookup, so
+       this can never disagree with what the rows actually carry — the
+       35-day outage was precisely two pieces of code disagreeing about the
+       same tab name, and a check that re-derives the answer is a third
+       chance to disagree. A tab with rows and not one mapped row is a tab
+       whose whole contents were about to be dropped.
+
+       Reconciled by hand rather than through upsertAlert, because that
+       helper resolves every open alert of a type for a source before
+       creating the new one — right for a fault a source has at most one of,
+       and wrong here: four tabs broke at once in September, and each
+       upsertAlert would have closed the previous tab's alert. So: close the
+       tabs that now map, keep one open alert per tab that does not, and
+       rewrite its message so the count it quotes is today's. */
+    const perSheet = new Map<string, { total: number; mapped: number }>();
+    for (const row of rows) {
+      const seen = perSheet.get(row.sheetName) ?? { total: 0, mapped: 0 };
+      seen.total++;
+      if (row.categorySlug) seen.mapped++;
+      perSheet.set(row.sheetName, seen);
+    }
+    const unmapped = [...perSheet].filter(([, c]) => c.total > 0 && c.mapped === 0);
+
+    const openSheetAlerts = await db.inventoryAlert.findMany({
+      where: { type: "SHEET_NOT_MAPPED", sourceId: source.id, isResolved: false },
+      select: { id: true, message: true, metadata: true },
+    });
+    const sheetOf = (metadata: string | null): string | null => {
+      if (!metadata) return null;
+      try {
+        const parsed: unknown = JSON.parse(metadata);
+        const name = (parsed as { sheetName?: unknown })?.sheetName;
+        return typeof name === "string" ? name : null;
+      } catch {
+        return null;
+      }
+    };
+    const stillBroken = new Set(unmapped.map(([name]) => name));
+    const resolveIds = openSheetAlerts
+      .filter((a) => {
+        const name = sheetOf(a.metadata);
+        /* An alert whose metadata cannot be read names no tab, so nothing
+           can clear it on evidence. Cleared rather than kept: it was raised
+           by an older version of this code, and a stale CRITICAL nobody can
+           act on is the failure mode this whole change exists to end. */
+        return name === null || !stillBroken.has(name);
+      })
+      .map((a) => a.id);
+    if (resolveIds.length > 0) {
+      await db.inventoryAlert.updateMany({
+        where: { id: { in: resolveIds } },
+        data: { isResolved: true, resolvedAt: new Date() },
+      });
+    }
+
+    for (const [sheetName, counts] of unmapped) {
+      /* How much of the shop this tab is holding up, because "a tab did not
+         map" and "73 published products stopped updating" land very
+         differently on the person reading the alerts list. */
+      const live = await db.product.count({
+        where: { sourceSheet: sheetName, isPublished: true, stockQty: { gt: 0 } },
+      });
+      const message =
+        `הלשונית "${sheetName}" במחירון לא זוהתה, ולכן ${counts.total} השורות שלה לא יושמו. ` +
+        (live > 0
+          ? `${live} מוצרים מפורסמים מהלשונית הזאת אינם מתעדכנים — המלאי והמחיר באתר נשארים כפי שהיו. `
+          : "אין מוצרים מפורסמים מהלשונית הזאת כרגע. ") +
+        "צריך להוסיף את שם הלשונית ל-sheet-map.ts.";
+      const existingAlert = openSheetAlerts.find((a) => sheetOf(a.metadata) === sheetName);
+      if (existingAlert) {
+        if (existingAlert.message !== message) {
+          await db.inventoryAlert.update({ where: { id: existingAlert.id }, data: { message, syncRunId: syncRun.id } });
+        }
+      } else {
+        await db.inventoryAlert.create({
+          data: {
+            type: "SHEET_NOT_MAPPED",
+            severity: "CRITICAL",
+            sourceId: source.id,
+            syncRunId: syncRun.id,
+            message,
+            metadata: JSON.stringify({ sheetName, rows: counts.total, livePublished: live }),
+          },
+        });
+      }
+    }
+
     perSourceRows.set(source.id, rows);
     allRows.push(...rows);
 
