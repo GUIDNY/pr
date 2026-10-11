@@ -36,7 +36,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // stockQty is read but not filtered on: the product URLs below still
       // want the sold-out ones, and the category gate further down wants
       // only the sellable ones. One query, two rollups.
-      select: { slug: true, updatedAt: true, categoryId: true, brandId: true, stockQty: true },
+      select: {
+        slug: true,
+        updatedAt: true,
+        categoryId: true,
+        brandId: true,
+        stockQty: true,
+        missingFromSourceSince: true,
+      },
     }),
     db.category.findMany({ select: { id: true, slug: true, parentId: true } }),
     // Every product, visible or not, only to date the categories that have
@@ -304,12 +311,33 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "weekly" as const,
         priority: 0.6,
       })),
-    ...products.map((p) => ({
-      url: `${BASE_URL}/product/${p.slug}`,
-      lastModified: p.updatedAt,
-      changeFrequency: "daily" as const,
-      priority: 0.5,
-    })),
+    /* Everything above keeps a sold-out product's URL on purpose, and that
+       argument holds: it is sold out this week, its page answers 200, and
+       dropping the URL is how it leaves Google's index and comes back with
+       nothing. A product that has left the price list is not that. It is not
+       sold out — we do not sell it, nobody is restocking it, and it is
+       already absent from every listing, from search, from the Finder, from
+       compare and from the Merchant feed. The one place it was still
+       advertised was this file, so 91 of these URLs were being handed to
+       Google every day with a price on them, and a Blomberg TGU572WRX —
+       verified live — answered 200, said OutOfStock, and sat in the
+       sitemap.
+
+       Only the sitemap entry goes. The page still answers 200 rather than
+       404 or 410, deliberately: missingFromSourceSince is set by the
+       matcher, 24 of the products holding it are ones whose binding I could
+       not account for today, and a 410 is the version of this you cannot
+       take back if the matcher was wrong. Not telling Google about a URL is
+       reversible on the next sync; telling it the page is gone for good is
+       not. */
+    ...products
+      .filter((p) => p.missingFromSourceSince === null)
+      .map((p) => ({
+        url: `${BASE_URL}/product/${p.slug}`,
+        lastModified: p.updatedAt,
+        changeFrequency: "daily" as const,
+        priority: 0.5,
+      })),
     ...articles.map((a) => ({
       url: `${BASE_URL}/articles/${a.slug}`,
       lastModified: a.updatedAt,
