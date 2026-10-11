@@ -40,9 +40,21 @@ import { submitUrls, productPaths } from "@/lib/indexnow";
  * asks.
  *
  * Nothing here touches stock, title or category — a sale is a price
- * decision. And price is a field only a person or the enrichment agent may
- * write (see the ownership table in CLAUDE.md); the sheet sync will not
- * overwrite any of this on its next run.
+ * decision.
+ *
+ * Every write here sets priceManualAt, and from 11 October that is what
+ * keeps a sale alive. The sync now adopts the price list's figure for any
+ * product nobody has priced, so without this a running sale would be
+ * overwritten by the next run while compareAtPrice stayed put — the card
+ * would go on advertising a discount against a number that is no longer the
+ * sale price. Ending a sale with RESTORE is the one case that clears the
+ * flag again: the decision it recorded was the sale, the sale is over, and
+ * the product goes back to being managed by the price list. KEEP_PRICE is
+ * the opposite statement — this is the price now — so it keeps it.
+ *
+ * sync.ts refuses to adopt a price for a product with compareAtPrice set as
+ * well, which is the half that does not depend on anybody remembering to
+ * come back here.
  */
 
 /** Both prices are money in agorot-free shekels; keep them whole. */
@@ -79,7 +91,7 @@ export async function startDealAction(productId: string, salePrice: number) {
 
   await db.product.update({
     where: { id: productId },
-    data: { price, compareAtPrice: product.price },
+    data: { price, compareAtPrice: product.price, priceManualAt: new Date() },
   });
   await logAudit({
     actorId: session.sub,
@@ -108,7 +120,10 @@ export async function updateDealPriceAction(productId: string, salePrice: number
     return { success: false, error: `מחיר המבצע חייב להיות נמוך מ-${product.compareAtPrice} ₪` };
   }
 
-  await db.product.update({ where: { id: productId }, data: { price } });
+  await db.product.update({
+    where: { id: productId },
+    data: { price, priceManualAt: new Date() },
+  });
   await logAudit({
     actorId: session.sub,
     action: "PRODUCT_UPDATED",
@@ -138,8 +153,8 @@ export async function endDealAction(productId: string, mode: "RESTORE" | "KEEP_P
     where: { id: productId },
     data:
       mode === "RESTORE"
-        ? { price: product.compareAtPrice, compareAtPrice: null }
-        : { compareAtPrice: null },
+        ? { price: product.compareAtPrice, compareAtPrice: null, priceManualAt: null }
+        : { compareAtPrice: null, priceManualAt: new Date() },
   });
   await logAudit({
     actorId: session.sub,

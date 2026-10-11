@@ -638,9 +638,18 @@ async function applyOneRow(
   const resolvedIsBelowCost =
     resolved !== null && rowCost !== null && rowCost > 0 && resolved < rowCost;
 
+  /* And never over a running sale. compareAtPrice set means price is a sale
+     price being advertised against it; adopting the sheet's figure there
+     would leave the "before" number in place next to a price that is no
+     longer the offer, so the card would show a discount nobody agreed to.
+     actions/admin-deals.ts marks every sale price manual for the same
+     reason — this is the half that holds for the nine sales that were
+     already running when the rule changed, and for anything that writes a
+     sale price without coming back to set the flag. */
   const adoptPrice =
     existing !== null &&
     existing.priceManualAt === null &&
+    existing.compareAtPrice === null &&
     resolved !== null &&
     resolved > 0 &&
     resolved !== existing.price &&
