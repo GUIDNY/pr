@@ -692,9 +692,17 @@ async function applyOneRow(
      was old; the sheet's row said otherwise.
      Only when the row carries one. A tab without a cost column must not
      erase a cost we already have — that would be the sheet's silence
-     overwriting its own earlier statement. */
+     overwriting its own earlier statement.
+     And behind the same binding test as the price, which is the condition I
+     left out of the first version of this and had to come back for. The
+     Samsung 65U8000H is bound to an LG OLED 77 C66LA row; adopting that
+     row's cost would move its cost from 2,100 to 9,900 and spread one wrong
+     binding into a second field, where it would then drive the margin, the
+     below-cost alert and the price guard above. A row we will not take a
+     price from is not a row to take a cost from either. */
   const adoptCost =
     existing !== null &&
+    bindingIsAssertable &&
     rowCost !== null &&
     rowCost > 0 &&
     rowCost !== existing.supplierCost;
