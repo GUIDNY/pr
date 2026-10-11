@@ -1334,6 +1334,37 @@ export async function applyRowsForSource(
  * are bookkeeping. Alerting on all 142 would bury the one row where two
  * live products really do want the same line.
  */
+/**
+ * Closes an urgent finding whose product has left the price list.
+ *
+ * MANUAL_URGENT is written by the QA agent and nothing resolved it, ever.
+ * On 11 October the queue held 188 findings, the newest ten days old, and
+ * 111 of them were about products already off the site — 60 about products
+ * no longer in any price list at all. 44 described faults that had been
+ * fixed that same afternoon. They sat in one list with the 67 that were
+ * real, which is precisely how a queue stops being read. This repo has
+ * already paid for that once, when alerts fired 3,829 times a day in a form
+ * nobody could read.
+ *
+ * Only the one condition that is checkable without reading the finding: the
+ * product is not in any price list, so we do not sell it and the finding is
+ * about nothing. Deliberately not "the product is off the site" — a product
+ * can be off the site *because* of the very fault the finding describes, and
+ * URGENT_MISSING_MEDIA is exactly that. If the supplier lists it again, the
+ * agent flags it again.
+ */
+export async function reconcileResolvedUrgentFindings(): Promise<number> {
+  const resolved = await db.inventoryAlert.updateMany({
+    where: {
+      type: "MANUAL_URGENT",
+      isResolved: false,
+      product: { missingFromSourceSince: { not: null } },
+    },
+    data: { isResolved: true, resolvedAt: new Date() },
+  });
+  return resolved.count;
+}
+
 export async function reconcileRowClaimedTwice(syncRunId: string | null): Promise<number> {
   const contested = await db.$queryRaw<
     { sourceId: string; sourceSheet: string; sourceRowRef: number; ids: string[]; labels: string[] }[]
@@ -2033,6 +2064,7 @@ export async function runFullSync(
   // actually changed this run — see reconcileSourceConflictAlerts for why.
   await reconcileSourceConflictAlerts(syncRun.id);
   await reconcileRowClaimedTwice(syncRun.id);
+  await reconcileResolvedUrgentFindings();
   await reconcileUrgentMissingMedia();
   await reconcileMissingImage();
 
