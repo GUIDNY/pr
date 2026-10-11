@@ -4,22 +4,29 @@ import type { StockStatus } from "@/lib/enums";
 import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
 import { isSelfHosted } from "@/lib/inventory/image-migration";
 
+/* From a price list, and only from a price list.
+   This used to be `sourceId: { not: null }` — any source at all — and the
+   difference was not academic: the summary bar read 1,593 in-stock products
+   while the shop served 1,259, and 17 of the gap were products from four
+   Google Sheet sources switched off in August that no sync could ever
+   update. A summary bar that counts stock nothing maintains is a summary
+   bar that cannot be reconciled with the shop, which is how an outage
+   hides. The owner's rule as of 11 October: the only source is the price
+   lists.
+
+   At module scope because the fix was applied to the summary bar and not to
+   the list printed directly beneath it, so the same screen showed 1,624 in
+   one place and 1,640 in the other — sixteen products apart, every one of
+   them from those same dead Google Sheet sources. Two numbers on one screen
+   that answer the same question have to come from one definition, or the
+   next person to reconcile them loses an afternoon. */
+const FROM_A_PRICE_LIST = { source: { sourceType: "EXCEL", isActive: true } } as const;
+
 export async function getInventorySummary() {
   const latestRun = await db.inventorySyncRun.findFirst({
     where: { status: { in: ["SUCCESS", "NO_CHANGES"] } },
     orderBy: { startedAt: "desc" },
   });
-
-  /* From a price list, and only from a price list.
-     This used to be `sourceId: { not: null }` — any source at all — and the
-     difference was not academic: the summary bar read 1,593 in-stock
-     products while the shop served 1,259, and 17 of the gap were products
-     from four Google Sheet sources switched off in August that no sync
-     could ever update. A summary bar that counts stock nothing maintains is
-     a summary bar that cannot be reconciled with the shop, which is how an
-     outage hides. The owner's rule as of 11 October: the only source is the
-     price lists. */
-  const FROM_A_PRICE_LIST = { source: { sourceType: "EXCEL", isActive: true } } as const;
 
   const [
     totalProducts,
@@ -138,7 +145,7 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
 
   // Zero-stock products don't belong in inventory management at all — they
   // never show here, full stop, not even behind a filter toggle.
-  const where: Record<string, unknown> = { sourceId: { not: null }, stockQty: { gt: 0 } };
+  const where: Record<string, unknown> = { ...FROM_A_PRICE_LIST, stockQty: { gt: 0 } };
 
   if (alertType) where.alerts = { some: { type: alertType, isResolved: false } };
   else if (hasAnyAlert) where.alerts = { some: { isResolved: false } };
