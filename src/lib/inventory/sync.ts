@@ -688,8 +688,18 @@ async function applyOneRow(
     looksLikeMisplacedQuantity(rawStock, priceForSanity) || rowColumnsAreShifted;
   const stock = quantityIsImplausible ? (existing?.stockQty ?? 0) : rawStock;
 
-  let status = deriveStockStatus(row, stock, hasConflict);
-  if (status !== "NEEDS_REVIEW" && resolved === null) status = "NEEDS_REVIEW";
+  /* The stock answer stays the stock answer.
+     A row with no readable price used to be forced to NEEDS_REVIEW here,
+     which erased a perfectly definitive OUT_OF_STOCK — and a sold-out row is
+     exactly the kind that comes with the price cell left empty. The product
+     page then told the customer "דורש בדיקה" instead of "אזל מהמלאי".
+     The overwrite was doing one useful job, keeping a product with no price
+     out of the public set, and it was doing it by corrupting a different
+     field. PUBLIC_PRODUCT_WHERE now asks about the price directly, which is
+     both the honest place for it and the layer that cannot go stale.
+     Measured before removing: of 648 products holding NEEDS_REVIEW, exactly
+     one would reach the site without this line, and it has a price. */
+  const status = deriveStockStatus(row, stock, hasConflict);
   const finalStatus =
     status === "IN_STOCK" && stock <= threshold ? "LOW_STOCK" : status;
 

@@ -133,6 +133,17 @@ export const PUBLIC_PRODUCT_WHERE = {
      from a sheet at all (sourceId null — entered by hand) carry a null here
      and are unaffected. */
   missingFromSourceSince: null,
+  /* And it has a price.
+     This moved here from inventory/sync.ts, where a row with no readable
+     price was forced to stockStatus NEEDS_REVIEW to keep the product off the
+     site. That worked, and it worked by corrupting the stock answer: a
+     sold-out row usually has an empty price cell, so the product that had
+     just gone out of stock was recorded as "needs review" instead, and its
+     page told the customer so.
+     Asking about the price here says the same thing in the field that means
+     it, and in the layer that cannot go stale — the same argument as the
+     four conditions above. Nothing is for sale without a number on it. */
+  price: { gt: 0 },
 } as const;
 
 type ProductWithRelations = {
