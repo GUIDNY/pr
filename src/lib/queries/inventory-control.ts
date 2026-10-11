@@ -595,3 +595,87 @@ export async function getProblemProducts(limit = 300): Promise<ProblemProduct[]>
     (a, b) => weight(b.reasons) - weight(a.reasons) || b.price * b.stockQty - a.price * a.stockQty,
   );
 }
+
+export type DuplicatePair = {
+  /** The record the price list no longer points at. */
+  orphan: ProductLine & { enriched: boolean };
+  /** The record holding the sheet row now. */
+  live: ProductLine & { enriched: boolean; quarantined: boolean };
+  model: string;
+  /** Stock counted twice while both records carry it. */
+  ghostValue: number;
+};
+
+/**
+ * The same product in two records, because the supplier renumbered its row.
+ *
+ * 0690 became 0855 for a Sharp fridge, 0660 became 130016 for a Bosch
+ * dryer, 150457 became 0150457 for a Gorenje oven — that last one only a
+ * leading zero. findExistingProduct matched the row's position, saw a
+ * different SKU and refused the match, so a second record was created and
+ * the first was reported as gone from a price list that still carried it.
+ * 37 pairs, ₪253,940 of stock counted twice.
+ *
+ * The import no longer does this — a position match whose model agrees is
+ * accepted as the same product under a new number, see modelsAreTheSame —
+ * but the 37 that exist are a merge, and a merge is a decision: which
+ * record keeps the images, the description and the public URL, and which
+ * becomes a tombstone. Five of them are already marked
+ * MODEL_CONFLICT_DO_NOT_PUBLISH by whoever triaged them, which is somebody
+ * saying the model match itself is not to be trusted here. So this lists
+ * the pairs and says who holds what; it does not merge anything.
+ *
+ * Matched on the model and nothing else, which is a weaker claim than the
+ * import makes and deliberately so: this is a list for a person to read,
+ * and a pair that turns out not to be a pair costs them a glance.
+ */
+export async function getDuplicatePairs(limit = 60): Promise<DuplicatePair[]> {
+  const [orphans, live] = await Promise.all([
+    db.product.findMany({
+      where: {
+        source: PRICE_LIST_SOURCE,
+        missingFromSourceSince: { not: null },
+        stockQty: { gt: 0 },
+        model: { not: null },
+      },
+      select: { ...PRODUCT_LINE_SELECT, model: true, enrichmentStatus: true },
+    }),
+    db.product.findMany({
+      where: {
+        source: PRICE_LIST_SOURCE,
+        missingFromSourceSince: null,
+        model: { not: null },
+      },
+      select: { ...PRODUCT_LINE_SELECT, model: true, enrichmentStatus: true },
+    }),
+  ]);
+
+  const key = (m: string | null) => (m ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const liveByModel = new Map<string, (typeof live)[number]>();
+  for (const p of live) {
+    const k = key(p.model);
+    /* Four characters, the same floor modelsAreTheSame uses: a bare "750"
+       or "85" would pair half the catalogue with itself. */
+    if (k.length < 4) continue;
+    if (!liveByModel.has(k)) liveByModel.set(k, p);
+  }
+
+  const pairs: DuplicatePair[] = [];
+  for (const o of orphans) {
+    const k = key(o.model);
+    if (k.length < 4) continue;
+    const twin = liveByModel.get(k);
+    if (!twin || twin.id === o.id) continue;
+    pairs.push({
+      orphan: { ...toLine(o), enriched: o.enrichmentStatus === "ENRICHED" },
+      live: {
+        ...toLine(twin),
+        enriched: twin.enrichmentStatus === "ENRICHED",
+        quarantined: (twin.enrichmentStatus ?? "").includes("DO_NOT_PUBLISH"),
+      },
+      model: o.model ?? "",
+      ghostValue: o.price * o.stockQty,
+    });
+  }
+  return pairs.sort((a, b) => b.ghostValue - a.ghostValue).slice(0, limit);
+}

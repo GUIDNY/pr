@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { requireCatalogPage } from "@/lib/auth";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { InventoryListTable } from "@/components/admin/inventory-list-table";
-import { getProblemProducts, PROBLEM_REASON_LABELS } from "@/lib/queries/inventory-control";
+import { getProblemProducts, getDuplicatePairs, PROBLEM_REASON_LABELS } from "@/lib/queries/inventory-control";
 import { inspectNonPriceListProducts } from "@/actions/inventory-purge";
 import { PurgeNonPriceListPanel } from "@/components/admin/purge-non-price-list-panel";
 
@@ -21,12 +22,17 @@ export const metadata = { title: "מוצרים בעייתיים | Buy Today Admi
  */
 export default async function ProblemProductsPage() {
   await requireCatalogPage();
-  const [rows, leftovers] = await Promise.all([
+  const [rows, leftovers, duplicates] = await Promise.all([
     getProblemProducts(300),
     /* Products with no price list behind them at all. Not in the list below
        — they are not a product with a problem, they are a product with no
        source — so they get the panel above it instead. */
     inspectNonPriceListProducts(),
+    /* The same product in two records, because the supplier renumbered its
+       row. Its own section rather than a flag on a row, because the thing a
+       person needs to see is the pair: which half holds the images and the
+       public URL, and which one the price list now points at. */
+    getDuplicatePairs(60),
   ]);
 
   const counts = new Map<string, number>();
@@ -43,6 +49,68 @@ export default async function ProblemProductsPage() {
       <InventoryTabs />
 
       <PurgeNonPriceListPanel initial={leftovers} />
+
+      {duplicates.length > 0 && (
+        <section className="border-border mb-5 overflow-hidden rounded-xl border">
+          <header className="bg-muted/50 border-border border-b px-4 py-3">
+            <h2 className="text-base font-bold">
+              כפילויות — אותו דגם בשתי רשומות{" "}
+              <span className="bg-background border-border rounded-full border px-2 py-0.5 text-xs font-semibold">
+                {duplicates.length}
+              </span>
+            </h2>
+            <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
+              הספק שינה את המק״ט בשורה, ולכן נוצרה רשומה שנייה לאותו מוצר. הייבוא לא עושה את זה יותר — אבל אלה שכבר
+              קיימות דורשות החלטה: איזו רשומה נשארת (זו עם התמונות והכתובת הציבורית) ולאיזו עובר המלאי.{" "}
+              <strong className="text-foreground">אף אחת מהן לא מוצגת באתר כרגע.</strong>
+            </p>
+          </header>
+          <table className="w-full text-sm">
+            <thead className="text-muted-foreground">
+              <tr className="border-border border-b">
+                <th className="p-3 text-start font-semibold">דגם</th>
+                <th className="p-3 text-start font-semibold">הרשומה שהתייתמה</th>
+                <th className="p-3 text-start font-semibold">הרשומה שמחזיקה את השורה</th>
+                <th className="p-3 text-start font-semibold whitespace-nowrap">מלאי כפול</th>
+              </tr>
+            </thead>
+            <tbody>
+              {duplicates.map((d) => (
+                <tr key={d.orphan.id} className="border-border border-t">
+                  <td className="p-3 font-mono text-xs whitespace-nowrap">{d.model}</td>
+                  <td className="p-3">
+                    <Link href={`/admin/products/${d.orphan.id}`} className="font-medium hover:underline">
+                      {d.orphan.title.slice(0, 34)}
+                    </Link>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      מק״ט {d.orphan.sku} · {d.orphan.stockQty} יח׳ ·{" "}
+                      {d.orphan.images > 0 ? (
+                        <span className="text-success-foreground font-semibold">{d.orphan.images} תמונות</span>
+                      ) : (
+                        "אין תמונה"
+                      )}
+                      {d.orphan.enriched && " · מועשר"}
+                    </p>
+                  </td>
+                  <td className="p-3">
+                    <Link href={`/admin/products/${d.live.id}`} className="font-medium hover:underline">
+                      {d.live.title.slice(0, 34)}
+                    </Link>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      מק״ט {d.live.sku} · {d.live.stockQty} יח׳ ·{" "}
+                      {d.live.images > 0 ? `${d.live.images} תמונות` : "אין תמונה"}
+                      {d.live.quarantined && (
+                        <span className="text-destructive font-semibold"> · סומן לא לפרסם</span>
+                      )}
+                    </p>
+                  </td>
+                  <td className="p-3 whitespace-nowrap">{d.ghostValue.toLocaleString("he-IL")} ₪</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         <span className="text-muted-foreground">{rows.length.toLocaleString("he-IL")} מוצרים</span>
