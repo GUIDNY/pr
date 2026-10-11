@@ -55,7 +55,8 @@
     "check:dimensions": "tsx scripts/backfill-dimension-specs.ts",
     "fix:dimensions": "tsx scripts/backfill-dimension-specs.ts --write",
     "check:leaf-categories": "tsx scripts/check-leaf-categories.ts",
-    "check:sheets": "tsx scripts/check-sheet-map.ts"
+    "check:sheets": "tsx scripts/check-sheet-map.ts",
+    "purge:non-price-list": "tsx scripts/purge-non-price-list-products.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -228,7 +228,16 @@ export async function getInventoryFilterOptions() {
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
-    db.inventorySource.findMany({ orderBy: { filename: "asc" } }),
+    /* The price lists, and nothing else. Four Google Sheet sources were
+       switched off in August and left 268 products behind that no sync
+       could ever update; they stayed in every source picker in the back
+       office, so the catalogue looked as though it had seven sources when
+       three of them were doing the work. The owner's rule as of 11 October:
+       "the only source is the price lists". */
+    db.inventorySource.findMany({
+      where: { sourceType: "EXCEL" },
+      orderBy: { filename: "asc" },
+    }),
     db.category.findMany({
       where: { products: { some: { sourceId: { not: null }, stockQty: { gt: 0 } } } },
       select: { slug: true, name: true },

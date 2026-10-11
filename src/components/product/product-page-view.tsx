@@ -102,7 +102,19 @@ export async function ProductPageView({
   //
   // Nothing here decides that on its own: stockQty is the truth, and
   // stockStatus is a label the sheet writes that can disagree with it.
-  const isSoldOut = product.stockQty <= 0;
+  //
+  // A product the price list has stopped carrying is treated the same way,
+  // and for the same reason. PUBLIC_PRODUCT_WHERE now hides it from every
+  // listing, the feed and the cart's own add handler, so nothing can reach
+  // it but a link somebody already has — and that link should answer rather
+  // than 404, because the supplier may well list it again. What it must not
+  // do is quote a price and offer a buy button for something the supplier
+  // no longer sells: the add would be refused server-side, which is a
+  // customer discovering at the last step that the page was lying.
+  //
+  // So "unavailable" rather than "sold out" is the real condition here, and
+  // stock is one of its two causes.
+  const isSoldOut = product.stockQty <= 0 || product.missingFromSourceSince !== null;
 
   // A regular visitor still gets a 404 for anything unpublished, and for
   // anything with no photograph — the two conditions PUBLIC_PRODUCT_WHERE

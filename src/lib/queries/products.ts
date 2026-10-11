@@ -118,6 +118,21 @@ export const PUBLIC_PRODUCT_WHERE = {
   stockQty: { gt: 0 },
   images: { some: {} },
   stockStatus: { not: "NEEDS_REVIEW" },
+  /* And it has to still be in a price list.
+     Store policy, stated by the owner on 11 October: "I don't want a
+     situation where a product that is not in the price list appears on the
+     site." The sync already records the day a product's row stopped
+     appearing in any sheet — see markMissing in inventory/sync.ts — and
+     until now that was only a flag in the back office. It had been true of
+     ten live products for between ten and eighteen days, among them a Miele
+     washing machine at ₪10,500 with two units showing, and the supplier had
+     stopped listing all of them.
+     A query-time gate rather than an unpublish, like the two above it: a
+     product the supplier puts back in the next sheet returns to the site on
+     that sync, with nobody having to remember it. Products never imported
+     from a sheet at all (sourceId null — entered by hand) carry a null here
+     and are unaffected. */
+  missingFromSourceSince: null,
 } as const;
 
 type ProductWithRelations = {
