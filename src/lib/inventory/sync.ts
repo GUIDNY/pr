@@ -1458,10 +1458,51 @@ export async function runFullSync(
           ? `${live} מוצרים מפורסמים מהלשונית הזאת אינם מתעדכנים — המלאי והמחיר באתר נשארים כפי שהיו. `
           : "אין מוצרים מפורסמים מהלשונית הזאת כרגע. ") +
         "צריך להוסיף את שם הלשונית ל-sheet-map.ts.";
+      /* And off the site, because we cannot vouch for them.
+         This is the hole that let the September outage run for 35 days.
+         applyOneRow adds a product's SKU to seenSkus *before* it resolves
+         the category — deliberately, so that a slug missing from the
+         database does not get a product wrongly marked
+         missing-from-source — which means every product under an unmapped
+         tab counts as "seen in the price list" and markMissingProducts
+         never flags one. They keep serving the stock and the price they had
+         when the tab last worked. Four tabs did exactly that, and a
+         customer rang about a TV mount whose stock had been frozen since
+         September.
+         NEEDS_REVIEW is the honest label and the right mechanism: the row
+         is still in the file, so "missing from source" would be a lie, but
+         the inventory data cannot be verified — which is what the status
+         means, and PUBLIC_PRODUCT_WHERE already excludes it. It heals by
+         itself: stockOnlyUpdate rewrites stockStatus on every matched row,
+         so the products come back the moment the tab maps again. */
+      const hidden = await db.product.updateMany({
+        where: {
+          sourceId: source.id,
+          sourceSheet: sheetName,
+          stockStatus: { not: "NEEDS_REVIEW" },
+        },
+        data: { stockStatus: "NEEDS_REVIEW" },
+      });
+
+      /* Folded into the one alert rather than raised as a second one.
+         upsertAlert resolves every open alert of a type for a source before
+         it creates the new one — right for a fault a source has at most one
+         of, and wrong here, where four tabs broke at once — so a second
+         call would have closed three of the four alerts this block just
+         reconciled by hand. Taking products off the shop floor should never
+         happen quietly, so it is said; it is said in the message. */
+      const fullMessage =
+        hidden.count > 0
+          ? `${message} ${hidden.count} מוצרים מהלשונית הוסרו מהאתר כי לא ניתן לאמת את המלאי שלהם, ויחזרו מעצמם ברגע שהלשונית תזוהה.`
+          : message;
+
       const existingAlert = openSheetAlerts.find((a) => sheetOf(a.metadata) === sheetName);
       if (existingAlert) {
-        if (existingAlert.message !== message) {
-          await db.inventoryAlert.update({ where: { id: existingAlert.id }, data: { message, syncRunId: syncRun.id } });
+        if (existingAlert.message !== fullMessage) {
+          await db.inventoryAlert.update({
+            where: { id: existingAlert.id },
+            data: { message: fullMessage, syncRunId: syncRun.id },
+          });
         }
       } else {
         await db.inventoryAlert.create({
@@ -1470,8 +1511,13 @@ export async function runFullSync(
             severity: "CRITICAL",
             sourceId: source.id,
             syncRunId: syncRun.id,
-            message,
-            metadata: JSON.stringify({ sheetName, rows: counts.total, livePublished: live }),
+            message: fullMessage,
+            metadata: JSON.stringify({
+              sheetName,
+              rows: counts.total,
+              livePublished: live,
+              takenOffTheSite: hidden.count,
+            }),
           },
         });
       }
