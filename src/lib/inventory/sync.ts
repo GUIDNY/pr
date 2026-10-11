@@ -17,6 +17,7 @@ import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
 import { resolveBrandId, findBrandId } from "./brand-resolver";
 import {
+  modelsAreTheSame,
   looksLikeSubtotalRow,
   looksLikeEnergyLabelUrl,
   looksLikeMarketingTitle,
@@ -73,10 +74,32 @@ export async function findExistingProduct(
   });
 
   if (positionMatch) {
+    /* A row that kept its place and changed its number.
+       The supplier renumbers rows — a short internal code becomes a longer
+       catalogue one, 0660 becomes 130016 — and until 11 October that read
+       as a different product: the position matched, the SKU did not, the
+       match was refused, and a second record was created for the same
+       machine. 34 products were duplicated that way, ₪253,940 of stock
+       counted twice, and the orphaned halves were then reported as "gone
+       from the price list" when the price list still carried every one of
+       them.
+       modelsAreTheSame is what makes this safe to act on, and it is a
+       deliberately stronger test than the modelsCanBeTheSame below: both
+       sides must name a model of at least four characters and one must
+       contain the other. Silence is a no. A row whose model agrees and
+       whose position is unchanged is the same product under a new number;
+       anything less certain still falls through to the SKU lookup. */
+    const renumberedInPlace =
+      !row.skuIsSynthetic &&
+      !positionMatch.isTemporarySku &&
+      positionMatch.sku !== row.sku &&
+      modelsAreTheSame(positionMatch.model, row.model);
+
     const positionMatchIsStaleIdentity =
       !row.skuIsSynthetic &&
       !positionMatch.isTemporarySku &&
-      positionMatch.sku !== row.sku;
+      positionMatch.sku !== row.sku &&
+      !renumberedInPlace;
     // And the row's own model column has to agree that this is the same
     // product — see modelsCanBeTheSame. A shifted block of rows matches every
     // product in it to its neighbour, and the only thing that notices is the
@@ -564,7 +587,27 @@ async function applyOneRow(
   // sourceRowKey for the same reason one step further out: position is
   // what fails when the supplier inserts a row, and the key is what
   // recognises the product after it does.
+  /* And the new catalogue number, when the supplier has renumbered the row.
+     Matching the product again is enough to stop the duplicate today, but
+     leaving it on the old number is not stable: the moment the supplier
+     re-sorts the sheet the position stops matching, the SKU lookup misses
+     because the product still carries 0660 while the row says 130016, and
+     the duplicate comes back. So the product adopts the number the sheet
+     now uses.
+     Guarded against the unique index rather than assumed: the duplicate
+     this fix prevents already exists 36 times over, and one of those
+     records is holding the new SKU right now. Where that is so the number
+     is left alone — the match still works by position and model — and
+     merging the pair is a decision for a person, not an import rule. */
+  const renumberedSku =
+    existing && !row.skuIsSynthetic && existing.sku !== row.sku
+      ? ((await db.product.findUnique({ where: { sku: row.sku }, select: { id: true } })) === null
+          ? row.sku
+          : null)
+      : null;
+
   const stockOnlyUpdate = {
+    ...(renumberedSku ? { sku: renumberedSku, isTemporarySku: false } : {}),
     stockStatus: data.stockStatus,
     stockQty: data.stockQty,
     stockBreakdown: data.stockBreakdown,

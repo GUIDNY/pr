@@ -209,6 +209,39 @@ export function modelsCanBeTheSame(
   return a.includes(b) || b.includes(a);
 }
 
+/**
+ * Are these definitely the same model?
+ *
+ * The opposite question to modelsCanBeTheSame, and not its negation. That
+ * one answers "could these differ" and treats an empty field as "possibly
+ * the same", because its job is to refuse a match only on evidence. This
+ * one has to assert sameness, so silence is a no: both sides must say
+ * something, and one must contain the other.
+ *
+ * It exists because the supplier renumbers rows. A row that stays in place
+ * and still names WQG2429IL is the same dryer whether the sheet calls it
+ * 0660 today and 130016 tomorrow — and on 11 October 34 products were
+ * duplicated by exactly that, ₪253,940 of stock counted twice, because a
+ * changed SKU at an unchanged position was read as a different product.
+ *
+ * The containment test is what makes it safe to act on: "SJ9630BS" against
+ * "SJ9630BS" passes, and so does a sheet that writes "SJ-9630 BS", but
+ * "CH74BVT" against "MGH90GB" — the Candy cooktop reading a gas cooktop's
+ * row — does not. A minimum length keeps a bare "750" or "85" out, since a
+ * two-digit model contains half the catalogue.
+ */
+export const MIN_ASSERTABLE_MODEL_LENGTH = 4;
+
+export function modelsAreTheSame(
+  productModel: string | null | undefined,
+  rowModel: string | null | undefined,
+): boolean {
+  const a = bareModel(productModel);
+  const b = bareModel(rowModel);
+  if (a.length < MIN_ASSERTABLE_MODEL_LENGTH || b.length < MIN_ASSERTABLE_MODEL_LENGTH) return false;
+  return a.includes(b) || b.includes(a);
+}
+
 function bareModel(value: string | null | undefined): string {
   return (value ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
 }
