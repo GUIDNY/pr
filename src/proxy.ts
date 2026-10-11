@@ -88,7 +88,16 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-const STAFF_ROLES = new Set(["ADMIN", "STAFF", "SELLER"]);
+/* The roles the twin route actually shows something extra to. Deliberately
+   the same answer as canManageCatalog() in permissions.ts, and not a
+   superset of it: SELLER was in here, so a seller's every product request
+   was rewritten to the uncached, `private, no-store` route — where
+   product-admin/page.tsx asks canManageCatalog(), gets false, and renders
+   the identical public page. A full origin render in Sydney, and a
+   `noindex` in the markup, to show them exactly what the CDN was already
+   holding. Keep the two lists in step: a role that cannot manage the
+   catalog has no reason to leave the cached page. */
+const STAFF_ROLES = new Set(["ADMIN", "STAFF"]);
 
 /**
  * Is this request carrying a real, signed staff session?
