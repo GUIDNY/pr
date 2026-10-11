@@ -18,6 +18,7 @@ import { sourceRowKeyFor } from "./source-row-key";
 import { resolveBrandId, findBrandId } from "./brand-resolver";
 import {
   modelsAreTheSame,
+  modelsAreTheSameAllowingTypedZero,
   looksLikeSubtotalRow,
   looksLikeEnergyLabelUrl,
   looksLikeMarketingTitle,
@@ -102,7 +103,8 @@ export function createTempSkuModelIndex(sourceId: string): TempSkuModelIndex {
           // Not one an earlier row in this same run already took. The index
           // is a snapshot, so without this two rows naming the same model
           // would both bind to it and the second would overwrite the first.
-          !claimedSkus.has(p.sku) && modelsAreTheSame(p.model, rowModel),
+          !claimedSkus.has(p.sku) &&
+          modelsAreTheSameAllowingTypedZero(p.model, rowModel),
       );
       if (matches.length !== 1) return null;
       return db.product.findUnique({ where: { id: matches[0].id } });
@@ -823,7 +825,8 @@ async function applyOneRow(
      wrong bindings need to go anyway. */
   const bindingIsAssertable =
     existing !== null &&
-    (!row.skuIsSynthetic || modelsAreTheSame(existing.model, row.model));
+    (!row.skuIsSynthetic ||
+      modelsAreTheSameAllowingTypedZero(existing.model, row.model));
 
   const adoptPrice =
     existing !== null &&

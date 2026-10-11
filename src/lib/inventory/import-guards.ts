@@ -246,6 +246,51 @@ function bareModel(value: string | null | undefined): string {
   return (value ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
 }
 
+/**
+ * Are these the same model, allowing a letter O typed where a zero belongs?
+ *
+ * Deliberately a third comparison rather than a loosening of the two above,
+ * because it answers a different question in a place where the cost of
+ * saying no is different.
+ *
+ * modelsCanBeTheSame guards a position match, and there refusing is free:
+ * the row falls through to another comparison that can still find the
+ * product. The note beside its test says so, and says an O typed for a zero
+ * should stay a mismatch rather than be folded away. That stands.
+ *
+ * This one is for the last comparison in findExistingProductWithPath, where
+ * refusing is not free. Nothing comes after it, so a no means the product
+ * has no row in the price list at all: it stops being stock-updated, it is
+ * reported as gone, and it leaves the site. On 11 October that happened to
+ * Bosch CMA583MB0, whose row is right there in the sheet spelled
+ * CMA583MBO — the model ends in a letter O where the oven ends in a zero.
+ *
+ * Only O and 0, and only those. They are the same glyph in most of the
+ * fonts these sheets are typed in, no manufacturer ships two models that
+ * differ by exactly that, and four products in this catalogue are spelled
+ * each way across the two sides. Nothing else is folded: WF13314GBC and
+ * WF13314WBC are one letter apart and are two different washing machines,
+ * which is why this is a character substitution and not an edit distance.
+ *
+ * The uniqueness test at the call site does the rest of the work. This only
+ * has to decide whether a candidate is plausible; the caller still refuses
+ * unless exactly one product in the tab answers to it.
+ */
+export function modelsAreTheSameAllowingTypedZero(
+  productModel: string | null | undefined,
+  rowModel: string | null | undefined,
+): boolean {
+  if (modelsAreTheSame(productModel, rowModel)) return true;
+  const a = foldTypedZero(bareModel(productModel));
+  const b = foldTypedZero(bareModel(rowModel));
+  if (a.length < MIN_ASSERTABLE_MODEL_LENGTH || b.length < MIN_ASSERTABLE_MODEL_LENGTH) return false;
+  return a.includes(b) || b.includes(a);
+}
+
+function foldTypedZero(value: string): string {
+  return value.replace(/O/g, "0");
+}
+
 // ---------------------------------------------------------------------------
 // Subtotal lines read as products
 // ---------------------------------------------------------------------------

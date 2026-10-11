@@ -13,6 +13,7 @@ import {
   looksLikeMisplacedQuantity,
   looksLikeOffsetStockRow,
   modelsCanBeTheSame,
+  modelsAreTheSameAllowingTypedZero,
 } from "../src/lib/inventory/import-guards";
 import { resolvedPrice } from "../src/lib/inventory/diff-engine";
 
@@ -281,6 +282,42 @@ for (const [product, row, why] of REFUSED_BUT_HARMLESS) {
   if (modelsCanBeTheSame(product, row)) fail(`expected a refusal — ${why}: ${product} / ${row}`);
 }
 
+// The last comparison in findExistingProductWithPath, where a refusal costs
+// the product its row in the price list rather than one extra lookup. Only a
+// letter O typed where a zero belongs is folded — see the note on the
+// function. The pairs below are real: each is one product spelled both ways
+// across the sheet and the catalogue.
+const TYPED_ZERO_SAME: [string, string, string][] = [
+  ["CMA583MB0", "CMA583MBO", "the Bosch oven dropped from the price list on 11 October"],
+  ["PM363I0X", "PM363IOX", "the pair modelsCanBeTheSame still refuses, on purpose"],
+  ["O181235", "181235", "a letter O leading a numeric code"],
+  ["HB317GTS0", "HB317GTSO", "a Siemens oven, both spellings in the sheet"],
+];
+for (const [product, row, why] of TYPED_ZERO_SAME) {
+  if (!modelsAreTheSameAllowingTypedZero(product, row)) {
+    fail(`typed-zero models must match — ${why}: ${product} / ${row}`);
+  }
+  // And the position guard must be unaffected: its refusal is recorded above
+  // and this must not have loosened it.
+  if (product === "PM363I0X" && modelsCanBeTheSame(product, row)) {
+    fail("the typed-zero fold leaked into modelsCanBeTheSame");
+  }
+}
+
+// Still refused by the fold, because it is a substitution and not an edit
+// distance. Two models one letter apart are two products.
+const TYPED_ZERO_DIFFERENT: [string, string, string][] = [
+  ["WF13314GBC", "WF13314WBC", "one letter apart, two washing machines"],
+  ["STK60GHX", "STK70GHX", "60cm and 70cm"],
+  ["EP7A6SB95Y", "EP7A6QI40Y", "two Siemens hobs"],
+  ["S70ROLLER", "S70ROLER", "a doubled letter is not a typed zero"],
+];
+for (const [product, row, why] of TYPED_ZERO_DIFFERENT) {
+  if (modelsAreTheSameAllowingTypedZero(product, row)) {
+    fail(`typed-zero fold must still refuse — ${why}: ${product} / ${row}`);
+  }
+}
+
 const DIFFERENT_MODEL: [string, string, string][] = [
   ["CH74BVT", "MGH90GB", "a Candy ceramic hob bound to a Crystal gas hob's row"],
   ["STK60GHX", "STK70GHX", "60cm bound to the 70cm one row below"],
@@ -337,6 +374,7 @@ console.log(
     `${SHIFTED.length} shifted rows, ${STRAIGHT.length} straight rows, ` +
     `${PRICE_ROWS.length} price rows, ` +
     `${SAME_MODEL.length} same models, ${DIFFERENT_MODEL.length} swapped models, ` +
+    `${TYPED_ZERO_SAME.length} typed zeros, ${TYPED_ZERO_DIFFERENT.length} refused folds, ` +
     `${REFUSED_BUT_HARMLESS.length} harmless refusal, ` +
     `${HTML_CASES.length} html descriptions)`,
 );
