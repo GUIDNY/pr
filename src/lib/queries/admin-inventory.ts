@@ -10,6 +10,17 @@ export async function getInventorySummary() {
     orderBy: { startedAt: "desc" },
   });
 
+  /* From a price list, and only from a price list.
+     This used to be `sourceId: { not: null }` — any source at all — and the
+     difference was not academic: the summary bar read 1,593 in-stock
+     products while the shop served 1,259, and 17 of the gap were products
+     from four Google Sheet sources switched off in August that no sync
+     could ever update. A summary bar that counts stock nothing maintains is
+     a summary bar that cannot be reconciled with the shop, which is how an
+     outage hides. The owner's rule as of 11 October: the only source is the
+     price lists. */
+  const FROM_A_PRICE_LIST = { source: { sourceType: "EXCEL", isActive: true } } as const;
+
   const [
     totalProducts,
     inStock,
@@ -24,14 +35,14 @@ export async function getInventorySummary() {
   ] = await Promise.all([
     // "Total products" means what it says on the inventory page's summary
     // bar: real, currently-in-stock products — not every row ever imported.
-    db.product.count({ where: { sourceId: { not: null }, stockQty: { gt: 0 } } }),
-    db.product.count({ where: { sourceId: { not: null }, stockStatus: "IN_STOCK" } }),
-    db.product.count({ where: { sourceId: { not: null }, stockStatus: "OUT_OF_STOCK" } }),
-    db.product.count({ where: { sourceId: { not: null }, stockStatus: "LOW_STOCK" } }),
-    db.product.count({ where: { sourceId: { not: null }, stockStatus: "SUPPLIER_STOCK" } }),
-    db.product.count({ where: { sourceId: { not: null }, stockStatus: "DISPLAY_ONLY" } }),
-    db.product.count({ where: { sourceId: { not: null }, stockStatus: "NEEDS_REVIEW" } }),
-    db.product.count({ where: { sourceId: { not: null }, stockQty: { gt: 0 }, isTemporarySku: true } }),
+    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockQty: { gt: 0 } } }),
+    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "IN_STOCK" } }),
+    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "OUT_OF_STOCK" } }),
+    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "LOW_STOCK" } }),
+    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "SUPPLIER_STOCK" } }),
+    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "DISPLAY_ONLY" } }),
+    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "NEEDS_REVIEW" } }),
+    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockQty: { gt: 0 }, isTemporarySku: true } }),
     db.inventoryChangeEvent.count({ where: { createdAt: { gte: new Date(Date.now() - 86400000) } } }),
     db.inventoryAlert.count({ where: { isResolved: false } }),
   ]);

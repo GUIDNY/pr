@@ -2,6 +2,8 @@ import { requireCatalogPage } from "@/lib/auth";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { InventoryListTable } from "@/components/admin/inventory-list-table";
 import { getProblemProducts, PROBLEM_REASON_LABELS } from "@/lib/queries/inventory-control";
+import { inspectNonPriceListProducts } from "@/actions/inventory-purge";
+import { PurgeNonPriceListPanel } from "@/components/admin/purge-non-price-list-panel";
 
 export const metadata = { title: "מוצרים בעייתיים | Buy Today Admin" };
 
@@ -19,7 +21,13 @@ export const metadata = { title: "מוצרים בעייתיים | Buy Today Admi
  */
 export default async function ProblemProductsPage() {
   await requireCatalogPage();
-  const rows = await getProblemProducts(300);
+  const [rows, leftovers] = await Promise.all([
+    getProblemProducts(300),
+    /* Products with no price list behind them at all. Not in the list below
+       — they are not a product with a problem, they are a product with no
+       source — so they get the panel above it instead. */
+    inspectNonPriceListProducts(),
+  ]);
 
   const counts = new Map<string, number>();
   for (const p of rows) for (const r of p.reasons) counts.set(r, (counts.get(r) ?? 0) + 1);
@@ -33,6 +41,8 @@ export default async function ProblemProductsPage() {
       </p>
 
       <InventoryTabs />
+
+      <PurgeNonPriceListPanel initial={leftovers} />
 
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
         <span className="text-muted-foreground">{rows.length.toLocaleString("he-IL")} מוצרים</span>

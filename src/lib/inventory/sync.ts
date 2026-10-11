@@ -17,6 +17,7 @@ import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
 import { resolveBrandId, findBrandId } from "./brand-resolver";
 import {
+  looksLikeSubtotalRow,
   looksLikeEnergyLabelUrl,
   looksLikeMarketingTitle,
   looksLikeMisplacedQuantity,
@@ -394,6 +395,26 @@ async function applyOneRow(
   // not deleted, so it can come back) — this only skips rows with nothing
   // to reactivate in the first place.
   if (rawStock <= 0 && !existing) return null;
+
+  /* A subtotal line, not a product. The sheets carry running totals among
+     the rows — a brand name in the description cell, the sum of its
+     quantities in a stock column, nothing else — and two of them became
+     products on 11 October: "פרימייר" with 56 units at ₪0 and "דלונגי"
+     with 54. Both were correctly refused publication for having no price,
+     and both still took a record, a slug and a line in every back-office
+     list. Only refused for a row that has not already produced a product:
+     deleting an existing one is a decision, not an import rule, and an
+     existing product that suddenly matches this is far more likely to be a
+     row the supplier blanked than a subtotal. See looksLikeSubtotalRow for
+     why all three conditions are needed. */
+  if (!existing && looksLikeSubtotalRow({
+    model: row.model,
+    price: resolvedPrice(row).price,
+    internalCost: row.internalCost,
+    quantity: rawStock,
+  })) {
+    return null;
+  }
 
   // Safety net for the early-exit (missing category) path below: track
   // whatever SKU this row is already known by, so an existing product at

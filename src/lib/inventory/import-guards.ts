@@ -212,3 +212,45 @@ export function modelsCanBeTheSame(
 function bareModel(value: string | null | undefined): string {
   return (value ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
 }
+
+// ---------------------------------------------------------------------------
+// Subtotal lines read as products
+// ---------------------------------------------------------------------------
+
+/**
+ * A row that is a subtotal, not a product.
+ *
+ * The sheets carry running totals in among the product rows — a brand's
+ * name in the description cell, the sum of its quantities in a stock
+ * column, and nothing else. Two of them are in the catalogue right now:
+ * "פרימייר" with 56 units at ₪0 and "דלונגי" with 54. Both were created by
+ * the sync on 11 October, both were correctly refused publication for
+ * having no price, and both still took a product record, a slug and a line
+ * in every back-office list.
+ *
+ * Three conditions together, because each one alone is a real product
+ * somewhere in this catalogue: plenty of rows have no model column, plenty
+ * are priced at zero while somebody decides, and a cable can honestly have
+ * sixty in stock. What no real row has is all three at once — no model, no
+ * price of any kind, and a quantity larger than any single appliance line
+ * carries.
+ *
+ * Conservative like the rest of this file: the ambiguous case is let
+ * through, because a product refused at import is invisible and a subtotal
+ * let through is merely untidy.
+ */
+export const SUBTOTAL_MIN_QUANTITY = 25;
+
+export function looksLikeSubtotalRow(input: {
+  model: string | null;
+  price: number | null;
+  internalCost: number | null;
+  quantity: number;
+}): boolean {
+  if (input.model && input.model.trim() !== "") return false;
+  if (input.price !== null && input.price > 0) return false;
+  /* A cost of its own makes it a real line the supplier priced, whatever
+     else is missing. */
+  if (input.internalCost !== null && input.internalCost > 0) return false;
+  return input.quantity >= SUBTOTAL_MIN_QUANTITY;
+}
