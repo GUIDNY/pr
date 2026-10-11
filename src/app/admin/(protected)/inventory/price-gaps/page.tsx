@@ -32,7 +32,12 @@ export default async function PriceGapsPage() {
   await requireCatalogPage();
   const gaps = await getPriceGaps(300);
   const contradicted = gaps.filter((g) => g.rowContradictsProduct).length;
+  /* "Waiting for you" is anything the sync will not settle: a price a person
+     chose, and a price the sheet offers below its own cost. Counting only the
+     first would promise that 27 rows close by themselves when they cannot. */
   const manual = gaps.filter((g) => g.priceIsManual).length;
+  const sheetBelowCost = gaps.filter((g) => !g.priceIsManual && g.sheetPriceBelowCost).length;
+  const waiting = manual + sheetBelowCost;
 
   return (
     <div>
@@ -49,10 +54,15 @@ export default async function PriceGapsPage() {
       <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
         <span className="text-muted-foreground">{gaps.length.toLocaleString("he-IL")} פערים</span>
         <span className="text-muted-foreground">
-          {(gaps.length - manual).toLocaleString("he-IL")} ייסגרו לבד בסנכרון הבא
+          {(gaps.length - waiting).toLocaleString("he-IL")} ייסגרו לבד בסנכרון הבא
         </span>
-        {manual > 0 && (
-          <span className="text-foreground font-semibold">{manual} מחכים להחלטה שלך</span>
+        {waiting > 0 && (
+          <span className="text-foreground font-semibold">{waiting} מחכים להחלטה שלך</span>
+        )}
+        {sheetBelowCost > 0 && (
+          <span className="text-destructive font-semibold">
+            {sheetBelowCost} מהם המחירון עצמו מתחת לעלות
+          </span>
         )}
         {contradicted > 0 && (
           <span className="text-destructive font-semibold">
@@ -132,6 +142,10 @@ export default async function PriceGapsPage() {
                         <span className="text-destructive flex items-start gap-1.5 font-bold">
                           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                           השורה במחירון היא של מוצר אחר — צריך לתקן את ההצמדה, לא את המחיר
+                        </span>
+                      ) : g.sheetPriceBelowCost ? (
+                        <span className="text-destructive font-semibold">
+                          המחיר במחירון נמוך מהעלות שבאותה שורה — הסינק לא יאמץ אותו
                         </span>
                       ) : g.belowCost ? (
                         <span className="text-destructive font-semibold">נמכר מתחת לעלות</span>

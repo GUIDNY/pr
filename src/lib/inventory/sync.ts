@@ -621,13 +621,30 @@ async function applyOneRow(
      resolved, not data.price: data.price falls back to the existing price
      when the sheet has none, and writing a product's own price back to it
      is a no-op that would still move updatedAt and re-submit the page to
-     IndexNow. */
+     IndexNow.
+
+     And never below the cost on the same row. "A price cannot be under the
+     cost" is the owner's rule, and adopting the sheet's figure blindly would
+     have broken it on 27 live products on the first run — the sync would have
+     created exactly the loss that PRICE_BELOW_COST exists to shout about.
+     The two numbers come off one row, so when they contradict each other the
+     row is what is wrong, not the price on the page: the product keeps what
+     it has, stays in the price tab as a difference waiting for a person, and
+     the alert below says why. Raw comparison, no VAT arithmetic, for the
+     reason given at PRICE_BELOW_COST: the cost column is sometimes ex-VAT and
+     sometimes inc-VAT, so this can only ever withhold fewer prices than it
+     should, never invent a reason to withhold one. */
+  const rowCost = row.internalCost;
+  const resolvedIsBelowCost =
+    resolved !== null && rowCost !== null && rowCost > 0 && resolved < rowCost;
+
   const adoptPrice =
     existing !== null &&
     existing.priceManualAt === null &&
     resolved !== null &&
     resolved > 0 &&
-    resolved !== existing.price;
+    resolved !== existing.price &&
+    !resolvedIsBelowCost;
 
   const stockOnlyUpdate = {
     ...(renumberedSku ? { sku: renumberedSku, isTemporarySku: false } : {}),

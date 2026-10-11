@@ -366,6 +366,13 @@ export type PriceGap = {
   belowCost: boolean;
   /** A person set this price, so no sync will change it. */
   priceIsManual: boolean;
+  /**
+   * The price list's own figure is under the cost on its own row, so the
+   * sync will not adopt it either (see adoptPrice in lib/inventory/sync.ts).
+   * A gap that closes by itself needs both: nobody priced the product, and
+   * the number offered is one we can sell at.
+   */
+  sheetPriceBelowCost: boolean;
 };
 
 /**
@@ -427,6 +434,8 @@ export async function getPriceGaps(limit = 150): Promise<PriceGap[]> {
          this list closes on the next run; what stays is the handful a person
          chose, where the sheet's number is a suggestion and nothing more. */
       priceIsManual: p.priceManualAt !== null,
+      sheetPriceBelowCost:
+        p.supplierCost !== null && p.supplierCost > 0 && sheetPrice < p.supplierCost,
     });
   }
   /* Biggest money first, and a contradicted row ahead of its size: that one
