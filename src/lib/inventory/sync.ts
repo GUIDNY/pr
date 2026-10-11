@@ -646,8 +646,28 @@ async function applyOneRow(
      reason — this is the half that holds for the nine sales that were
      already running when the rule changed, and for anything that writes a
      sale price without coming back to set the flag. */
+  /* And only where the binding to this row is assertable.
+     A row with a real SKU matched this product by that SKU, and that is the
+     identity signal the whole import is built on. A row with no SKU matched
+     by position or by content instead, and 256 rows of these sheets carry no
+     SKU — that is how a ₪590 gas cooktop came to be reading the row of a
+     ₪3,100 induction one, and how a 65-inch Crystal UHD at ₪2,400 came to
+     be offered ₪10,500 by its row. 60 of 146 live price differences measured
+     on 11 October were bindings of that kind.
+     While price was never written this was a reporting problem. Now it is a
+     live page, so a SKU-less row has to say the same model as the product
+     before its price is believed. modelsAreTheSame refuses to answer on a
+     model shorter than four characters rather than guessing, so the effect
+     of an unreadable model on either side is that the price is withheld and
+     the difference stays in the price tab for a person — which is where the
+     wrong bindings need to go anyway. */
+  const bindingIsAssertable =
+    existing !== null &&
+    (!row.skuIsSynthetic || modelsAreTheSame(existing.model, row.model));
+
   const adoptPrice =
     existing !== null &&
+    bindingIsAssertable &&
     existing.priceManualAt === null &&
     existing.compareAtPrice === null &&
     resolved !== null &&
