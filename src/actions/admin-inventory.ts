@@ -23,6 +23,7 @@ export async function runManualSyncAction() {
     productsUpdated: run.productsUpdated,
     productsMissing: run.productsMissing,
     priceChanges: run.priceChanges,
+    pricesAdopted: run.pricesAdopted,
     stockChanges: run.stockChanges,
   };
 }

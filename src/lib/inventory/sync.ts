@@ -354,6 +354,11 @@ type ApplyResult = {
   productsAdded: number;
   productsUpdated: number;
   priceChanges: number;
+  /** Of those, the ones actually written. priceChanges counts differences
+      the sheet reports; this counts the subset adoptPrice took. The two are
+      not the same number and reporting only the first is how a run that
+      applied 144 prices announces 345. */
+  pricesAdopted: number;
   stockChanges: number;
   seenSkus: Set<string>;
   /** Products whose page now says something different: created, or
@@ -693,6 +698,7 @@ async function applyOneRow(
   if (existing) {
     await db.product.update({ where: { id: existing.id }, data: stockOnlyUpdate });
     productId = existing.id;
+    if (adoptPrice) result.pricesAdopted++;
     result.productsUpdated++;
     /* The row is written on every run (lastExcelSyncAt has to move), so
        updatedAt cannot say whether anything a visitor sees has changed.
@@ -1008,6 +1014,7 @@ export async function applyRowsForSource(
     productsAdded: 0,
     productsUpdated: 0,
     priceChanges: 0,
+    pricesAdopted: 0,
     stockChanges: 0,
     seenSkus: new Set(),
     changedProductIds: new Set(),
@@ -1359,6 +1366,32 @@ export type { SyncTrigger };
    that one killed invocation does not block the schedule all day. */
 const STALE_SYNC_MINUTES = 10;
 
+/**
+ * Whether this run re-reads a source whose file has not changed.
+ *
+ * The hash skip is right for a scheduled run: the supplier sends a sheet
+ * every morning, most mornings it is the same bytes, and walking 3,601 rows
+ * to write the same values is pure cost. It is wrong for a person pressing
+ * the button, and that cost real confusion on 11 October — the price rule
+ * changed, the sync was pressed, and it returned NO_CHANGES having read
+ * nothing, because the file was identical to the one read four hours
+ * earlier. The 142 price differences the screen was promising to close
+ * stayed exactly where they were.
+ *
+ * The file being unchanged does not mean the catalogue agrees with it. It
+ * can disagree because a person edited a product, because the run that read
+ * it had four tabs unmapped, or because what the sync is allowed to write
+ * changed underneath it. "Make the site match the price list" is what the
+ * button says and what somebody pressing it means, so a manual run reads
+ * the sheets whatever their hash.
+ *
+ * Idempotent either way: re-applying the same file reaches the same place,
+ * which is what makes this safe to do on a press rather than a schedule.
+ */
+function readsUnchangedSources(trigger: SyncTrigger): boolean {
+  return trigger === "MANUAL";
+}
+
 export async function runFullSync(
   trigger: SyncTrigger,
   triggeredById?: string,
@@ -1437,6 +1470,7 @@ export async function runFullSync(
   >();
   let totalRowsScanned = 0;
   let anyChanged = false;
+  const reapplyUnchanged = readsUnchangedSources(trigger);
 
   for (const source of sources) {
     await db.inventorySource.update({
@@ -1458,7 +1492,7 @@ export async function runFullSync(
         const bytes = await fetchSheetWorkbook(spreadsheetId);
         contentHash = createHash("sha256").update(bytes).digest("hex");
         contentSize = bytes.length;
-        if (contentHash === source.fileHash) continue; // unchanged
+        if (contentHash === source.fileHash && !reapplyUnchanged) continue;
         const workbook = parseGoogleWorkbook(
           bytes,
           source.categorySlugOverride,
@@ -1473,7 +1507,7 @@ export async function runFullSync(
         const bytes = await downloadInventoryFile(source.storagePath);
         contentHash = createHash("sha256").update(bytes).digest("hex");
         contentSize = bytes.length;
-        if (contentHash === source.fileHash) continue; // unchanged
+        if (contentHash === source.fileHash && !reapplyUnchanged) continue;
         const workbook = parseWorkbook(bytes, source.key as SourceKey);
         sheets = workbook.sheets;
       }
@@ -1694,6 +1728,7 @@ export async function runFullSync(
     productsUpdated = 0,
     productsMissing = 0,
     priceChanges = 0,
+    pricesAdopted = 0,
     stockChanges = 0;
   const changedProductIds = new Set<string>();
 
@@ -1708,6 +1743,7 @@ export async function runFullSync(
     productsAdded += result.productsAdded;
     productsUpdated += result.productsUpdated;
     priceChanges += result.priceChanges;
+    pricesAdopted += result.pricesAdopted;
     stockChanges += result.stockChanges;
     result.changedProductIds.forEach((id) => changedProductIds.add(id));
     productsMissing += await markMissingProducts(
@@ -1766,6 +1802,7 @@ export async function runFullSync(
       productsUpdated,
       productsMissing,
       priceChanges,
+      pricesAdopted,
       stockChanges,
       errorCount,
       finishedAt: new Date(),
