@@ -397,12 +397,30 @@ export type PriceGap = {
  * of those writes a different product's price onto a live page.
  */
 export async function getPriceGaps(limit = 150): Promise<PriceGap[]> {
-  /* The latest PRICE_CHANGED event per product. distinct on () is the
-     cheapest way to say that in Postgres, and the set is small. */
+  /* The latest PRICE_CHANGED event per product, but only from the run that
+     last read this product's row.
+     Without that second condition this list lies, and it did. A Siemens
+     WM12N221IL showed the price list offering 10,200 against 2,790 on the
+     page; the event saying so was written on 2 September, the product has
+     synced many times since, and the sheet's figure today is 2,790 — the
+     two numbers agree and have for weeks. 34 of 216 "live differences" were
+     that: a difference that closed, remembered by the event that reported
+     it. An event is a record of one run, not a statement about the sheet
+     now, and the only events that describe the sheet now are the ones from
+     the last run that read the row.
+     createdAt >= lastExcelSyncAt is that test: the event is written inside
+     the run that stamps lastExcelSyncAt, a few milliseconds after it, so an
+     event from the current run passes and every earlier one fails.
+     distinct on () is the cheapest way to say "latest per product" in
+     Postgres, and the set is small. */
   const latest = await db.$queryRaw<{ productId: string; sheetPrice: string }[]>`
     select distinct on (e."productId") e."productId" as "productId", e."newValue" as "sheetPrice"
     from "InventoryChangeEvent" e
-    where e."changeType" = 'PRICE_CHANGED' and e."productId" is not null
+    join "Product" p on p.id = e."productId"
+    where e."changeType" = 'PRICE_CHANGED'
+      and e."productId" is not null
+      and p."lastExcelSyncAt" is not null
+      and e."createdAt" >= p."lastExcelSyncAt"
     order by e."productId", e."createdAt" desc
   `;
   if (latest.length === 0) return [];

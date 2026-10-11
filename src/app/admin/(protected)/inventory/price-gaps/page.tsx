@@ -32,12 +32,17 @@ export default async function PriceGapsPage() {
   await requireCatalogPage();
   const gaps = await getPriceGaps(300);
   const contradicted = gaps.filter((g) => g.rowContradictsProduct).length;
-  /* "Waiting for you" is anything the sync will not settle: a price a person
-     chose, and a price the sheet offers below its own cost. Counting only the
-     first would promise that 27 rows close by themselves when they cannot. */
+  /* "Waiting for you" is anything the sync will not settle, and there are
+     three reasons it will not: a person chose this price, the sheet offers a
+     price below the cost on its own row, or the row is not assertably this
+     product's. Counting only the first would promise that rows close by
+     themselves when they cannot — the three conditions are the same three in
+     adoptPrice in lib/inventory/sync.ts. */
   const manual = gaps.filter((g) => g.priceIsManual).length;
   const sheetBelowCost = gaps.filter((g) => !g.priceIsManual && g.sheetPriceBelowCost).length;
-  const waiting = manual + sheetBelowCost;
+  const waiting = gaps.filter(
+    (g) => g.priceIsManual || g.sheetPriceBelowCost || g.rowContradictsProduct,
+  ).length;
 
   return (
     <div>
