@@ -364,6 +364,8 @@ export type PriceGap = {
   /** The sheet row this product is bound to names a different model. */
   rowContradictsProduct: boolean;
   belowCost: boolean;
+  /** A person set this price, so no sync will change it. */
+  priceIsManual: boolean;
 };
 
 /**
@@ -406,7 +408,7 @@ export async function getPriceGaps(limit = 150): Promise<PriceGap[]> {
       stockQty: { gt: 0 },
       missingFromSourceSince: null,
     },
-    select: { ...PRODUCT_LINE_SELECT, model: true, stockBreakdown: true },
+    select: { ...PRODUCT_LINE_SELECT, model: true, stockBreakdown: true, priceManualAt: true },
   });
 
   const gaps: PriceGap[] = [];
@@ -419,6 +421,12 @@ export async function getPriceGaps(limit = 150): Promise<PriceGap[]> {
       sheetPrice,
       rowContradictsProduct: rowNamesAnotherModel(p.model, p.stockBreakdown),
       belowCost: p.supplierCost !== null && p.supplierCost > 0 && p.price > 0 && p.price < p.supplierCost,
+      /* The difference between a row that is waiting for a decision and a
+         row that will settle itself. Since 11 October the sync adopts the
+         price list's figure for any product nobody has priced, so most of
+         this list closes on the next run; what stays is the handful a person
+         chose, where the sheet's number is a suggestion and nothing more. */
+      priceIsManual: p.priceManualAt !== null,
     });
   }
   /* Biggest money first, and a contradicted row ahead of its size: that one

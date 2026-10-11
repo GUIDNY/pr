@@ -39,7 +39,7 @@ export async function updateProductAction(id: string, input: ProductInput) {
   const clashSlug = await db.product.findFirst({ where: { slug: parsed.data.slug, NOT: { id } } });
   if (clashSlug) return { success: false, error: "slug זה כבר קיים במערכת" };
 
-  const before = await db.product.findUniqueOrThrow({ where: { id }, select: { slug: true } });
+  const before = await db.product.findUniqueOrThrow({ where: { id }, select: { slug: true, price: true } });
 
   // Editing a product through this form is a human deciding what it should
   // say — including its title and category, the two fields the nightly sync
@@ -51,9 +51,20 @@ export async function updateProductAction(id: string, input: ProductInput) {
   // so it keeps working as a 301 — a link already shared does not get to
   // learn that the page moved.
   await db.$transaction(async (tx) => {
+    /* Saving this form is a person deciding the price along with everything
+       else on it, so it claims the price the same way it claims the title
+       and the category — the sync manages the price of products nobody has
+       priced, and this is somebody pricing one. Only when the figure
+       actually moved: opening the form and saving it unchanged should not
+       take a product out of the price list's management for ever. */
+    const priceMoved = parsed.data.price !== before.price;
     await tx.product.update({
       where: { id },
-      data: { ...parsed.data, enrichmentStatus: "ENRICHED" },
+      data: {
+        ...parsed.data,
+        enrichmentStatus: "ENRICHED",
+        ...(priceMoved ? { priceManualAt: new Date() } : {}),
+      },
     });
     await recordSlugChange(id, before.slug, parsed.data.slug, tx);
   });
@@ -108,6 +119,9 @@ export async function updateProductBasicAction(
   if (data.price !== undefined) {
     if (!Number.isFinite(data.price) || data.price <= 0) return { success: false, error: "מחיר לא תקין" };
     update.price = data.price;
+    /* The sync manages the price of any product nobody has priced, so a
+       price typed here has to claim it. */
+    update.priceManualAt = new Date();
   }
   if (Object.keys(update).length === 0) return { success: true, error: null };
 

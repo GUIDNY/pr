@@ -249,6 +249,27 @@ model Product {
   supplier             Supplier? @relation(fields: [supplierId], references: [id])
   supplierSku          String?
   supplierCost         Float? // internal cost — admin-only, never serialized to public pages
+  /// When a person last set this product's price by hand — and the reason
+  /// the sync is allowed to manage the price of everything else.
+  ///
+  /// Until 11 October the sync never wrote price to an existing product at
+  /// all. That rule was right and it was also expensive: 276 products were
+  /// showing a price the price list had moved on from, the sync detected
+  /// every difference, reported "289 price changes" a day, and applied none
+  /// of them. The rule existed because re-applying the sheet on every run
+  /// used to wipe a morning's corrections by the next morning.
+  ///
+  /// This column is what lets both things be true. Null means nobody has
+  /// priced this product, so the price list manages it and a change in the
+  /// sheet lands on the site at the next sync. Set means a person decided
+  /// this price, and no sync will touch it again — the sheet's figure shows
+  /// up in the price tab as a suggestion instead.
+  ///
+  /// Every manual writer sets it: the price sheet, the quick edit on the
+  /// attention queue, and the admin product form. Backfilled for the five
+  /// products that had ever been saved through that form; nothing else in
+  /// the catalogue had any evidence of a human choosing its price.
+  priceManualAt        DateTime?
   extraSpecsRaw        String? // JSON object of spec fields an external source sent that didn't match any CategoryAttribute for this product's category — shown on the public product page only as a fallback when there's no structured spec at all (see product/[slug]/page.tsx), until someone maps the key to a real CategoryAttribute
   // Where the enrichment API's description/spec content was scraped from —
   // admin-only provenance, never rendered on the public product page. Set

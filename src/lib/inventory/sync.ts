@@ -606,8 +606,32 @@ async function applyOneRow(
           : null)
       : null;
 
+  /* The price, but only where no person has chosen one.
+     Until 11 October the sync never wrote price to an existing product, and
+     that rule was right: re-applying the sheet on every run used to wipe a
+     morning's corrections by the next morning. It was also costing money —
+     276 products were showing a price the price list had moved on from, the
+     sync spotted every difference, reported "289 price changes" a day and
+     applied none of them, and a Siemens fridge sat at ₪10,400 against a
+     sheet that said ₪3,500.
+     priceManualAt is what lets both things hold. Null means nobody has
+     priced this product, so the price list manages it. Set means a person
+     decided, and no sync touches it again — the sheet's figure becomes a
+     suggestion in the price tab instead of an overwrite.
+     resolved, not data.price: data.price falls back to the existing price
+     when the sheet has none, and writing a product's own price back to it
+     is a no-op that would still move updatedAt and re-submit the page to
+     IndexNow. */
+  const adoptPrice =
+    existing !== null &&
+    existing.priceManualAt === null &&
+    resolved !== null &&
+    resolved > 0 &&
+    resolved !== existing.price;
+
   const stockOnlyUpdate = {
     ...(renumberedSku ? { sku: renumberedSku, isTemporarySku: false } : {}),
+    ...(adoptPrice ? { price: resolved } : {}),
     stockStatus: data.stockStatus,
     stockQty: data.stockQty,
     stockBreakdown: data.stockBreakdown,
@@ -630,10 +654,15 @@ async function applyOneRow(
        allowed to touch, and if none of them moved the page is the same
        page. */
     if (
+      adoptPrice ||
       existing.stockQty !== data.stockQty ||
       existing.stockStatus !== data.stockStatus ||
       JSON.stringify(existing.stockBreakdown ?? null) !== JSON.stringify(data.stockBreakdown ?? null)
     ) {
+      /* adoptPrice belongs in here and not only in the update: the price is
+         on the page, in the Merchant feed and in the JSON-LD, so a product
+         whose price moved is a page Google should be told about even if its
+         stock did not budge. */
       result.changedProductIds.add(existing.id);
     }
     if (existing.missingFromSourceSince) {

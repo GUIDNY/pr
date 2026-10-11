@@ -40,7 +40,14 @@ export async function updateSalePriceAction(productId: string, price: number): P
   if (!before) return { success: false, error: "מוצר לא נמצא" };
   if (before.price === next) return { success: true, error: null, price: next };
 
-  await db.product.update({ where: { id: productId }, data: { price: next } });
+  /* priceManualAt is what makes this stick. From 11 October the sync adopts
+     the price list's figure for any product nobody has priced, so a price
+     set here has to say so — otherwise the next sync would quietly undo the
+     two presses it took to get here. */
+  await db.product.update({
+    where: { id: productId },
+    data: { price: next, priceManualAt: new Date() },
+  });
   /* Both numbers, because "price changed" without them answers nothing six
      weeks later, and the cost is what says whether the new price makes
      sense. */

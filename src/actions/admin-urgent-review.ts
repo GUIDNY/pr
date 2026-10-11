@@ -64,7 +64,11 @@ export async function applyUrgentFixAction(
   if (!alert?.product) return { success: false, error: "ההתראה לא נמצאה" };
   if (alert.isResolved) return { success: false, error: "ההתראה כבר סומנה כטופלה" };
 
-  let data: { price: number } | { stockQty: number } | { brandId: string } | { model: string };
+  let data:
+    | { price: number; priceManualAt: Date }
+    | { stockQty: number }
+    | { brandId: string }
+    | { model: string };
   let before: string | number;
 
   if (field === "price" || field === "stockQty") {
@@ -73,7 +77,10 @@ export async function applyUrgentFixAction(
     if (field === "price") {
       if (value <= 0) return { success: false, error: "מחיר חייב להיות גדול מאפס" };
       before = alert.product.price;
-      data = { price: value };
+      /* Marked manual, like every other place a person types a price: the
+         sync now manages the price of anything nobody has set, and a figure
+         typed here is somebody setting it. */
+      data = { price: value, priceManualAt: new Date() };
     } else {
       if (!Number.isInteger(value) || value < 0) {
         return { success: false, error: "מלאי חייב להיות מספר שלם, אפס ומעלה" };

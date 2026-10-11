@@ -32,13 +32,15 @@ export default async function PriceGapsPage() {
   await requireCatalogPage();
   const gaps = await getPriceGaps(300);
   const contradicted = gaps.filter((g) => g.rowContradictsProduct).length;
+  const manual = gaps.filter((g) => g.priceIsManual).length;
 
   return (
     <div>
       <h1 className="text-2xl font-bold">מוצרים עם בעיית מחיר</h1>
       <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
-        המחירון אומר מחיר אחד והאתר מציג אחר. הסינק מזהה את הפער ובמתכוון לא משנה מחיר של מוצר קיים — אחרת כל תמחור
-        ידני היה נמחק בסנכרון הבא. <strong className="text-foreground">תצוגה בלבד</strong>; שינוי מחיר נעשה במסך
+        המחירון אומר מחיר אחד והאתר מציג אחר.{" "}
+        <strong className="text-foreground">מוצר שאף אדם לא תמחר — המחירון מנהל אותו</strong>, והפער הזה ייסגר לבד
+        בסנכרון הבא. מוצר שתמחרת ידנית הוא שלך: הסינק לא יגע בו, והמספר מהמחירון הוא הצעה בלבד. שינוי נעשה במסך
         המחירים, עם אישור כפול.
       </p>
 
@@ -46,6 +48,12 @@ export default async function PriceGapsPage() {
 
       <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
         <span className="text-muted-foreground">{gaps.length.toLocaleString("he-IL")} פערים</span>
+        <span className="text-muted-foreground">
+          {(gaps.length - manual).toLocaleString("he-IL")} ייסגרו לבד בסנכרון הבא
+        </span>
+        {manual > 0 && (
+          <span className="text-foreground font-semibold">{manual} מחכים להחלטה שלך</span>
+        )}
         {contradicted > 0 && (
           <span className="text-destructive font-semibold">
             {contradicted} מהם שורה של מוצר אחר — לא לאמץ את המחיר
@@ -115,6 +123,11 @@ export default async function PriceGapsPage() {
                       {g.product.supplierCost === null ? "—" : formatPrice(g.product.supplierCost)}
                     </td>
                     <td className="p-3 text-xs">
+                      {g.priceIsManual && !g.rowContradictsProduct && (
+                        <span className="text-foreground block font-semibold">
+                          תמחור ידני — הסינק לא יגע בו
+                        </span>
+                      )}
                       {g.rowContradictsProduct ? (
                         <span className="text-destructive flex items-start gap-1.5 font-bold">
                           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
