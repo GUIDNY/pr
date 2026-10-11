@@ -130,14 +130,43 @@ export async function addGoogleSheetSourceAction(formData: FormData) {
   return { success: true, error: null };
 }
 
+/**
+ * Turning a source off also takes its products off the site.
+ *
+ * runFullSync reads active sources only, and "gone from the price list" is
+ * measured against the sources it actually scanned — so a deactivated
+ * source's products are never seen, never missed, and stay live for ever on
+ * whatever the sheet last said. Three Google Sheet sources were switched off
+ * on 19 August; on 11 October four of their products were still being sold,
+ * priced from August: a Polk V60 Slim at 1,290, a DeLonghi Magnifica at
+ * 1,790, an Electrolux EW6T4723AM at 2,290 and a Normande ND80120 at 1,390.
+ * Seven weeks of stock and prices nothing was checking.
+ *
+ * missingFromSourceSince rather than isPublished, for the same reason the
+ * sitemap keeps the page: this is the field that already means "no row in
+ * any price list backs this", every public query reads it, and
+ * stockOnlyUpdate clears it the moment a row matches the product again. So
+ * switching the source back on returns its products by itself, with all the
+ * content work intact.
+ */
 export async function toggleSourceActiveAction(id: string, isActive: boolean) {
   const session = await requireAdmin();
   await db.inventorySource.update({ where: { id }, data: { isActive } });
+  /* Only on the way off. Coming back on is the sync's job: the next run
+     reads the source and clears the flag per product it matches, which is
+     a per-product answer this action cannot give. */
+  const removed = isActive
+    ? { count: 0 }
+    : await db.product.updateMany({
+        where: { sourceId: id, missingFromSourceSince: null },
+        data: { missingFromSourceSince: new Date() },
+      });
   await logAudit({
     actorId: session.sub,
     action: isActive ? "INVENTORY_SOURCE_ACTIVATED" : "INVENTORY_SOURCE_DEACTIVATED",
     entityType: "InventorySource",
     entityId: id,
+    metadata: { productsTakenOffTheSite: removed.count },
   });
   // Toggling a source's active state can resolve or create a cross-source
   // SKU conflict without any file ever changing — no sync run would
