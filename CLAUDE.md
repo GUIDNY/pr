@@ -220,6 +220,23 @@ hosts in `blocked-image-hosts.ts` outright. `npm run check:images` guards both r
 - **Preview builds fail.** Env vars are set for Production only, so `DATABASE_URL` is
   empty in Preview and `/sitemap.xml` — which queries the database at build time —
   takes the build down with `Can't reach database server at 127.0.0.1:5432`.
+- **A new Prisma field silently does not write until the client is
+  regenerated.** `prisma generate` ran only in `postinstall`. Vercel restores
+  `node_modules` from its build cache when `package.json` has not changed, and
+  a restored install skips `postinstall` — so a deploy carries the client from
+  whichever build last really installed, and the generated client is gitignored
+  so nothing in the repo disagrees. A column added to the schema and to the
+  database is then absent from the client, Prisma 7 drops the unknown key out
+  of `data` instead of refusing it, the update succeeds, and the value is never
+  written: no error, no alert, no failed row. On 11 October `lastMatchPath` and
+  `lastRowModel` were written by 3,601 rows and landed nowhere, while
+  `pricesAdopted` — added two builds earlier, when an install really happened —
+  was written on the same run. The read direction is worse: a client that does
+  not know `priceManualAt` returns `undefined` for it, so `=== null` is false
+  and the sync stops adopting prices, or with the condition inverted overwrites
+  every price a person set. `build` now runs `prisma generate` first and
+  `npm run check:prisma` guards it.
+
 - **`prisma db push` hangs against the pooler** (PgBouncer, port 6543). For schema
   changes use direct DDL via `db.$executeRawUnsafe`, then `prisma generate`.
 - **`npm install` depends on the container's egress policy.** `xlsx` is pinned to

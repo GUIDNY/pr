@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
@@ -56,7 +56,8 @@
     "fix:dimensions": "tsx scripts/backfill-dimension-specs.ts --write",
     "check:leaf-categories": "tsx scripts/check-leaf-categories.ts",
     "check:sheets": "tsx scripts/check-sheet-map.ts",
-    "purge:non-price-list": "tsx scripts/purge-non-price-list-products.ts"
+    "purge:non-price-list": "tsx scripts/purge-non-price-list-products.ts",
+    "check:prisma": "tsx scripts/check-prisma-generate.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
