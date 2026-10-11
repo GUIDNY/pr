@@ -4,18 +4,10 @@ import {
   getInventoryProducts,
   getInventoryFilterOptions,
   getSheetSummaryCards,
-  getAttentionItems,
   type InventoryTableFilters,
 } from "@/lib/queries/admin-inventory";
-import {
-  getSyncReport,
-  getNewInPriceList,
-  getPriceGaps,
-  getDroppedFromPriceList,
-} from "@/lib/queries/inventory-control";
 import { InventoryFilterBar } from "@/components/admin/inventory-filter-bar";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
-import { InventoryControlReport } from "@/components/admin/inventory-control-report";
 import { InventorySyncButton } from "@/components/admin/inventory-sync-button";
 import { InventorySummaryBar } from "@/components/admin/inventory-summary-bar";
 import { InventorySheetTabs } from "@/components/admin/inventory-sheet-tabs";
@@ -64,26 +56,11 @@ export default async function AdminInventoryPage({
     pageSize: PAGE_SIZE,
   };
 
-  const [
-    summary,
-    { products, total },
-    filterOptions,
-    sheetCards,
-    report,
-    newInPriceList,
-    attention,
-    priceGaps,
-    dropped,
-  ] = await Promise.all([
+  const [summary, { products, total }, filterOptions, sheetCards] = await Promise.all([
     getInventorySummary(),
     getInventoryProducts(filters),
     getInventoryFilterOptions(),
     getSheetSummaryCards(sp.sourceId),
-    getSyncReport(),
-    getNewInPriceList(),
-    getAttentionItems(),
-    getPriceGaps(),
-    getDroppedFromPriceList(),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -120,22 +97,6 @@ export default async function AdminInventoryPage({
       </div>
 
       <InventoryTabs />
-
-      {/* The report first, the table after it.
-          This page used to open on a filterable table of 2,200 products,
-          which answers "where is this SKU" and cannot answer "is the
-          catalogue in order" — the question anyone actually arrives with.
-          For 35 days the answer was no, four tabs of the price list were
-          importing nothing, and this page looked completely normal. */}
-      <InventoryControlReport
-        report={report}
-        newInPriceList={newInPriceList}
-        attention={attention}
-        priceGaps={priceGaps}
-        dropped={dropped}
-      />
-
-      <h2 className="mt-8 mb-3 text-base font-bold">כל המוצרים</h2>
 
       <InventorySummaryBar
         totalProducts={summary.totalProducts}

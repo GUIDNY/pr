@@ -1,0 +1,59 @@
+import { requireCatalogPage } from "@/lib/auth";
+import { InventoryTabs } from "@/components/admin/inventory-tabs";
+import { InventoryListTable } from "@/components/admin/inventory-list-table";
+import { getNewInPriceList } from "@/lib/queries/inventory-control";
+import { formatDateTime } from "@/lib/format";
+
+export const metadata = { title: "מוצרים חדשים מהסנכרון | Buy Today Admin" };
+
+/**
+ * What the price list has just produced, and which cannot be sold yet.
+ *
+ * The list is "still flagged NEW_FROM_SOURCE", not "created in the last
+ * day". 33 products arrived in a single run on 11 October because four tabs
+ * had not been read for 35 days, and a 24-hour window would have shown them
+ * once and then hidden a backlog nobody had worked through. The flag closes
+ * when somebody deals with the product, which is the right clock.
+ */
+export default async function NewFromSyncPage() {
+  await requireCatalogPage();
+  const { rows, fromLastSync } = await getNewInPriceList(300);
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold">מוצרים חדשים מהסנכרון</h1>
+      <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
+        הגיעו מהמחירון ועוד לא מוכנים למכירה: השם הוא הטקסט הגולמי מהגיליון, ואין תמונה, תיאור או מפרט. הם לא מופיעים
+        באתר עד שיש להם תמונה. השורה יוצאת מהרשימה כשהמוצר מטופל.
+      </p>
+      <InventoryTabs />
+      <p className="text-muted-foreground mb-3 text-sm">
+        {rows.length.toLocaleString("he-IL")} מוצרים ממתינים
+        {fromLastSync > 0 && (
+          <>
+            {" · "}
+            <strong className="text-foreground">{fromLastSync}</strong> מהסנכרון האחרון
+          </>
+        )}
+      </p>
+      <InventoryListTable
+        rows={rows}
+        empty="אין מוצרים חדשים שמחכים. כל מה שהמחירון הביא טופל."
+        columnLabel="נוצר"
+        column={(p) => {
+          const row = rows.find((r) => r.id === p.id);
+          return (
+            <span className="flex flex-wrap items-center gap-2">
+              {row?.fromLastSync && (
+                <span className="bg-brand/10 text-brand rounded px-1.5 py-0.5 text-xs font-bold">
+                  הסנכרון האחרון
+                </span>
+              )}
+              <span className="text-muted-foreground">{formatDateTime(p.createdAt)}</span>
+            </span>
+          );
+        }}
+      />
+    </div>
+  );
+}

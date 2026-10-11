@@ -301,21 +301,40 @@ function toLine(p: ProductLineRow): ProductLine {
  * and then hidden a backlog nobody had worked through. The alert closes when
  * somebody deals with the product, which is the right clock.
  */
-export async function getNewInPriceList(limit = 100): Promise<ProductLine[]> {
-  const alerts = await db.inventoryAlert.findMany({
-    where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { not: null } },
-    select: { productId: true },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-  });
+export async function getNewInPriceList(
+  limit = 300,
+): Promise<{ rows: (ProductLine & { fromLastSync: boolean })[]; fromLastSync: number }> {
+  const [alerts, lastRun] = await Promise.all([
+    db.inventoryAlert.findMany({
+      where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { not: null } },
+      select: { productId: true },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    }),
+    db.inventorySyncRun.findFirst({
+      where: { status: { in: ["SUCCESS", "NO_CHANGES"] } },
+      orderBy: { startedAt: "desc" },
+      select: { startedAt: true },
+    }),
+  ]);
   const ids = [...new Set(alerts.map((a) => a.productId).filter((id): id is string => id !== null))];
-  if (ids.length === 0) return [];
+  if (ids.length === 0) return { rows: [], fromLastSync: 0 };
   const rows = await db.product.findMany({
     where: { id: { in: ids } },
     select: PRODUCT_LINE_SELECT,
-    orderBy: [{ price: "desc" }],
+    /* Newest first. The list is everything still waiting and not just the
+       last run's output — 33 arrived in one run on 11 October because four
+       tabs had gone unread for 35 days, and a window would have shown them
+       once and then hidden the backlog — but what came in this morning is
+       what somebody is looking for, so it is at the top and marked. */
+    orderBy: [{ createdAt: "desc" }],
   });
-  return rows.map(toLine);
+  const since = lastRun?.startedAt ?? null;
+  const out = rows.map((p) => ({
+    ...toLine(p),
+    fromLastSync: since !== null && p.createdAt >= since,
+  }));
+  return { rows: out, fromLastSync: out.filter((p) => p.fromLastSync).length };
 }
 
 /**
@@ -432,4 +451,117 @@ function rowNamesAnotherModel(model: string | null, stockBreakdown: string | nul
      treating silence as a contradiction would flag half the catalogue. */
   if (!theirs || theirs.length < 4) return false;
   return theirs !== mine;
+}
+
+/**
+ * In the price list, in stock, published — and with no photograph.
+ *
+ * Off the site all the same, because PUBLIC_PRODUCT_WHERE requires an
+ * image, which is why this is its own list rather than a column on another
+ * one: these are products the shop believes it is selling and no customer
+ * can see. A photo is the only thing standing between them and the site.
+ */
+export async function getMissingImage(limit = 300): Promise<ProductLine[]> {
+  const rows = await db.product.findMany({
+    where: {
+      source: PRICE_LIST_SOURCE,
+      isPublished: true,
+      stockQty: { gt: 0 },
+      missingFromSourceSince: null,
+      images: { none: {} },
+    },
+    select: PRODUCT_LINE_SELECT,
+    orderBy: { price: "desc" },
+    take: limit,
+  });
+  return rows.map(toLine);
+}
+
+export type ProblemReason =
+  | "NOT_IN_PRICE_LIST"
+  | "NEEDS_REVIEW"
+  | "NO_PRICE"
+  | "BELOW_COST"
+  | "NO_SKU"
+  | "SUMMARY_ROW";
+
+export const PROBLEM_REASON_LABELS: Record<ProblemReason, string> = {
+  NOT_IN_PRICE_LIST: "לא במחירון יותר",
+  NEEDS_REVIEW: "נתוני מלאי לא עקביים",
+  NO_PRICE: "אין מחיר מכירה",
+  BELOW_COST: "מתחת למחיר העלות",
+  NO_SKU: "אין מק״ט במחירון",
+  SUMMARY_ROW: "נראה כמו שורת סיכום ולא מוצר",
+};
+
+export type ProblemProduct = ProductLine & { reasons: ProblemReason[] };
+
+/**
+ * Everything else that is wrong, one row per product.
+ *
+ * One list and not six, because a product is usually several of these at
+ * once — a summary row has no model, no price and an implausible quantity —
+ * and six lists of the same forty products is how a back office stops being
+ * read. The reasons are collected onto the row instead.
+ *
+ * None of these is "needs a photo" or "just arrived": those have their own
+ * tabs, and a product that is only missing content does not belong in a list
+ * headed "problems".
+ */
+export async function getProblemProducts(limit = 300): Promise<ProblemProduct[]> {
+  const rows = await db.product.findMany({
+    where: {
+      source: PRICE_LIST_SOURCE,
+      /* Deliberately not "has no SKU". 835 products carry a synthetic one
+         because the sheet gives them none, which is the sheet's habit and
+         not a fault; including it put 454 rows in this list and buried the
+         forty that are actually wrong. It is still annotated on a row that
+         is here for another reason, because it is the thing that makes a
+         product hard to match. */
+      OR: [
+        { missingFromSourceSince: { not: null }, stockQty: { gt: 0 } },
+        { stockStatus: "NEEDS_REVIEW", stockQty: { gt: 0 } },
+        { price: { lte: 0 }, stockQty: { gt: 0 } },
+      ],
+    },
+    select: {
+      ...PRODUCT_LINE_SELECT,
+      model: true,
+      stockStatus: true,
+      isTemporarySku: true,
+      missingFromSourceSince: true,
+    },
+    take: limit,
+  });
+
+  const out: ProblemProduct[] = [];
+  for (const p of rows) {
+    const reasons: ProblemReason[] = [];
+    if (p.missingFromSourceSince !== null) reasons.push("NOT_IN_PRICE_LIST");
+    if (p.stockStatus === "NEEDS_REVIEW") reasons.push("NEEDS_REVIEW");
+    if (p.price <= 0) reasons.push("NO_PRICE");
+    if (p.supplierCost !== null && p.supplierCost > 0 && p.price > 0 && p.price < p.supplierCost) {
+      reasons.push("BELOW_COST");
+    }
+    if (p.isTemporarySku) reasons.push("NO_SKU");
+    /* A row with no model, no price and a quantity in the dozens is a
+       subtotal line the parser read as a product — "פרימייר" with 56 units
+       at ₪0, "דלונגי" with 54. Said out loud because it is not a product
+       with a problem, it is not a product. */
+    if (!p.model && p.price <= 0 && p.stockQty > 20) reasons.push("SUMMARY_ROW");
+    if (reasons.length === 0) continue;
+    out.push({ ...toLine(p), reasons });
+  }
+  /* Worst first by what it is, then by what it is worth: a product that is
+     being sold at a loss or has left the price list outranks one that is
+     merely missing a SKU. */
+  const weight = (r: ProblemReason[]) =>
+    (r.includes("BELOW_COST") ? 400 : 0) +
+    (r.includes("NOT_IN_PRICE_LIST") ? 300 : 0) +
+    (r.includes("SUMMARY_ROW") ? 200 : 0) +
+    (r.includes("NEEDS_REVIEW") ? 100 : 0) +
+    r.length;
+  return out.sort(
+    (a, b) => weight(b.reasons) - weight(a.reasons) || b.price * b.stockQty - a.price * a.stockQty,
+  );
 }
