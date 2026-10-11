@@ -44,7 +44,7 @@ async function main() {
   }
 
   const written: (StampedKey & { source: string })[] = [];
-  let rowsRead = 0, realSku = 0, noKey = 0, noProduct = 0, notTemp = 0, already = 0, collided = 0;
+  let rowsRead = 0, realSku = 0, noKey = 0, noProduct = 0, notTemp = 0, already = 0, collided = 0, contradicted = 0;
 
   for (const source of sources) {
     const r = await stampSourceRowKeys(source, { apply: APPLY });
@@ -58,6 +58,7 @@ async function main() {
     noProduct += r.noProductAtPosition;
     notTemp += r.notTemporary;
     already += r.alreadyKeyed;
+    contradicted += r.rowContradictsProduct;
     collided += r.collidedProductIds.length;
     written.push(...r.written.map((w) => ({ ...w, source: source.key })));
     console.log(
@@ -76,6 +77,7 @@ async function main() {
   console.log(`  no product at that position      ${noProduct}`);
   console.log(`  product there has a real SKU     ${notTemp}`);
   console.log(`  key already correct              ${already}`);
+  console.log(`  row names another model, refused ${contradicted}`);
   console.log(`  two rows share a key, skipped    ${collided}`);
   console.log(`  ${APPLY ? "WRITTEN                          " : "WOULD WRITE                      "} ${written.length}`);
 

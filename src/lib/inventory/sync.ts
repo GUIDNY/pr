@@ -43,6 +43,73 @@ async function allocateTempSku(): Promise<string> {
   return String(counter.value).padStart(4, "0");
 }
 
+/**
+ * The temp-SKU products a source already has, indexed by sheet, so a row
+ * whose key no longer matches can still find the product it made.
+ *
+ * Needed because of what guarding the key match leaves behind. A key is
+ * derived from the sheet, so refusing one that names another model is right
+ * — but it also removes the only identity 143 products had, and the
+ * comparison left under it (same brand AND model AND title, exactly) is the
+ * one the key was introduced to replace: enrichment rewrites all three. A
+ * product that cannot be re-found is reported as gone from the price list
+ * and leaves the site, so without this the guard above would take 42 live
+ * products down and create a second copy of each from the row it refused.
+ *
+ * Matching on the model and only the model, by the strong test: both sides
+ * name at least four characters and one contains the other. That is the
+ * same assertion the renumbered-row case makes, and it bridges the way the
+ * two sides are written on purpose — "7310IX" in the sheet for a product we
+ * call "CUISINE-7310IX".
+ *
+ * Unique or nothing. Two products in a tab whose models both read as this
+ * row's model means the model is not identifying anything here, and
+ * guessing between them is how a wrong binding gets written in the first
+ * place — the whole fault this is cleaning up after.
+ *
+ * Scoped to one sheet, because sourceRowKey is, and for the same reason:
+ * the same model listed under two tabs is two products in this catalogue.
+ *
+ * Two queries' worth of data and no more: the index holds id, sku and
+ * model, and the matched product is read in full only once it is the
+ * answer. Loading whole Product rows for ~700 temp-SKU products on every
+ * run is the shape of mistake that cost four days of Storage downtime in
+ * September.
+ */
+export type TempSkuModelIndex = {
+  find(
+    sheetName: string,
+    rowModel: string | null,
+    claimedSkus: Set<string>,
+  ): Promise<Awaited<ReturnType<typeof db.product.findUnique>> | null>;
+};
+
+export function createTempSkuModelIndex(sourceId: string): TempSkuModelIndex {
+  const bySheet = new Map<string, { id: string; sku: string; model: string | null }[]>();
+  return {
+    async find(sheetName, rowModel, claimedSkus) {
+      if (!bySheet.has(sheetName)) {
+        bySheet.set(
+          sheetName,
+          await db.product.findMany({
+            where: { sourceId, isTemporarySku: true, sourceSheet: sheetName },
+            select: { id: true, sku: true, model: true },
+          }),
+        );
+      }
+      const matches = (bySheet.get(sheetName) ?? []).filter(
+        (p) =>
+          // Not one an earlier row in this same run already took. The index
+          // is a snapshot, so without this two rows naming the same model
+          // would both bind to it and the second would overwrite the first.
+          !claimedSkus.has(p.sku) && modelsAreTheSame(p.model, rowModel),
+      );
+      if (matches.length !== 1) return null;
+      return db.product.findUnique({ where: { id: matches[0].id } });
+    },
+  };
+}
+
 // Finds the product this row belongs to across syncs, in priority order:
 //  1. Same physical position in the source (sourceId+sheet+row) — the
 //     primary identity signal, including the temp-SKU -> real-SKU upgrade
@@ -68,6 +135,12 @@ export async function findExistingProduct(
    * live tabs, which is the failure this whole function exists to avoid.
    */
   sheetsInRun?: Set<string>,
+  /**
+   * The source's temp-SKU products by sheet, and the SKUs already claimed
+   * this run. Omitted (a dry run, or a test calling this directly) the
+   * model fallback is skipped rather than approximated.
+   */
+  modelIndex?: { index: TempSkuModelIndex; claimedSkus: Set<string> },
 ) {
   const positionMatch = await db.product.findFirst({
     where: { sourceId, sourceSheet: row.sheetName, sourceRowRef: row.rowIndex },
@@ -133,7 +206,37 @@ export async function findExistingProduct(
     const keyMatch = await db.product.findFirst({
       where: { sourceId, isTemporarySku: true, sourceRowKey: rowKey },
     });
-    if (keyMatch) return keyMatch;
+    /* Behind the same model test as the position match above, and it was
+       missing here until 11 October.
+       The key is derived from the sheet, so a key that matches is normally
+       proof of identity. It is not proof when the key was written wrong in
+       the first place: backfill-row-keys.ts stamps keys by position alone —
+       its own comment says "a wrong match here would stamp a wrong identity
+       permanently" — so a backfill that ran while rows were already shifted
+       wrote the neighbour row's key onto the product. 16 live products carry
+       such a key. A Samsung 65U8000H holds the key of an LG OLED 77 C66LA
+       row, and matched it again on every run since.
+       That is worse than the drift it was built to fix. Position drift
+       self-corrects when the sheet settles; a wrong key matches the wrong
+       row for ever, and this was the one door into the matcher with no model
+       test behind it. A key match whose row contradicts the product's own
+       model is a wrong key, not an identity, so it is refused and the row
+       falls through to the comparisons below — which can still find the
+       product honestly, or decide the sheet no longer carries it. */
+    if (keyMatch && modelsCanBeTheSame(keyMatch.model, row.model)) return keyMatch;
+  }
+
+  // No key match, or one that named another model. The model is what the
+  // sheet and the product still agree on — see createTempSkuModelIndex for
+  // why this sits ahead of the exact comparison below rather than relying
+  // on it.
+  if (modelIndex) {
+    const byModel = await modelIndex.index.find(
+      row.sheetName,
+      row.model,
+      modelIndex.claimedSkus,
+    );
+    if (byModel) return byModel;
   }
 
   // Products created before the key existed have none stored yet, so the
@@ -402,6 +505,7 @@ async function applyOneRow(
   threshold: number,
   result: ApplyResult,
   sheetsInRun: Set<string>,
+  modelIndex: TempSkuModelIndex,
 ): Promise<{ productId: string; types: Set<string> } | null> {
   const hasConflict = conflictSkus.has(row.sku);
 
@@ -413,7 +517,10 @@ async function applyOneRow(
   // temp-SKU'd rows, plain SKU lookup otherwise — see findExistingProduct
   // for why this order matters (handles the temp -> real SKU upgrade case
   // without creating a duplicate).
-  const existing = await findExistingProduct(sourceId, row, existingBrandId, sheetsInRun);
+  const existing = await findExistingProduct(sourceId, row, existingBrandId, sheetsInRun, {
+    index: modelIndex,
+    claimedSkus: result.seenSkus,
+  });
   const rawStock = totalStock(row);
 
   // Zero stock, never seen before: don't pull it into the system at all —
@@ -1038,6 +1145,8 @@ export async function applyRowsForSource(
   // not in here came from a tab that no longer exists — see
   // renamedSheetMatch.
   const sheetsInRun = new Set(rows.map((r) => r.sheetName));
+  // One index per source, built a sheet at a time as the rows ask for it.
+  const modelIndex = createTempSkuModelIndex(sourceId);
   const result: ApplyResult = {
     productsAdded: 0,
     productsUpdated: 0,
@@ -1062,6 +1171,7 @@ export async function applyRowsForSource(
         threshold,
         result,
         sheetsInRun,
+        modelIndex,
       );
       if (outcome)
         finalIssueTypesByProduct.set(outcome.productId, outcome.types);

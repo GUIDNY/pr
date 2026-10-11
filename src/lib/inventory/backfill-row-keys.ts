@@ -26,6 +26,7 @@ import { db } from "@/lib/db";
 import { normalizeRow } from "./normalizer";
 import { brandLikeDividers } from "./brand-extractor";
 import { sourceRowKeyFor } from "./source-row-key";
+import { modelsCanBeTheSame } from "./import-guards";
 import type { SourceKey } from "./sheet-map";
 import type { ParsedSheet } from "./types";
 
@@ -48,6 +49,9 @@ export type StampResult = {
   noProductAtPosition: number;
   notTemporary: number;
   alreadyKeyed: number;
+  /** The row at this product's position names a different model, so no key
+   *  is written: see the check that sets this. */
+  rowContradictsProduct: number;
   /** Two rows hashed to the same key — a key that names two products names
    *  neither, so none of them is written. */
   collidedProductIds: string[];
@@ -97,6 +101,7 @@ export async function stampSourceRowKeys(
     noKeyDerivable: 0,
     noProductAtPosition: 0,
     notTemporary: 0,
+    rowContradictsProduct: 0,
     alreadyKeyed: 0,
     collidedProductIds: [],
     written: [],
@@ -120,7 +125,7 @@ export async function stampSourceRowKeys(
   // ~1,000 products behind a few thousand rows.
   const existing = await db.product.findMany({
     where: { sourceId: source.id },
-    select: { id: true, sku: true, title: true, isTemporarySku: true, sourceRowKey: true, sourceSheet: true, sourceRowRef: true },
+    select: { id: true, sku: true, title: true, model: true, isTemporarySku: true, sourceRowKey: true, sourceSheet: true, sourceRowRef: true },
   });
   const atPosition = new Map<string, (typeof existing)[number]>();
   for (const p of existing) {
@@ -170,6 +175,21 @@ export async function stampSourceRowKeys(
       }
       if (product.sourceRowKey === key) {
         result.alreadyKeyed++;
+        continue;
+      }
+      /* The position this stamps from has to be a position we would trust.
+         Matching by position alone is what the note at the top of this file
+         calls out as the risk here, and on 11 October the risk had already
+         happened: 16 live products carry the key of a neighbouring row, a
+         Samsung 65U8000H holding the key of an LG OLED 77 C66LA line. A key
+         is permanent in a way a position is not — a shifted position
+         self-corrects when the sheet settles, a wrong key matches the wrong
+         row for ever — so the one test the sheet can offer has to run before
+         it is written, and it is the same test the sync's position match
+         uses. Silence still passes: a row that names no model is not
+         contradicting anything. */
+      if (!modelsCanBeTheSame(product.model, row.model)) {
+        result.rowContradictsProduct++;
         continue;
       }
 
