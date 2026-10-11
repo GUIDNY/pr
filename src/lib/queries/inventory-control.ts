@@ -302,10 +302,15 @@ function toLine(p: ProductLineRow): ProductLine {
  * and then hidden a backlog nobody had worked through. The alert closes when
  * somebody deals with the product, which is the right clock.
  */
-export async function getNewInPriceList(
-  limit = 300,
-): Promise<{ rows: (ProductLine & { fromLastSync: boolean })[]; fromLastSync: number }> {
-  const [alerts, lastRun] = await Promise.all([
+export async function getNewInPriceList(limit = 300): Promise<{
+  rows: (ProductLine & { fromLastSync: boolean })[];
+  fromLastSync: number;
+  /** How many are really waiting, which is not the same as how many are
+      listed: the page read "300 waiting" because 300 was the take. The
+      true number was 350. */
+  total: number;
+}> {
+  const [alerts, lastRun, total] = await Promise.all([
     db.inventoryAlert.findMany({
       where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { not: null } },
       select: { productId: true },
@@ -317,9 +322,16 @@ export async function getNewInPriceList(
       orderBy: { startedAt: "desc" },
       select: { startedAt: true },
     }),
+    db.inventoryAlert
+      .findMany({
+        where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { not: null } },
+        select: { productId: true },
+        distinct: ["productId"],
+      })
+      .then((rows) => rows.length),
   ]);
   const ids = [...new Set(alerts.map((a) => a.productId).filter((id): id is string => id !== null))];
-  if (ids.length === 0) return { rows: [], fromLastSync: 0 };
+  if (ids.length === 0) return { rows: [], fromLastSync: 0, total };
   const rows = await db.product.findMany({
     where: { id: { in: ids } },
     select: PRODUCT_LINE_SELECT,
@@ -335,7 +347,7 @@ export async function getNewInPriceList(
     ...toLine(p),
     fromLastSync: since !== null && p.createdAt >= since,
   }));
-  return { rows: out, fromLastSync: out.filter((p) => p.fromLastSync).length };
+  return { rows: out, fromLastSync: out.filter((p) => p.fromLastSync).length, total };
 }
 
 /**

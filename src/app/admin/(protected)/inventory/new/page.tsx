@@ -17,7 +17,7 @@ export const metadata = { title: "מוצרים חדשים מהסנכרון | Buy
  */
 export default async function NewFromSyncPage() {
   await requireCatalogPage();
-  const { rows, fromLastSync } = await getNewInPriceList(300);
+  const { rows, fromLastSync, total } = await getNewInPriceList(300);
 
   return (
     <div>
@@ -28,7 +28,13 @@ export default async function NewFromSyncPage() {
       </p>
       <InventoryTabs />
       <p className="text-muted-foreground mb-3 text-sm">
-        {rows.length.toLocaleString("he-IL")} מוצרים ממתינים
+        {/* total, not rows.length. The take is 300, so a backlog of 350 read
+            as exactly "300 waiting" — a number that happens to equal the
+            limit is a number that is telling you about the limit. */}
+        {total.toLocaleString("he-IL")} מוצרים ממתינים
+        {total > rows.length && (
+          <> · מוצגים {rows.length.toLocaleString("he-IL")} הראשונים</>
+        )}
         {fromLastSync > 0 && (
           <>
             {" · "}

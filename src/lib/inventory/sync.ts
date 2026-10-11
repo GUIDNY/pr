@@ -1357,6 +1357,49 @@ export async function applyRowsForSource(
  * URGENT_MISSING_MEDIA is exactly that. If the supplier lists it again, the
  * agent flags it again.
  */
+/**
+ * Closes "new from the price list" once the product is finished with.
+ *
+ * NEW_FROM_SOURCE opens when a sheet row makes a product and nothing ever
+ * closed it, so the queue only grew: on 12 October it held 350, of which
+ * 116 were already live on the site and 42 had left the price list
+ * altogether. The page showed "300 waiting", which was the take rather than
+ * a count, and roughly half of what it did show needed nothing.
+ *
+ * Two conditions, both meaning the work is over. Live is the finish line
+ * the flag exists for — published, in stock, photographed, priced, still in
+ * the price list — and a product that cleared it is being sold, whatever
+ * else might still be improved about it. Gone from the price list is the
+ * other ending: we do not sell it, so there is nothing to prepare.
+ *
+ * Deliberately not "has an image" or "is enriched" on their own. Either can
+ * be true while the product still cannot be bought, and a queue that
+ * empties before the job is done is worse than one that is too long.
+ */
+export async function reconcileNewFromSource(): Promise<number> {
+  const done = await db.inventoryAlert.updateMany({
+    where: {
+      type: "NEW_FROM_SOURCE",
+      isResolved: false,
+      product: {
+        OR: [
+          { missingFromSourceSince: { not: null } },
+          {
+            isPublished: true,
+            stockQty: { gt: 0 },
+            price: { gt: 0 },
+            missingFromSourceSince: null,
+            stockStatus: { not: "NEEDS_REVIEW" },
+            images: { some: {} },
+          },
+        ],
+      },
+    },
+    data: { isResolved: true, resolvedAt: new Date() },
+  });
+  return done.count;
+}
+
 export async function reconcileResolvedUrgentFindings(): Promise<number> {
   const resolved = await db.inventoryAlert.updateMany({
     where: {
@@ -2069,6 +2112,7 @@ export async function runFullSync(
   await reconcileSourceConflictAlerts(syncRun.id);
   await reconcileRowClaimedTwice(syncRun.id);
   await reconcileResolvedUrgentFindings();
+  await reconcileNewFromSource();
   await reconcileUrgentMissingMedia();
   await reconcileMissingImage();
 
