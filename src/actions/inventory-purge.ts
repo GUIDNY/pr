@@ -45,32 +45,87 @@ export type PurgeResult = {
   deletedSources?: number;
 };
 
-/** Everything with a source that is not one of the three workbooks. */
-const NOT_A_PRICE_LIST = { source: { sourceType: { not: "EXCEL" } } } as const;
+/**
+ * The two kinds of record that are not a product of this shop.
+ *
+ *   NO_PRICE_LIST — its source is not one of the three workbooks. 268 of
+ *   them point at Google Sheet sources switched off in August, which no
+ *   sync can update.
+ *
+ *   SUBTOTAL_ROW — it is not a product at all. The sheets carry running
+ *   totals among the rows and eleven became records: one titled "סה״כ",
+ *   one whose SKU is "סה״כ", one titled with its own tab's name, and eight
+ *   brand names carrying between 30 and 369 "units" at ₪0. 2,111 units that
+ *   do not exist. The import refuses these now — see looksLikeSubtotalRow —
+ *   and the predicate here is the same one, written for SQL: no model, no
+ *   price, no cost, and a quantity no single appliance line carries.
+ *
+ * Two targets and two buttons rather than one of each: the reasons are
+ * different, the evidence is different, and putting two irreversible
+ * deletions behind one press is how the wrong one happens.
+ */
+export type PurgeTarget = "NO_PRICE_LIST" | "SUBTOTAL_ROW";
 
-export async function inspectNonPriceListProducts(): Promise<PurgeResult> {
+const WHERE: Record<PurgeTarget, Record<string, unknown>> = {
+  NO_PRICE_LIST: { source: { sourceType: { not: "EXCEL" } } },
+  SUBTOTAL_ROW: {
+    source: { sourceType: "EXCEL" },
+    OR: [{ model: null }, { model: "" }],
+    price: { lte: 0 },
+    stockQty: { gte: 25 },
+  },
+};
+
+export async function inspectNonPriceListProducts(
+  target: PurgeTarget = "NO_PRICE_LIST",
+): Promise<PurgeResult> {
   const session = await getSession();
   if (!session || !isSiteAdmin(session.role)) {
     return { success: false, error: "אין הרשאה", products: 0, images: 0, enriched: 0, orderLines: 0 };
   }
 
-  const [products, images, enriched, orderLines] = await Promise.all([
-    db.product.count({ where: NOT_A_PRICE_LIST }),
-    db.productImage.count({ where: { product: NOT_A_PRICE_LIST.source } }),
-    db.product.count({ where: { ...NOT_A_PRICE_LIST, enrichmentStatus: "ENRICHED" } }),
-    db.orderItem.count({ where: { product: NOT_A_PRICE_LIST.source } }),
-  ]);
+  const where = WHERE[target];
+  /* supplierCost is excluded in TypeScript rather than in the where clause:
+     Prisma cannot express "null or zero" alongside the OR above without
+     nesting the whole thing, and the set is eleven rows. A line the
+     supplier priced at all is a real line, whatever else is missing. */
+  const candidates = await db.product.findMany({
+    where,
+    select: { id: true, supplierCost: true, enrichmentStatus: true, _count: { select: { images: true } } },
+  });
+  const kept = candidates.filter((p) => p.supplierCost === null || p.supplierCost <= 0);
+  const ids = kept.map((p) => p.id);
 
-  return { success: true, error: null, products, images, enriched, orderLines };
+  const orderLines = ids.length > 0 ? await db.orderItem.count({ where: { productId: { in: ids } } }) : 0;
+
+  return {
+    success: true,
+    error: null,
+    products: kept.length,
+    images: kept.reduce((n, p) => n + p._count.images, 0),
+    enriched: kept.filter((p) => p.enrichmentStatus === "ENRICHED").length,
+    orderLines,
+  };
 }
 
-export async function purgeNonPriceListProductsAction(): Promise<PurgeResult> {
+/** The ids the given target covers, under the same rules as the inspection. */
+async function targetIds(target: PurgeTarget): Promise<string[]> {
+  const rows = await db.product.findMany({
+    where: WHERE[target],
+    select: { id: true, supplierCost: true },
+  });
+  return rows.filter((p) => p.supplierCost === null || p.supplierCost <= 0).map((p) => p.id);
+}
+
+export async function purgeNonPriceListProductsAction(
+  target: PurgeTarget = "NO_PRICE_LIST",
+): Promise<PurgeResult> {
   const session = await getSession();
   if (!session || !isSiteAdmin(session.role)) {
     return { success: false, error: "אין הרשאה", products: 0, images: 0, enriched: 0, orderLines: 0 };
   }
 
-  const found = await inspectNonPriceListProducts();
+  const found = await inspectNonPriceListProducts(target);
   if (!found.success) return found;
   if (found.products === 0) {
     return { ...found, error: "אין מוצרים למחיקה — כל הקטלוג מגיע מהמחירונים.", success: true };
@@ -86,9 +141,7 @@ export async function purgeNonPriceListProductsAction(): Promise<PurgeResult> {
     };
   }
 
-  const ids = (await db.product.findMany({ where: NOT_A_PRICE_LIST, select: { id: true } })).map(
-    (p) => p.id,
-  );
+  const ids = await targetIds(target);
 
   /* One transaction. A half-finished purge leaves products whose images and
      alerts are gone, which is worse than either outcome.
@@ -103,18 +156,24 @@ export async function purgeNonPriceListProductsAction(): Promise<PurgeResult> {
     const removed = await tx.product.deleteMany({ where: { id: { in: ids } } });
     /* And the sources themselves, once nothing points at them. Left behind,
        they come back the next time somebody opens a source picker. */
-    const sources = await tx.inventorySource.deleteMany({
-      where: { sourceType: { not: "EXCEL" }, products: { none: {} } },
-    });
+    /* Only for the source-less group: a subtotal row belongs to a price
+       list that is working perfectly well. */
+    const sources =
+      target === "NO_PRICE_LIST"
+        ? await tx.inventorySource.deleteMany({
+            where: { sourceType: { not: "EXCEL" }, products: { none: {} } },
+          })
+        : { count: 0 };
     return { products: removed.count, sources: sources.count };
   });
 
   await logAudit({
     actorId: session.sub,
-    action: "PRODUCTS_PURGED_NO_PRICE_LIST",
+    action: target === "SUBTOTAL_ROW" ? "PRODUCTS_PURGED_SUBTOTAL_ROWS" : "PRODUCTS_PURGED_NO_PRICE_LIST",
     entityType: "Product",
     entityId: "bulk",
     metadata: {
+      target,
       products: deleted.products,
       sources: deleted.sources,
       images: found.images,

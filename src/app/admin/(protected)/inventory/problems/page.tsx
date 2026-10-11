@@ -22,17 +22,22 @@ export const metadata = { title: "מוצרים בעייתיים | Buy Today Admi
  */
 export default async function ProblemProductsPage() {
   await requireCatalogPage();
-  const [rows, leftovers, duplicates] = await Promise.all([
+  const [rows, leftovers, duplicates, subtotals] = await Promise.all([
     getProblemProducts(300),
     /* Products with no price list behind them at all. Not in the list below
        — they are not a product with a problem, they are a product with no
        source — so they get the panel above it instead. */
-    inspectNonPriceListProducts(),
+    inspectNonPriceListProducts("NO_PRICE_LIST"),
     /* The same product in two records, because the supplier renumbered its
        row. Its own section rather than a flag on a row, because the thing a
        person needs to see is the pair: which half holds the images and the
        public URL, and which one the price list now points at. */
     getDuplicatePairs(60),
+    /* And the records that are not products at all. A separate panel from
+       the one above: different evidence, different reason, and two
+       irreversible deletions behind one press is how the wrong one
+       happens. */
+    inspectNonPriceListProducts("SUBTOTAL_ROW"),
   ]);
 
   const counts = new Map<string, number>();
@@ -48,7 +53,9 @@ export default async function ProblemProductsPage() {
 
       <InventoryTabs />
 
-      <PurgeNonPriceListPanel initial={leftovers} />
+      <PurgeNonPriceListPanel initial={leftovers} target="NO_PRICE_LIST" />
+
+      <PurgeNonPriceListPanel initial={subtotals} target="SUBTOTAL_ROW" />
 
       {duplicates.length > 0 && (
         <section className="border-border mb-5 overflow-hidden rounded-xl border">
