@@ -11,6 +11,10 @@ import {
   resolvedPrice,
   hasAnyStockData,
 } from "./diff-engine";
+import {
+  INVENTORY_ALERT_TYPE_LABELS,
+  type InventoryAlertType,
+} from "@/lib/enums";
 import type { SourceKey } from "./sheet-map";
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
@@ -2123,6 +2127,30 @@ export async function runFullSync(
     where: { syncRunId: syncRun.id, severity: "CRITICAL" },
   });
 
+  /* And what they were. errorCount has always been written and errorMessage
+     never was, so a run reading "errorCount 74" said only that something
+     went wrong 74 times — the QA agent raised exactly that on 1 October:
+     "errorMessage is empty as usual so there is no way to know what failed."
+     The alerts carry the answer and are keyed by syncRunId; nobody was going
+     to go and join them by hand, and a number with no cause is a number
+     people learn to scroll past.
+     Grouped by type and counted, because the shape is what matters at this
+     altitude: "19 rows with no identifying model, 10 duplicate SKUs" is a
+     diagnosis, while the first alert's text is an anecdote. The per-row
+     detail stays where it already is, in the alerts for this run. */
+  const errorsByType = await db.inventoryAlert.groupBy({
+    by: ["type"],
+    where: { syncRunId: syncRun.id, severity: "CRITICAL" },
+    _count: { type: true },
+    orderBy: { _count: { type: "desc" } },
+  });
+  const errorMessage =
+    errorsByType.length === 0
+      ? null
+      : errorsByType
+          .map((e) => `${INVENTORY_ALERT_TYPE_LABELS[e.type as InventoryAlertType] ?? e.type}: ${e._count.type}`)
+          .join(" · ");
+
   // One IndexNow submission for the whole run, listing every product this
   // sync actually moved. Read back from updatedAt rather than threaded
   // through the loop: the loop already writes the timestamp, and one query
@@ -2162,6 +2190,7 @@ export async function runFullSync(
       pricesAdopted,
       stockChanges,
       errorCount,
+      errorMessage,
       finishedAt: new Date(),
     },
   });
