@@ -432,23 +432,53 @@ export async function getPriceGaps(limit = 150): Promise<PriceGap[]> {
     .slice(0, limit);
 }
 
-/** Does the sheet row this product is bound to name a different model? */
+/**
+ * Is this product bound to a row that belongs to a different product?
+ *
+ * Two conditions, and the second one is why this function was rewritten
+ * before it ever shipped a warning. A differing model number alone flags 296
+ * of the 1,259 live products — 23% — and a sample of fourteen showed
+ * thirteen were the same product written loosely by the supplier:
+ * ROEN8205IL as "8205", TSOFTCM108BIL as "CM108BI", 55QNED82A6A as
+ * "55 QN 82A6A", BKIC3C26FIS as "BKIC3C26PFIS". A page that cries wolf 296
+ * times is a page nobody reads, which is the failure this whole screen
+ * exists to end.
+ *
+ * So the row must also carry no SKU of its own. A row with a SKU was matched
+ * on it — findExistingProduct looks the SKU up directly — and that match
+ * cannot slip when the supplier re-sorts the sheet. Only a SKU-less row is
+ * matched by fingerprint or, for sixteen products, by position alone, and
+ * only there does a contradicting model mean the binding moved. That
+ * narrows it to 75, and the one found by hand is in them: a Candy ceramic
+ * cooktop reading a row whose model is MGH90GB and whose description says
+ * "5 burners / 90cm / side turbo" — a gas cooktop.
+ */
 function rowNamesAnotherModel(model: string | null, stockBreakdown: string | null): boolean {
   if (!model || !stockBreakdown) return false;
   const normalise = (v: string) => v.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   const mine = normalise(model);
   if (!mine) return false;
-  let rowModel: unknown;
+
+  let row: Record<string, unknown>;
   try {
-    rowModel = (JSON.parse(stockBreakdown) as Record<string, unknown>)["דגם"];
+    row = JSON.parse(stockBreakdown) as Record<string, unknown>;
   } catch {
     return false;
   }
+
+  /* The sheet spells the header both ways, and either one means the row
+     identifies itself. */
+  const rowSku = [row["מק'ט"], row["מקט"], row['מק"ט']].find(
+    (v) => typeof v === "string" || typeof v === "number",
+  );
+  if (rowSku !== undefined && String(rowSku).trim() !== "") return false;
+
+  const rowModel = row["דגם"];
   if (typeof rowModel !== "string") return false;
   const theirs = normalise(rowModel);
-  /* Only a positive contradiction counts. A row with no model column, or one
-     whose model is a bare number like "750", says nothing either way — and
-     treating silence as a contradiction would flag half the catalogue. */
+  /* A row whose model is a bare number like "750" says nothing either way,
+     and treating silence as a contradiction is the same false alarm one
+     layer down. */
   if (!theirs || theirs.length < 4) return false;
   return theirs !== mine;
 }
