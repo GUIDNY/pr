@@ -270,6 +270,24 @@ model Product {
   /// products that had ever been saved through that form; nothing else in
   /// the catalogue had any evidence of a human choosing its price.
   priceManualAt        DateTime?
+  /// Which comparison in findExistingProduct bound this product to its row
+  /// on the last sync, and the model the parser read off that row.
+  ///
+  /// Provenance, not state: nothing reads these to make a decision. They
+  /// exist because on 11 October I could not answer "why is this product
+  /// attached to that row" from the database at all. 119 products were
+  /// matched to rows whose model column contradicts them, every guard in
+  /// the matcher refuses exactly those pairs when asked directly, and the
+  /// two facts cannot both be true — so one of my assumptions about what
+  /// the parser reads is wrong, and nothing stored anywhere said which.
+  ///
+  /// Reading the sheet is the only way to settle it, and only production
+  /// can reach the sheets. So the sync writes down what it saw: the door
+  /// the row came through, and the model it compared. lastRowModel null on
+  /// a product matched by position is the answer — the sheet said nothing
+  /// about identity, and silence passes every guard by design.
+  lastMatchPath        String?
+  lastRowModel         String?
   extraSpecsRaw        String? // JSON object of spec fields an external source sent that didn't match any CategoryAttribute for this product's category — shown on the public product page only as a fallback when there's no structured spec at all (see product/[slug]/page.tsx), until someone maps the key to a real CategoryAttribute
   // Where the enrichment API's description/spec content was scraped from —
   // admin-only provenance, never rendered on the public product page. Set

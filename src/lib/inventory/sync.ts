@@ -121,7 +121,27 @@ export function createTempSkuModelIndex(sourceId: string): TempSkuModelIndex {
 //     fallback (same brand+model+title, still temp-SKU'd, same source) —
 //     guards against minor row-order drift in the sheet.
 //  3. For rows with a real SKU: a plain SKU lookup.
-export async function findExistingProduct(
+/**
+ * Which comparison bound the row to the product. Written to the product as
+ * provenance — see Product.lastMatchPath in the schema for why it exists.
+ */
+export type MatchPath =
+  | "position"
+  | "sku"
+  | "rowKey"
+  | "model"
+  | "legacy"
+  | "renamedSheet"
+  | "created";
+
+/**
+ * findExistingProduct, and which door the match came through.
+ *
+ * The wrapper below keeps the plain product-returning shape the two scripts
+ * in scripts/ call, so this one can be honest about the path without
+ * changing their signature.
+ */
+export async function findExistingProductWithPath(
   sourceId: string,
   row: NormalizedProductRow,
   brandId: string | null,
@@ -182,19 +202,22 @@ export async function findExistingProduct(
       row.model,
     );
     if (!positionMatchIsStaleIdentity && !positionMatchContradictsTheRow) {
-      return positionMatch;
+      return { product: positionMatch, path: "position" as MatchPath };
     }
   }
 
   if (!row.skuIsSynthetic) {
     const bySku = await db.product.findUnique({ where: { sku: row.sku } });
-    if (bySku) return bySku;
+    if (bySku) return { product: bySku, path: "sku" as MatchPath };
     // No product carries this SKU, and the position did not match either.
     // Before creating one: the supplier filling a SKU into a row that never
     // had one is not a new product, and if the tab was renamed in the same
     // export then neither the position nor the SKU can say so. The rename
     // fallback can.
-    return renamedSheetMatch(sourceId, row, brandId, sheetsInRun);
+    return {
+      product: await renamedSheetMatch(sourceId, row, brandId, sheetsInRun),
+      path: "renamedSheet" as MatchPath,
+    };
   }
 
   // A row with no SKU, whose position has moved. What identifies it is what
@@ -223,7 +246,9 @@ export async function findExistingProduct(
        model is a wrong key, not an identity, so it is refused and the row
        falls through to the comparisons below — which can still find the
        product honestly, or decide the sheet no longer carries it. */
-    if (keyMatch && modelsCanBeTheSame(keyMatch.model, row.model)) return keyMatch;
+    if (keyMatch && modelsCanBeTheSame(keyMatch.model, row.model)) {
+      return { product: keyMatch, path: "rowKey" as MatchPath };
+    }
   }
 
   // No key match, or one that named another model. The model is what the
@@ -236,7 +261,7 @@ export async function findExistingProduct(
       row.model,
       modelIndex.claimedSkus,
     );
-    if (byModel) return byModel;
+    if (byModel) return { product: byModel, path: "model" as MatchPath };
   }
 
   // Products created before the key existed have none stored yet, so the
@@ -247,7 +272,7 @@ export async function findExistingProduct(
   // No Brand row for this name yet means no product carries it, so this
   // search has nothing it could match — and asking would only be an excuse
   // to create the brand up front, which is what filled the table with junk.
-  if (!brandId) return null;
+  if (!brandId) return { product: null, path: null };
 
   const legacyMatch = await db.product.findFirst({
     where: {
@@ -259,9 +284,19 @@ export async function findExistingProduct(
       title: row.title,
     },
   });
-  if (legacyMatch) return legacyMatch;
+  if (legacyMatch) return { product: legacyMatch, path: "legacy" as MatchPath };
 
-  return renamedSheetMatch(sourceId, row, brandId, sheetsInRun);
+  return {
+    product: await renamedSheetMatch(sourceId, row, brandId, sheetsInRun),
+    path: "renamedSheet" as MatchPath,
+  };
+}
+
+/** The same match, for callers that only want the product. */
+export async function findExistingProduct(
+  ...args: Parameters<typeof findExistingProductWithPath>
+) {
+  return (await findExistingProductWithPath(...args)).product;
 }
 
 /**
@@ -517,10 +552,22 @@ async function applyOneRow(
   // temp-SKU'd rows, plain SKU lookup otherwise — see findExistingProduct
   // for why this order matters (handles the temp -> real SKU upgrade case
   // without creating a duplicate).
-  const existing = await findExistingProduct(sourceId, row, existingBrandId, sheetsInRun, {
-    index: modelIndex,
-    claimedSkus: result.seenSkus,
-  });
+  const matched = await findExistingProductWithPath(
+    sourceId,
+    row,
+    existingBrandId,
+    sheetsInRun,
+    { index: modelIndex, claimedSkus: result.seenSkus },
+  );
+  const existing = matched.product;
+  /* Provenance for the row this product is about to be updated from: which
+     comparison accepted it, and the model the parser actually read off the
+     row — the exact value every guard in findExistingProductWithPath
+     compared. See Product.lastMatchPath. */
+  const provenance = {
+    lastMatchPath: existing ? matched.path : "created",
+    lastRowModel: row.model,
+  };
   const rawStock = totalStock(row);
 
   // Zero stock, never seen before: don't pull it into the system at all —
@@ -665,6 +712,7 @@ async function applyOneRow(
     sourceSheet: row.sheetName,
     sourceRowRef: row.rowIndex,
     sourceRowKey,
+    ...provenance,
     lastExcelSyncAt: new Date(),
     missingFromSourceSince: null,
     // Store policy: zero stock means fully off the site, not just
@@ -815,6 +863,7 @@ async function applyOneRow(
     rowCost !== existing.supplierCost;
 
   const stockOnlyUpdate = {
+    ...provenance,
     ...(renumberedSku ? { sku: renumberedSku, isTemporarySku: false } : {}),
     ...(adoptPrice ? { price: resolved } : {}),
     ...(adoptCost ? { supplierCost: rowCost } : {}),
