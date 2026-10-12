@@ -30,28 +30,28 @@ export default async function NoImagePage() {
     <div>
       <h1 className="text-2xl font-bold">מוצרים ללא תמונה</h1>
       <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
-        במלאי ובמחירון — ולא מופיעים באתר, כי מוצר בלי תמונה של עצמו לא מוצג. תמונה אחת מחזירה כל אחד מהם לאתר מיד,
-        בלי סנכרון ובלי פרסום מחדש. מי שמסומן <strong className="text-foreground">גם לא מפורסם</strong> צריך שני
-        דברים: תמונה, ולחיצה על פרסום.
+        לכולם יש מלאי והם במחירון, ולאף אחד מהם אין תמונה של עצמו — ולכן אף אחד מהם לא מופיע באתר. העמודה אומרת מה
+        חסר: ברובם <strong className="text-foreground">רק תמונה</strong>, והם עולים לאתר ברגע שהיא נוספת. בשאר חסרה
+        גם לחיצה על <strong className="text-foreground">פרסום</strong> בעמוד המוצר.
       </p>
       <InventoryTabs />
       <p className="text-muted-foreground mb-3 text-sm">
         {rows.length.toLocaleString("he-IL")} מוצרים · {value.toLocaleString("he-IL")} ₪ מלאי שלא ניתן למכור ·{" "}
-        <strong className="text-foreground">{unpublished.toLocaleString("he-IL")}</strong> מהם גם לא מפורסמים
+        <strong className="text-foreground">{unpublished.toLocaleString("he-IL")}</strong> מהם צריכים גם פרסום
       </p>
       <InventoryListTable
         rows={rows}
         empty="לכל המוצרים במלאי יש תמונה."
-        columnLabel="מצב"
+        columnLabel="מה חסר"
         column={(p) => {
           const row = rows.find((r) => r.id === p.id);
           if (!row) return null;
           return row.unpublished ? (
-            <span className="bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs font-semibold">
-              גם לא מפורסם
+            <span className="bg-destructive/10 text-destructive rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap">
+              תמונה + פרסום
             </span>
           ) : (
-            <span className="text-muted-foreground text-xs">מפורסם — חסרה תמונה</span>
+            <span className="text-muted-foreground text-xs whitespace-nowrap">תמונה בלבד</span>
           );
         }}
       />
