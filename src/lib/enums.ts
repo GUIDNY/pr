@@ -273,6 +273,22 @@ export const INVENTORY_ALERT_TYPES = [
      file-level check could not see this — the workbook changed every day
      because 26 other tabs changed. */
   "SHEET_STALE",
+  /* A sync replaced a product with a blank record on the same sheet row.
+     The 12 October 04:30 run did it fourteen times: it marked fourteen
+     enriched, photographed, published products as gone from the price list
+     and created an empty one for each, on the same tab, the same row index
+     and the same content hash. 93,130 ₪ of stock stopped being for sale and
+     the run reported SUCCESS, 15 added, 15 missing — two numbers that look
+     like a healthy morning. Nothing in the back office said otherwise, and
+     it was found five hours later only because the owner asked a question
+     about something else.
+     The cause is fixed (see rowStillNamesThisProduct), so this is not a
+     report of that bug: it is the check that would have caught it in one
+     minute, and will catch the next thing that does the same damage by a
+     route nobody has thought of. Raised from the watchdog's own cron, not
+     from inside a run, for the reason SYNC_STALE and SHEET_STALE are — a
+     run that is doing damage is not a reliable narrator of the damage. */
+  "PRODUCT_REPLACED_BY_BLANK",
 ] as const;
 export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
 
@@ -299,6 +315,7 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   SHEET_NOT_MAPPED: "לשונית במחירון לא זוהתה",
   ROW_CLAIMED_TWICE: "שורה אחת במחירון נתבעת על ידי כמה מוצרים",
   SHEET_STALE: "לשונית לא מתעדכנת",
+  PRODUCT_REPLACED_BY_BLANK: "מוצר יצא מהאתר ורשומה ריקה נכנסה במקומו",
 };
 
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;

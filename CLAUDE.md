@@ -295,6 +295,17 @@ hosts in `blocked-image-hosts.ts` outright. `npm run check:images` guards both r
   read `SUCCESS`. Anything new that can stop the catalog updating needs a check
   that does not live inside the thing that stops.
 
+  The same watchdog now also asks whether a run **swapped a live product for a
+  blank record on its own row** — `checkReplacedProducts`. It happened twice in
+  two days (45 products on 11 October at 19:39, 14 more on 12 October at 04:30,
+  ~₪340,000 of stock off the site) and both runs reported `SUCCESS` with a tidy
+  "N added, N missing". It is keyed on one run's own change log —
+  `PRODUCT_MISSING_FROM_SOURCE` and `NEW_PRODUCT` on the same tab and row in the
+  same pass — and not on `sourceRowKey`, which **collides**: the first version
+  paired on that hash and produced 55 matches against the live catalogue,
+  including a ₪2,400 cooktop against a ₪10,500 one. Do not treat that key as an
+  identity.
+
 - **Secrets live in the Vercel dashboard only** — `PRODUCT_ENRICH_SECRET`,
   `SUPABASE_SERVICE_ROLE_KEY` and the rest are not in `.env` and not in the repo.
 

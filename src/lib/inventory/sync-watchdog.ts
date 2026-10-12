@@ -1,6 +1,14 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { openHoursBetween, STALE_AFTER_OPEN_HOURS } from "@/lib/inventory/office-hours";
+import {
+  pairReplacements,
+  type ReplacedProduct,
+  type RunCasualty,
+  type RunArrival,
+} from "@/lib/inventory/replaced-products";
+
+export type { ReplacedProduct };
 
 /**
  * Are the price sheets still arriving?
@@ -352,4 +360,142 @@ export async function reconcileStaleSheetAlerts(): Promise<SheetFreshness[]> {
   }
 
   return sheets;
+}
+
+/** How far back a run counts. Three days, so a Friday incident is still
+    reported when the office opens on Sunday — the check runs every three
+    hours, but nobody is reading it over a weekend. */
+const REPLACEMENT_WINDOW_HOURS = 72;
+
+export async function checkReplacedProducts(): Promise<ReplacedProduct[]> {
+  const since = new Date(Date.now() - REPLACEMENT_WINDOW_HOURS * 3_600_000);
+  /* Both sides out of the run's own change log. The sync writes
+     PRODUCT_MISSING_FROM_SOURCE and NEW_PRODUCT in the same pass over the
+     same sheet, so a pair of them on one row of one tab in one run is that
+     run stating, in its own record, that it swapped one product for
+     another. Nothing is inferred from a hash or a name. */
+  const events = await db.inventoryChangeEvent.findMany({
+    where: {
+      createdAt: { gte: since },
+      changeType: { in: ["PRODUCT_MISSING_FROM_SOURCE", "NEW_PRODUCT"] },
+      productId: { not: null },
+    },
+    select: {
+      changeType: true,
+      syncRunId: true,
+      product: {
+        select: {
+          id: true,
+          sku: true,
+          title: true,
+          price: true,
+          stockQty: true,
+          sourceSheet: true,
+          sourceRowRef: true,
+          missingFromSourceSince: true,
+        },
+      },
+    },
+  });
+
+  const lost: RunCasualty[] = [];
+  const created: RunArrival[] = [];
+  for (const e of events) {
+    const p = e.product;
+    if (!p) continue;
+    const common = {
+      id: p.id,
+      syncRunId: e.syncRunId,
+      sheetName: p.sourceSheet,
+      rowRef: p.sourceRowRef,
+      sku: p.sku,
+    };
+    if (e.changeType === "PRODUCT_MISSING_FROM_SOURCE") {
+      lost.push({
+        ...common,
+        title: p.title,
+        price: p.price,
+        stockQty: p.stockQty,
+        stillGone: p.missingFromSourceSince !== null,
+      });
+    } else {
+      created.push(common);
+    }
+  }
+  return pairReplacements(lost, created);
+}
+
+/**
+ * One alert for the whole event, withdrawn when it is no longer true.
+ *
+ * One and not fourteen, deliberately. Fourteen CRITICALs in a list is a
+ * list a person scrolls, and the thing they need to know is a single fact
+ * — "this morning's run swapped fourteen products for empty records" —
+ * with the biggest one named so it can be checked in a click.
+ */
+export async function reconcileReplacedProductAlert(): Promise<ReplacedProduct[]> {
+  const replaced = await checkReplacedProducts();
+  const open = await db.inventoryAlert.findMany({
+    where: { type: "PRODUCT_REPLACED_BY_BLANK", isResolved: false },
+    select: { id: true, message: true },
+  });
+
+  if (replaced.length === 0) {
+    if (open.length > 0) {
+      await db.inventoryAlert.updateMany({
+        where: { id: { in: open.map((a) => a.id) } },
+        data: { isResolved: true, resolvedAt: new Date() },
+      });
+    }
+    return [];
+  }
+
+  /* Only what is still off the site. A pair somebody has already put back
+     is history, and an alert that keeps naming it is an alert nobody can
+     close. */
+  const open_ = replaced.filter((r) => r.stillGone);
+  if (open_.length === 0) {
+    if (open.length > 0) {
+      await db.inventoryAlert.updateMany({
+        where: { id: { in: open.map((a) => a.id) } },
+        data: { isResolved: true, resolvedAt: new Date() },
+      });
+    }
+    return [];
+  }
+  const total = open_.reduce((sum, r) => sum + r.value, 0);
+  const worst = open_[0];
+  const message =
+    `${open_.length} מוצרים יצאו מהאתר וסנכרון יצר רשומה ריקה על אותה שורה בדיוק. ` +
+    `${total.toLocaleString("he-IL")} ₪ מלאי הפסיק להימכר. ` +
+    `הגדול שבהם: ${worst.lostTitle.slice(0, 60)} (מק״ט ${worst.lostSku}, לשונית ${worst.sheetName} שורה ${worst.rowRef}) ` +
+    `— הוחלף במק״ט ${worst.blankSku}. ` +
+    `זה לא מוצר חדש שהגיע: זו אותה שורה עם אותו תוכן, והמוצר שהיה עליה נעלם מהאתר.`;
+
+  const existing = open[0];
+  if (existing) {
+    if (existing.message !== message) {
+      await db.inventoryAlert.update({ where: { id: existing.id }, data: { message } });
+    }
+  } else {
+    await db.inventoryAlert.create({
+      data: {
+        type: "PRODUCT_REPLACED_BY_BLANK",
+        /* CRITICAL without hesitation: products a customer could buy an
+           hour ago cannot be bought now, and the run that did it reported
+           success. */
+        severity: "CRITICAL",
+        message,
+      },
+    });
+  }
+  /* Any others are a second event on top of an unread first one. Fold them
+     into the one alert rather than stacking, same as the sheet check. */
+  if (open.length > 1) {
+    await db.inventoryAlert.updateMany({
+      where: { id: { in: open.slice(1).map((a) => a.id) } },
+      data: { isResolved: true, resolvedAt: new Date() },
+    });
+  }
+  return open_;
 }
