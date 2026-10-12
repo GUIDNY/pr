@@ -532,27 +532,38 @@ function rowNamesAnotherModel(model: string | null, stockBreakdown: string | nul
 }
 
 /**
- * In the price list, in stock, published — and with no photograph.
+ * In the price list, in stock — and with no photograph.
  *
  * Off the site all the same, because PUBLIC_PRODUCT_WHERE requires an
  * image, which is why this is its own list rather than a column on another
  * one: these are products the shop believes it is selling and no customer
  * can see. A photo is the only thing standing between them and the site.
+ *
+ * Deliberately not filtered to isPublished, and that is the correction.
+ * Requiring it showed 52 of the 184 products in this state and hid 132 —
+ * every one of them a product with stock and no photo, which is the same
+ * piece of work whether somebody has pressed publish yet or not. Worse,
+ * the hidden 132 were on no tab at all: they are not "new", not "a
+ * problem", and not on the site, so a count that was supposed to account
+ * for every product in stock came up 132 short with nowhere to look. The
+ * flag is reported on the row instead, because a product that needs a
+ * photo *and* publishing needs to be told so.
  */
-export async function getMissingImage(limit = 300): Promise<ProductLine[]> {
+export async function getMissingImage(
+  limit = 300,
+): Promise<(ProductLine & { unpublished: boolean })[]> {
   const rows = await db.product.findMany({
     where: {
       source: PRICE_LIST_SOURCE,
-      isPublished: true,
       stockQty: { gt: 0 },
       missingFromSourceSince: null,
       images: { none: {} },
     },
-    select: PRODUCT_LINE_SELECT,
+    select: { ...PRODUCT_LINE_SELECT, isPublished: true },
     orderBy: { price: "desc" },
     take: limit,
   });
-  return rows.map(toLine);
+  return rows.map((p) => ({ ...toLine(p), unpublished: !p.isPublished }));
 }
 
 export type ProblemReason =
