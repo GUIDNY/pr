@@ -47,10 +47,10 @@ export default async function ProblemProductsPage() {
     <div>
       <h1 className="text-2xl font-bold">מוצרים בעייתיים</h1>
       <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
-        מוצרים שמשהו בהם לא תקין — אין להם מחיר, נתוני המלאי שלהם סותרים את עצמם, או שהם בכלל לא מוצר אלא שורת סיכום
-        שנקלטה מהגיליון. מוצר יכול להופיע מכמה סיבות יחד.{" "}
-        <strong className="text-foreground">מה שאפשר להחזיר למכירה נמצא למעלה</strong>; מה שיצא מהמחירון בתחתית, כי
-        מוצר שהמחירון לא נושא יותר אינו במלאי — לא מוכרים אותו ואין בו מה לתקן.
+        מוצרים שיש להם מלאי ואי אפשר למכור אותם: אין להם מחיר, נתוני המלאי שלהם סותרים את עצמם, או שהם בכלל לא מוצר
+        אלא שורת סיכום שנקלטה מהגיליון. כל אחד מהם חוזר למכירה בתיקון אחד.{" "}
+        <strong className="text-foreground">מה שיצא מהמחירון לא מופיע כאן בכלל</strong> — מוצר שהמחירון לא נושא יותר
+        אינו במלאי.
       </p>
 
       <InventoryTabs />
@@ -147,7 +147,7 @@ export default async function ProblemProductsPage() {
                 <span
                   key={r}
                   className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                    r === "BELOW_COST" || r === "NOT_IN_PRICE_LIST" || r === "SUMMARY_ROW"
+                    r === "BELOW_COST" || r === "SUMMARY_ROW"
                       ? "bg-destructive/10 text-destructive"
                       : "bg-muted text-muted-foreground"
                   }`}

@@ -556,7 +556,6 @@ export async function getMissingImage(limit = 300): Promise<ProductLine[]> {
 }
 
 export type ProblemReason =
-  | "NOT_IN_PRICE_LIST"
   | "NEEDS_REVIEW"
   | "NO_PRICE"
   | "BELOW_COST"
@@ -564,7 +563,6 @@ export type ProblemReason =
   | "SUMMARY_ROW";
 
 export const PROBLEM_REASON_LABELS: Record<ProblemReason, string> = {
-  NOT_IN_PRICE_LIST: "לא במחירון יותר",
   NEEDS_REVIEW: "נתוני מלאי לא עקביים",
   NO_PRICE: "אין מחיר מכירה",
   BELOW_COST: "מתחת למחיר העלות",
@@ -596,8 +594,14 @@ export async function getProblemProducts(limit = 300): Promise<ProblemProduct[]>
          forty that are actually wrong. It is still annotated on a row that
          is here for another reason, because it is the thing that makes a
          product hard to match. */
+      /* Still carried by the price list. The owner's rule, said twice: a
+         product the supplier has dropped is not in stock and does not
+         exist, so it has no business on a page about products that have
+         stock. 129 of them were 84% of this list, there is nothing to fix
+         on any of them, and moving them to the bottom was not what he
+         asked for. */
+      missingFromSourceSince: null,
       OR: [
-        { missingFromSourceSince: { not: null }, stockQty: { gt: 0 } },
         { stockStatus: "NEEDS_REVIEW", stockQty: { gt: 0 } },
         { price: { lte: 0 }, stockQty: { gt: 0 } },
       ],
@@ -615,7 +619,6 @@ export async function getProblemProducts(limit = 300): Promise<ProblemProduct[]>
   const out: ProblemProduct[] = [];
   for (const p of rows) {
     const reasons: ProblemReason[] = [];
-    if (p.missingFromSourceSince !== null) reasons.push("NOT_IN_PRICE_LIST");
     if (p.stockStatus === "NEEDS_REVIEW") reasons.push("NEEDS_REVIEW");
     if (p.price <= 0) reasons.push("NO_PRICE");
     if (p.supplierCost !== null && p.supplierCost > 0 && p.price > 0 && p.price < p.supplierCost) {
@@ -643,7 +646,6 @@ export async function getProblemProducts(limit = 300): Promise<ProblemProduct[]>
      rows that are not products at all; and last, by a wide margin, the ones
      the supplier has stopped carrying. */
   const weight = (r: ProblemReason[]) =>
-    (r.includes("NOT_IN_PRICE_LIST") ? -1000 : 0) +
     (r.includes("BELOW_COST") ? 400 : 0) +
     (r.includes("NO_PRICE") ? 300 : 0) +
     (r.includes("NEEDS_REVIEW") ? 200 : 0) +
