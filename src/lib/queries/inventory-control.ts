@@ -630,14 +630,24 @@ export async function getProblemProducts(limit = 300): Promise<ProblemProduct[]>
     if (reasons.length === 0) continue;
     out.push({ ...toLine(p), reasons });
   }
-  /* Worst first by what it is, then by what it is worth: a product that is
-     being sold at a loss or has left the price list outranks one that is
-     merely missing a SKU. */
+  /* What can still be sold, first.
+     The order used to be "worst problem first", which put the 129 products
+     that have left the price list at the top — and they are the one group
+     on this page nobody is going to act on. The owner's rule, 12 October:
+     a product the price list no longer carries is not in stock, full stop.
+     We are not selling it, there is nothing to fix, and it was burying the
+     ones where fixing a single field puts a real product back on the shelf.
+     So the ordering is by what a person can do about it. A product bleeding
+     money on a live page is first; then the ones that are one field away
+     from sellable — a missing price, a stock figure we cannot trust; then
+     rows that are not products at all; and last, by a wide margin, the ones
+     the supplier has stopped carrying. */
   const weight = (r: ProblemReason[]) =>
+    (r.includes("NOT_IN_PRICE_LIST") ? -1000 : 0) +
     (r.includes("BELOW_COST") ? 400 : 0) +
-    (r.includes("NOT_IN_PRICE_LIST") ? 300 : 0) +
-    (r.includes("SUMMARY_ROW") ? 200 : 0) +
-    (r.includes("NEEDS_REVIEW") ? 100 : 0) +
+    (r.includes("NO_PRICE") ? 300 : 0) +
+    (r.includes("NEEDS_REVIEW") ? 200 : 0) +
+    (r.includes("SUMMARY_ROW") ? 100 : 0) +
     r.length;
   return out.sort(
     (a, b) => weight(b.reasons) - weight(a.reasons) || b.price * b.stockQty - a.price * a.stockQty,

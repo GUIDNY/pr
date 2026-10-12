@@ -22,6 +22,17 @@ import { isSelfHosted } from "@/lib/inventory/image-migration";
    next person to reconcile them loses an afternoon. */
 const FROM_A_PRICE_LIST = { source: { sourceType: "EXCEL", isActive: true } } as const;
 
+/* And still carried by it. The owner's rule, 12 October: a product the
+   price list no longer lists is not in stock, full stop. The quantity on
+   the record is the last thing the sheet said before it stopped saying
+   anything, and counting it made the summary bar claim 1,624 products in
+   stock when 129 of those are ones the supplier has dropped and nobody is
+   selling. The number stays on the record — if the supplier lists the
+   product again the sync overwrites it from the sheet on that run — it just
+   stops being counted as stock we have. */
+const STILL_CARRIED = { ...FROM_A_PRICE_LIST, missingFromSourceSince: null } as const;
+const IN_STOCK = { ...STILL_CARRIED, stockQty: { gt: 0 } } as const;
+
 export async function getInventorySummary() {
   const latestRun = await db.inventorySyncRun.findFirst({
     where: { status: { in: ["SUCCESS", "NO_CHANGES"] } },
@@ -42,14 +53,14 @@ export async function getInventorySummary() {
   ] = await Promise.all([
     // "Total products" means what it says on the inventory page's summary
     // bar: real, currently-in-stock products — not every row ever imported.
-    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockQty: { gt: 0 } } }),
-    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "IN_STOCK" } }),
-    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "OUT_OF_STOCK" } }),
-    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "LOW_STOCK" } }),
-    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "SUPPLIER_STOCK" } }),
-    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "DISPLAY_ONLY" } }),
-    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockStatus: "NEEDS_REVIEW" } }),
-    db.product.count({ where: { ...FROM_A_PRICE_LIST, stockQty: { gt: 0 }, isTemporarySku: true } }),
+    db.product.count({ where: IN_STOCK }),
+    db.product.count({ where: { ...STILL_CARRIED, stockStatus: "IN_STOCK" } }),
+    db.product.count({ where: { ...STILL_CARRIED, stockStatus: "OUT_OF_STOCK" } }),
+    db.product.count({ where: { ...STILL_CARRIED, stockStatus: "LOW_STOCK" } }),
+    db.product.count({ where: { ...STILL_CARRIED, stockStatus: "SUPPLIER_STOCK" } }),
+    db.product.count({ where: { ...STILL_CARRIED, stockStatus: "DISPLAY_ONLY" } }),
+    db.product.count({ where: { ...STILL_CARRIED, stockStatus: "NEEDS_REVIEW" } }),
+    db.product.count({ where: { ...IN_STOCK, isTemporarySku: true } }),
     db.inventoryChangeEvent.count({ where: { createdAt: { gte: new Date(Date.now() - 86400000) } } }),
     db.inventoryAlert.count({ where: { isResolved: false } }),
   ]);
@@ -145,7 +156,7 @@ export async function getInventoryProducts(filters: InventoryTableFilters) {
 
   // Zero-stock products don't belong in inventory management at all — they
   // never show here, full stop, not even behind a filter toggle.
-  const where: Record<string, unknown> = { ...FROM_A_PRICE_LIST, stockQty: { gt: 0 } };
+  const where: Record<string, unknown> = { ...IN_STOCK };
 
   if (alertType) where.alerts = { some: { type: alertType, isResolved: false } };
   else if (hasAnyAlert) where.alerts = { some: { isResolved: false } };
