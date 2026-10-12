@@ -10,6 +10,7 @@ import {
 } from "@/lib/queries/inventory-control";
 import { inspectNonPriceListProducts } from "@/actions/inventory-purge";
 import { PurgeNonPriceListPanel } from "@/components/admin/purge-non-price-list-panel";
+import { OffSiteRowActions } from "@/components/admin/off-site-row-actions";
 
 export const metadata = { title: "למה לא באתר | Buy Today Admin" };
 
@@ -56,7 +57,10 @@ export default async function OffSitePage() {
       <h1 className="text-2xl font-bold">למה לא באתר</h1>
       <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
         כל מוצר שיש לו מלאי והוא במחירון ואי אפשר לקנות אותו באתר, עם הסיבה האחת שעוצרת אותו. סיבה אחת לכל מוצר — זו
-        שצריך לטפל בה ראשונה — ולכן המספרים כאן מתחברים בדיוק לסך המלאי, בלי כפל ובלי מוצר שנופל בין הדפים.
+        שצריך לטפל בה ראשונה — ולכן המספרים כאן מתחברים בדיוק לסך המלאי, בלי כפל ובלי מוצר שנופל בין הדפים.{" "}
+        <strong className="text-foreground">״למה?״</strong> פותח את הנימוק המלא, ו-
+        <strong className="text-foreground">״אשר ופרסם״</strong> מבטל את הסימון ומעלה את המוצר לאתר — רק במקרים שבהם
+        הסימון הוא הדבר האחרון שחסר.
       </p>
 
       <InventoryTabs />
@@ -184,18 +188,23 @@ export default async function OffSitePage() {
           const row = rows.find((r) => r.id === p.id);
           if (!row) return null;
           return (
-            <span className="flex flex-wrap items-center gap-1">
-              <span
-                className={`rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
-                  row.reason === "NO_PRICE" || row.reason === "DO_NOT_PUBLISH"
-                    ? "bg-destructive/10 text-destructive"
-                    : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {OFF_SITE_LABELS[row.reason]}
+            <div className="flex flex-col gap-1">
+              <span className="flex flex-wrap items-center gap-1">
+                <span
+                  className={`rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                    row.reason === "NO_PRICE" || row.reason === "DO_NOT_PUBLISH"
+                      ? "bg-destructive/10 text-destructive"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {OFF_SITE_LABELS[row.reason]}
+                </span>
+                {row.isNew && <span className="text-muted-foreground text-xs">חדש מהסנכרון</span>}
               </span>
-              {row.isNew && <span className="text-muted-foreground text-xs">חדש מהסנכרון</span>}
-            </span>
+              {(row.why.length > 0 || row.canPublish) && (
+                <OffSiteRowActions productId={row.id} why={row.why} canPublish={row.canPublish} />
+              )}
+            </div>
           );
         }}
       />

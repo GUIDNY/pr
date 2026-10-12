@@ -693,11 +693,45 @@ export const OFF_SITE_ACTIONS: Record<OffSiteReason, string> = {
   NOT_PUBLISHED: "יש לו הכל ובכל זאת הוא מוסתר — להחליט אם להחזיר אותו לאתר",
 };
 
+/**
+ * The quarantine flags, spelled out.
+ *
+ * enrichmentStatus carries the kind of the objection and nothing else —
+ * MODEL_CONFLICT_DO_NOT_PUBLISH says a model number was not believed, not
+ * which one or why. So "סומן לא לפרסם" was a dead end on the page: a
+ * person could see that something had been decided and not what. This is
+ * half the answer, and the open alerts on the product are the other half.
+ */
+const QUARANTINE_REASONS: Record<string, string> = {
+  DUPLICATE_DO_NOT_PUBLISH: "זוהה כרשומה כפולה — אותו מוצר קיים ברשומה אחרת",
+  MODEL_CONFLICT_DO_NOT_PUBLISH: "קוד הדגם לא אומת — השורה במחירון והכותרת לא מסכימות על הדגם",
+  SPEC_CONFLICT_DO_NOT_PUBLISH: "המפרט סותר את עצמו בין המחירון לתיאור המוצר",
+  COLOR_AND_PRICE_CONFLICT_DO_NOT_PUBLISH: "הגוון והמחיר לא מסתדרים עם השורה במחירון",
+  NEEDS_REVIEW: "התוכן נכתב אוטומטית ולא אושר על ידי אדם",
+  NEEDS_MODEL_VERIFICATION: "קוד הדגם צריך אימות מול היצרן",
+  NEEDS_BRAND_FIX: "שיוך היצרן שגוי או לא ודאי",
+};
+
 export type OffSiteProduct = ProductLine & {
   reason: OffSiteReason;
   /** Waiting in the "new from the sheet" queue as well. An overlap, not a
       seventh reason — which is the thing the two tabs never said. */
   isNew: boolean;
+  /** The raw flag, so the page can say which objection this is. */
+  status: string;
+  /**
+   * Why this one is held, in Hebrew: the flag spelled out, then whatever
+   * the open alerts on the product actually say. The alert messages are
+   * where the detail lives — "קוד הדגם WFS9014GBB אינו קיים במקור רשמי"
+   * is an answer; "סומן לא לפרסם" is not.
+   */
+  why: string[];
+  /**
+   * Whether publishing it from this page is honest — every public gate
+   * except the flag is already satisfied, so the flag is the only thing
+   * between it and the site.
+   */
+  canPublish: boolean;
 };
 
 export async function getOffSiteProducts(): Promise<{
@@ -706,7 +740,7 @@ export async function getOffSiteProducts(): Promise<{
   onSite: number;
   byReason: { reason: OffSiteReason; count: number; value: number }[];
 }> {
-  const [products, newIds] = await Promise.all([
+  const [products, newIds, openAlerts] = await Promise.all([
     db.product.findMany({
       where: { source: PRICE_LIST_SOURCE, stockQty: { gt: 0 }, missingFromSourceSince: null },
       select: {
@@ -723,7 +757,32 @@ export async function getOffSiteProducts(): Promise<{
         distinct: ["productId"],
       })
       .then((rows) => new Set(rows.map((r) => r.productId))),
+    /* The detail behind a flag. NEW_FROM_SOURCE and MISSING_IMAGE are
+       excluded because they repeat what the row's own reason already says
+       — "waiting for a title, a category, a photo" under a line that reads
+       "no photograph" is noise, and the point of this is to answer a
+       question the label could not. */
+    db.inventoryAlert.findMany({
+      where: {
+        isResolved: false,
+        productId: { not: null },
+        type: { notIn: ["NEW_FROM_SOURCE", "MISSING_IMAGE"] },
+      },
+      select: { productId: true, message: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
+
+  const alertsByProduct = new Map<string, string[]>();
+  for (const a of openAlerts) {
+    if (!a.productId) continue;
+    const bucket = alertsByProduct.get(a.productId);
+    /* Three at most. One product carries nine open alerts and a cell with
+       nine sentences in it is read as carefully as a cell with none. */
+    if (bucket) {
+      if (bucket.length < 3) bucket.push(a.message);
+    } else alertsByProduct.set(a.productId, [a.message]);
+  }
 
   const rows: OffSiteProduct[] = [];
   let onSite = 0;
@@ -751,7 +810,22 @@ export async function getOffSiteProducts(): Promise<{
               : p.enrichmentStatus === "NEEDS_REVIEW"
                 ? "CONTENT_NEEDS_REVIEW"
                 : "NOT_PUBLISHED";
-    rows.push({ ...toLine(p), reason, isNew: newIds.has(p.id) });
+
+    const status = p.enrichmentStatus ?? "";
+    const why = [
+      ...(QUARANTINE_REASONS[status] ? [QUARANTINE_REASONS[status]] : []),
+      ...(alertsByProduct.get(p.id) ?? []),
+    ];
+    /* The three reasons where the flag is the only thing left. Everything
+       above them in the ladder is a real public gate — publishing a
+       product with no photograph or no price would put it nowhere and say
+       it had been dealt with. */
+    const canPublish =
+      reason === "DO_NOT_PUBLISH" ||
+      reason === "CONTENT_NEEDS_REVIEW" ||
+      reason === "NOT_PUBLISHED";
+
+    rows.push({ ...toLine(p), reason, isNew: newIds.has(p.id), status, why, canPublish });
   }
 
   const order: OffSiteReason[] = [

@@ -202,3 +202,103 @@ export async function toggleProductPublishAction(id: string, isPublished: boolea
   revalidatePath(`/admin/inventory/${id}`);
   return { success: true, error: null };
 }
+
+/**
+ * Publish a product that only its own quarantine flag is holding back.
+ *
+ * The flags — MODEL_CONFLICT_DO_NOT_PUBLISH and its relatives, and
+ * NEEDS_REVIEW — were a dead end in the back office: a person could see
+ * that something had been decided about a product and not what, and had no
+ * way to overrule it from the page that listed it. This is that way, and
+ * it is deliberately not toggleProductPublishAction: that one flips
+ * isPublished and leaves the flag saying "do not publish" on a published
+ * product, which is how a Haier fridge ended up live, marked as a
+ * duplicate, with the sheet's raw model code for a title.
+ *
+ * It re-reads the product and checks every public gate itself rather than
+ * trusting the page that offered the button — a page is a snapshot, and
+ * "published" on a product with no photograph or no price is a lie that
+ * reports the job as done.
+ */
+export async function approveAndPublishAction(id: string) {
+  const session = await requireAdmin();
+  const p = await db.product.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      price: true,
+      supplierCost: true,
+      stockQty: true,
+      stockStatus: true,
+      enrichmentStatus: true,
+      missingFromSourceSince: true,
+      _count: { select: { images: true } },
+    },
+  });
+  if (!p) return { success: false, error: "המוצר לא נמצא" };
+  if (p.missingFromSourceSince !== null) return { success: false, error: "המחירון לא נושא את המוצר יותר — אין מה לפרסם" };
+  if (p.stockQty <= 0) return { success: false, error: "אין מלאי" };
+  if (p.price <= 0) return { success: false, error: "אין מחיר מכירה — להזין מחיר קודם" };
+  if (p._count.images === 0) return { success: false, error: "אין תמונה — מוצר בלי תמונה לא מוצג באתר גם כשהוא מפורסם" };
+  if (p.stockStatus === "NEEDS_REVIEW") return { success: false, error: "נתוני המלאי לא עקביים — לבדוק את הכמות קודם" };
+  /* The owner's rule, stated flatly: a price can never be under the cost.
+     Publishing is the one moment it would start costing money. */
+  if (p.supplierCost !== null && p.supplierCost > 0 && p.price < p.supplierCost) {
+    return { success: false, error: `המחיר (${p.price} ₪) מתחת לעלות (${p.supplierCost} ₪)` };
+  }
+  /* And a price fault nobody has answered yet. "Below cost" does not catch
+     a placeholder: the Sauter mincer attachment carries a price of 1 ₪
+     against a cost of 1 ₪, which passes the comparison above and is
+     obviously not a price. These two alert types are the ones this action
+     deliberately leaves open — publishing says nothing about a money
+     problem — so publishing straight over one is the contradiction. */
+  const priceFault = await db.inventoryAlert.findFirst({
+    where: { productId: id, isResolved: false, type: { in: ["INVALID_PRICE", "PRICE_BELOW_COST"] } },
+    select: { message: true },
+  });
+  if (priceFault) {
+    return { success: false, error: `יש תקלת מחיר פתוחה על המוצר: ${priceFault.message.slice(0, 120)}` };
+  }
+
+  await db.product.update({
+    where: { id },
+    data: { isPublished: true, enrichmentStatus: "ENRICHED" },
+  });
+  /* The objections a person has just overruled. Not the money and stock
+     ones — publishing says nothing about a price below cost or a stock
+     figure that jumped, and resolving those here would hide them. */
+  const settled = await db.inventoryAlert.updateMany({
+    where: {
+      productId: id,
+      isResolved: false,
+      type: {
+        in: [
+          "NEW_FROM_SOURCE",
+          "URGENT_MISSING_MEDIA",
+          "MISSING_IMAGE",
+          "MISSING_MODEL",
+          "DUPLICATE_MODEL",
+          "DUPLICATE_SKU",
+          "UNMATCHED_ROW",
+          "MANUAL_URGENT",
+          "MANUAL_ATTENTION",
+        ],
+      },
+    },
+    data: { isResolved: true, resolvedAt: new Date(), resolvedById: session.sub },
+  });
+  await logAudit({
+    actorId: session.sub,
+    action: "PRODUCT_PUBLISHED",
+    entityType: "Product",
+    entityId: id,
+    metadata: { from: "off-site-page", clearedFlag: p.enrichmentStatus, alertsResolved: settled.count },
+  });
+  revalidatePath("/admin/inventory/problems");
+  revalidatePath("/admin/inventory");
+  revalidatePath(`/admin/inventory/${id}`);
+  revalidatePath(`/product/${p.slug}`);
+  return { success: true, error: null, title: p.title };
+}
