@@ -144,6 +144,18 @@ export const PUBLIC_PRODUCT_WHERE = {
      it, and in the layer that cannot go stale — the same argument as the
      four conditions above. Nothing is for sale without a number on it. */
   price: { gt: 0 },
+  /* And it came from a price list that is switched on.
+     missingFromSourceSince above answers "has the sheet stopped carrying
+     it", which is not the same question as "is it in a price list at all":
+     a product never imported from a sheet carries null there and sails
+     through. Two paths create one — the admin's new-product form and
+     POST /api/integrations/products — so the rule the owner stated on
+     11 October, that a product not in the price list must not appear on
+     the site, held only because nobody had used them yet.
+     Asked of the source rather than of a flag on the product, so switching
+     a workbook off takes its products down at the next page load and not
+     at the next sync. */
+  source: { is: { sourceType: "EXCEL", isActive: true } },
 } as const;
 
 type ProductWithRelations = {

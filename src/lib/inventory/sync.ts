@@ -1772,12 +1772,14 @@ export async function reconcileDuplicateRowClaims(): Promise<
  *
  * Three guards, and each is load-bearing:
  *
- * - **An open NEW_FROM_SOURCE alert.** That is what makes this safe. The
- *   alert is raised when the sync creates the product and resolved the
- *   moment it is live or dropped (see reconcileNewFromSource), so an open
- *   one means nobody has made a decision about this product yet. A product
- *   a person deliberately hid has no open alert, and isPublished keeps the
- *   meaning the rest of the file relies on: someone chose to hide this.
+ * - **Nobody took it off the site.** `unpublishedAt` is null unless a person
+ *   pressed unpublish, so isPublished keeps the meaning the rest of this
+ *   file relies on without having to be read as two different things.
+ *   The first version used an open NEW_FROM_SOURCE alert as the proxy for
+ *   "nobody has decided about this yet", and that is true only until the
+ *   queue entry closes: six products the enrichment agent finished an hour
+ *   after theirs had been resolved sat ready, photographed and priced,
+ *   with nothing in the system that would ever publish them.
  * - **ENRICHED.** Not merely "has an image". 91 products in stock have
  *   never been enriched — their title is still the sheet's raw
  *   "{brand} {model}" — and publishing one of those on the strength of a
@@ -1800,7 +1802,12 @@ export async function reconcileAutoPublish(): Promise<number> {
       stockStatus: { not: "NEEDS_REVIEW" },
       images: { some: {} },
       enrichmentStatus: "ENRICHED",
-      alerts: { some: { type: "NEW_FROM_SOURCE", isResolved: false } },
+      unpublishedAt: null,
+      /* And no unanswered money fault. "Below cost" does not catch a
+         placeholder — the Sauter mincer attachment is priced at ₪1 against
+         a cost of ₪1 — and publishing over an open price alert is
+         publishing over something nobody has looked at. */
+      alerts: { none: { type: { in: ["INVALID_PRICE", "PRICE_BELOW_COST"] }, isResolved: false } },
     },
     select: { id: true, sku: true, title: true },
   });

@@ -157,7 +157,13 @@ The flip is effectively permanent, so a wrong category set now will not self-cor
 ## Product visibility
 
 `PUBLIC_PRODUCT_WHERE` in `src/lib/queries/products.ts` is
-`isPublished && stockQty > 0 && images.some`. Store policy: an out-of-stock product is
+`isPublished && stockQty > 0 && images.some && stockStatus != NEEDS_REVIEW &&
+missingFromSourceSince == null && price > 0 && the source is an active EXCEL
+price list`. That last one closed a hole: `missingFromSourceSince` answers
+"has the sheet stopped carrying it", not "is it in a price list at all", so a
+product created by the admin form or by `POST /api/integrations/products`
+carried null there and passed. The rule held only because nobody had used
+those paths yet. Store policy: an out-of-stock product is
 not shown at all, not even with a badge — and neither is a product with no photograph
 of itself. Both are query-time gates, so a product returns to the site the moment it
 has stock and a photo, with no sync run in between.

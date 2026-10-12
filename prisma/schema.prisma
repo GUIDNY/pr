@@ -317,6 +317,18 @@ model Product {
   bondedStock            Int? // "בונדד עומר" / other bonded-warehouse columns
   stockBreakdown         String? // JSON snapshot of the raw per-column stock values, for transparency/debugging
   internalNotes          String? // raw הערות text preserved from source, admin-only
+  /// When a person took this product off the site, and null when nobody has.
+  ///
+  /// isPublished alone cannot tell "never published yet" from "somebody hid
+  /// this", and reconcileAutoPublish needed to. It used an open
+  /// NEW_FROM_SOURCE alert as the proxy — nobody has decided about this
+  /// product yet — which is true only until the queue entry closes. Six
+  /// products finished by the enrichment agent an hour after their entry was
+  /// resolved sat ready and hidden with nothing that would ever publish them.
+  /// Same shape as priceManualAt: a person's decision is recorded where a
+  /// machine can see it, instead of being inferred from a flag that means
+  /// two things.
+  unpublishedAt          DateTime?
   enrichmentStatus       String           @default("NOT_ENRICHED") // NOT_ENRICHED | ENRICHED | NEEDS_REVIEW
   sourceId               String?
   source                 InventorySource? @relation(fields: [sourceId], references: [id])

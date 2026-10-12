@@ -191,7 +191,13 @@ export async function resolveAlertAction(id: string) {
 
 export async function toggleProductPublishAction(id: string, isPublished: boolean) {
   const session = await requireAdmin();
-  await db.product.update({ where: { id }, data: { isPublished } });
+  /* Recorded, because isPublished alone means two different things — never
+     published yet, and taken off on purpose — and reconcileAutoPublish has
+     to tell them apart or it will put back something a person removed. */
+  await db.product.update({
+    where: { id },
+    data: { isPublished, unpublishedAt: isPublished ? null : new Date() },
+  });
   await logAudit({
     actorId: session.sub,
     action: isPublished ? "PRODUCT_PUBLISHED" : "PRODUCT_UNPUBLISHED",
