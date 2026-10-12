@@ -14,6 +14,8 @@ import {
   looksLikeOffsetStockRow,
   modelsCanBeTheSame,
   modelsAreTheSameAllowingTypedZero,
+  rowBindingLooksForeign,
+  rowModelWasReassigned,
   rowStillNamesThisProduct,
 } from "../src/lib/inventory/import-guards";
 import { resolvedPrice } from "../src/lib/inventory/diff-engine";
@@ -361,6 +363,168 @@ for (const [model, rowModel, lastRowModel, why] of ROW_MODEL_UNCHANGED) {
   }
 }
 
+// The same fourteen pairs again, against the price guard this time.
+//
+// rowModelWasReassigned has to be silent on every one of them. These are the
+// corrections enrichment made on purpose — the row never moved, column two
+// and column three are the same string — and a guard that read them as the
+// price list reassigning a SKU would freeze the price of every product that
+// has ever been enriched properly. That is the opposite of the failure it
+// exists for, and the more expensive one: 1,300 products would stop tracking
+// the price list to protect against 20.
+for (const [model, rowModel, lastRowModel, why] of ROW_MODEL_UNCHANGED) {
+  if (rowModelWasReassigned({ model, lastRowModel }, rowModel)) {
+    fail(`an enrichment correction is not a reassignment — ${why}: ${model} / ${rowModel}`);
+  }
+}
+
+// The price list moving a SKU onto a different appliance: the row's own model
+// changes, into something the product's model contradicts.
+//
+// The first is the one this was written for. On 12 October the shop offered a
+// Samsung RT53DG7A14WW — a 530-litre top-freezer — at 6,200 ₪, because SKU
+// 107012 in מקררים row 550 had become a RF60C7012SL, a 660-litre four-door
+// costing 5,700, and 6,200 is that row's קוד מנכ"ל. The fridge's own record,
+// holding row 536 whose model does say RT53DG7A14WW, was hidden at 3,600 ₪.
+// Nothing reported it: the SKU matched, and a matching SKU was the whole test.
+//
+// The rest are live pairs found by the same sweep, written here as the
+// transition — what the row said before it moved, and what it says now. Each
+// one's price is a different appliance's price if the move is real.
+const ROW_MODEL_REASSIGNED: [string, string, string, string][] = [
+  ["RT53DG7A14WW", "RF60C7012SL", "RT53DG7A14WW", "SKU 107012, the 6,200 ₪ fridge"],
+  ["KG49NSBBF", "RB34J3000B", "KG49NSBBF", "SKU 108336, a Siemens holding a Samsung's row"],
+  ["LFS-9021SBL", "SSA91MABL2", "LFS-9021SBL", "SKU 160913, a 10,900 ₪ range"],
+  ["PRO905LGGVXT", "MAS95CMFNNE", "PRO905LGGVXT", "SKU 161095, a 9,900 ₪ range"],
+  ["HRF825FW", "RWB640VRSGS", "HRF825FW", "SKU 105340, a Haier four-door"],
+  ["SR23HI48KE", "SN87TX02CE", "SR23HI48KE", "SKU 149703, two different Siemens dishwashers"],
+  ["FSK93727P", "FBF9443SBA", "FSK93727P", "SKU 0799, eleven units of it"],
+  ["HOR38G5FT", "HBMW28GB", "HOR38G5FT", "SKU 150026, an oven whose row names a microwave"],
+  ["HO-9903S", "HB237GBB3", "HO-9903S", "SKU 150238, a SOL oven on a Bosch row"],
+  ["CUISINE-7310LIX", "7300IX", "CUISINE-7310LIX", "SKU 157312, one digit apart and not the same oven"],
+  ["MWS5023W", "MW5235W", "MWS5023W", "SKU 185233, the white microwave"],
+  ["MX-Athens-WH", "MX-KU1801R", "MX-Athens-WH", "SKU 750070, a kettle"],
+];
+for (const [model, rowModel, lastRowModel, why] of ROW_MODEL_REASSIGNED) {
+  if (!rowModelWasReassigned({ model, lastRowModel }, rowModel)) {
+    fail(`the row was reassigned — ${why}: ${model} / ${rowModel} (was ${lastRowModel})`);
+  }
+}
+
+// And silence is never a reassignment. Each of these would be a price frozen
+// for no reason, which is the cost of guessing in the other direction.
+const ROW_MODEL_NOT_REASSIGNED: [string | null, string | null, string | null, string][] = [
+  ["RT53DG7A14WW", "RF60C7012SL", null, "a first run, with no previous row model to compare"],
+  ["RT53DG7A14WW", null, "RT53DG7A14WW", "a row with no model column"],
+  [null, "RF60C7012SL", "RT53DG7A14WW", "a product with no model of its own"],
+  ["RT53DG7A14WW", "RT53", "RT53DG7A14WW", "a row model too short to assert anything"],
+  ["P65", "NB P9", "P65", "a product model too short to assert anything"],
+  ["CMA583MB0", "CMA583MBO", "CMA583MB0", "a letter O typed where a zero belongs"],
+  ["HB317GTS0", "HB317GTSO", "HB317GTS0", "and the other way round"],
+  ["RT53DG7A14WW", "RT53DG7A14WW", "RF60C7012SL", "a row that has moved back onto us"],
+  ["8780IN", "CTAC8780AFSNE", "CTAC8780AFSNE", "the row carrying the longer code, us the short one"],
+];
+for (const [model, rowModel, lastRowModel, why] of ROW_MODEL_NOT_REASSIGNED) {
+  if (rowModelWasReassigned({ model, lastRowModel }, rowModel)) {
+    fail(`silence is not a reassignment — ${why}: ${model} / ${rowModel} (was ${lastRowModel})`);
+  }
+}
+
+// rowBindingLooksForeign, over the whole catalogue as it stood on
+// 12 October. The sweep returned 61 products whose row model shares no
+// three-character run with their own; 20 of those are real and the other 41
+// are the three shapes the filters know about. Every row here is a live
+// product, SKU and all, so when a filter stops working the fixture says which.
+const FOREIGN_BINDING: [string, string, string, string][] = [
+  ["107012", "RT53DG7A14WW", "RF60C7012SL", "the 6,200 ₪ fridge, 2,600 over its real price"],
+  ["108336", "KG49NSBBF", "RB34J3000B", "a Siemens iQ700 reading a Samsung's row"],
+  ["160913", "LFS-9021SBL", "SSA91MABL2", "a 10,900 ₪ range cooker"],
+  ["161095", "PRO905LGGVXT", "MAS95CMFNNE", "a 9,900 ₪ range cooker"],
+  ["105340", "HRF825FW", "RWB640VRSGS", "a Haier four-door at 8,200, twin of one at 7,500"],
+  ["149703", "SR23HI48KE", "SN87TX02CE", "two different Siemens dishwashers"],
+  ["109321", "RQ72", "HRF7100FW", "a 5,600 ₪ fridge"],
+  ["0799", "FSK93727P", "FBF9443SBA", "eleven units of a 4,800 ₪ dishwasher"],
+  ["150500", "NR-7520C", "73TSI500G", "a built-in at 2,900"],
+  ["157312", "CUISINE-7310LIX", "7300IX", "one digit apart and not the same oven"],
+  ["150238", "HO-9903S", "HB237GBB3", "a SOL oven on a Bosch row, twin of one at 1,300"],
+  ["151780", "CUISINE-7850B", "7800B", "a built-in oven at 2,300"],
+  ["150026", "HOR38G5FT", "HBMW28GB", "an oven whose row names a microwave"],
+  ["830653", "BN653", "EN85-B", "a coffee machine"],
+  ["180654", "AM9P022MX-B", "65009", "a microwave whose row prints another's code"],
+  ["180653", "MM9P022KG-S", "65008", "and the one beside it"],
+  ["185234", "MWS5023B", "MW5235B", "the black microwave"],
+  ["185233", "MWS5023W", "MW5235W", "and the white one"],
+  ["270004", "P65", "NB P9", "a TV mount whose own code is too short to assert"],
+  ["270064", "AL-55", "AL45", "two different mounts, four characters each"],
+  ["750070", "MX-Athens-WH", "MX-KU1801R", "a kettle at 150 against a cost of 58"],
+  ["157131", "OKW9440X", "BKS7131LX", "correctly bound, and flagged anyway — see the note in the guard"],
+];
+for (const [sku, model, lastRowModel, why] of FOREIGN_BINDING) {
+  const expected = !why.includes("too short to assert");
+  if (rowBindingLooksForeign({ sku, model, lastRowModel }) !== expected) {
+    fail(`foreign binding: expected ${expected} — ${why}: ${sku} ${model} / ${lastRowModel}`);
+  }
+}
+
+// The 41 the filters have to clear, by shape. A false positive here is an
+// afternoon somebody spends on a correctly bound product.
+const FAMILIAR_BINDING: [string, string, string, string][] = [
+  // A brand or marketing name sitting in the model column.
+  ["710008", "KM 1800 Black-E", "CASO", "brand name"],
+  ["770603", "ES603", "Ninja", "brand name"],
+  ["840003", "TB501EU", "GRAEF", "brand name"],
+  ["490043", "73179-2848", "Talia", "a product line"],
+  ["815624", "HD16", "SUPERSONIC", "the Dyson's marketing name"],
+  ["0927", "AM-1", "Bowers", "half of Bowers & Wilkins"],
+  ["750067", "MX-CHRL-BK", "Charleston", "the kettle's name, not its code"],
+  ["750069", "MX-CHLT-BK", "Charlotte", "and the other one"],
+  ["930043", "OM-8016S", "SNOW", "a winter line"],
+  ["930044", "OM-7010M", "WIND", "and the other"],
+  ["920014", "IK612-2X18W", "OM", "the brand, two letters"],
+  ["490086", "72422", "MAUNTTAINE", "a misspelt product line"],
+  // A wattage.
+  ["846811", "MSM6M8X1", "1200W", "wattage, not a model"],
+  ["846810", "MSM6M810", "1200W", "wattage"],
+  ["840421", "MSM4W421", "800W", "wattage"],
+  // The supplier's shorthand for a SKU we already agree on.
+  ["106356", "MDRF632FIF22D", "6356", "last four of the SKU"],
+  ["106368", "MDRT866FGL46", "6368", "last four of the SKU"],
+  ["126441", "MF100T70B/W-IL", "6441", "last four of the SKU"],
+  ["126442", "MF100T80B/W-IL", "6442", "last four of the SKU"],
+  ["157810", "MWB5634", "7810B", "SKU tail with a colour letter"],
+  /* The one shorthand row the SKU-tail filter does not clear: at 9
+     characters the tail is 44% of it, under the half the filter asks for.
+     Kept here, and expected to be flagged, so that nobody loosens the rule
+     back to "contains the SKU" — which is what let the 6,200 ₪ fridge
+     through the first draft. */
+  ["108911", "SJ-3850WH", "8911BK", "SKU tail with a colour"],
+  ["186567", "EM823A2GU-Silver", "6567", "last four of the SKU"],
+  ["196571", "60F49-SS", "6571", "last four of the SKU"],
+  ["186646", "MWB5634", "MW6646B", "SKU tail inside a code"],
+  ["155546", "MWB5634", "MW5546", "SKU tail inside a code"],
+  ["185634", "MW6623B", "MW5634X", "SKU tail inside a code"],
+  // And the fourteen enrichment corrections, which keep the stem.
+  ["0883", "CTAC8780AFSNE", "8780IN", "the stem 8780 survives the correction"],
+  ["0897", "SHI8080", "SIH 8080", "8080 survives two transposed letters"],
+  ["0909", "H 2861 B Grey", "H2861 Bgray", "Grey against Bgray"],
+  ["0910", "CMA583MB0", "CMA583MBO", "letter O for a zero"],
+  ["0911", "HB317GTS0", "HB317GTSO", "letter O for a zero"],
+  ["0912", "65QNED70B6T", "65QN70B6", "an LG the sheet abbreviates"],
+  ["0913", "86QNED85B6T", "85QNED85B", "and the 86-inch"],
+  ["0914", "DLW1059T3B", "DLW1095B", "a DeLonghi washer"],
+  ["0915", "HGN9333Z", "HGN9335Z", "one digit"],
+  ["0916", "HGN8333", "HGN8335", "one digit"],
+  ["0917", "HGN8433X", "HGN8435X", "one digit"],
+  ["0918", "JCF-88S", "JCF88 IX", "a wine fridge"],
+  ["0919", "BO-660GIV ICE", "BO660IV", "a Bompani the sheet abbreviates"],
+  ["0920", "FNT3676X", "3676X NF", "a Blomberg freezer"],
+];
+for (const [sku, model, lastRowModel, why] of FAMILIAR_BINDING) {
+  if (rowBindingLooksForeign({ sku, model, lastRowModel })) {
+    fail(`a correctly bound row must not be flagged — ${why}: ${sku} ${model} / ${lastRowModel}`);
+  }
+}
+
 // And it must not become a way in for a shifted block, which is the whole
 // reason the model guard is on those two paths. A row that has moved carries
 // its neighbour's model, which matches neither the product's model nor what
@@ -441,7 +605,10 @@ const total =
   /* These five were asserted but never counted, so the summary under-reported
      by eight before the row-model cases were added to it. */
   TYPED_ZERO_SAME.length + TYPED_ZERO_DIFFERENT.length +
-  ROW_MODEL_UNCHANGED.length + ROW_MODEL_MOVED.length + ROW_MODEL_SILENT.length;
+  ROW_MODEL_UNCHANGED.length + ROW_MODEL_MOVED.length + ROW_MODEL_SILENT.length +
+  /* The price guard, over the same fourteen corrections plus its own cases. */
+  ROW_MODEL_UNCHANGED.length + ROW_MODEL_REASSIGNED.length + ROW_MODEL_NOT_REASSIGNED.length +
+  FOREIGN_BINDING.length + FAMILIAR_BINDING.length;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${LABEL_URLS.length} label urls, ${PRODUCT_URLS.length} photo urls, ` +
@@ -454,6 +621,8 @@ console.log(
     `${TYPED_ZERO_SAME.length} typed zeros, ${TYPED_ZERO_DIFFERENT.length} refused folds, ` +
     `${REFUSED_BUT_HARMLESS.length} harmless refusal, ` +
     `${ROW_MODEL_UNCHANGED.length} unchanged rows, ${ROW_MODEL_MOVED.length} moved rows, ` +
+    `${ROW_MODEL_REASSIGNED.length} reassigned rows, ${ROW_MODEL_NOT_REASSIGNED.length} not reassigned, ` +
+    `${FOREIGN_BINDING.length} foreign bindings, ${FAMILIAR_BINDING.length} familiar bindings, ` +
     `${ROW_MODEL_SILENT.length} silent rows, ` +
     `${HTML_CASES.length} html descriptions)`,
 );

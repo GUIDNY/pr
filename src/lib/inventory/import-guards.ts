@@ -376,3 +376,150 @@ export function rowStillNamesThisProduct(
      name a real model and agree. */
   return modelsAreTheSame(product.lastRowModel ?? null, rowModel);
 }
+
+/**
+ * Has the price list moved this SKU onto a different appliance?
+ *
+ * The hole this closes. `bindingIsAssertable` in sync.ts believed a row
+ * with a real SKU outright — `!row.skuIsSynthetic` and nothing more — on
+ * the reasoning that the SKU is the supplier's own key and the identity
+ * signal the whole import rests on. It usually is. But it is a key the
+ * supplier is free to reuse, and when they reuse it the sync adopts the
+ * new occupant's price for the old product without a word.
+ *
+ * On 12 October a customer was offered a Samsung RT53DG7A14WW — a
+ * 530-litre top-freezer — at 6,200 ₪. SKU 107012 in מקררים row 550 had
+ * become a RF60C7012SL, a 660-litre four-door costing 5,700, and 6,200 is
+ * that row's קוד מנכ"ל. The fridge's real record, bound to row 536 whose
+ * model does say RT53DG7A14WW, was hidden at 3,600 ₪. Nothing anywhere
+ * reported it; the SKU matched, so there was nothing to report.
+ *
+ * Why the test is "did the row change" and not "does the row disagree":
+ * disagreement is the normal case and cannot be acted on. `Product.model`
+ * is enrichment's field — it writes the manufacturer's real code over the
+ * supplier's shorthand, so `8780IN` becomes `CTAC8780AFSNE` — and a string
+ * comparison cannot tell that apart from a row describing a different
+ * appliance. What can be told apart is *which side moved*. An enrichment
+ * correction moves the product's model and leaves the row alone. A
+ * reassignment moves the row. `lastRowModel` is what this row itself
+ * carried on the previous run, written by the sync and by nothing else, so
+ * it is the one field that answers that question.
+ *
+ * Both conditions, therefore:
+ *   - the row now prints a model that contradicts the product's own, and
+ *   - the row was printing something else last run.
+ *
+ * Silence is never a reassignment: a row with no model, a product with no
+ * model, or a first run with no `lastRowModel` to compare against all
+ * return false. A letter O typed where a zero belongs is not one either —
+ * these sheets are typed in fonts where the two are the same glyph, and
+ * CMA583MBO/CMA583MB0 is a real pair in this catalogue.
+ *
+ * The standing cases this does not catch are the ones where the row has
+ * *always* named another appliance, which no comparison between two runs
+ * can see. Those need the sheet itself: `npm run check:price-bindings`
+ * lists them and the back office shows them with the evidence.
+ */
+export function rowModelWasReassigned(
+  product: { model: string | null; lastRowModel?: string | null },
+  rowModel: string | null | undefined,
+): boolean {
+  const now = foldTypedZero(bareModel(rowModel));
+  const ours = foldTypedZero(bareModel(product.model));
+  const before = foldTypedZero(bareModel(product.lastRowModel));
+
+  // Every side has to say something a model can be read off.
+  if (now.length < MIN_ASSERTABLE_MODEL_LENGTH) return false;
+  if (ours.length < MIN_ASSERTABLE_MODEL_LENGTH) return false;
+  if (before.length < MIN_ASSERTABLE_MODEL_LENGTH) return false;
+
+  // The row still names us: nothing to see, whoever edited what.
+  if (ours.includes(now) || now.includes(ours)) return false;
+
+  // The row says the same thing it said last run. Then the product's model
+  // is what moved — enrichment correcting the supplier's shorthand — and
+  // that is not the sheet reassigning anything.
+  if (before.includes(now) || now.includes(before)) return false;
+
+  return true;
+}
+
+/**
+ * Does the row this product is bound to look like a different appliance's?
+ *
+ * The standing half of the problem rowModelWasReassigned guards. That one
+ * compares the row against itself across two runs and so only ever sees the
+ * moment a SKU moves; a SKU that was already pointing at the wrong appliance
+ * before anybody was watching is invisible to it, because the row has not
+ * changed since. Twenty live products were in exactly that state on
+ * 12 October, 72,676 ₪ of listed price, and the only reason they were found
+ * is that the owner opened one of the pages and recognised the price.
+ *
+ * It cannot be decided from the database — settling it needs the row itself
+ * — so this does not block anything. It raises a flag for a person, from the
+ * watchdog's own cron rather than from inside a sync, for the reason every
+ * other check there is: a run that is adopting a wrong price is not a
+ * reliable narrator of it.
+ *
+ * Which means precision matters more than reach here, since the cost of this
+ * is somebody's afternoon. The filters, in the order they earned their place
+ * when the whole catalogue was swept by hand (61 hits down to 20):
+ *
+ *   - **A shared three-character run clears it.** Every correction
+ *     enrichment makes keeps the manufacturer's own stem: 8780IN inside
+ *     CTAC8780AFSNE, 8080 in SIH 8080 against SHI8080, 2861B in both
+ *     spellings of the Miele. A row describing a different appliance shares
+ *     nothing — RT53DG7A14WW against RF60C7012SL has no three characters in
+ *     common anywhere. This one filter is what separates the two populations.
+ *   - **A model column with no digit is a brand name**, not a model: CASO,
+ *     Ninja, GRAEF, Charleston, SUPERSONIC. 24 of the 61.
+ *   - **"1200W" is a wattage.** Three more.
+ *   - **A row model echoing the product's own SKU is the supplier's
+ *     shorthand** — SKU 106356 against a row that says 6356, SKU 157131
+ *     against BKS7131LX. 13 of the 61, and all of them correctly bound.
+ */
+export function rowBindingLooksForeign(product: {
+  sku: string;
+  model: string | null;
+  lastRowModel?: string | null;
+}): boolean {
+  const ours = foldTypedZero(bareModel(product.model));
+  const row = foldTypedZero(bareModel(product.lastRowModel));
+  const rowRaw = bareModel(product.lastRowModel);
+
+  if (ours.length < MIN_ASSERTABLE_MODEL_LENGTH) return false;
+  if (row.length < MIN_ASSERTABLE_MODEL_LENGTH) return false;
+  if (ours.includes(row) || row.includes(ours)) return false;
+
+  // A brand name in the model column, or a wattage. Read off the unfolded
+  // string: folding O to zero would make "CASO" look like it has a digit.
+  if (!/[0-9]/.test(rowRaw)) return false;
+  if (/^[0-9]+W$/.test(rowRaw)) return false;
+
+  /* The supplier's own shorthand for the SKU we already agree on — but only
+     when the SKU is most of what the row says.
+     The first version of this cleared any row model containing the SKU's
+     last four characters, and the first thing the fixtures did with it was
+     clear SKU 107012 against RF60C7012SL, the 6,200 ₪ fridge this whole
+     guard exists for: the Samsung's code happens to contain 7012. A filter
+     that lets the founding case through is not a filter, and the reason it
+     did is that it had quietly gone back to "the SKU matches, so the row is
+     ours" — the assumption that failed in the first place.
+     So the tail has to be at least half of the row's model. The thirteen
+     shorthand rows in the catalogue run from 4 characters to 9 and the tail
+     is 44%–100% of each; a manufacturer's real code that merely contains
+     those four digits is 36% and under. BKS7131LX against SKU 157131 is the
+     one shorthand row this does not clear, at 44%, and one afternoon spent
+     on a correctly bound range hood is the right side to err on. */
+  const skuTail = bareModel(product.sku).slice(-4);
+  if (skuTail.length === 4 && rowRaw.includes(skuTail) && rowRaw.length <= 8) return false;
+
+  return !shareAnyRunOfThree(ours, row);
+}
+
+function shareAnyRunOfThree(a: string, b: string): boolean {
+  for (let i = 0; i + 3 <= a.length; i++) {
+    if (b.includes(a.slice(i, i + 3))) return true;
+  }
+  return false;
+}

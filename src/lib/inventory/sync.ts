@@ -28,6 +28,7 @@ import {
   looksLikeMarketingTitle,
   looksLikeMisplacedQuantity,
   looksLikeOffsetStockRow,
+  rowModelWasReassigned,
   rowStillNamesThisProduct,
   IMPLAUSIBLE_LINE_VALUE,
 } from "./import-guards";
@@ -1019,8 +1020,22 @@ async function applyOneRow(
      always trying to establish. It does not weaken it: a shifted block
      puts a different row here, and a different row's model agrees with
      neither field. See rowStillNamesThisProduct. */
+  /* And a real SKU is believed only until the row changes underneath it.
+     `!row.skuIsSynthetic` on its own was the whole test for a row that
+     carries a SKU, and it is the door the 12 October 6,200 ₪ fridge walked
+     through: the price list moved SKU 107012 onto a RF60C7012SL and the
+     sync adopted that row's price for a RT53DG7A14WW without a word,
+     because the SKU matched and the SKU was the end of the question. A SKU
+     is the supplier's key, not a promise about what it points at. See
+     rowModelWasReassigned — it fires only when the row's own model *moves*
+     into something that contradicts the product, that being the one thing
+     distinguishable from enrichment correcting our model and leaving the
+     row where it was. */
+  const rowWasReassigned = existing !== null && rowModelWasReassigned(existing, row.model);
+
   const bindingIsAssertable =
     existing !== null &&
+    !rowWasReassigned &&
     (!row.skuIsSynthetic ||
       modelsAreTheSameAllowingTypedZero(existing.model, row.model) ||
       modelsAreTheSame(existing.lastRowModel, row.model));
@@ -1089,11 +1104,28 @@ async function applyOneRow(
     adoptPrice ? resolved : null,
   );
 
+  /* A reassigned row freezes the price for good, not just for this run.
+     Detection is a one-shot: `rowModelWasReassigned` compares the row
+     against what the row said last run, and the sync then writes today's
+     model into `lastRowModel` as it always does. So on the next run the row
+     has "not changed" and the test is silent — while the SKU still points
+     at the wrong appliance. Refusing only inside this run would mean the
+     first sync after the reassignment holds the price and the second one
+     adopts it, which is worse than not guarding at all because it would
+     look like the guard worked.
+     priceManualAt is the field that already means "a person owns this
+     price, sync keep off". Setting it here says the same thing with the
+     same mechanism, keeps the price the product already had — the one from
+     before the row moved — and leaves the sheet's figure in the price tab
+     as a suggestion for whoever resolves the alert. */
   const stockOnlyUpdate = {
     ...provenance,
     ...(renumberedSku ? { sku: renumberedSku, isTemporarySku: false } : {}),
     ...(adoptPrice ? { price: resolved } : {}),
     ...(adoptCost ? { supplierCost: rowCost } : {}),
+    ...(rowWasReassigned && existing?.priceManualAt === null
+      ? { priceManualAt: new Date() }
+      : {}),
     stockStatus: data.stockStatus,
     stockQty: data.stockQty,
     stockBreakdown: data.stockBreakdown,
@@ -1374,6 +1406,33 @@ async function applyOneRow(
         `${row.title}: נמכר ב-${chargedPrice.toLocaleString("he-IL")} ₪ בעוד שעלות הספק בגיליון היא ` +
         `${supplierCost.toLocaleString("he-IL")} ₪ — הפסד של ${(supplierCost - chargedPrice).toLocaleString("he-IL")} ₪ לכל יחידה שתימכר. ` +
         `המחיר לא שונה אוטומטית; צריך להחליט עליו ולעדכן בכרטיס המוצר.`,
+    });
+  }
+
+  /* The price list moved this SKU onto a different appliance.
+     Deliberately not in ROW_STATE_ALERT_TYPES, so it does not auto-resolve:
+     the condition it reports is invisible to the next run by construction
+     (see the note at stockOnlyUpdate — lastRowModel is overwritten with
+     today's model, so tomorrow the row has "not changed"). An alert that
+     closed itself on the next pass would announce the reassignment once and
+     then quietly agree that everything was fine, which is the exact shape
+     of failure this whole file is a record of. A person resolves it, after
+     looking at the row. */
+  if (rowWasReassigned && existing) {
+    await upsertAlert({
+      type: "ROW_NAMES_ANOTHER_MODEL",
+      severity: "CRITICAL",
+      productId,
+      sourceId,
+      syncRunId,
+      sourceSku: sku,
+      message:
+        `${existing.title}: השורה במחירון (${row.sheetName} שורה ${row.rowIndex}) מדפיסה עכשיו דגם ` +
+        `${row.model ?? "?"} ובריצה הקודמת היא הדפיסה ${existing.lastRowModel ?? "?"}, ` +
+        `בעוד שהדגם של המוצר הוא ${existing.model ?? "?"}. ` +
+        `המק"ט כנראה הוקצה מחדש למוצר אחר, ולכן המחיר והעלות מהשורה הזאת לא אומצו ` +
+        `והמחיר הוקפא על ${existing.price.toLocaleString("he-IL")} ₪. ` +
+        `צריך לבדוק את השורה במחירון ולהחליט לאיזה מוצר היא שייכת.`,
     });
   }
 
@@ -1737,7 +1796,18 @@ export async function reconcileDuplicateRowClaims(): Promise<
         isPublished: false,
         stockQty: 0,
         stockStatus: "OUT_OF_STOCK",
-        enrichmentStatus: "DUPLICATE_DO_NOT_PUBLISH",
+        /* NEEDS_REVIEW and not an invented "DUPLICATE_DO_NOT_PUBLISH".
+           enums.ts is the single source of truth for every enum-like
+           column and this one allows three values; writing a fourth makes
+           the TypeScript union a lie, returns undefined from
+           ENRICHMENT_STATUS_LABELS so the back office renders a blank
+           cell, and silently drops the product out of every `=== "ENRICHED"`
+           and `!== "ENRICHED"` branch alike. Several agents had each
+           invented their own vocabulary here — 209 products across twelve
+           values that no schema, type or label knew about. The reason the
+           record is retired goes in internalNotes and in the alert, which
+           are free text and meant for it. */
+        enrichmentStatus: "NEEDS_REVIEW",
         sourceSheet: null,
         sourceRowRef: null,
         sourceRowKey: null,
@@ -1807,7 +1877,22 @@ export async function reconcileAutoPublish(): Promise<number> {
          placeholder — the Sauter mincer attachment is priced at ₪1 against
          a cost of ₪1 — and publishing over an open price alert is
          publishing over something nobody has looked at. */
-      alerts: { none: { type: { in: ["INVALID_PRICE", "PRICE_BELOW_COST"] }, isResolved: false } },
+      alerts: {
+        none: {
+          type: {
+            in: [
+              "INVALID_PRICE",
+              "PRICE_BELOW_COST",
+              /* A product whose row has been reassigned has a price nobody
+                 has vouched for since. Publishing it is the one thing that
+                 must not happen while the alert is open — see
+                 rowModelWasReassigned. */
+              "ROW_NAMES_ANOTHER_MODEL",
+            ],
+          },
+          isResolved: false,
+        },
+      },
     },
     select: { id: true, sku: true, title: true },
   });

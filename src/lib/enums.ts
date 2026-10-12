@@ -297,6 +297,23 @@ export const INVENTORY_ALERT_TYPES = [
      number falls further than stock running out accounts for — so whatever
      breaks the catalogue next is reported before anybody has worked out
      what it was. */
+  /* The row this product is bound to describes a different appliance.
+     A row with a real SKU was always believed outright — the SKU is the
+     supplier's own key and the identity signal the whole import rests on.
+     On 12 October a customer was shown a Samsung RT53DG7A14WW, a 530-litre
+     top-freezer, at 6,200 ₪: the price list had given SKU 107012 to a
+     RF60C7012SL instead, a 660-litre four-door, and the sync took that
+     row's price without hesitating because the SKU matched. The real
+     record for the fridge, holding the row whose model actually says
+     RT53DG7A14WW, was sitting hidden at 3,600 ₪. The shop was asking
+     2,600 ₪ too much for a week.
+     Raised when the model a real-SKU row prints *changes* into one that
+     contradicts the product — which is the moment a SKU is reassigned, and
+     the only moment the two cases can be told apart. An enrichment
+     correction moves the product's model and leaves the row alone; a
+     reassignment moves the row. While the alert is open the price and the
+     cost of that row are not adopted. */
+  "ROW_NAMES_ANOTHER_MODEL",
   "CATALOG_SHRANK",
 ] as const;
 export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
@@ -326,6 +343,7 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   SHEET_STALE: "לשונית לא מתעדכנת",
   PRODUCT_REPLACED_BY_BLANK: "מוצר יצא מהאתר ורשומה ריקה נכנסה במקומו",
   CATALOG_SHRANK: "מספר המוצרים באתר ירד",
+  ROW_NAMES_ANOTHER_MODEL: "השורה מדפיסה דגם של מוצר אחר",
 };
 
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;

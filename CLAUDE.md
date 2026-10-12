@@ -115,6 +115,81 @@ shifted block puts a *different* row at the position, and a different row's
 model matches neither field. `npm run check:guards` carries all fourteen pairs
 plus the moved-row and silent cases.
 
+## A real SKU is the supplier's key, not a promise about what it points at
+
+Every guard above is about a row with *no* SKU. A row that carries one was
+believed outright — `bindingIsAssertable` read `!row.skuIsSynthetic` and
+stopped there — because the SKU is the supplier's own identifier and the
+signal the whole import rests on.
+
+It is also one they are free to reuse. On 12 October a customer was offered a
+Samsung RT53DG7A14WW, a 530-litre top-freezer, at **6,200 ₪**. SKU 107012 in
+`מקררים` row 550 had become a **RF60C7012SL** — a 660-litre four-door costing
+5,700 — and 6,200 is that row's `קוד מנכ"ל`. The fridge's own record, holding
+row 536 whose model does say RT53DG7A14WW, was sitting hidden at **3,600 ₪**
+after a duplicate merge kept the wrong half. The shop was asking 2,600 ₪ too
+much and nothing anywhere reported it, because the SKU matched and a matching
+SKU was the whole test.
+
+Two halves to the fix, because they answer different questions:
+
+- **`rowModelWasReassigned`** (sync, blocking). A row whose model *moves* into
+  one the product's own model contradicts is a reassignment: stock is still
+  adopted, price and cost are not, `priceManualAt` is set so the refusal
+  outlives the run, and `ROW_NAMES_ANOTHER_MODEL` is raised. The test is "did
+  the row change", never "does the row disagree" — disagreement is the normal
+  case, since `Product.model` is enrichment's field and `8780IN` becoming
+  `CTAC8780AFSNE` would otherwise freeze the price of every properly enriched
+  product. What is distinguishable is *which side moved*: enrichment moves our
+  model, a reassignment moves the row, and `lastRowModel` is the only field
+  that can tell you.
+- **`rowBindingLooksForeign`** (watchdog, advisory). A SKU that had already
+  moved before anybody was watching is invisible to the test above by
+  construction — the row has not changed in months. So the catalogue is swept
+  from outside, and 20 live products were in exactly that state, 72,676 ₪ of
+  listed price. It cannot be settled from the database, so it raises a flag
+  and blocks nothing: once per product, ever, because the answer needs
+  somebody to open the price list and re-asking every three hours teaches
+  people to resolve it without looking.
+
+The advisory one keeps its precision with filters that were measured, not
+guessed — 61 raw hits down to 20. A shared three-character run clears it
+(every enrichment correction keeps the manufacturer's stem); a model column
+with no digit is a brand name (`CASO`, `Ninja`, `Charleston`); `1200W` is a
+wattage; and a row model that is *mostly* the product's own SKU is the
+supplier's shorthand. That last one has a trap in it: the first version
+cleared any row containing the SKU's last four characters, and the first thing
+the fixtures did was clear SKU 107012 against RF60C7012SL — the founding case
+— because the Samsung's code happens to contain `7012`. A filter written from
+"the SKU matches, so the row is ours" fails the same way the bug did.
+
+`npm run check:guards` carries all of it: the 14 enrichment corrections
+asserted against both guards, 12 reassignment transitions, and the 61 swept
+products split into the 22 the sweep should flag and the 40 it must not.
+
+## `enrichmentStatus` has three values, and the database now says so
+
+`enums.ts` is described above as the single source of truth for every
+enum-like column. It was true of the code and false of the database: 209
+products carried **twelve** values that no type, schema or label knew about —
+`DUPLICATE_DO_NOT_PUBLISH`, `MODEL_CONFLICT_DO_NOT_PUBLISH`,
+`NEEDS_MODEL_VERIFICATION`, `ENRICHED_NIGHT_NO_IMAGE_YET` — each one written
+by an agent (this one included) reaching for a word it needed and writing it
+straight in with raw SQL.
+
+Each is a lie in the TypeScript union, a blank cell wherever
+`ENRICHMENT_STATUS_LABELS` is indexed, and a silent fall-through in every
+`=== "ENRICHED"` *and* `!== "ENRICHED"` branch at once. The back office had
+grown a whole layer that read them back with `status.includes("DO_NOT_PUBLISH")`,
+so the invented vocabulary was load-bearing by the time anyone noticed.
+
+The reason a record is held was never a lifecycle state, which is why it never
+fitted: it has an author, a date, a body of text and an end, and
+`InventoryAlert` has all four. So the column is back to its three values, the
+objection lives in an alert (`QUARANTINE_ALERT_TYPES`), and both `Product`
+enum-like columns now carry a CHECK constraint — a rule that lives only in a
+document is one every new agent gets to rediscover.
+
 ## A SKU-less row is identified by every name it has ever used
 
 577 of the 2,031 rows carry no SKU, and a SKU is the only identifier that

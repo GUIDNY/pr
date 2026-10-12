@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { openHoursBetween, STALE_AFTER_OPEN_HOURS } from "@/lib/inventory/office-hours";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
+import { rowBindingLooksForeign } from "@/lib/inventory/import-guards";
 import {
   pairReplacements,
   type ReplacedProduct,
@@ -649,4 +650,129 @@ export async function reconcileCatalogSizeAlert(): Promise<CatalogSize> {
     });
   }
   return size;
+}
+
+// ---------------------------------------------------------------------------
+// A price that belongs to a different appliance
+// ---------------------------------------------------------------------------
+
+export type ForeignBinding = {
+  id: string;
+  sku: string;
+  title: string;
+  model: string | null;
+  rowModel: string | null;
+  sheet: string | null;
+  rowRef: number | null;
+  price: number;
+  supplierCost: number | null;
+  stockQty: number;
+  isPublished: boolean;
+};
+
+/**
+ * Products whose bound row names a different appliance than they do.
+ *
+ * The standing half of the 12 October fridge. `rowModelWasReassigned` in the
+ * sync catches the moment a SKU moves onto another product, and that is the
+ * only moment it is distinguishable from enrichment correcting our own
+ * model — but it is blind to a SKU that had already moved before anyone was
+ * looking. Twenty live products were in that state when the catalogue was
+ * first swept by hand, 72,676 ₪ of listed price, one of them a 530-litre
+ * top-freezer priced as a 660-litre four-door.
+ *
+ * Asked from outside a sync run, like every other check in this file, and
+ * for the sharper version of the same reason: the run cannot see this at
+ * all. Its own guard compares the row to the row, and a row that has not
+ * changed in months passes every test the run has.
+ *
+ * `rowBindingLooksForeign` carries the filters and the measurements behind
+ * them. This only has to decide who to ask about and how to say it.
+ */
+export async function checkForeignRowBindings(): Promise<ForeignBinding[]> {
+  const candidates = await db.product.findMany({
+    where: {
+      stockQty: { gt: 0 },
+      missingFromSourceSince: null,
+      model: { not: null },
+      lastRowModel: { not: null },
+      source: { is: { sourceType: "EXCEL", isActive: true } },
+    },
+    select: {
+      id: true,
+      sku: true,
+      title: true,
+      model: true,
+      lastRowModel: true,
+      sourceSheet: true,
+      sourceRowRef: true,
+      price: true,
+      supplierCost: true,
+      stockQty: true,
+      isPublished: true,
+    },
+  });
+
+  return candidates
+    .filter((p) => rowBindingLooksForeign(p))
+    .map((p) => ({ ...p, rowModel: p.lastRowModel, sheet: p.sourceSheet, rowRef: p.sourceRowRef }))
+    .sort((a, b) => b.price * b.stockQty - a.price * a.stockQty);
+}
+
+/**
+ * One alert per product, raised once and never re-raised.
+ *
+ * Deliberately not reconciled against current state the way
+ * CATALOG_SHRANK is. The question this asks cannot be answered from the
+ * database — it takes somebody opening the price list and reading the row —
+ * so re-raising it every three hours on a product a person has already
+ * looked at and cleared would train them to resolve it without looking,
+ * which is worse than not asking. A row that genuinely changes after that
+ * is the sync's transition guard's business, and it raises its own.
+ *
+ * So: ask once per product, ever. `isResolved` is not in the filter for the
+ * same reason.
+ */
+export async function reconcileForeignRowBindingAlerts(): Promise<ForeignBinding[]> {
+  const found = await checkForeignRowBindings();
+  if (found.length === 0) return found;
+
+  const alreadyAsked = await db.inventoryAlert
+    .findMany({
+      where: {
+        type: "ROW_NAMES_ANOTHER_MODEL",
+        productId: { in: found.map((f) => f.id) },
+      },
+      select: { productId: true },
+    })
+    .then((rows) => new Set(rows.map((r) => r.productId)));
+
+  const fresh = found.filter((f) => !alreadyAsked.has(f.id));
+  for (const f of fresh) {
+    await db.inventoryAlert.create({
+      data: {
+        type: "ROW_NAMES_ANOTHER_MODEL",
+        severity: "CRITICAL",
+        productId: f.id,
+        sourceSku: f.sku,
+        message:
+          `${f.title}: השורה במחירון (${f.sheet ?? "?"} שורה ${f.rowRef ?? "?"}) מדפיסה דגם ` +
+          `${f.rowModel ?? "?"}, והדגם של המוצר הוא ${f.model ?? "?"} — שני קודים שלא חולקים ` +
+          `אפילו שלושה תווים, כלומר כנראה שני מוצרים שונים. ` +
+          `המחיר שמוצג (${f.price.toLocaleString("he-IL")} ₪` +
+          (f.supplierCost ? `, עלות ${f.supplierCost.toLocaleString("he-IL")} ₪` : "") +
+          `) הוא המחיר של השורה הזאת. צריך לפתוח את המחירון ולבדוק לאיזה מוצר השורה שייכת.`,
+        metadata: JSON.stringify({
+          productModel: f.model,
+          rowModel: f.rowModel,
+          sheet: f.sheet,
+          row: f.rowRef,
+          price: f.price,
+          supplierCost: f.supplierCost,
+          raisedBy: "watchdog",
+        }),
+      },
+    });
+  }
+  return fresh;
 }

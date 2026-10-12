@@ -212,8 +212,8 @@ export async function toggleProductPublishAction(id: string, isPublished: boolea
 /**
  * Publish a product that only its own quarantine flag is holding back.
  *
- * The flags — MODEL_CONFLICT_DO_NOT_PUBLISH and its relatives, and
- * NEEDS_REVIEW — were a dead end in the back office: a person could see
+ * NEEDS_REVIEW, plus whatever open objection put it there, was a dead end
+ * in the back office: a person could see
  * that something had been decided about a product and not what, and had no
  * way to overrule it from the page that listed it. This is that way, and
  * it is deliberately not toggleProductPublishAction: that one flips
@@ -261,7 +261,17 @@ export async function approveAndPublishAction(id: string) {
      deliberately leaves open — publishing says nothing about a money
      problem — so publishing straight over one is the contradiction. */
   const priceFault = await db.inventoryAlert.findFirst({
-    where: { productId: id, isResolved: false, type: { in: ["INVALID_PRICE", "PRICE_BELOW_COST"] } },
+    where: {
+      productId: id,
+      isResolved: false,
+      /* ROW_NAMES_ANOTHER_MODEL belongs here and not in the settled list
+         below. It says the price on the page may be a different
+         appliance's — the 6,200 ₪ fridge — and that is not a judgement a
+         publish button overrules: it is answered by reading the row in the
+         price list, and until somebody has, publishing is the one action
+         that puts the wrong number in front of a customer. */
+      type: { in: ["INVALID_PRICE", "PRICE_BELOW_COST", "ROW_NAMES_ANOTHER_MODEL"] },
+    },
     select: { message: true },
   });
   if (priceFault) {
@@ -270,7 +280,11 @@ export async function approveAndPublishAction(id: string) {
 
   await db.product.update({
     where: { id },
-    data: { isPublished: true, enrichmentStatus: "ENRICHED" },
+    /* unpublishedAt back to null: it records that a person took this off
+       the site, and a person has just put it back. Leaving it set makes
+       the column disagree with isPublished and tells reconcileAutoPublish
+       a decision is standing that is not. */
+    data: { isPublished: true, enrichmentStatus: "ENRICHED", unpublishedAt: null },
   });
   /* The objections a person has just overruled. Not the money and stock
      ones — publishing says nothing about a price below cost or a stock

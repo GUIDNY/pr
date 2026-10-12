@@ -635,10 +635,17 @@ export async function getMissingImage(
       /* Whether it is still in the arrival queue, which is what decides
          between "will publish itself" and "somebody hid this". Same
          evidence reconcileAutoPublish uses, read the same way. */
+      /* Two questions off one relation, because Prisma selects a relation
+         once: is it still in the arrival queue (NEW_FROM_SOURCE), and has
+         somebody objected to it (QUARANTINE_ALERT_TYPES). The objection
+         outranks the missing photograph — it is the one state where
+         finding a picture is the wrong next move. */
       alerts: {
-        where: { type: "NEW_FROM_SOURCE", isResolved: false },
-        select: { id: true },
-        take: 1,
+        where: {
+          type: { in: ["NEW_FROM_SOURCE", ...QUARANTINE_ALERT_TYPES] },
+          isResolved: false,
+        },
+        select: { type: true },
       },
     },
     orderBy: { price: "desc" },
@@ -648,7 +655,11 @@ export async function getMissingImage(
     const status = p.enrichmentStatus ?? "";
     /* The conflict first, even on a published product: it is the one state
        where adding a photograph is the wrong next move. */
-    const blocker: ImageBlocker = status.includes("DO_NOT_PUBLISH")
+    const quarantined = p.alerts.some((a) =>
+      (QUARANTINE_ALERT_TYPES as readonly string[]).includes(a.type),
+    );
+    const isNew = p.alerts.some((a) => a.type === "NEW_FROM_SOURCE");
+    const blocker: ImageBlocker = quarantined
       ? "PHOTO_AND_CONFLICT"
       : p.isPublished
         ? "PHOTO"
@@ -656,7 +667,7 @@ export async function getMissingImage(
           ? "PHOTO_AND_CONTENT"
           : status !== "ENRICHED"
             ? "PHOTO_AND_REVIEW"
-            : p.alerts.length > 0
+            : isNew
               ? "PHOTO"
               : "PHOTO_AND_PUBLISH";
     return { ...toLine(p), blocker };
@@ -724,14 +735,31 @@ export const OFF_SITE_ACTIONS: Record<OffSiteReason, string> = {
  * half the answer, and the open alerts on the product are the other half.
  */
 const QUARANTINE_REASONS: Record<string, string> = {
-  DUPLICATE_DO_NOT_PUBLISH: "זוהה כרשומה כפולה — אותו מוצר קיים ברשומה אחרת",
-  MODEL_CONFLICT_DO_NOT_PUBLISH: "קוד הדגם לא אומת — השורה במחירון והכותרת לא מסכימות על הדגם",
-  SPEC_CONFLICT_DO_NOT_PUBLISH: "המפרט סותר את עצמו בין המחירון לתיאור המוצר",
-  COLOR_AND_PRICE_CONFLICT_DO_NOT_PUBLISH: "הגוון והמחיר לא מסתדרים עם השורה במחירון",
   NEEDS_REVIEW: "התוכן נכתב אוטומטית ולא אושר על ידי אדם",
-  NEEDS_MODEL_VERIFICATION: "קוד הדגם צריך אימות מול היצרן",
-  NEEDS_BRAND_FIX: "שיוך היצרן שגוי או לא ודאי",
 };
+
+/**
+ * An objection somebody raised about this record, as opposed to a field it
+ * is missing.
+ *
+ * This used to be read off `enrichmentStatus` — `status.includes("DO_NOT_PUBLISH")`
+ * — and that was the wrong column to read. `enrichmentStatus` is a
+ * three-value lifecycle (NOT_ENRICHED → ENRICHED | NEEDS_REVIEW) declared
+ * in enums.ts, and the strings this tested for were never in it: several
+ * agents had each invented their own vocabulary in the same column, 209
+ * products across twelve values — DUPLICATE_DO_NOT_PUBLISH,
+ * MODEL_CONFLICT_DO_NOT_PUBLISH, NEEDS_MODEL_VERIFICATION,
+ * ENRICHED_NIGHT_NO_IMAGE_YET. Each one is a lie in the TypeScript union, a
+ * blank cell wherever ENRICHMENT_STATUS_LABELS is indexed, and a silent
+ * fall-through in every `=== "ENRICHED"` branch in the sync.
+ *
+ * The reason a record is held is not a lifecycle state, which is why it
+ * never fitted: it has an author, a date, a body of text and an end, and
+ * InventoryAlert has all four. So the column is back to its three values
+ * and the objection lives in an alert, where the page was already reading
+ * the detail from anyway.
+ */
+export const QUARANTINE_ALERT_TYPES = ["MANUAL_URGENT", "ROW_NAMES_ANOTHER_MODEL"] as const;
 
 export type OffSiteProduct = ProductLine & {
   reason: OffSiteReason;
@@ -769,6 +797,14 @@ export async function getOffSiteProducts(): Promise<{
         isPublished: true,
         stockStatus: true,
         enrichmentStatus: true,
+        /* The objection, if there is one. See QUARANTINE_ALERT_TYPES —
+           this is the evidence that used to be dug out of
+           enrichmentStatus with a substring test. */
+        alerts: {
+          where: { type: { in: [...QUARANTINE_ALERT_TYPES] }, isResolved: false },
+          select: { id: true },
+          take: 1,
+        },
       },
     }),
     db.inventoryAlert
@@ -826,7 +862,7 @@ export async function getOffSiteProducts(): Promise<{
           ? "STOCK_NOT_TRUSTED"
           : p._count.images === 0
             ? "NO_IMAGE"
-            : (p.enrichmentStatus ?? "").includes("DO_NOT_PUBLISH")
+            : p.alerts.length > 0
               ? "DO_NOT_PUBLISH"
               : p.enrichmentStatus === "NEEDS_REVIEW"
                 ? "CONTENT_NEEDS_REVIEW"
@@ -994,7 +1030,11 @@ export async function getDuplicatePairs(limit = 60): Promise<DuplicatePair[]> {
       live: {
         ...toLine(twin),
         enriched: twin.enrichmentStatus === "ENRICHED",
-        quarantined: (twin.enrichmentStatus ?? "").includes("DO_NOT_PUBLISH"),
+        /* NEEDS_REVIEW, not a substring of an invented status — see
+           QUARANTINE_ALERT_TYPES. Read off the lifecycle column that
+           actually exists: a survivor nobody has approved is one a person
+           still has to look at before it is treated as the keeper. */
+        quarantined: twin.enrichmentStatus === "NEEDS_REVIEW",
         colour: (twin.colorName ?? "").trim(),
       },
       model: o.model ?? "",

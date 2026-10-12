@@ -4,6 +4,7 @@ import {
   reconcileStaleSheetAlerts,
   reconcileReplacedProductAlert,
   reconcileCatalogSizeAlert,
+  reconcileForeignRowBindingAlerts,
 } from "@/lib/inventory/sync-watchdog";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
@@ -50,11 +51,19 @@ export async function GET(request: Request) {
      explain. The other three each catch the failure they were written
      after; this one catches the next failure, whatever it turns out to
      be. */
-  const [freshness, sheets, replaced, size] = await Promise.all([
+  /* And a fifth, added after a customer was shown a 530-litre fridge at a
+     660-litre fridge's price: does any product's row name a different
+     appliance than the product does. The sync's own guard for this can
+     only see the moment a SKU is reassigned, which is the one moment it is
+     distinguishable from enrichment correcting our model — so a SKU that
+     moved before anybody was watching is invisible to the run by
+     construction, and twenty of them were. */
+  const [freshness, sheets, replaced, size, foreign] = await Promise.all([
     reconcileSyncStaleAlert(),
     reconcileStaleSheetAlerts(),
     reconcileReplacedProductAlert(),
     reconcileCatalogSizeAlert(),
+    reconcileForeignRowBindingAlerts(),
   ]);
   const staleSheets = sheets.filter((s) => s.stale);
   return NextResponse.json({
@@ -75,6 +84,18 @@ export async function GET(request: Request) {
       lostSku: r.lostSku,
       blankSku: r.blankSku,
       value: r.value,
+    })),
+    /* Newly asked about, not the standing total: an alert on one of these
+       is raised once per product and never re-raised, so an empty list
+       here means nothing new, not nothing wrong. */
+    foreignRowBindings: foreign.map((f) => ({
+      sku: f.sku,
+      model: f.model,
+      rowModel: f.rowModel,
+      sheet: f.sheet,
+      rowRef: f.rowRef,
+      price: f.price,
+      isPublished: f.isPublished,
     })),
     staleSheets: staleSheets.map((s) => ({
       sheetName: s.sheetName,
