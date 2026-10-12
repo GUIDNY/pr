@@ -713,26 +713,6 @@ async function applyOneRow(
   const finalStatus =
     status === "IN_STOCK" && stock <= threshold ? "LOW_STOCK" : status;
 
-  const changes = diffAgainstExisting(
-    row,
-    existing
-      ? {
-          id: existing.id,
-          sku: existing.sku,
-          isTemporarySku: existing.isTemporarySku,
-          sourceId: existing.sourceId,
-          price: existing.price,
-          stockQty: existing.stockQty,
-          title: existing.title,
-          model: existing.model,
-          missingFromSourceSince: existing.missingFromSourceSince,
-        }
-      : null,
-    /* What we are about to store, not what the row claims — see the note on
-       appliedStock. A refused quantity must not be reported as a change
-       that happened. */
-    stock,
-  );
 
   // Real SKU always wins. No real SKU: reuse the existing product's
   // already-assigned temp SKU (same logical product, same number as last
@@ -928,6 +908,33 @@ async function applyOneRow(
     rowCost !== null &&
     rowCost > 0 &&
     rowCost !== existing.supplierCost;
+
+  /* Computed here and not where the row is first read, because it has to
+     be told what the guards decided: the quantity that will be stored and
+     the price, if any, that will be adopted. See appliedStock and
+     appliedPrice in diff-engine.ts — a figure the sync refused must not
+     reach the changes page as a change that happened. */
+  const changes = diffAgainstExisting(
+    row,
+    existing
+      ? {
+          id: existing.id,
+          sku: existing.sku,
+          isTemporarySku: existing.isTemporarySku,
+          sourceId: existing.sourceId,
+          price: existing.price,
+          stockQty: existing.stockQty,
+          title: existing.title,
+          model: existing.model,
+          missingFromSourceSince: existing.missingFromSourceSince,
+        }
+      : null,
+    /* What we are about to store, not what the row claims — see the notes
+       on appliedStock and appliedPrice. A quantity or a price the guards
+       refused must not be reported as a change that happened. */
+    stock,
+    adoptPrice ? resolved : null,
+  );
 
   const stockOnlyUpdate = {
     ...provenance,

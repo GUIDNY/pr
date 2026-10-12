@@ -140,6 +140,31 @@ export function diffAgainstExisting(
    * has been decided yet.
    */
   appliedStock?: number,
+  /**
+   * The price actually written, when the caller has already decided it.
+   *
+   * Same argument as appliedStock and found the same way — by reading the
+   * changes page against the products. This morning's run logged 32 price
+   * changes and wrote almost none of them: a Fratelli gas cooktop
+   * "changed" from ₪1,500 to ₪11,000 and is still ₪1,500, a Siemens
+   * fridge from ₪10,400 to ₪3,500 and is still ₪10,400. The sync is not
+   * allowed to overwrite a price whose row it cannot assert — see
+   * adoptPrice in sync.ts, and the SKU-less rows that bound a ₪590 cooktop
+   * to a ₪3,100 row are why — so the sheet's figure and the stored figure
+   * routinely differ on purpose.
+   *
+   * Logging the sheet's number as a change that happened turns the one
+   * screen a person opens to see what the sync did into fiction, and the
+   * numbers it invents are alarming ones. Where the sheet disagrees and we
+   * did not adopt it is a real thing worth seeing, and it has its own
+   * screen — the price-gap tab, which reads the sheet live rather than
+   * replaying a log.
+   *
+   * `null` means "nothing was written", and produces no price event at
+   * all. Omitted falls back to the row's own figure, for a dry run or a
+   * caller that has decided nothing.
+   */
+  appliedPrice?: number | null,
 ): FieldChange[] {
   const changes: FieldChange[] = [];
   const newStock = appliedStock ?? totalStock(row);
@@ -149,9 +174,10 @@ export function diffAgainstExisting(
     return changes;
   }
 
-  const { price: resolved } = resolvedPrice(row);
-  if (resolved !== null && resolved !== existing.price) {
-    changes.push({ changeType: "PRICE_CHANGED", previousValue: existing.price, newValue: resolved });
+  const written =
+    appliedPrice === undefined ? (resolvedPrice(row).price ?? null) : appliedPrice;
+  if (written !== null && written !== existing.price) {
+    changes.push({ changeType: "PRICE_CHANGED", previousValue: existing.price, newValue: written });
   }
 
   const oldStock = existing.stockQty;
