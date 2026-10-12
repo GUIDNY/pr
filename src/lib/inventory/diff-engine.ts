@@ -117,10 +117,32 @@ export function deriveStockStatus(row: NormalizedProductRow, stock: number, hasC
 // by both the real sync and a "dry run" preview.
 export function diffAgainstExisting(
   row: NormalizedProductRow,
-  existing: ExistingProductSnapshot | null
+  existing: ExistingProductSnapshot | null,
+  /**
+   * The quantity actually written, when the caller has already decided it.
+   *
+   * The sheet's figure and the figure we store are not always the same
+   * number: applyOneRow refuses a quantity that is really a price — the
+   * supplier typed 9900 into the stock column of a ₪12,900 fridge — and
+   * keeps what the product already had. The change log did not know that.
+   * It recomputed the stock from the raw row, so the 12 October run
+   * recorded six Samsung fridges jumping to 9,900, 9,901, 7,901, 6,901 and
+   * 5,002 units. Not one of those was written: the guard held and the
+   * stored quantities are still 0, 2, 1, 1 and 2.
+   *
+   * That is worse than a cosmetic wrong number on the changes page,
+   * because MAJOR_STOCK_CHANGE alerts are raised off these rows — so the
+   * back office reported a stock explosion that had already been refused,
+   * on the one screen a person reads to find out what the sync did.
+   *
+   * Omitted (a dry run, or a caller that has not applied anything) it falls
+   * back to the sheet's own total, which is the honest answer when nothing
+   * has been decided yet.
+   */
+  appliedStock?: number,
 ): FieldChange[] {
   const changes: FieldChange[] = [];
-  const newStock = totalStock(row);
+  const newStock = appliedStock ?? totalStock(row);
 
   if (!existing) {
     changes.push({ changeType: "NEW_PRODUCT", previousValue: null, newValue: { sku: row.sku, title: row.title } });

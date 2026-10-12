@@ -728,6 +728,10 @@ async function applyOneRow(
           missingFromSourceSince: existing.missingFromSourceSince,
         }
       : null,
+    /* What we are about to store, not what the row claims — see the note on
+       appliedStock. A refused quantity must not be reported as a change
+       that happened. */
+    stock,
   );
 
   // Real SKU always wins. No real SKU: reuse the existing product's
