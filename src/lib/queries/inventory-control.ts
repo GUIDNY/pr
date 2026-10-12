@@ -804,17 +804,19 @@ export type DuplicatePair = {
  * 37 pairs, ₪253,940 of stock counted twice.
  *
  * The import no longer does this — a position match whose model agrees is
- * accepted as the same product under a new number, see modelsAreTheSame —
- * but the 37 that exist are a merge, and a merge is a decision: which
- * record keeps the images, the description and the public URL, and which
- * becomes a tombstone. Five of them are already marked
- * MODEL_CONFLICT_DO_NOT_PUBLISH by whoever triaged them, which is somebody
- * saying the model match itself is not to be trusted here. So this lists
- * the pairs and says who holds what; it does not merge anything.
+ * accepted as the same product under a new number, see modelsAreTheSame.
  *
- * Matched on the model and nothing else, which is a weaker claim than the
- * import makes and deliberately so: this is a list for a person to read,
- * and a pair that turns out not to be a pair costs them a glance.
+ * Nor is the merge a decision any more. 58 pairs were merged by hand over
+ * three rounds, every one of them the same way, and on 12 October the
+ * owner made it the rule: always keep the record holding the row, get rid
+ * of the other. reconcileDuplicateRowClaims in lib/inventory/sync.ts does
+ * that on every sync.
+ *
+ * So what is left here is the one case it refuses: **more than one live
+ * record passes the colour test**, which means picking a survivor would be
+ * picking arbitrarily. That is the Miele H 2861 BP in grey, black and
+ * stainless, and it is a real catalogue of variants, not a duplicate. The
+ * list exists so those stay visible instead of being quietly skipped.
  */
 export async function getDuplicatePairs(limit = 60): Promise<DuplicatePair[]> {
   const [orphans, live] = await Promise.all([
@@ -875,14 +877,19 @@ export async function getDuplicatePairs(limit = 60): Promise<DuplicatePair[]> {
        in its own צבע column and the enrichment copies it to colorName, so
        when both sides say something they have to say the same thing;
        silence on either side is not evidence either way and still pairs. */
-    const twin = (liveByModel.get(k) ?? []).find((c) => {
+    const candidates = (liveByModel.get(k) ?? []).filter((c) => {
       if (c.id === o.id) return false;
       const a = (o.colorName ?? "").trim();
       const b = (c.colorName ?? "").trim();
       if (a === "" || b === "") return true;
       return a === b;
     });
-    if (!twin) continue;
+    /* Exactly one and the sync has already merged it, so it is not here.
+       None and there is no pair. Only an ambiguous one survives to this
+       page — the same test reconcileDuplicateRowClaims refuses on, read the
+       same way, so the two cannot disagree about what is automatic. */
+    if (candidates.length < 2) continue;
+    const twin = candidates[0];
     pairs.push({
       orphan: {
         ...toLine(o),

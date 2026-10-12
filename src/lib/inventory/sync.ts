@@ -33,6 +33,7 @@ import {
 } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
 import { asciiSlug, usableSlugBase } from "@/lib/slug-base";
+import { recordSlugChange } from "@/lib/product-slug-history";
 import { submitUrls, productPaths } from "@/lib/indexnow";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 
@@ -1401,6 +1402,182 @@ export async function reconcileNewFromSource(): Promise<number> {
 }
 
 /**
+ * Fold a duplicate record into the one holding its sheet row.
+ *
+ * The owner's standing instruction, 12 October: "from now on, for every
+ * duplicate — always keep the record that holds the row, and get rid of
+ * the other." Three rounds of this were done by hand (58 records), and
+ * there is nothing in any of them a person decided that this cannot
+ * decide, so it stops being a queue.
+ *
+ * A duplicate here is one specific thing and not a guess: the supplier
+ * renumbered a row, the matcher bound it to a new record, and the old one
+ * was left holding a stale row position with stock on it. Both records
+ * name the same model, and the colour has to agree or be silent on one
+ * side — without that test a white oven gets folded into the same oven in
+ * stainless, which is a product deleted rather than a duplicate resolved.
+ * The five colour families in the catalogue (a Miele H 2861 BP in three
+ * finishes, a Gorenje GW951MB in three) are exactly what that test is
+ * protecting.
+ *
+ * Two more guards that a hand merge applied by eye and this has to state:
+ *
+ * - **Exactly one candidate.** If two live records pass the colour test,
+ *   picking one is arbitrary, and arbitrary is how the wrong half of a
+ *   pair gets kept. Those are left for a person.
+ * - **The loser's claim on the row is released.** Learned the hard way
+ *   mid-merge: leave `sourceRowRef` set and the next sync sees two
+ *   claimants for one row and refuses it to both, so the merge takes the
+ *   product off the site instead of putting it on.
+ *
+ * It retires rather than deletes, and that is not timidity — OrderItem and
+ * CartItem reference Product with no cascade, so a delete either fails on
+ * a product somebody has bought or erases it from an order. The record is
+ * unpublished, its stock zeroed so it stops being counted twice, its row
+ * claim released, its SKU prefixed, and its public URL redirected to the
+ * survivor through the slug history. Every list, the sitemap and the
+ * Merchant feed drop it; the only thing that still resolves it is an order
+ * that already happened.
+ */
+export async function reconcileDuplicateRowClaims(): Promise<
+  { orphanSku: string; keptSku: string; model: string }[]
+> {
+  const normalise = (v: string | null) => (v ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  const CONTENT_SELECT = {
+    id: true,
+    sku: true,
+    slug: true,
+    model: true,
+    title: true,
+    colorName: true,
+    categoryId: true,
+    description: true,
+    shortDescription: true,
+    seoTitle: true,
+    descriptionSourceUrl: true,
+    specSourceUrl: true,
+    warrantyMonths: true,
+    enrichmentStatus: true,
+    stockQty: true,
+    _count: { select: { images: true } },
+  } as const;
+
+  const [orphans, live] = await Promise.all([
+    db.product.findMany({
+      where: {
+        source: { sourceType: "EXCEL", isActive: true },
+        missingFromSourceSince: { not: null },
+        stockQty: { gt: 0 },
+        model: { not: null },
+        /* A record with no row position is one a person deliberately
+           detached, or one an earlier merge already retired. Nothing in the
+           sync ever clears it, so it is the mark of "already decided". */
+        sourceRowRef: { not: null },
+      },
+      select: CONTENT_SELECT,
+    }),
+    db.product.findMany({
+      where: {
+        source: { sourceType: "EXCEL", isActive: true },
+        missingFromSourceSince: null,
+        model: { not: null },
+      },
+      select: CONTENT_SELECT,
+    }),
+  ]);
+
+  const liveByModel = new Map<string, typeof live>();
+  for (const p of live) {
+    const k = normalise(p.model);
+    /* Four characters, the floor modelsAreTheSame uses: a bare "750" would
+       pair half the catalogue with itself. */
+    if (k.length < 4) continue;
+    const bucket = liveByModel.get(k);
+    if (bucket) bucket.push(p);
+    else liveByModel.set(k, [p]);
+  }
+
+  const merged: { orphanSku: string; keptSku: string; model: string }[] = [];
+  for (const orphan of orphans) {
+    const k = normalise(orphan.model);
+    if (k.length < 4) continue;
+    const candidates = (liveByModel.get(k) ?? []).filter((c) => {
+      if (c.id === orphan.id) return false;
+      const a = (orphan.colorName ?? "").trim();
+      const b = (c.colorName ?? "").trim();
+      if (a === "" || b === "") return true;
+      return a === b;
+    });
+    if (candidates.length !== 1) continue;
+    const keeper = candidates[0];
+
+    /* The photograph is the thing most often on the wrong half: the record
+       the sheet now points at was created this week and has none, while the
+       one being retired was enriched weeks ago. Moved rather than copied,
+       and only when the survivor has none — a photo somebody chose for it
+       outranks one arriving from a merge. */
+    if (keeper._count.images === 0 && orphan._count.images > 0) {
+      await db.productImage.updateMany({
+        where: { productId: orphan.id },
+        data: { productId: keeper.id },
+      });
+    }
+
+    /* Same argument for the words. A survivor still carrying the sheet's
+       raw "{brand} {model}" and a department instead of a category, beside
+       a retiring twin that has a real Hebrew title and a description, is
+       the Haier HRF495FSS case: the merge was right and it published a
+       blank page. Only ever onto a survivor nobody has enriched, and never
+       the slug, the SKU, the price or the stock. */
+    if (keeper.enrichmentStatus !== "ENRICHED" && orphan.enrichmentStatus === "ENRICHED") {
+      await db.product.update({
+        where: { id: keeper.id },
+        data: {
+          title: orphan.title,
+          categoryId: orphan.categoryId,
+          description: orphan.description,
+          shortDescription: orphan.shortDescription,
+          seoTitle: orphan.seoTitle,
+          descriptionSourceUrl: orphan.descriptionSourceUrl,
+          specSourceUrl: orphan.specSourceUrl,
+          warrantyMonths: orphan.warrantyMonths ?? keeper.warrantyMonths,
+          colorName: (keeper.colorName ?? "").trim() === "" ? orphan.colorName : keeper.colorName,
+          enrichmentStatus: "ENRICHED",
+        },
+      });
+    }
+
+    /* The retired record's address answers on its own URL whatever its
+       flags say, so without this the duplicate is still a public page for a
+       product we are not selling. Handing the slug to the survivor turns
+       every link already shared into a redirect to the real product. */
+    const retiredSlug = `merged-${orphan.id}`;
+    await recordSlugChange(keeper.id, orphan.slug, keeper.slug);
+    await db.product.update({
+      where: { id: orphan.id },
+      data: {
+        slug: retiredSlug,
+        sku: orphan.sku.startsWith("MERGED-") ? orphan.sku : `MERGED-${orphan.sku}`,
+        isPublished: false,
+        stockQty: 0,
+        stockStatus: "OUT_OF_STOCK",
+        enrichmentStatus: "DUPLICATE_DO_NOT_PUBLISH",
+        sourceSheet: null,
+        sourceRowRef: null,
+        sourceRowKey: null,
+      },
+    });
+    await db.inventoryAlert.updateMany({
+      where: { productId: orphan.id, isResolved: false },
+      data: { isResolved: true, resolvedAt: new Date() },
+    });
+
+    merged.push({ orphanSku: orphan.sku, keptSku: keeper.sku, model: orphan.model ?? "" });
+  }
+  return merged;
+}
+
+/**
  * Publish a product the sheet brought in, once it has everything it needs.
  *
  * Because "press publish" was being carried as a job on a product with no
@@ -2175,8 +2352,13 @@ export async function runFullSync(
   await reconcileSourceConflictAlerts(syncRun.id);
   await reconcileRowClaimedTwice(syncRun.id);
   await reconcileResolvedUrgentFindings();
-  /* Before reconcileNewFromSource, which resolves the queue entry this one
-     uses as its evidence that nobody has decided about the product yet. */
+  /* The merge first: it is what gives a survivor its photograph and its
+     words, and a survivor that only just got both is exactly what
+     reconcileAutoPublish should then put on the site. Before
+     reconcileNewFromSource too, which resolves the queue entry
+     reconcileAutoPublish reads as evidence that nobody has decided about
+     the product yet. */
+  await reconcileDuplicateRowClaims();
   await reconcileAutoPublish();
   await reconcileNewFromSource();
   await reconcileUrgentMissingMedia();

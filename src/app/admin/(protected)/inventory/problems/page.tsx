@@ -114,16 +114,17 @@ export default async function OffSitePage() {
         <section className="border-border mb-5 overflow-hidden rounded-xl border">
           <header className="bg-muted/50 border-border border-b px-4 py-3">
             <h2 className="text-base font-bold">
-              כפילויות — אותו דגם בשתי רשומות{" "}
+              כפילויות שדורשות הכרעה{" "}
               <span className="bg-background border-border rounded-full border px-2 py-0.5 text-xs font-semibold">
                 {duplicates.length}
               </span>
             </h2>
             <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-              אותו דגם ואותו גוון בשתי רשומות — בדרך כלל כי המחירון מחזיק את המוצר בשתי שורות, אחת עם מק״ט ואחת בלי,
-              ואנחנו ממנים מק״ט לשורה שאין לה. הזיווג דורש שהגוון יסכים, אחרת תנור לבן היה מוצע למיזוג עם אותו תנור
-              בנירוסטה. <strong className="text-foreground">אף אחת מהן לא מוצגת באתר כרגע</strong>, וההחלטה היא איזו
-              רשומה נשארת — זו עם התמונות והכתובת הציבורית — ולאיזו עובר המלאי.
+              כפילות רגילה כבר לא מגיעה לכאן — הסנכרון משאיר את הרשומה שמחזיקה את השורה ומוריד את השנייה, לבד. מה
+              שנשאר כאן הוא המקרה היחיד שהוא מסרב להכריע בו:{" "}
+              <strong className="text-foreground">יותר מרשומה אחת פעילה מתאימה לאותו דגם</strong>, ואז בחירה היא
+              הגרלה. בדרך כלל אלה גוונים אמיתיים — אותו תנור מילה באפור, בשחור ובנירוסטה — ומיזוג שלהם הוא מחיקה של
+              מוצר שאתם מוכרים. צריך עין אנושית.
             </p>
           </header>
           <table className="w-full text-sm">
