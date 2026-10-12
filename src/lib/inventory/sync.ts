@@ -135,11 +135,112 @@ export function createTempSkuModelIndex(sourceId: string): TempSkuModelIndex {
 export type MatchPath =
   | "position"
   | "sku"
+  /** Matched on a name this row has used before — see rememberRowAliases. */
+  | "rowAlias"
   | "rowKey"
   | "model"
   | "legacy"
   | "renamedSheet"
   | "created";
+
+
+/**
+ * Remember every name a row has used for this product, and find a product
+ * by any name its row has ever used.
+ *
+ * The fourth guess, and the only one that accumulates. Position, the row
+ * hash and lastRowModel are each overwritten on every run, so they all
+ * describe the sheet as it looked last time and they all go stale together
+ * — which is exactly what happened on 11 and 12 October, when the supplier
+ * re-sorted a tab, rewrote the row text and enrichment had since corrected
+ * our model: three independent guesses, one shared failure, 59 products
+ * swapped for blank records.
+ *
+ * An alias is never overwritten. `8780IN` becoming `CTAC8780AFSNE` adds a
+ * name; the row is still recognised next month by the name it used last
+ * month. Same mechanism as ProductSlugHistory keeping an old URL alive,
+ * for the same reason: identifiers get renamed, and the rename is the
+ * moment you lose the thread.
+ *
+ * Only for SKU-less rows. A row with a SKU has a real identity and does
+ * not need a remembered one.
+ */
+const aliasValue = (v: string | null | undefined) =>
+  (v ?? "").replace(/[^A-Za-z0-9\u0590-\u05FF]/g, "").toUpperCase();
+
+export async function rememberRowAliases(
+  productId: string,
+  sourceId: string,
+  row: NormalizedProductRow,
+): Promise<void> {
+  if (!row.skuIsSynthetic) return;
+  const entries: { kind: string; value: string }[] = [];
+  const model = aliasValue(row.model);
+  /* Four characters, the floor every model comparison in this file uses: a
+     bare "750" names half the catalogue. */
+  if (model.length >= 4) entries.push({ kind: "MODEL", value: model });
+  const key = sourceRowKeyFor(row);
+  if (key) entries.push({ kind: "ROWKEY", value: key });
+  if (entries.length === 0) return;
+
+  for (const e of entries) {
+    /* createMany rather than upsert, and skipDuplicates doing the work:
+       the unique index is on (source, sheet, kind, value) and not on the
+       product, so a second product reaching for a name the first already
+       holds is simply not written. An identity two products claim is not
+       an identity — the holder keeps it and the newcomer falls through to
+       the ordinary guesses rather than stealing its row. */
+    await db.productRowAlias.createMany({
+      data: [{ productId, sourceId, sheetName: row.sheetName, kind: e.kind, value: e.value }],
+      skipDuplicates: true,
+    });
+  }
+  await db.productRowAlias.updateMany({
+    where: {
+      productId,
+      sourceId,
+      sheetName: row.sheetName,
+      OR: entries.map((e) => ({ kind: e.kind, value: e.value })),
+    },
+    data: { lastSeenAt: new Date() },
+  });
+}
+
+/** The product this row has been bound to before, under any name it has
+    carried. Null when nothing has, or when the row names nothing. */
+export async function findByRowAlias(
+  sourceId: string,
+  row: NormalizedProductRow,
+): Promise<{ id: string } | null> {
+  if (!row.skuIsSynthetic) return null;
+  const candidates: { kind: string; value: string }[] = [];
+  const key = sourceRowKeyFor(row);
+  /* The hash first: it is computed from the whole row and is the narrower
+     claim. The model is a single column and a supplier can legitimately
+     repeat it. */
+  if (key) candidates.push({ kind: "ROWKEY", value: key });
+  const model = aliasValue(row.model);
+  if (model.length >= 4) candidates.push({ kind: "MODEL", value: model });
+
+  for (const c of candidates) {
+    const hit = await db.productRowAlias.findUnique({
+      where: {
+        sourceId_sheetName_kind_value: {
+          sourceId,
+          sheetName: row.sheetName,
+          kind: c.kind,
+          value: c.value,
+        },
+      },
+      select: { productId: true, product: { select: { missingFromSourceSince: true } } },
+    });
+    /* A product the price list has dropped does not come back on an alias
+       alone — that is the sheet having stopped carrying it, and reviving it
+       here would undo a decision the sync already made deliberately. */
+    if (hit && hit.product.missingFromSourceSince === null) return { id: hit.productId };
+  }
+  return null;
+}
 
 /**
  * findExistingProduct, and which door the match came through.
@@ -266,10 +367,23 @@ export async function findExistingProductWithPath(
     };
   }
 
-  // A row with no SKU, whose position has moved. What identifies it is what
-  // the sheet says about it, which is what sourceRowKey stores — see
-  // source-row-key.ts for why the product's own brand/model/title cannot be
-  // used here any more: those are precisely the fields we edit.
+  /* A row with no SKU whose position has moved — and the first thing to
+     ask is whether we have met this row before under any name it has used.
+     See rememberRowAliases: the three guesses below each describe the
+     sheet as it looked on the last run and go stale together, which is how
+     59 products were swapped for blank records over two days. An alias is
+     never overwritten, so a row the supplier re-sorted and renamed is
+     still recognised by a name it carried a month ago. */
+  const aliased = await findByRowAlias(sourceId, row);
+  if (aliased) {
+    const product = await db.product.findUnique({ where: { id: aliased.id } });
+    if (product) return { product, path: "rowAlias" as MatchPath };
+  }
+
+  // Failing that, what the sheet says about the row right now, which is what
+  // sourceRowKey stores — see source-row-key.ts for why the product's own
+  // brand/model/title cannot be used here any more: those are precisely the
+  // fields we edit.
   const rowKey = sourceRowKeyFor(row);
   if (rowKey) {
     const keyMatch = await db.product.findFirst({
@@ -1033,6 +1147,13 @@ async function applyOneRow(
         : `${row.title}: מוצר חדש מהגיליון — ממתין לכותרת, קטגוריה, תמונה ומפרט`,
     });
   }
+
+  /* Whatever this row calls itself today, remembered against the product —
+     created or matched, it makes no difference. This is the one signal
+     that grows instead of being overwritten, so the next time the supplier
+     re-sorts the tab and renames the model at once, the row is still
+     recognised by a name it used before. See rememberRowAliases. */
+  await rememberRowAliases(productId, sourceId, row);
 
   // Full replace, not a diff — each sync states what the source currently
   // says, per-location; a location that vanished from the source should

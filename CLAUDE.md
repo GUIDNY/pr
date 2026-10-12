@@ -115,6 +115,33 @@ shifted block puts a *different* row at the position, and a different row's
 model matches neither field. `npm run check:guards` carries all fourteen pairs
 plus the moved-row and silent cases.
 
+## A SKU-less row is identified by every name it has ever used
+
+577 of the 2,031 rows carry no SKU, and a SKU is the only identifier that
+does not have to be guessed at. For those rows the import had three guesses —
+the row's position, a hash of the row's text, and the model the row printed
+last run — and each is overwritten every sync, so all three describe the sheet
+as it looked last time and all three go stale together. On 11 and 12 October
+they did: the supplier re-sorted a tab, rewrote the row text, and enrichment
+had since corrected our model. 59 live products were marked gone and replaced
+with blank records, ~₪340,000 off the site, both runs reporting `SUCCESS`.
+
+`ProductRowAlias` is the fourth signal and the only one that accumulates.
+Every model string and every row hash a product has been seen under is kept,
+so `8780IN` becoming `CTAC8780AFSNE` **adds** a name rather than losing one.
+0883 now answers to both; 0897 to `SIH8080` and `SHI8080`; 0909 to
+`H2861BGREY` and `H2861BGRAY` — the three renames that broke it. Same idea as
+`ProductSlugHistory`, and for the same reason: what people and suppliers do to
+an identifier is change it.
+
+Unique on `(sourceId, sheetName, kind, value)`, so a name two products claim is
+not an identity — the holder keeps it and the newcomer falls through to the
+ordinary guesses instead of stealing a row. An alias never revives a product
+the price list has dropped; that was a decision the sync made deliberately.
+
+It narrows the window, it does not close it. A SKU in the sheet is still the
+only thing that removes the guessing — see `docs/supplier-sheet-issues-*.md`.
+
 ## `enrichmentStatus` is load-bearing
 
 `NOT_ENRICHED` → `ENRICHED` (or `NEEDS_REVIEW`). Two paths set it: the enrich endpoint

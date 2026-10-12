@@ -338,6 +338,7 @@ model Product {
   reviews             Review[]
   changeEvents        InventoryChangeEvent[]
   alerts              InventoryAlert[]
+  rowAliases          ProductRowAlias[]
   inventoryLines      InventorySourceLine[]
   enrichmentCandidate EnrichmentCandidate?
   slugHistory         ProductSlugHistory[]
@@ -424,6 +425,46 @@ model EnrichmentCandidate {
 /// hold. A drop in the first with the second flat is us breaking
 /// something; both falling together is the supplier selling out, which is
 /// not a fault.
+/// Every identity a sheet row has ever used for this product.
+///
+/// 577 of the 2,031 rows in the price lists carry no SKU of their own, and
+/// a SKU is the only thing that identifies a row without guessing. For
+/// those rows the import has three guesses — the row's position, a hash of
+/// the row's text, and the model the row printed last time — and on
+/// 11 and 12 October all three missed at once for 59 products, because the
+/// supplier re-sorted the sheet *and* rewrote the text *and* enrichment had
+/// since corrected our model. Each guess is sound; they are simply
+/// correlated, so they fail together.
+///
+/// This is the fourth thing, and it is the one that accumulates rather than
+/// being overwritten. Every model string and every row hash a product has
+/// ever been seen under is kept, so the supplier renaming `8780IN` to
+/// `CTAC8780AFSNE` adds a name instead of losing one, and the row is still
+/// recognised by the name it used last month. Same idea as
+/// ProductSlugHistory, which keeps a URL working after a rename, for the
+/// same reason: the thing people and suppliers do to an identifier is
+/// change it.
+///
+/// Unique per (source, tab, kind, value): an identity two products both
+/// claim is not an identity, so the first to hold it keeps it and the
+/// second falls through to the ordinary guesses rather than stealing a row.
+model ProductRowAlias {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sourceId    String
+  source      InventorySource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  sheetName   String
+  /// MODEL — the model string the sheet printed. ROWKEY — sourceRowKeyFor.
+  kind        String
+  value       String
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  @@unique([sourceId, sheetName, kind, value])
+  @@index([productId])
+}
+
 model CatalogSizeSnapshot {
   id           String   @id @default(cuid())
   takenAt      DateTime @default(now())
@@ -933,6 +974,7 @@ model InventorySource {
   products     Product[]
   changeEvents InventoryChangeEvent[]
   alerts       InventoryAlert[]
+  rowAliases   ProductRowAlias[]
 }
 
 model InventorySyncRun {
