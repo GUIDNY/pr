@@ -695,6 +695,16 @@ export async function getDuplicatePairs(limit = 60): Promise<DuplicatePair[]> {
         missingFromSourceSince: { not: null },
         stockQty: { gt: 0 },
         model: { not: null },
+        /* Not one that has already been merged. A merge retires the losing
+           record and releases its claim on the sheet row — that release is
+           what stops the matcher seeing two claimants — and the retired
+           record then looks exactly like a fresh orphan: out of the price
+           list, with stock, with a model that matches its surviving twin.
+           So 13 of the 57 pairs on this page were pairs somebody had
+           already decided, offered back for deciding again. A record with
+           no row position is one a person deliberately detached; nothing
+           else in the sync ever clears it. */
+        sourceRowRef: { not: null },
       },
       select: { ...PRODUCT_LINE_SELECT, model: true, enrichmentStatus: true, colorName: true },
     }),
