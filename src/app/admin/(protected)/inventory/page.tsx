@@ -92,7 +92,17 @@ export default async function AdminInventoryPage({
               סונכרן {timeAgo(summary.latestRun.startedAt)} · {activeSourcesCount} מקורות נתונים מחוברים
             </p>
           )}
-          <InventorySyncButton />
+          <div className="flex items-center gap-2">
+            {/* A plain anchor and not a Link: this is a file download, and
+                Next's client router would try to navigate to it. */}
+            <a
+              href="/api/inventory/price-export"
+              className="border-border hover:bg-muted rounded-lg border px-3 py-2 text-sm font-semibold"
+            >
+              ייצוא מחירים (Excel)
+            </a>
+            <InventorySyncButton />
+          </div>
         </div>
       </div>
 

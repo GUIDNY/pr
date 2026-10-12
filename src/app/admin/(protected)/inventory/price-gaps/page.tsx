@@ -74,7 +74,13 @@ export default async function PriceGapsPage() {
             {contradicted} מהם שורה של מוצר אחר — לא לאמץ את המחיר
           </span>
         )}
-        <Link href="/admin/prices" className="text-brand ms-auto text-sm font-bold hover:underline">
+        <a
+          href="/api/inventory/price-export"
+          className="text-brand ms-auto text-sm font-bold hover:underline"
+        >
+          ייצוא כל המחירים לאקסל ↓
+        </a>
+        <Link href="/admin/prices" className="text-brand text-sm font-bold hover:underline">
           מסך המחירים ←
         </Link>
       </div>
