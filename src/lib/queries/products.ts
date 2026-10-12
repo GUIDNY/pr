@@ -476,9 +476,37 @@ export const getProductBySlug = cache(async (slug: string) => {
       attributeValues: { include: { attribute: true }, orderBy: { attribute: { sortOrder: "asc" } } },
       reviews: { where: { isApproved: true }, orderBy: { createdAt: "desc" } },
       supplier: true,
+      /* Where it came from, because the page has to answer the one question
+         PUBLIC_PRODUCT_WHERE answers for every list: is this product in a
+         price list at all. The page is reached by its own address, so no
+         listing gate protects it — see isOffCatalogue below. */
+      source: { select: { sourceType: true, isActive: true } },
     },
   });
 });
+
+/**
+ * Is this product outside the price lists entirely?
+ *
+ * The one condition of PUBLIC_PRODUCT_WHERE that the product page must
+ * enforce for itself. Every list, the search, the Finder, the cart and the
+ * feed spread that constant, so none of them can show a product the price
+ * lists do not carry — but the page is reached by its own URL and was
+ * rendering whatever existed at that slug. A product created by the admin
+ * form or by POST /api/integrations/products has no source at all, and had
+ * a fully working public page.
+ *
+ * Deliberately only this condition, and not the whole constant. Out of
+ * stock is not off the catalogue: the sitemap lists those URLs on purpose
+ * so Google does not drop and re-crawl them, and the page says "אזל
+ * מהמלאי" and offers no way to buy. 404-ing them would undo that.
+ */
+export function isOffCatalogue(
+  product: { source: { sourceType: string; isActive: boolean } | null } | null,
+): boolean {
+  if (!product) return false;
+  return product.source === null || product.source.sourceType !== "EXCEL" || !product.source.isActive;
+}
 
 /**
  * The slug a product carries *now*, given an address it used to carry.

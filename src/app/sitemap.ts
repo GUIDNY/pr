@@ -32,7 +32,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // The two content conditions stay, because a product with no photograph
     // or no publish flag really does 404.
     db.product.findMany({
-      where: { isPublished: true, images: { some: {} } },
+      /* And from a price list that is switched on. Out of stock stays in —
+         that is the whole point of the comment above — but a product the
+         price lists do not carry is redirected away by product/[slug], and
+         an address that redirects does not belong in a sitemap. */
+      where: {
+        isPublished: true,
+        images: { some: {} },
+        source: { is: { sourceType: "EXCEL", isActive: true } },
+      },
       // stockQty is read but not filtered on: the product URLs below still
       // want the sold-out ones, and the category gate further down wants
       // only the sellable ones. One query, two rollups.

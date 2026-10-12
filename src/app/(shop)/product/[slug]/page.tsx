@@ -2,7 +2,12 @@ import type { Metadata } from "next";
 import { shareMetadata } from "@/lib/seo/share-metadata";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { ProductPageView } from "@/components/product/product-page-view";
-import { getProductBySlug, getCurrentSlugForLegacySlug, hiddenProductFallback } from "@/lib/queries/products";
+import {
+  getProductBySlug,
+  getCurrentSlugForLegacySlug,
+  hiddenProductFallback,
+  isOffCatalogue,
+} from "@/lib/queries/products";
 
 // The public product page, and the reason it is worth having two of them.
 //
@@ -34,6 +39,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // canonical is indistinguishable from a 404 to anything reading the page —
   // which is exactly how it looked when this was checked in production.
   if (!product || !product.isPublished || product.images.length === 0) return {};
+  if (isOffCatalogue(product)) return {};
   // Always the product's own slug, never the requested one: a legacy
   // address renders nothing here (the page redirects before this matters),
   // and the live page must never point a canonical at a URL that 301s.
@@ -60,15 +66,23 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     if (current) permanentRedirect(`/product/${current}`);
     notFound();
   }
-
-  /* A product that is off the site — unpublished, or without a photo —
-     used to answer 404 here. Google was still ranking 41 such addresses
-     and sending a customer to an error page on one click in eight. The
-     product is not gone, so the address is sent somewhere real instead:
-     the published twin of the same brand and model when there is one,
-     permanently; its category otherwise, temporarily, because the
-     product may come back to this very address. See hiddenProductFallback. */
-  if (!product.isPublished || product.images.length === 0) {
+  /* A product that is off the site — unpublished, without a photo, or not
+     carried by any price list — used to answer 404 here. Google was still
+     ranking 41 such addresses and sending a customer to an error page on
+     one click in eight. The product is not gone, so the address is sent
+     somewhere real instead: the published twin of the same brand and model
+     when there is one, permanently; its category otherwise, temporarily,
+     because the product may come back to this very address. See
+     hiddenProductFallback.
+     The price-list condition is here and not only in PUBLIC_PRODUCT_WHERE
+     because this address is reached on its own — every list, the search,
+     the cart and the feed spread that constant and cannot show such a
+     product, while this page was rendering whatever existed at the slug. A
+     record created by the admin form or by POST /api/integrations/products
+     has no source at all and had a fully working public page. The owner's
+     rule, 11 October: a product that is not in the price list must not
+     appear on the site. */
+  if (!product.isPublished || product.images.length === 0 || isOffCatalogue(product)) {
     const fallback = await hiddenProductFallback(product);
     if (fallback.kind === "product") permanentRedirect(`/product/${fallback.slug}`);
     if (fallback.slug) redirect(`/category/${fallback.slug}`);
