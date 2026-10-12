@@ -24,17 +24,25 @@ export const metadata = { title: "מוצרים חדשים מהסנכרון | Buy
  * both be true, and the owner read them side by side and said so.
  * getNewInPriceList asks PUBLIC_PRODUCT_WHERE directly now, so the count
  * cannot outlive the work again.
+ *
+ * And it has stock, which closed the last gap. 20 of these had none — a
+ * Bosch oven out of stock since 5 October among them — and they were the
+ * entire difference between this tab and "למה לא באתר". The owner's rule,
+ * said three times: no stock means the product does not exist, so it is
+ * not work. Their queue entry stays open, so one whose stock comes back
+ * reappears here on its own. The two tabs now count the same population.
  */
 export default async function NewFromSyncPage() {
   await requireCatalogPage();
-  const { rows, fromLastSync, total, outOfStock } = await getNewInPriceList(300);
+  const { rows, fromLastSync, total } = await getNewInPriceList(300);
 
   return (
     <div>
       <h1 className="text-2xl font-bold">מוצרים חדשים מהסנכרון</h1>
       <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
-        הגיעו מהמחירון ועוד לא מוכנים למכירה: השם הוא הטקסט הגולמי מהגיליון, ואין תמונה, תיאור או מפרט. השורה יוצאת
-        מהרשימה ברגע שהמוצר באתר — נבדק מול האתר עצמו, לא מול סימון, כדי שהמספר לא יישאר תקוע אחרי שהעבודה נעשתה.
+        הגיעו מהמחירון, יש להם מלאי, ועוד לא מוכנים למכירה: השם הוא הטקסט הגולמי מהגיליון, ואין תמונה, תיאור או
+        מפרט. השורה יוצאת מהרשימה ברגע שהמוצר באתר — נבדק מול האתר עצמו ולא מול סימון, כדי שהמספר לא יישאר תקוע
+        אחרי שהעבודה נעשתה. כולם נמצאים גם ב״למה לא באתר״, ושני המספרים זהים.
       </p>
       <InventoryTabs />
       <p className="text-muted-foreground mb-3 text-sm">
@@ -49,15 +57,6 @@ export default async function NewFromSyncPage() {
           <>
             {" · "}
             <strong className="text-foreground">{fromLastSync}</strong> מהסנכרון האחרון
-          </>
-        )}
-        {/* The one honest difference between this tab and "למה לא באתר",
-            which counts only products that have stock. Said here so the two
-            numbers reconcile instead of merely differing. */}
-        {outOfStock > 0 && (
-          <>
-            {" · "}
-            <strong className="text-foreground">{outOfStock}</strong> מהם ללא מלאי, ולכן לא מופיעים ב״למה לא באתר״
           </>
         )}
       </p>

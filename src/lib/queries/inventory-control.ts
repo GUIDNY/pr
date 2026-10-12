@@ -303,16 +303,12 @@ function toLine(p: ProductLineRow): ProductLine {
  * somebody deals with the product, which is the right clock.
  */
 export async function getNewInPriceList(limit = 300): Promise<{
-  rows: (ProductLine & { fromLastSync: boolean; outOfStock: boolean })[];
+  rows: (ProductLine & { fromLastSync: boolean })[];
   fromLastSync: number;
   /** How many are really waiting, which is not the same as how many are
       listed: the page read "300 waiting" because 300 was the take. The
       true number was 350. */
   total: number;
-  /** Of those, the ones with no stock — they are waiting, but they are not
-      part of the off-site list, which is only about products with stock.
-      Reported so the two tabs reconcile instead of merely differing. */
-  outOfStock: number;
 }> {
   const [alerts, lastRun] = await Promise.all([
     db.inventoryAlert.findMany({
@@ -328,7 +324,7 @@ export async function getNewInPriceList(limit = 300): Promise<{
     }),
   ]);
   const ids = alerts.map((a) => a.productId).filter((id): id is string => id !== null);
-  if (ids.length === 0) return { rows: [], fromLastSync: 0, total: 0, outOfStock: 0 };
+  if (ids.length === 0) return { rows: [], fromLastSync: 0, total: 0 };
   /* Not on the site already, asked here rather than trusted to the alert.
      The alert is resolved by reconcileNewFromSource, which runs inside a
      sync — and a sync is pressed by hand. So every other way a product goes
@@ -340,8 +336,22 @@ export async function getNewInPriceList(limit = 300): Promise<{
      PUBLIC_PRODUCT_WHERE spread verbatim, so this cannot drift from what
      the shop shows no matter when the last sync ran. */
   const rows = await db.product.findMany({
-    where: { id: { in: ids }, NOT: PUBLIC_PRODUCT_WHERE },
-    select: { ...PRODUCT_LINE_SELECT, stockQty: true },
+    where: {
+      id: { in: ids },
+      NOT: PUBLIC_PRODUCT_WHERE,
+      /* And it has stock. The owner's rule, said three times now: no stock
+         means the product does not exist, so it is not work and it does not
+         belong in a queue. 20 of these had none — a Bosch oven out of stock
+         since 5 October among them — and they were the entire difference
+         between this tab's count and "למה לא באתר", a gap that needed a
+         footnote to explain. A number that needs a footnote is the wrong
+         number.
+         The queue entry is left open rather than resolved, so a product
+         whose stock comes back reappears here on its own with nothing
+         remembered and nothing lost. */
+      stockQty: { gt: 0 },
+    },
+    select: PRODUCT_LINE_SELECT,
     /* Newest first. The list is everything still waiting and not just the
        last run's output — 33 arrived in one run on 11 October because four
        tabs had gone unread for 35 days, and a window would have shown them
@@ -353,13 +363,11 @@ export async function getNewInPriceList(limit = 300): Promise<{
   const out = rows.map((p) => ({
     ...toLine(p),
     fromLastSync: since !== null && p.createdAt >= since,
-    outOfStock: p.stockQty <= 0,
   }));
   return {
     rows: out.slice(0, limit),
     fromLastSync: out.filter((p) => p.fromLastSync).length,
     total: out.length,
-    outOfStock: out.filter((p) => p.outOfStock).length,
   };
 }
 
