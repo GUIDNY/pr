@@ -540,18 +540,50 @@ function rowNamesAnotherModel(model: string | null, stockBreakdown: string | nul
  * can see. A photo is the only thing standing between them and the site.
  *
  * Deliberately not filtered to isPublished, and that is the correction.
- * Requiring it showed 52 of the 184 products in this state and hid 132 —
- * every one of them a product with stock and no photo, which is the same
+ * Requiring it showed 52 of the 191 products in this state and hid the
+ * rest — every one a product with stock and no photo, which is the same
  * piece of work whether somebody has pressed publish yet or not. Worse,
- * the hidden 132 were on no tab at all: they are not "new", not "a
+ * the hidden ones were on no tab at all: they are not "new", not "a
  * problem", and not on the site, so a count that was supposed to account
- * for every product in stock came up 132 short with nowhere to look. The
- * flag is reported on the row instead, because a product that needs a
- * photo *and* publishing needs to be told so.
+ * for every product in stock came up 132 short with nowhere to look.
+ *
+ * What is missing *besides* the photograph is reported on the row, and it
+ * is not simply "publish". The first version of this column said "photo +
+ * publish" for all 139 unpublished ones, and the owner read it literally
+ * and asked the right question: 91 of them have never been enriched —
+ * their title is still the sheet's raw "{brand} {model}" — so pressing
+ * publish would put a blank page on the site the moment a photo arrived.
+ * Four different jobs were being called one thing.
  */
+export type ImageBlocker =
+  /** Published and ready. The photograph is the only thing. */
+  | "PHOTO"
+  /** Never enriched: no real title, no description, often a department
+      rather than a leaf category. Needs the enrichment pass first. */
+  | "PHOTO_AND_CONTENT"
+  /** Has content, nobody pressed publish. */
+  | "PHOTO_AND_PUBLISH"
+  /** Flagged as a conflict — duplicate, model, spec, colour. A person has
+      to decide before this is a product at all. */
+  | "PHOTO_AND_CONFLICT";
+
+export const IMAGE_BLOCKER_LABELS: Record<ImageBlocker, string> = {
+  PHOTO: "תמונה בלבד",
+  PHOTO_AND_CONTENT: "תמונה + תוכן",
+  PHOTO_AND_PUBLISH: "תמונה + פרסום",
+  PHOTO_AND_CONFLICT: "תמונה + הכרעה בהתנגשות",
+};
+
+export const IMAGE_BLOCKER_HINTS: Record<ImageBlocker, string> = {
+  PHOTO: "עולה לאתר ברגע שנוספת תמונה",
+  PHOTO_AND_CONTENT: "אין לו עוד כותרת, תיאור וקטגוריה — ההעשרה לא הגיעה אליו",
+  PHOTO_AND_PUBLISH: "התוכן מוכן, רק לא נלחץ פרסום",
+  PHOTO_AND_CONFLICT: "סומן התנגשות (כפילות / דגם / מפרט) — צריך הכרעה",
+};
+
 export async function getMissingImage(
   limit = 300,
-): Promise<(ProductLine & { unpublished: boolean })[]> {
+): Promise<(ProductLine & { blocker: ImageBlocker })[]> {
   const rows = await db.product.findMany({
     where: {
       source: PRICE_LIST_SOURCE,
@@ -559,11 +591,23 @@ export async function getMissingImage(
       missingFromSourceSince: null,
       images: { none: {} },
     },
-    select: { ...PRODUCT_LINE_SELECT, isPublished: true },
+    select: { ...PRODUCT_LINE_SELECT, isPublished: true, enrichmentStatus: true },
     orderBy: { price: "desc" },
     take: limit,
   });
-  return rows.map((p) => ({ ...toLine(p), unpublished: !p.isPublished }));
+  return rows.map((p) => {
+    const status = p.enrichmentStatus ?? "";
+    /* The conflict first, even on a published product: it is the one state
+       where adding a photograph is the wrong next move. */
+    const blocker: ImageBlocker = status.includes("DO_NOT_PUBLISH")
+      ? "PHOTO_AND_CONFLICT"
+      : p.isPublished
+        ? "PHOTO"
+        : status === "NOT_ENRICHED" || status === ""
+          ? "PHOTO_AND_CONTENT"
+          : "PHOTO_AND_PUBLISH";
+    return { ...toLine(p), blocker };
+  });
 }
 
 /**
