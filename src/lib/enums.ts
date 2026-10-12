@@ -289,6 +289,15 @@ export const INVENTORY_ALERT_TYPES = [
      from inside a run, for the reason SYNC_STALE and SHEET_STALE are — a
      run that is doing damage is not a reliable narrator of the damage. */
   "PRODUCT_REPLACED_BY_BLANK",
+  /* The shop got smaller and the price list does not explain it.
+     The only check here that does not describe a shape. Every other type
+     was written after a particular failure and catches that failure; none
+     of them would have caught the others. This one samples how many
+     products a customer can buy, every three hours, and speaks when the
+     number falls further than stock running out accounts for — so whatever
+     breaks the catalogue next is reported before anybody has worked out
+     what it was. */
+  "CATALOG_SHRANK",
 ] as const;
 export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
 
@@ -316,6 +325,7 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   ROW_CLAIMED_TWICE: "שורה אחת במחירון נתבעת על ידי כמה מוצרים",
   SHEET_STALE: "לשונית לא מתעדכנת",
   PRODUCT_REPLACED_BY_BLANK: "מוצר יצא מהאתר ורשומה ריקה נכנסה במקומו",
+  CATALOG_SHRANK: "מספר המוצרים באתר ירד",
 };
 
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;

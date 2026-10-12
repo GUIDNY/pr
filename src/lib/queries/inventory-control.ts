@@ -1027,3 +1027,82 @@ export async function getLiveProducts(): Promise<ProductLine[]> {
   });
   return rows.map(toLine);
 }
+
+
+/**
+ * One sheet row, two records — all of them, whatever the models say.
+ *
+ * getDuplicatePairs above pairs on the model and the colour, and that is
+ * the right test when the question is "are these the same product". It is
+ * the wrong test here, because the row already answered it: a row of the
+ * price list is one product, and the supplier does not sell two things on
+ * one line. So this asks nothing about the records and only about the
+ * row.
+ *
+ * It exists because the owner read the earlier version of this page and
+ * said the obvious thing: why is this only on a page. 78 of these were
+ * sitting in the catalogue with nothing naming them. They are not all
+ * damage — most are the supplier putting a different product on a row it
+ * had finished with, which is ordinary turnover, and the stale position on
+ * the old record is only bookkeeping nobody cleared. But some are the real
+ * thing: a Klipsch Flexus CORE 300 is on the site at ₪1,990 while its twin
+ * sits off it at ₪3,999 with seven units.
+ *
+ * Telling those apart is a person's job and a glance each, so the pair is
+ * shown side by side rather than judged. What the page must not do is hide
+ * them because a model string disagreed.
+ */
+export type RowCollision = {
+  sheetName: string;
+  rowRef: number;
+  dropped: ProductLine & { model: string; droppedAt: Date };
+  holder: ProductLine & { model: string };
+  /** The stock sitting on the record that is off the site. */
+  strandedValue: number;
+};
+
+export async function getRowCollisions(limit = 200): Promise<RowCollision[]> {
+  const [dropped, held] = await Promise.all([
+    db.product.findMany({
+      where: {
+        source: PRICE_LIST_SOURCE,
+        missingFromSourceSince: { not: null },
+        sourceSheet: { not: null },
+        sourceRowRef: { not: null },
+      },
+      select: { ...PRODUCT_LINE_SELECT, model: true, sourceRowRef: true, missingFromSourceSince: true },
+    }),
+    db.product.findMany({
+      where: {
+        source: PRICE_LIST_SOURCE,
+        missingFromSourceSince: null,
+        sourceSheet: { not: null },
+        sourceRowRef: { not: null },
+      },
+      select: { ...PRODUCT_LINE_SELECT, model: true, sourceRowRef: true },
+    }),
+  ]);
+
+  const key = (sheet: string | null, row: number | null) => `${sheet}\u0000${row}`;
+  const holderByRow = new Map(held.map((p) => [key(p.sourceSheet, p.sourceRowRef), p]));
+
+  const out: RowCollision[] = [];
+  for (const d of dropped) {
+    const holder = holderByRow.get(key(d.sourceSheet, d.sourceRowRef));
+    if (!holder || holder.id === d.id) continue;
+    out.push({
+      sheetName: (d.sourceSheet ?? "").trim(),
+      rowRef: d.sourceRowRef ?? 0,
+      dropped: {
+        ...toLine(d),
+        model: d.model ?? "",
+        droppedAt: d.missingFromSourceSince as Date,
+      },
+      holder: { ...toLine(holder), model: holder.model ?? "" },
+      strandedValue: d.price * d.stockQty,
+    });
+  }
+  /* Biggest stranded stock first: that is where a real duplicate costs
+     something, and where turnover costs nothing. */
+  return out.sort((a, b) => b.strandedValue - a.strandedValue).slice(0, limit);
+}

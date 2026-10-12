@@ -5,6 +5,7 @@ import { InventoryListTable } from "@/components/admin/inventory-list-table";
 import {
   getOffSiteProducts,
   getDuplicatePairs,
+  getRowCollisions,
   OFF_SITE_LABELS,
   OFF_SITE_ACTIONS,
 } from "@/lib/queries/inventory-control";
@@ -49,6 +50,12 @@ export default async function OffSitePage() {
        happens. */
     inspectNonPriceListProducts("SUBTOTAL_ROW"),
   ]);
+  /* Every row of the price list that two records point at, judged by the
+     row and not by the models — see getRowCollisions. Below the list
+     rather than above it: most are ordinary supplier turnover and cost
+     nothing, and the few that are real duplicates are at the top of their
+     own section by what they have stranded. */
+  const collisions = await getRowCollisions(200);
 
   const newInQueue = rows.filter((r) => r.isNew).length;
 
@@ -173,6 +180,63 @@ export default async function OffSitePage() {
                     </p>
                   </td>
                   <td className="p-3 whitespace-nowrap">{d.ghostValue.toLocaleString("he-IL")} ₪</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {collisions.length > 0 && (
+        <section className="border-border mt-6 mb-5 overflow-hidden rounded-xl border">
+          <header className="bg-muted/50 border-border border-b px-4 py-3">
+            <h2 className="text-base font-bold">
+              שורה אחת במחירון, שתי רשומות{" "}
+              <span className="bg-background border-border rounded-full border px-2 py-0.5 text-xs font-semibold">
+                {collisions.length}
+              </span>
+            </h2>
+            <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
+              שורה במחירון היא מוצר אחד — הספק לא מוכר שני דברים באותה שורה. כאן שתי רשומות מצביעות על אותה שורה,
+              אחת מהן כבר לא באתר. <strong className="text-foreground">רובן לא תקלה</strong>: הספק החליף את המוצר
+              בשורה, והישן באמת יצא. אבל חלקן אותו מוצר פעמיים — ואז יש מלאי תקוע מחוץ לאתר, לפעמים במחיר אחר
+              לגמרי. מסודר לפי כמה כסף תקוע.
+            </p>
+          </header>
+          <table className="w-full text-sm">
+            <thead className="text-muted-foreground">
+              <tr className="border-border border-b">
+                <th className="p-3 text-start font-semibold whitespace-nowrap">שורה</th>
+                <th className="p-3 text-start font-semibold">מה ירד מהאתר</th>
+                <th className="p-3 text-start font-semibold">מה מחזיק את השורה</th>
+                <th className="p-3 text-start font-semibold whitespace-nowrap">תקוע</th>
+              </tr>
+            </thead>
+            <tbody>
+              {collisions.map((c) => (
+                <tr key={c.dropped.id} className="border-border border-t">
+                  <td className="text-muted-foreground p-3 text-xs whitespace-nowrap">
+                    {c.sheetName} · {c.rowRef}
+                  </td>
+                  <td className="p-3">
+                    <Link href={`/admin/products/${c.dropped.id}`} className="font-medium hover:underline">
+                      {c.dropped.title.slice(0, 40)}
+                    </Link>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      מק״ט {c.dropped.sku} · {c.dropped.model || "ללא דגם"} · {c.dropped.stockQty} יח׳ ·{" "}
+                      {c.dropped.price.toLocaleString("he-IL")} ₪
+                    </p>
+                  </td>
+                  <td className="p-3">
+                    <Link href={`/admin/products/${c.holder.id}`} className="font-medium hover:underline">
+                      {c.holder.title.slice(0, 40)}
+                    </Link>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      מק״ט {c.holder.sku} · {c.holder.model || "ללא דגם"} · {c.holder.stockQty} יח׳ ·{" "}
+                      {c.holder.price.toLocaleString("he-IL")} ₪
+                    </p>
+                  </td>
+                  <td className="p-3 whitespace-nowrap">{c.strandedValue.toLocaleString("he-IL")} ₪</td>
                 </tr>
               ))}
             </tbody>

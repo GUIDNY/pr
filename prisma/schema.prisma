@@ -410,6 +410,29 @@ model EnrichmentCandidate {
 // of lines each run (delete + recreate) rather than trying to diff
 // individual lines, since the whole point is "this is what the source says
 // right now."
+/// How big the shop was, sampled every time the watchdog runs.
+///
+/// There was no answer to "did the catalogue just shrink", and that is the
+/// question every failure of 11-12 October would have been caught by: a
+/// run swapped 45 live products for blanks on one evening and 14 more the
+/// next morning, both reported SUCCESS, and the only reason anybody found
+/// out was the owner asking an unrelated question. A check per known cause
+/// catches the causes we know; a check on the size catches the next one.
+///
+/// Deliberately two numbers. `liveCount` is PUBLIC_PRODUCT_WHERE — what a
+/// customer can buy — and `inStockCount` is what the price list says we
+/// hold. A drop in the first with the second flat is us breaking
+/// something; both falling together is the supplier selling out, which is
+/// not a fault.
+model CatalogSizeSnapshot {
+  id           String   @id @default(cuid())
+  takenAt      DateTime @default(now())
+  liveCount    Int
+  inStockCount Int
+
+  @@index([takenAt])
+}
+
 model InventorySourceLine {
   id        String   @id @default(cuid())
   productId String

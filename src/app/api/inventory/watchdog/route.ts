@@ -3,6 +3,7 @@ import {
   reconcileSyncStaleAlert,
   reconcileStaleSheetAlerts,
   reconcileReplacedProductAlert,
+  reconcileCatalogSizeAlert,
 } from "@/lib/inventory/sync-watchdog";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
@@ -44,14 +45,28 @@ export async function GET(request: Request) {
      every day because the other twenty-six kept it looking honest; on
      12 October a run swapped fourteen live products for blanks and
      reported SUCCESS, 15 added, 15 missing. */
-  const [freshness, sheets, replaced] = await Promise.all([
+  /* And a fourth, which is the only one of them that does not describe a
+     shape: did the shop get smaller for a reason the price list does not
+     explain. The other three each catch the failure they were written
+     after; this one catches the next failure, whatever it turns out to
+     be. */
+  const [freshness, sheets, replaced, size] = await Promise.all([
     reconcileSyncStaleAlert(),
     reconcileStaleSheetAlerts(),
     reconcileReplacedProductAlert(),
+    reconcileCatalogSizeAlert(),
   ]);
   const staleSheets = sheets.filter((s) => s.stale);
   return NextResponse.json({
     stale: freshness.stale,
+    catalog: {
+      shrank: size.dropped,
+      liveNow: size.liveNow,
+      livePeak: size.livePeak,
+      unexplainedDrop: size.unexplainedDrop,
+      inStockNow: size.inStockNow,
+      peakAt: size.peakAt,
+    },
     /* Named individually and not just counted: whoever or whatever reads
        this endpoint should be able to act without a second query. */
     replacedByBlank: replaced.map((r) => ({

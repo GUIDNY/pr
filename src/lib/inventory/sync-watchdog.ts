@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { openHoursBetween, STALE_AFTER_OPEN_HOURS } from "@/lib/inventory/office-hours";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import {
   pairReplacements,
   type ReplacedProduct,
@@ -498,4 +499,154 @@ export async function reconcileReplacedProductAlert(): Promise<ReplacedProduct[]
     });
   }
   return open_;
+}
+
+
+/**
+ * Did the shop just get smaller?
+ *
+ * The one check that does not need to know what went wrong. Every failure
+ * of 11-12 October — a run swapping 45 live products for blank records one
+ * evening and 14 more the next morning, ₪340,000 of stock off the site —
+ * was invisible to every screen in the back office and to every alert in
+ * this system, and was found because the owner happened to ask an
+ * unrelated question. Each has a check now. None of those checks would
+ * have caught the others, because each was written after the fact and
+ * describes its own shape.
+ *
+ * This one describes no shape. It samples how many products a customer can
+ * buy, every time the watchdog runs, and says so when that number falls.
+ * Whatever breaks the catalogue next — a matcher, a query, a migration, an
+ * agent writing SQL at four in the morning — the shop gets smaller, and
+ * that is the one symptom they all share.
+ *
+ * Two numbers, and the second is what stops it crying wolf. `liveCount` is
+ * PUBLIC_PRODUCT_WHERE: what is actually for sale. `inStockCount` is what
+ * the price list says we hold. A supplier selling out moves both together
+ * and is not a fault; us breaking something moves the first while the
+ * second stays where it was. The alert only fires on the gap between them.
+ */
+export type CatalogSize = {
+  liveNow: number;
+  inStockNow: number;
+  /** The highest live count seen in the comparison window. */
+  livePeak: number;
+  inStockAtPeak: number;
+  /** Live products lost since the peak, beyond what stock explains. */
+  unexplainedDrop: number;
+  peakAt: Date | null;
+  dropped: boolean;
+};
+
+/** How far back the peak is taken from. A day: long enough that a single
+    bad run is compared against a healthy shop, short enough that a
+    deliberate cull last week is not held against today. */
+const CATALOG_WINDOW_HOURS = 24;
+/** Below this nothing is said. Products leave the site one at a time all
+    day — a photograph removed, stock hitting zero — and an alert on every
+    one of those is an alert that gets muted. 45 and 14 both clear it. */
+const CATALOG_DROP_FLOOR = 10;
+
+export async function checkCatalogSize(): Promise<CatalogSize> {
+  const [liveNow, inStockNow] = await Promise.all([
+    db.product.count({ where: PUBLIC_PRODUCT_WHERE }),
+    db.product.count({
+      where: {
+        source: { sourceType: "EXCEL", isActive: true },
+        missingFromSourceSince: null,
+        stockQty: { gt: 0 },
+      },
+    }),
+  ]);
+
+  const since = new Date(Date.now() - CATALOG_WINDOW_HOURS * 3_600_000);
+  const history = await db.catalogSizeSnapshot.findMany({
+    where: { takenAt: { gte: since } },
+    orderBy: { liveCount: "desc" },
+    take: 1,
+  });
+  /* Recorded before the comparison is read, so the first run after this
+     ships writes a baseline and says nothing — a check that fires on its
+     own first execution is a check nobody trusts afterwards. */
+  await db.catalogSizeSnapshot.create({ data: { liveCount: liveNow, inStockCount: inStockNow } });
+
+  const peak = history[0];
+  if (!peak) {
+    return {
+      liveNow,
+      inStockNow,
+      livePeak: liveNow,
+      inStockAtPeak: inStockNow,
+      unexplainedDrop: 0,
+      peakAt: null,
+      dropped: false,
+    };
+  }
+
+  const liveLost = peak.liveCount - liveNow;
+  /* What the supplier explains. Stock that ran out takes products off the
+     site legitimately, so only the part of the fall that outruns it is
+     ours. Negative — the shop grew, or stock fell further than the site
+     did — is zero, not a credit. */
+  const stockLost = Math.max(0, peak.inStockCount - inStockNow);
+  const unexplainedDrop = Math.max(0, liveLost - stockLost);
+
+  return {
+    liveNow,
+    inStockNow,
+    livePeak: peak.liveCount,
+    inStockAtPeak: peak.inStockCount,
+    unexplainedDrop,
+    peakAt: peak.takenAt,
+    dropped: unexplainedDrop >= CATALOG_DROP_FLOOR,
+  };
+}
+
+/**
+ * Raise it, and withdraw it when the shop is back to its own size.
+ *
+ * Withdrawn on recovery rather than on a timer, because the thing a person
+ * wants to know is whether the products came back — and on 12 October they
+ * came back by hand, which no sync run would have reported either.
+ */
+export async function reconcileCatalogSizeAlert(): Promise<CatalogSize> {
+  const size = await checkCatalogSize();
+  const open = await db.inventoryAlert.findMany({
+    where: { type: "CATALOG_SHRANK", isResolved: false },
+    select: { id: true, message: true },
+  });
+
+  if (!size.dropped) {
+    if (open.length > 0) {
+      await db.inventoryAlert.updateMany({
+        where: { id: { in: open.map((a) => a.id) } },
+        data: { isResolved: true, resolvedAt: new Date() },
+      });
+    }
+    return size;
+  }
+
+  const message =
+    `האתר הציג ${size.livePeak.toLocaleString("he-IL")} מוצרים ועכשיו ${size.liveNow.toLocaleString("he-IL")}. ` +
+    `${size.unexplainedDrop.toLocaleString("he-IL")} מהם ירדו בלי שהמלאי מסביר את זה — ` +
+    `במחירון יש ${size.inStockNow.toLocaleString("he-IL")} מוצרים במלאי מול ${size.inStockAtPeak.toLocaleString("he-IL")} קודם. ` +
+    `כלומר משהו אצלנו הוריד מוצרים מהאתר, לא הספק.`;
+
+  const existing = open[0];
+  if (existing) {
+    if (existing.message !== message) {
+      await db.inventoryAlert.update({ where: { id: existing.id }, data: { message } });
+    }
+  } else {
+    await db.inventoryAlert.create({
+      data: { type: "CATALOG_SHRANK", severity: "CRITICAL", message },
+    });
+  }
+  if (open.length > 1) {
+    await db.inventoryAlert.updateMany({
+      where: { id: { in: open.slice(1).map((a) => a.id) } },
+      data: { isResolved: true, resolvedAt: new Date() },
+    });
+  }
+  return size;
 }
