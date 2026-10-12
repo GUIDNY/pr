@@ -85,8 +85,7 @@ const nextConfig: NextConfig = {
      slash on /mall does not matter. */
   async rewrites() {
     return [
-      { source: "/mall", destination: "https://play.buytoday.co.il/" },
-      { source: "/mall/:path*", destination: "https://play.buytoday.co.il/:path*" },
+      // /mall is answered in proxy.ts now: the mall is private (lib/mall-access.ts)
     ];
   },
   /* The same page at a second address: kept out of search, where

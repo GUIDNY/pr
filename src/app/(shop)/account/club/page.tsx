@@ -1,5 +1,16 @@
-import { Check, Coins, Flame, Gift, CalendarDays, Gamepad2, Percent, Trophy } from "lucide-react";
+import {
+  Check,
+  Coins,
+  Flame,
+  Gift,
+  CalendarDays,
+  Gamepad2,
+  Percent,
+  Trophy,
+} from "lucide-react";
+import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { mallViewerEmail } from "@/lib/mall-access-server";
 import { db } from "@/lib/db";
 import { formatDate, formatPrice } from "@/lib/format";
 import { purchaseLevel, CASHBACK_DAYS, GIFT_DAYS } from "@/lib/game-levels";
@@ -25,7 +36,8 @@ const KIND_LABEL: Record<string, string> = {
   streak7: "7 ימים ברצף",
   days30: "30 ימי כניסה",
 };
-const kindLabel = (k: string) => KIND_LABEL[k] ?? (k.startsWith("level") ? `מתנת רמה ${k.slice(5)}` : "הטבה");
+const kindLabel = (k: string) =>
+  KIND_LABEL[k] ?? (k.startsWith("level") ? `מתנת רמה ${k.slice(5)}` : "הטבה");
 const STATE = {
   active: { text: "פעיל", cls: "bg-success/15 text-success" },
   used: { text: "נוצל", cls: "bg-muted text-muted-foreground" },
@@ -35,17 +47,26 @@ const STATE = {
 export default async function ClubPage() {
   const session = await getSession();
   if (!session) return null;
+  if (!(await mallViewerEmail())) notFound(); // private for now: lib/mall-access.ts
 
   const [lv, checkin, history, game] = await Promise.all([
     purchaseLevel(session.sub),
     checkinStatus(session.sub),
     memberCouponHistory(session.sub),
-    db.gameProfile.findUnique({ where: { userId: session.sub }, select: { progress: true } }),
+    db.gameProfile.findUnique({
+      where: { userId: session.sub },
+      select: { progress: true },
+    }),
   ]);
   const coins = parseGameProgress(game?.progress)?.coins ?? 0;
   const tier = lv.tiers[lv.level - 1];
   const next = lv.tiers[lv.level] ?? null;
-  const pct = next ? Math.min(100, Math.round(((lv.spent - tier.spend) / (next.spend - tier.spend)) * 100)) : 100;
+  const pct = next
+    ? Math.min(
+        100,
+        Math.round(((lv.spent - tier.spend) / (next.spend - tier.spend)) * 100),
+      )
+    : 100;
   const active = history.filter((c) => c.state === "active");
   const past = history.filter((c) => c.state !== "active");
   const streakLeft = 7 - (checkin.streak % 7);
@@ -55,7 +76,9 @@ export default async function ClubPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">מועדון הקניון</h1>
-          <p className="text-muted-foreground mt-1 text-sm">הרמה, הקאשבק וההטבות שצברתם בקניון התלת־ממדי של BuyToday</p>
+          <p className="text-muted-foreground mt-1 text-sm">
+            הרמה, הקאשבק וההטבות שצברתם בקניון התלת־ממדי של BuyToday
+          </p>
         </div>
         <MallAnchor
           medium="account-club"
@@ -73,13 +96,21 @@ export default async function ClubPage() {
             <div className="grid size-16 shrink-0 place-items-center rounded-2xl bg-white/20 text-center backdrop-blur">
               <div>
                 <p className="text-[10px] font-semibold opacity-80">רמה</p>
-                <p className="text-2xl leading-none font-extrabold tabular-nums">{lv.level}</p>
+                <p className="text-2xl leading-none font-extrabold tabular-nums">
+                  {lv.level}
+                </p>
               </div>
             </div>
             <div>
-              <p className="text-lg font-bold">{tier.cashback ? `${tier.cashback}% קאשבק על כל קנייה` : "עוד לא התחלתם לצבור"}</p>
+              <p className="text-lg font-bold">
+                {tier.cashback
+                  ? `${tier.cashback}% קאשבק על כל קנייה`
+                  : "עוד לא התחלתם לצבור"}
+              </p>
               <p className="text-sm opacity-85">
-                {lv.orders ? `${lv.orders} הזמנות ששולמו · ${formatPrice(lv.spent)} בסך הכול` : "הקנייה הראשונה פותחת 1% קאשבק"}
+                {lv.orders
+                  ? `${lv.orders} הזמנות ששולמו · ${formatPrice(lv.spent)} בסך הכול`
+                  : "הקנייה הראשונה פותחת 1% קאשבק"}
               </p>
             </div>
           </div>
@@ -87,7 +118,10 @@ export default async function ClubPage() {
         </div>
         <div className="mt-5">
           <div className="h-2.5 overflow-hidden rounded-full bg-white/25">
-            <div className="h-full rounded-full bg-white" style={{ width: `${Math.max(pct, 3)}%` }} />
+            <div
+              className="h-full rounded-full bg-white"
+              style={{ width: `${Math.max(pct, 3)}%` }}
+            />
           </div>
           <p className="mt-2 text-sm font-medium">
             {next
@@ -101,12 +135,21 @@ export default async function ClubPage() {
         {[
           { icon: Gift, value: active.length, label: "הטבות פעילות" },
           { icon: Flame, value: checkin.streak, label: "ימי כניסה ברצף" },
-          { icon: CalendarDays, value: checkin.totalDays, label: "ימי כניסה בסך הכול" },
+          {
+            icon: CalendarDays,
+            value: checkin.totalDays,
+            label: "ימי כניסה בסך הכול",
+          },
           { icon: Coins, value: coins, label: "מטבעות במשחק" },
         ].map((s) => (
-          <div key={s.label} className="border-border rounded-xl border p-4 text-center">
+          <div
+            key={s.label}
+            className="border-border rounded-xl border p-4 text-center"
+          >
             <s.icon className="text-brand mx-auto mb-2 size-5" />
-            <p className="text-xl font-bold tabular-nums">{s.value.toLocaleString("he-IL")}</p>
+            <p className="text-xl font-bold tabular-nums">
+              {s.value.toLocaleString("he-IL")}
+            </p>
             <p className="text-muted-foreground text-xs">{s.label}</p>
           </div>
         ))}
@@ -117,12 +160,16 @@ export default async function ClubPage() {
         <h2 className="mb-3 font-semibold">ההטבות שלכם</h2>
         {active.length === 0 ? (
           <p className="text-muted-foreground border-border rounded-xl border p-6 text-center text-sm">
-            אין כרגע הטבות פעילות. קאשבק מצטבר אחרי כל הזמנה ששולמה, ועל כניסה לקניון יש הטבות התמדה.
+            אין כרגע הטבות פעילות. קאשבק מצטבר אחרי כל הזמנה ששולמה, ועל כניסה
+            לקניון יש הטבות התמדה.
           </p>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {active.map((c) => (
-              <li key={c.code} className="border-brand/30 bg-brand/5 flex flex-col gap-3 rounded-xl border border-dashed p-4">
+              <li
+                key={c.code}
+                className="border-brand/30 bg-brand/5 flex flex-col gap-3 rounded-xl border border-dashed p-4"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-lg font-bold">{c.label}</p>
@@ -131,7 +178,10 @@ export default async function ClubPage() {
                       {c.rule ? ` · ${c.rule}` : ""}
                     </p>
                   </div>
-                  <span dir="ltr" className="bg-background border-border rounded-md border px-2 py-1 font-mono text-xs font-semibold tracking-wider">
+                  <span
+                    dir="ltr"
+                    className="bg-background border-border rounded-md border px-2 py-1 font-mono text-xs font-semibold tracking-wider"
+                  >
                     {c.code}
                   </span>
                 </div>
@@ -149,32 +199,67 @@ export default async function ClubPage() {
       {/* the levels */}
       <section>
         <h2 className="mb-1 font-semibold">הרמות במועדון</h2>
-        <p className="text-muted-foreground mb-3 text-xs">הרמה עולה רק מקניות ששולמו. הקאשבק ניתן אחרי כל הזמנה, כקוד אישי לקנייה הבאה.</p>
+        <p className="text-muted-foreground mb-3 text-xs">
+          הרמה עולה רק מקניות ששולמו. הקאשבק ניתן אחרי כל הזמנה, כקוד אישי
+          לקנייה הבאה.
+        </p>
         <div className="border-border overflow-hidden rounded-xl border">
           <table className="w-full text-sm">
             <thead className="bg-muted/60 text-muted-foreground text-xs">
               <tr>
                 <th className="px-3 py-2 text-start font-medium">רמה</th>
-                <th className="px-3 py-2 text-start font-medium">מצטבר קניות</th>
+                <th className="px-3 py-2 text-start font-medium">
+                  מצטבר קניות
+                </th>
                 <th className="px-3 py-2 text-start font-medium">קאשבק</th>
                 <th className="px-3 py-2 text-start font-medium">מתנת רמה</th>
               </tr>
             </thead>
             <tbody className="divide-border divide-y">
               {lv.tiers.map((t) => {
-                const here = t.level === lv.level, reached = t.level <= lv.level;
+                const here = t.level === lv.level,
+                  reached = t.level <= lv.level;
                 return (
-                  <tr key={t.level} className={here ? "bg-brand/10 font-semibold" : reached ? "" : "text-muted-foreground"}>
+                  <tr
+                    key={t.level}
+                    className={
+                      here
+                        ? "bg-brand/10 font-semibold"
+                        : reached
+                          ? ""
+                          : "text-muted-foreground"
+                    }
+                  >
                     <td className="px-3 py-2.5">
                       <span className="inline-flex items-center gap-1.5">
-                        {reached ? <Check className="text-success size-3.5" /> : <span className="inline-block size-3.5" />}
+                        {reached ? (
+                          <Check className="text-success size-3.5" />
+                        ) : (
+                          <span className="inline-block size-3.5" />
+                        )}
                         {t.level}
-                        {here && <span className="bg-brand text-brand-foreground rounded-full px-2 py-0.5 text-[10px]">אתם כאן</span>}
+                        {here && (
+                          <span className="bg-brand text-brand-foreground rounded-full px-2 py-0.5 text-[10px]">
+                            אתם כאן
+                          </span>
+                        )}
                       </span>
                     </td>
-                    <td className="px-3 py-2.5 tabular-nums">{t.level === 1 ? "—" : t.spend <= 1 ? "קנייה ראשונה" : formatPrice(t.spend)}</td>
-                    <td className="px-3 py-2.5 tabular-nums">{t.cashback ? `${t.cashback}%` : "—"}</td>
-                    <td className="px-3 py-2.5">{t.gift ? `₪${t.gift.value} (בקנייה מעל ${formatPrice(t.gift.min)})` : "—"}</td>
+                    <td className="px-3 py-2.5 tabular-nums">
+                      {t.level === 1
+                        ? "—"
+                        : t.spend <= 1
+                          ? "קנייה ראשונה"
+                          : formatPrice(t.spend)}
+                    </td>
+                    <td className="px-3 py-2.5 tabular-nums">
+                      {t.cashback ? `${t.cashback}%` : "—"}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {t.gift
+                        ? `₪${t.gift.value} (בקנייה מעל ${formatPrice(t.gift.min)})`
+                        : "—"}
+                    </td>
                   </tr>
                 );
               })}
@@ -188,13 +273,37 @@ export default async function ClubPage() {
         <h2 className="mb-3 font-semibold">הטבות על התמדה</h2>
         <ul className="grid gap-3 sm:grid-cols-3">
           {[
-            { r: REWARDS.welcome, done: checkin.welcomeGiven, note: checkin.welcomeGiven ? "קיבלתם" : "בכניסה הראשונה לקניון" },
-            { r: REWARDS.streak7, done: false, note: `עוד ${streakLeft} ${streakLeft === 1 ? "יום" : "ימים"} ברצף` },
-            { r: REWARDS.days30, done: checkin.totalDays >= 30, note: checkin.totalDays >= 30 ? "קיבלתם" : `${checkin.totalDays} מתוך 30 ימים` },
+            {
+              r: REWARDS.welcome,
+              done: checkin.welcomeGiven,
+              note: checkin.welcomeGiven ? "קיבלתם" : "בכניסה הראשונה לקניון",
+            },
+            {
+              r: REWARDS.streak7,
+              done: false,
+              note: `עוד ${streakLeft} ${streakLeft === 1 ? "יום" : "ימים"} ברצף`,
+            },
+            {
+              r: REWARDS.days30,
+              done: checkin.totalDays >= 30,
+              note:
+                checkin.totalDays >= 30
+                  ? "קיבלתם"
+                  : `${checkin.totalDays} מתוך 30 ימים`,
+            },
           ].map(({ r, done, note }) => (
-            <li key={r.id} className="border-border flex items-center gap-3 rounded-xl border p-4">
-              <div className={`grid size-10 shrink-0 place-items-center rounded-full ${done ? "bg-success/15 text-success" : "bg-brand/10 text-brand"}`}>
-                {done ? <Check className="size-5" /> : <Percent className="size-5" />}
+            <li
+              key={r.id}
+              className="border-border flex items-center gap-3 rounded-xl border p-4"
+            >
+              <div
+                className={`grid size-10 shrink-0 place-items-center rounded-full ${done ? "bg-success/15 text-success" : "bg-brand/10 text-brand"}`}
+              >
+                {done ? (
+                  <Check className="size-5" />
+                ) : (
+                  <Percent className="size-5" />
+                )}
               </div>
               <div className="min-w-0">
                 <p className="font-semibold">{r.label}</p>
@@ -205,7 +314,9 @@ export default async function ClubPage() {
           ))}
         </ul>
         <p className="text-muted-foreground mt-2 text-xs">
-          {checkin.checkedInToday ? "נכנסתם היום לקניון ✓" : "עוד לא נכנסתם היום. כניסה לקניון וסיבוב הגלגל נספרים כיום כניסה."}
+          {checkin.checkedInToday
+            ? "נכנסתם היום לקניון ✓"
+            : "עוד לא נכנסתם היום. כניסה לקניון וסיבוב הגלגל נספרים כיום כניסה."}
         </p>
       </section>
 
@@ -214,14 +325,26 @@ export default async function ClubPage() {
           <h2 className="mb-3 font-semibold">היסטוריית הטבות</h2>
           <ul className="divide-border border-border divide-y rounded-xl border">
             {past.map((c) => (
-              <li key={c.code} className="flex items-center justify-between gap-3 p-3 text-sm">
+              <li
+                key={c.code}
+                className="flex items-center justify-between gap-3 p-3 text-sm"
+              >
                 <div className="min-w-0">
                   <p className="font-medium">
-                    {c.label} <span className="text-muted-foreground font-normal">· {kindLabel(c.kind)}</span>
+                    {c.label}{" "}
+                    <span className="text-muted-foreground font-normal">
+                      · {kindLabel(c.kind)}
+                    </span>
                   </p>
-                  <p className="text-muted-foreground text-xs">התקבל ב־{formatDate(c.createdAt)}</p>
+                  <p className="text-muted-foreground text-xs">
+                    התקבל ב־{formatDate(c.createdAt)}
+                  </p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${STATE[c.state].cls}`}>{STATE[c.state].text}</span>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${STATE[c.state].cls}`}
+                >
+                  {STATE[c.state].text}
+                </span>
               </li>
             ))}
           </ul>
@@ -229,8 +352,10 @@ export default async function ClubPage() {
       )}
 
       <p className="text-muted-foreground text-xs leading-relaxed">
-        קאשבק תקף {CASHBACK_DAYS} יום ומתנות רמה {GIFT_DAYS} יום; הטבות התמדה תקפות {COUPON_DAYS} ימים. כל קוד אישי ומיועד להזמנה אחת.
-        הזמנה שבוטלה או הוחזרה לא נספרת לרמה. מטבעות המשחק משמשים לקניית בגדים לדמות בלבד ואין להם ערך כספי.
+        קאשבק תקף {CASHBACK_DAYS} יום ומתנות רמה {GIFT_DAYS} יום; הטבות התמדה
+        תקפות {COUPON_DAYS} ימים. כל קוד אישי ומיועד להזמנה אחת. הזמנה שבוטלה או
+        הוחזרה לא נספרת לרמה. מטבעות המשחק משמשים לקניית בגדים לדמות בלבד ואין
+        להם ערך כספי.
       </p>
     </div>
   );

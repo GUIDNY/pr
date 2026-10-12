@@ -18,14 +18,27 @@ import { MALL_WEB_ORIGIN } from "@/lib/mall";
    game in a new tab. Admins paste the game's address into banners, so this
    is decided here rather than asked of them. */
 function isMallHref(href: string): boolean {
-  return href.startsWith(MALL_WEB_ORIGIN) || href === "/mall" || href.startsWith("/mall?") || href.startsWith("/mall/");
+  return (
+    href.startsWith(MALL_WEB_ORIGIN) ||
+    href === "/mall" ||
+    href.startsWith("/mall?") ||
+    href.startsWith("/mall/")
+  );
 }
 
 /**
  * A slide is a link to a page, or — when its target is the Alfred chat —
  * a button that opens the chat panel where the person already is.
  */
-function SlideLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
+function SlideLink({
+  href,
+  className,
+  children,
+}: {
+  href: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
   if (href === ALFRED_CHAT_HREF) {
     return (
       <button
@@ -90,7 +103,7 @@ export type PromoSlide =
  * asked their device for less of it.
  */
 export function PromoCarousel({
-  slides,
+  slides: allSlides,
   className,
   intervalMs = 5000,
   compact = false,
@@ -115,6 +128,9 @@ export function PromoCarousel({
   // Decided from the slides when not given.
   natural?: boolean;
 }) {
+  // The 3D mall is private for now (lib/mall-access.ts): a banner pointing at
+  // it is not shown, whatever an admin saved.
+  const slides = allSlides.filter((s) => !isMallHref("href" in s ? s.href : (s.ctaHref ?? "")));
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const pausedRef = useRef(false);
@@ -136,7 +152,12 @@ export function PromoCarousel({
     if (!el) return;
     const onScroll = () => {
       const w = el.clientWidth || 1;
-      setIndex(Math.min(slides.length - 1, Math.max(0, Math.round(Math.abs(el.scrollLeft) / w))));
+      setIndex(
+        Math.min(
+          slides.length - 1,
+          Math.max(0, Math.round(Math.abs(el.scrollLeft) / w)),
+        ),
+      );
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
@@ -160,7 +181,8 @@ export function PromoCarousel({
 
   // A set of designed pictures is shown as the pictures are: each at its
   // own ratio, edge to edge, nothing drawn over it but the position dots.
-  const natural = naturalProp ?? (!stacked && slides.every((s) => s.kind === "image"));
+  const natural =
+    naturalProp ?? (!stacked && slides.every((s) => s.kind === "image"));
 
   return (
     <div className={cn("relative", className)}>
@@ -177,13 +199,22 @@ export function PromoCarousel({
       >
         {slides.map((s, i) => (
           <div key={i} className="w-full shrink-0 snap-center">
-            <Slide slide={s} compact={compact} stacked={stacked} slogan={slogan} natural={natural} />
+            <Slide
+              slide={s}
+              compact={compact}
+              stacked={stacked}
+              slogan={slogan}
+              natural={natural}
+            />
           </div>
         ))}
       </div>
 
       {slides.length > 1 && (
-        <div className="absolute inset-x-0 bottom-3 flex justify-center gap-1.5" aria-hidden>
+        <div
+          className="absolute inset-x-0 bottom-3 flex justify-center gap-1.5"
+          aria-hidden
+        >
           {slides.map((s, i) => (
             <button
               key={i}
@@ -192,7 +223,11 @@ export function PromoCarousel({
               onClick={() => goTo(i)}
               className={cn(
                 "h-1.5 rounded-full transition-all",
-                i === index ? "bg-brand w-5" : s.kind === "promo" && s.tone === "light" ? "w-1.5 bg-black/20" : "w-1.5 bg-white/60 shadow"
+                i === index
+                  ? "bg-brand w-5"
+                  : s.kind === "promo" && s.tone === "light"
+                    ? "w-1.5 bg-black/20"
+                    : "w-1.5 bg-white/60 shadow",
               )}
             />
           ))}
@@ -204,17 +239,33 @@ export function PromoCarousel({
 
 function SloganStrip({ slogan, light }: { slogan: string; light: boolean }) {
   return (
-    <div className={cn("relative mb-3 flex items-center gap-2 text-xs font-semibold", light ? "text-foreground" : "text-white")}>
+    <div
+      className={cn(
+        "relative mb-3 flex items-center gap-2 text-xs font-semibold",
+        light ? "text-foreground" : "text-white",
+      )}
+    >
       <span
         className={cn(
           "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] ring-1",
-          light ? "bg-brand/10 text-brand ring-brand/20" : "bg-white/10 ring-white/20"
+          light
+            ? "bg-brand/10 text-brand ring-brand/20"
+            : "bg-white/10 ring-white/20",
         )}
       >
-        <ShieldCheck className={cn("size-3.5", light ? "text-brand" : "text-brand")} />
+        <ShieldCheck
+          className={cn("size-3.5", light ? "text-brand" : "text-brand")}
+        />
         יבואן רשמי
       </span>
-      <span className={cn("truncate", light ? "text-muted-foreground" : "text-white/85")}>{slogan}</span>
+      <span
+        className={cn(
+          "truncate",
+          light ? "text-muted-foreground" : "text-white/85",
+        )}
+      >
+        {slogan}
+      </span>
     </div>
   );
 }
@@ -251,8 +302,12 @@ function Slide({
           {/* Styled as the headline, but a <p>: the page's <h1> is in the
               desktop banner, which is only hidden below lg:, and a second
               one would be a second one. */}
-          <p className="max-w-md text-[1.7rem] leading-tight font-black text-balance sm:text-3xl">{slide.title}</p>
-          <p className="text-primary-foreground/75 max-w-sm text-sm">{slide.subtitle}</p>
+          <p className="max-w-md text-[1.7rem] leading-tight font-black text-balance sm:text-3xl">
+            {slide.title}
+          </p>
+          <p className="text-primary-foreground/75 max-w-sm text-sm">
+            {slide.subtitle}
+          </p>
           {slide.ctaLabel && slide.ctaHref && (
             <SlideLink
               href={slide.ctaHref}
@@ -272,8 +327,19 @@ function Slide({
     // cropped. The width/height attributes only hold the space until it
     // loads; then its real ratio takes over.
     return (
-      <SlideLink href={slide.href} className="group relative block overflow-hidden bg-white">
-        <Image src={slide.src} alt={slide.alt} width={1600} height={700} sizes="(min-width: 1280px) 1024px, 100vw" className="h-auto w-full" priority />
+      <SlideLink
+        href={slide.href}
+        className="group relative block overflow-hidden bg-white"
+      >
+        <Image
+          src={slide.src}
+          alt={slide.alt}
+          width={1600}
+          height={700}
+          sizes="(min-width: 1280px) 1024px, 100vw"
+          className="h-auto w-full"
+          priority
+        />
       </SlideLink>
     );
   }
@@ -287,10 +353,21 @@ function Slide({
         href={slide.href}
         className={cn(
           "group relative block overflow-hidden bg-white",
-          stacked ? "aspect-square w-full" : compact ? "h-full min-h-40 sm:min-h-44" : "h-full min-h-56 sm:min-h-64"
+          stacked
+            ? "aspect-square w-full"
+            : compact
+              ? "h-full min-h-40 sm:min-h-44"
+              : "h-full min-h-56 sm:min-h-64",
         )}
       >
-        <Image src={slide.src} alt={slide.alt} fill sizes={stacked ? "304px" : "100vw"} className="object-cover" priority />
+        <Image
+          src={slide.src}
+          alt={slide.alt}
+          fill
+          sizes={stacked ? "304px" : "100vw"}
+          className="object-cover"
+          priority
+        />
       </SlideLink>
     );
   }
@@ -302,12 +379,14 @@ function Slide({
       href={slide.href}
       className={cn(
         "group relative flex h-full gap-3 overflow-hidden p-5 pb-8 sm:p-6",
-        stacked ? "flex-col items-start justify-between" : "items-center justify-between sm:p-8",
+        stacked
+          ? "flex-col items-start justify-between"
+          : "items-center justify-between sm:p-8",
         slogan && !stacked && "pt-12 sm:pt-14",
         compact ? "min-h-40 sm:min-h-44" : "min-h-56 sm:min-h-64",
         tone === "brand" && "bg-brand text-brand-foreground",
         tone === "navy" && "bg-primary text-primary-foreground",
-        tone === "light" && "text-foreground bg-white"
+        tone === "light" && "text-foreground bg-white",
       )}
     >
       <div
@@ -331,7 +410,7 @@ function Slide({
           className={cn(
             "absolute -end-10 -bottom-16 rounded-full border-[18px]",
             compact ? "size-40 border-[12px] sm:size-56" : "size-56 sm:size-72",
-            tone === "light" ? "border-brand/10" : "border-white/10"
+            tone === "light" ? "border-brand/10" : "border-white/10",
           )}
         />
       )}
@@ -339,7 +418,11 @@ function Slide({
         <span
           className={cn(
             "leading-none font-black tracking-tight",
-            stacked ? "text-4xl" : compact ? "text-4xl sm:text-5xl" : "text-[3.2rem] sm:text-6xl"
+            stacked
+              ? "text-4xl"
+              : compact
+                ? "text-4xl sm:text-5xl"
+                : "text-[3.2rem] sm:text-6xl",
           )}
         >
           {slide.title}
@@ -347,7 +430,7 @@ function Slide({
         <span
           className={cn(
             "mt-1 inline-flex items-center gap-1.5 text-sm font-semibold",
-            tone === "light" ? "text-brand" : "text-white/90"
+            tone === "light" ? "text-brand" : "text-white/90",
           )}
         >
           {slide.body}
@@ -363,7 +446,11 @@ function Slide({
         <div
           className={cn(
             "relative shrink-0",
-            stacked ? "mt-3 h-28 w-40 self-end" : compact ? "h-28 w-36 sm:h-32 sm:w-44" : "h-40 w-48 sm:h-48 sm:w-60"
+            stacked
+              ? "mt-3 h-28 w-40 self-end"
+              : compact
+                ? "h-28 w-36 sm:h-32 sm:w-44"
+                : "h-40 w-48 sm:h-48 sm:w-60",
           )}
         >
           {images.map((src, i) => (
@@ -373,10 +460,17 @@ function Slide({
                 "absolute overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5",
                 i === 0 && "end-0 bottom-0 z-30 h-full w-[62%]",
                 i === 1 && "end-[42%] bottom-2 z-20 h-[78%] w-[50%] -rotate-6",
-                i === 2 && "end-[68%] bottom-5 z-10 h-[62%] w-[42%] rotate-6"
+                i === 2 && "end-[68%] bottom-5 z-10 h-[62%] w-[42%] rotate-6",
               )}
             >
-              <Image src={src} alt="" fill sizes="120px" className="object-contain p-1.5" referrerPolicy="no-referrer" />
+              <Image
+                src={src}
+                alt=""
+                fill
+                sizes="120px"
+                className="object-contain p-1.5"
+                referrerPolicy="no-referrer"
+              />
             </span>
           ))}
         </div>

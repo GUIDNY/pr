@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { GAME_ORIGIN } from "@/lib/game-profile";
 
 // Where a sign-in that started in the 3D mall lands, and the way back to it.
 //
@@ -22,27 +21,15 @@ import { GAME_ORIGIN } from "@/lib/game-profile";
 // into the build as a static response.
 export const dynamic = "force-dynamic";
 
-// Inside the iOS app the way back is /mall on this host instead: the app's
-// WebView sends any other host to Safari (see next.config.ts), which would
-// finish the sign-in in the app and then throw the customer out of it. The
-// app stamps "BuyTodayApp" on its user agent (capacitor.config.ts). Both
-// destinations are fixed; only which of the two is chosen depends on the
-// request, so this is still not a redirect anybody can aim. The Android
-// WebView's own "; wv)" token counts too, so an Android build whose stamp did
-// not take still lands back inside the app (Chrome, not Safari, on Android).
-const APP_UA_MARKER = "BuyTodayApp";
-const ANDROID_WEBVIEW = /; wv\)/;
-
-// ?checkout=1: the sign-in started in the game's checkout, and the game should
-// open it again. A flag with one value, appended to a fixed address; it aims
-// nothing.
+// While the mall is private (lib/mall-access.ts) the way back goes through
+// /api/game/pass, which lets only the accounts on the list in.
 export function GET(request: Request) {
   const url = new URL(request.url);
-  const ua = request.headers.get("user-agent") ?? "";
-  const inApp = ua.includes(APP_UA_MARKER) || ANDROID_WEBVIEW.test(ua);
-  const flags = url.searchParams.get("checkout") === "1" ? "signedin=1&checkout=1" : "signedin=1";
-  const destination = inApp ? `${url.origin}/mall?${flags}` : `${GAME_ORIGIN}/?${flags}`;
-  return NextResponse.redirect(destination, {
+  const flags =
+    url.searchParams.get("checkout") === "1"
+      ? "signedin=1&checkout=1"
+      : "signedin=1";
+  return NextResponse.redirect(`${url.origin}/api/game/pass?${flags}`, {
     status: 303,
     headers: { "Cache-Control": "no-store" },
   });

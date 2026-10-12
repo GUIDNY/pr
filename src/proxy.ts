@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-import { LEGACY_PRODUCT_SLUGS, LEGACY_BRAND_SLUGS } from "@/generated/legacy-slugs";
+import {
+  LEGACY_PRODUCT_SLUGS,
+  LEGACY_BRAND_SLUGS,
+} from "@/generated/legacy-slugs";
+import { MALL_PASS_COOKIE, verifyMallPass } from "@/lib/mall-access";
 
 // The one thing that runs before the cache.
 //
@@ -33,12 +37,34 @@ const SESSION_COOKIE = "prec_session";
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // The 3D mall at /mall (the iOS app's address for it) is private while the
+  // patent is pending: only a visitor holding a pass from /api/game/pass gets
+  // it, fetched from the game's host with the pass alongside. Anyone else is
+  // sent to the home page. See lib/mall-access.ts.
+  if (pathname === "/mall" || pathname.startsWith("/mall/")) {
+    const pass = request.cookies.get(MALL_PASS_COOKIE)?.value;
+    if (!pass || !(await verifyMallPass(pass)))
+      return NextResponse.redirect(new URL("/", request.url), 303);
+    const target = new URL(
+      pathname.replace(/^\/mall\/?/, "/") + request.nextUrl.search,
+      "https://play.buytoday.co.il",
+    );
+    const headers = new Headers(request.headers);
+    headers.set("x-bt-mall-pass", pass);
+    return NextResponse.rewrite(target, { request: { headers } });
+  }
+
   // A category request that carries a filter, a sort or a page number goes to
   // the twin that reads them. The bare address — every crawler's request, and
   // most visitors' — falls through to the cached page. See
   // category/[slug]/page.tsx for why reading them at all is what costs.
   if (pathname.startsWith("/category/") && hasCategoryFilter(request)) {
-    return rewriteSegment(request, pathname, "/category/", "/category-filtered");
+    return rewriteSegment(
+      request,
+      pathname,
+      "/category/",
+      "/category-filtered",
+    );
   }
 
   // An address something was renamed away from is answered here, before any
@@ -58,7 +84,10 @@ export async function proxy(request: NextRequest) {
 
   // A brand request that chose a sort goes to the twin that reads it. The
   // bare address falls through to the cached page.
-  if (pathname.startsWith("/brand/") && request.nextUrl.searchParams.has("sort")) {
+  if (
+    pathname.startsWith("/brand/") &&
+    request.nextUrl.searchParams.has("sort")
+  ) {
     return rewriteSegment(request, pathname, "/brand/", "/brand-sorted");
   }
 
@@ -127,7 +156,10 @@ async function isStaff(request: NextRequest): Promise<boolean> {
   if (!secret) return false;
 
   try {
-    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(secret),
+    );
     return typeof payload.role === "string" && STAFF_ROLES.has(payload.role);
   } catch {
     return false;
@@ -169,7 +201,9 @@ function legacyRedirect(request: NextRequest, pathname: string) {
   const slug = pathname.slice(prefix.length);
   if (!slug || slug.includes("/")) return null;
 
-  const current = Object.prototype.hasOwnProperty.call(table, slug) ? table[slug] : undefined;
+  const current = Object.prototype.hasOwnProperty.call(table, slug)
+    ? table[slug]
+    : undefined;
   if (!current || current === slug) return null;
 
   const url = request.nextUrl.clone();
@@ -177,7 +211,12 @@ function legacyRedirect(request: NextRequest, pathname: string) {
   return NextResponse.redirect(url, 308);
 }
 
-function rewriteSegment(request: NextRequest, pathname: string, prefix: string, destination: string) {
+function rewriteSegment(
+  request: NextRequest,
+  pathname: string,
+  prefix: string,
+  destination: string,
+) {
   const slug = pathname.slice(prefix.length);
   // Nothing nested lives under either prefix, and rewriting a path with a
   // slash still in it would send "/category/a/b" somewhere that does not exist.
@@ -189,5 +228,12 @@ function rewriteSegment(request: NextRequest, pathname: string, prefix: string, 
 }
 
 export const config = {
-  matcher: ["/product/:slug", "/category/:slug", "/brand/:slug", "/account/:path*"],
+  matcher: [
+    "/product/:slug",
+    "/category/:slug",
+    "/brand/:slug",
+    "/account/:path*",
+    "/mall",
+    "/mall/:path*",
+  ],
 };
