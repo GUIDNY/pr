@@ -12,7 +12,6 @@ import { Phone, MapPin, ShieldCheck, Truck, CreditCard, MessageCircle } from "lu
 import SiInstagram from "@icons-pack/react-simple-icons/icons/SiInstagram";
 import SiFacebook from "@icons-pack/react-simple-icons/icons/SiFacebook";
 import { ConsentSettingsLink } from "@/components/layout/consent-settings-link";
-import { MallLink } from "@/components/layout/mall-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL, SISTER_SITE } from "@/lib/business";
 
@@ -95,13 +94,6 @@ export async function Footer() {
               <SiFacebook aria-hidden className="size-4" />
             </a>
           </div>
-          {/* The 3D mall: a separate static site on its own subdomain, built
-              from this catalogue's category pages, so it adds nothing to this
-              app's load. Its product links come back here tagged
-              utm_source=closing-time-game; this link is tagged too, so the
-              round trip shows up in analytics as footer → game → product. Inside
-              the iOS app it goes to /mall instead, see mall-link.tsx. */}
-          <MallLink />
         </div>
 
         <div>

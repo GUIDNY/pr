@@ -12,7 +12,6 @@ import { CartTrigger } from "@/components/cart/cart-trigger";
 import { AccountButton } from "@/components/layout/account-button";
 import { FavoritesLink } from "@/components/layout/favorites-link";
 import { BackOfficeLink } from "@/components/layout/back-office-link";
-import { HeaderMallButton } from "@/components/layout/mall-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
 
 export async function Header() {
@@ -92,9 +91,6 @@ export async function Header() {
           <div className="min-w-0 flex-1">
             <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-10 border-2" />
           </div>
-          {/* The 3D mall: straight in from the app; on an iPhone in the
-              browser it offers the app first. See HeaderMallButton. */}
-          <HeaderMallButton />
           {/* Only where the bottom tab bar is not already the cart. */}
           <CartTrigger unlessTabBar />
         </div>
@@ -131,7 +127,6 @@ export async function Header() {
           </div>
 
           <div className="flex items-center gap-1">
-            <HeaderMallButton className="h-11" />
             <FavoritesLink />
             {/* Looks different signed in and signed out — see AccountButton. */}
             <AccountButton />
