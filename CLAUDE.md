@@ -301,10 +301,15 @@ hosts in `blocked-image-hosts.ts` outright. `npm run check:images` guards both r
   ~₪340,000 of stock off the site) and both runs reported `SUCCESS` with a tidy
   "N added, N missing". It is keyed on one run's own change log —
   `PRODUCT_MISSING_FROM_SOURCE` and `NEW_PRODUCT` on the same tab and row in the
-  same pass — and not on `sourceRowKey`, which **collides**: the first version
-  paired on that hash and produced 55 matches against the live catalogue,
-  including a ₪2,400 cooktop against a ₪10,500 one. Do not treat that key as an
-  identity.
+  same pass — and not on `sourceRowKey`. The first version paired on that hash
+  and produced 55 matches against the live catalogue, one of them a ₪2,400
+  cooktop against a ₪10,500 one, which read as the hash colliding. Measured
+  properly afterwards it is not: of 399 keyed products exactly one pair shares
+  a key, and that pair is now excluded (a row with no model and no title of its
+  own used to key on the forward-filled brand alone). The 55 were keys stamped
+  from *older* versions of the sheet, on records the price list has since
+  dropped — a key is only evidence about the sheet that wrote it. Pair across
+  time by the run that did it, not by the key.
 
 - **Secrets live in the Vercel dashboard only** — `PRODUCT_ENRICH_SECRET`,
   `SUPABASE_SERVICE_ROLE_KEY` and the rest are not in `.env` and not in the repo.
