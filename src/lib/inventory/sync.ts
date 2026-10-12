@@ -28,7 +28,7 @@ import {
   looksLikeMarketingTitle,
   looksLikeMisplacedQuantity,
   looksLikeOffsetStockRow,
-  modelsCanBeTheSame,
+  rowStillNamesThisProduct,
   IMPLAUSIBLE_LINE_VALUE,
 } from "./import-guards";
 import type { SyncTrigger } from "@/lib/enums";
@@ -204,7 +204,9 @@ export async function findExistingProductWithPath(
      stripping, the same assertion used everywhere else here, and unique or
      nothing: two that both read as this row's model means the model is not
      deciding anything, and guessing is what produced this mess. */
-  const namedByTheRow = pool.filter((p) => modelsAreTheSame(p.model, row.model));
+  const namedByTheRow = pool.filter(
+    (p) => modelsAreTheSame(p.model, row.model) || modelsAreTheSame(p.lastRowModel, row.model),
+  );
   const positionMatch =
     namedByTheRow.length === 1 ? namedByTheRow[0] : pool.length === 1 ? pool[0] : null;
 
@@ -241,13 +243,10 @@ export async function findExistingProductWithPath(
       positionMatch.sku !== row.sku &&
       !renumberedInPlace;
     // And the row's own model column has to agree that this is the same
-    // product — see modelsCanBeTheSame. A shifted block of rows matches every
-    // product in it to its neighbour, and the only thing that notices is the
-    // model the sheet prints beside the stock we are about to copy.
-    const positionMatchContradictsTheRow = !modelsCanBeTheSame(
-      positionMatch.model,
-      row.model,
-    );
+    // product — see rowStillNamesThisProduct. A shifted block of rows matches
+    // every product in it to its neighbour, and the only thing that notices is
+    // the model the sheet prints beside the stock we are about to copy.
+    const positionMatchContradictsTheRow = !rowStillNamesThisProduct(positionMatch, row.model);
     if (!positionMatchIsStaleIdentity && !positionMatchContradictsTheRow) {
       return { product: positionMatch, path: "position" as MatchPath };
     }
@@ -293,7 +292,13 @@ export async function findExistingProductWithPath(
        model is a wrong key, not an identity, so it is refused and the row
        falls through to the comparisons below — which can still find the
        product honestly, or decide the sheet no longer carries it. */
-    if (keyMatch && modelsCanBeTheSame(keyMatch.model, row.model)) {
+    /* And the identity is confirmed against what the row itself said last
+       run, not only against the product's current model — see
+       rowStillNamesThisProduct. This is the door the 12 October loss came
+       through: the key matched exactly, on the same sheet, the same row
+       index and the same content hash, and was refused anyway because
+       enrichment had corrected the product's model since. */
+    if (keyMatch && rowStillNamesThisProduct(keyMatch, row.model)) {
       return { product: keyMatch, path: "rowKey" as MatchPath };
     }
   }

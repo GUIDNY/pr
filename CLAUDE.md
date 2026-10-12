@@ -89,6 +89,32 @@ The tell is cheap to look for: a product whose assigned brand contradicts the
 manufacturer named in its own title (`Bosch` on a row titled `באוכנכט KFN96APEAL`).
 That is never a typo in the sheet, it is the derivation.
 
+## `Product.model` is enrichment's field, so the matcher compares row to row
+
+The sheet's model column is the supplier's shorthand; `Product.model` is what
+enrichment wrote after checking the manufacturer — `8780IN` becomes
+`CTAC8780AFSNE`, `SIH 8080` is stored as `SHI8080`, `CMA583MBO` as `CMA583MB0`
+because the supplier typed a letter O for a zero. They are *supposed* to
+diverge, and a correction is the normal case rather than the exception.
+
+So no identity test may compare the row against `Product.model` alone. On
+12 October the 04:30 run did, on both the position and the content-key paths,
+and took **fourteen enriched, photographed, published products off the site in
+one run** — replacing each with a blank record on the same sheet, the same row
+index and the same `sourceRowKey`. The key matched exactly. The guard refused
+it because enrichment had corrected the model since, so every successful
+enrichment looked like a different product.
+
+`lastRowModel` is the answer and it is written for this: the model *the row*
+carried on the previous run, by the sync and by nothing else. All fourteen rows
+arrived carrying exactly the string the product's `lastRowModel` already held.
+`rowStillNamesThisProduct` asks the product's own model first and falls back to
+that, which is strictly row-against-row and therefore immune to anything a
+person or the agent edits. It does not loosen the protection it replaces — a
+shifted block puts a *different* row at the position, and a different row's
+model matches neither field. `npm run check:guards` carries all fourteen pairs
+plus the moved-row and silent cases.
+
 ## `enrichmentStatus` is load-bearing
 
 `NOT_ENRICHED` → `ENRICHED` (or `NEEDS_REVIEW`). Two paths set it: the enrich endpoint

@@ -332,3 +332,47 @@ export function looksLikeSubtotalRow(input: {
   if (input.internalCost !== null && input.internalCost > 0) return false;
   return input.quantity >= SUBTOTAL_MIN_QUANTITY;
 }
+
+/**
+ * Does this row still name this product?
+ *
+ * The question the model guards were asking was "does the product's model
+ * match the row's", and on 12 October that answer took fourteen enriched,
+ * photographed, published products off the site in one run and replaced
+ * each with a blank record on the same sheet row. The sheet had not
+ * changed its mind about any of them. `Product.model` had: it is an
+ * enrichment-owned field, and enrichment writes the manufacturer's real
+ * code over the supplier's shorthand. A Bosch oven whose row says
+ * CMA583MBO is stored as CMA583MB0 — the supplier typed a letter O for a
+ * zero — a Sauter hob reading SIH 8080 is stored as SHI8080, a Bauknecht
+ * row saying 8780IN is stored as CTAC8780AFSNE. Every one of those is a
+ * correction somebody made on purpose, and comparing the row against it
+ * makes a successful enrichment look like a different product.
+ *
+ * So the comparison that decides identity is row against *row*:
+ * `lastRowModel` is the model this product's row carried on the previous
+ * run, written by the sync and by nothing else. All fourteen rows arrived
+ * carrying exactly the string the product's lastRowModel already held.
+ *
+ * It does not weaken the guard it replaces, which exists because rows
+ * shift and a stale key can be stamped on a neighbour: a shifted block
+ * puts a *different* row at this position, and a different row's model
+ * does not match this product's lastRowModel either. What it stops doing
+ * is punishing a product for having been corrected.
+ *
+ * The product's own model still vouches for the row — first, because for
+ * the 1,300 products enrichment has not renamed it is the same answer and
+ * a cheaper one — and lastRowModel is the second opinion, asked only when
+ * the first says no.
+ */
+export function rowStillNamesThisProduct(
+  product: { model: string | null; lastRowModel?: string | null },
+  rowModel: string | null | undefined,
+): boolean {
+  if (modelsCanBeTheSame(product.model, rowModel)) return true;
+  /* modelsAreTheSame and not modelsCanBeTheSame: this branch is only
+     reached when the product's current model has already said no, so
+     silence on either side must not turn into a yes. Both sides have to
+     name a real model and agree. */
+  return modelsAreTheSame(product.lastRowModel ?? null, rowModel);
+}

@@ -14,6 +14,7 @@ import {
   looksLikeOffsetStockRow,
   modelsCanBeTheSame,
   modelsAreTheSameAllowingTypedZero,
+  rowStillNamesThisProduct,
 } from "../src/lib/inventory/import-guards";
 import { resolvedPrice } from "../src/lib/inventory/diff-engine";
 
@@ -318,6 +319,78 @@ for (const [product, row, why] of TYPED_ZERO_DIFFERENT) {
   }
 }
 
+// What the row said about this product last time, which is the comparison
+// that decides identity on a position or content-key match — see
+// rowStillNamesThisProduct in lib/inventory/sync.ts.
+//
+// Every pair below is a real product the 12 October 04:30 run took off the
+// site and replaced with a blank record on the same sheet row, the same row
+// index and the same content hash. The first column is what the catalogue
+// holds, the second is what the sheet's row says, the third is what the same
+// row said on the previous run. The sheet never changed its mind: column two
+// and column three are identical in all fourteen. What changed was the
+// catalogue, because enrichment writes the manufacturer's real code over the
+// supplier's shorthand — which is a correction somebody made on purpose, and
+// comparing the row against it makes a successful enrichment look like a
+// different product.
+const ROW_MODEL_UNCHANGED: [string, string, string, string][] = [
+  ["CTAC8780AFSNE", "8780IN", "8780IN", "Bauknecht hob, the full manufacturer code"],
+  ["SHI8080", "SIH 8080", "SIH 8080", "Sauter hob, two letters transposed"],
+  ["65QNED70B6T", "65QN70B6", "65QN70B6", "an LG TV the sheet abbreviates"],
+  ["86QNED85B6T", "85QNED85B", "85QNED85B", "and the 86\" one"],
+  ["DLW1059T3B", "DLW1095B", "DLW1095B", "a DeLonghi washing machine"],
+  ["CMA583MB0", "CMA583MBO", "CMA583MBO", "a Bosch oven, letter O for a zero"],
+  ["H 2861 B Grey", "H2861 Bgray", "H2861 Bgray", "the Miele oven, Grey against Bgray"],
+  ["HB317GTS0", "HB317GTSO", "HB317GTSO", "a Siemens oven, letter O for a zero"],
+  ["HGN9333Z", "HGN9335Z", "HGN9335Z", "a Blomberg range, one digit"],
+  ["HGN8333", "HGN8335", "HGN8335", "and the white one"],
+  ["HGN8433X", "HGN8435X", "HGN8435X", "and the stainless one"],
+  ["JCF-88S", "JCF88 IX", "JCF88 IX", "a Le Imperial wine fridge"],
+  ["BO-660GIV ICE", "BO660IV", "BO660IV", "a Bompani fridge the sheet abbreviates"],
+  ["FNT3676X", "3676X NF", "3676X NF", "a Blomberg freezer"],
+];
+for (const [model, rowModel, lastRowModel, why] of ROW_MODEL_UNCHANGED) {
+  if (!rowStillNamesThisProduct({ model, lastRowModel }, rowModel)) {
+    fail(`the row has not changed its mind — ${why}: ${model} / ${rowModel}`);
+  }
+  // The point of the pairs: the product's own model is NOT the answer here.
+  // If one of these ever starts matching on it, the fixture has gone stale
+  // and stopped testing anything.
+  if (modelsCanBeTheSame(model, rowModel)) {
+    fail(`fixture is stale, the models now match directly — ${why}: ${model} / ${rowModel}`);
+  }
+}
+
+// And it must not become a way in for a shifted block, which is the whole
+// reason the model guard is on those two paths. A row that has moved carries
+// its neighbour's model, which matches neither the product's model nor what
+// this product's row said last run.
+const ROW_MODEL_MOVED: [string, string, string, string][] = [
+  ["CH74BVT", "MGH90GB", "CH74BVT", "a Candy ceramic hob at a Crystal gas hob's row"],
+  ["STK60GHX", "STK70GHX", "STK60GHX", "60cm at the 70cm row below it"],
+  ["65U8000H", "OLED77C66LA", "65U8000H", "the Samsung holding an LG OLED row's key"],
+  ["WF13314GBC", "WF13314WBC", "WF13314GBC", "one letter apart, two washing machines"],
+];
+for (const [model, rowModel, lastRowModel, why] of ROW_MODEL_MOVED) {
+  if (rowStillNamesThisProduct({ model, lastRowModel }, rowModel)) {
+    fail(`a moved row must still be refused — ${why}: ${model} / ${rowModel}`);
+  }
+}
+
+// Silence is not a yes on this path either: it is only consulted after the
+// product's own model has already refused, so an empty or unreadable
+// lastRowModel must not rescue the match.
+const ROW_MODEL_SILENT: [string | null, string, string | null, string][] = [
+  ["CMA583MB0", "CMA583MBO", null, "no previous row model recorded"],
+  ["CMA583MB0", "CMA583MBO", "", "an empty previous row model"],
+  ["CMA583MB0", "CMA583MBO", "MB0", "a previous row model too short to assert"],
+];
+for (const [model, rowModel, lastRowModel, why] of ROW_MODEL_SILENT) {
+  if (rowStillNamesThisProduct({ model, lastRowModel }, rowModel)) {
+    fail(`silence must not vouch for a row — ${why}: ${model} / ${rowModel}`);
+  }
+}
+
 const DIFFERENT_MODEL: [string, string, string][] = [
   ["CH74BVT", "MGH90GB", "a Candy ceramic hob bound to a Crystal gas hob's row"],
   ["STK60GHX", "STK70GHX", "60cm bound to the 70cm one row below"],
@@ -364,7 +437,11 @@ for (const [retailPrice, minSalePrice, managerPrice, internalCost, expected, why
 const total =
   SAME_MODEL.length + DIFFERENT_MODEL.length + REFUSED_BUT_HARMLESS.length + PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
   HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
-  SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length + REFUSED.length + ALLOWED.length;
+  SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length + REFUSED.length + ALLOWED.length +
+  /* These five were asserted but never counted, so the summary under-reported
+     by eight before the row-model cases were added to it. */
+  TYPED_ZERO_SAME.length + TYPED_ZERO_DIFFERENT.length +
+  ROW_MODEL_UNCHANGED.length + ROW_MODEL_MOVED.length + ROW_MODEL_SILENT.length;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${LABEL_URLS.length} label urls, ${PRODUCT_URLS.length} photo urls, ` +
@@ -376,6 +453,8 @@ console.log(
     `${SAME_MODEL.length} same models, ${DIFFERENT_MODEL.length} swapped models, ` +
     `${TYPED_ZERO_SAME.length} typed zeros, ${TYPED_ZERO_DIFFERENT.length} refused folds, ` +
     `${REFUSED_BUT_HARMLESS.length} harmless refusal, ` +
+    `${ROW_MODEL_UNCHANGED.length} unchanged rows, ${ROW_MODEL_MOVED.length} moved rows, ` +
+    `${ROW_MODEL_SILENT.length} silent rows, ` +
     `${HTML_CASES.length} html descriptions)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;
