@@ -3,7 +3,12 @@ import { looksLikeEnergyLabelUrl } from "@/lib/inventory/import-guards";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
-import { reconcileUrgentMissingMedia, reconcileMissingImage, reconcileAutoPublish } from "@/lib/inventory/sync";
+import {
+  reconcileUrgentMissingMedia,
+  reconcileMissingImage,
+  reconcileAutoPublish,
+  reconcileNewFromSource,
+} from "@/lib/inventory/sync";
 import {
   checkAuth,
   MAX_PRODUCT_IMAGES,
@@ -839,6 +844,11 @@ export async function POST(request: Request) {
     await reconcileUrgentMissingMedia();
     await reconcileMissingImage();
     published = await reconcileAutoPublish();
+    /* And close the arrival queue for anything that reached the site by any
+       route in this batch. The queue entry is otherwise only cleared inside
+       a sync, and a sync is pressed by hand — which is how 59 products ended
+       up listed as "waiting" while they were being sold. */
+    await reconcileNewFromSource();
   }
 
   return NextResponse.json({ dryRun, count: results.length, published, results });

@@ -14,17 +14,27 @@ export const metadata = { title: "מוצרים חדשים מהסנכרון | Buy
  * had not been read for 35 days, and a 24-hour window would have shown them
  * once and then hidden a backlog nobody had worked through. The flag closes
  * when somebody deals with the product, which is the right clock.
+ *
+ * And it is now "still flagged AND still not on the site". The flag is
+ * cleared by reconcileNewFromSource, which runs inside a sync, and a sync is
+ * pressed by hand — so every other way a product goes live left its entry
+ * standing. 59 of the 180 this page was counting as waiting were already
+ * being sold. That is how it came to read 180 beside the off-site page's
+ * 160 while sharing only 108 products with it: two numbers that could not
+ * both be true, and the owner read them side by side and said so.
+ * getNewInPriceList asks PUBLIC_PRODUCT_WHERE directly now, so the count
+ * cannot outlive the work again.
  */
 export default async function NewFromSyncPage() {
   await requireCatalogPage();
-  const { rows, fromLastSync, total } = await getNewInPriceList(300);
+  const { rows, fromLastSync, total, outOfStock } = await getNewInPriceList(300);
 
   return (
     <div>
       <h1 className="text-2xl font-bold">מוצרים חדשים מהסנכרון</h1>
       <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
-        הגיעו מהמחירון ועוד לא מוכנים למכירה: השם הוא הטקסט הגולמי מהגיליון, ואין תמונה, תיאור או מפרט. הם לא מופיעים
-        באתר עד שיש להם תמונה. השורה יוצאת מהרשימה כשהמוצר מטופל.
+        הגיעו מהמחירון ועוד לא מוכנים למכירה: השם הוא הטקסט הגולמי מהגיליון, ואין תמונה, תיאור או מפרט. השורה יוצאת
+        מהרשימה ברגע שהמוצר באתר — נבדק מול האתר עצמו, לא מול סימון, כדי שהמספר לא יישאר תקוע אחרי שהעבודה נעשתה.
       </p>
       <InventoryTabs />
       <p className="text-muted-foreground mb-3 text-sm">
@@ -39,6 +49,15 @@ export default async function NewFromSyncPage() {
           <>
             {" · "}
             <strong className="text-foreground">{fromLastSync}</strong> מהסנכרון האחרון
+          </>
+        )}
+        {/* The one honest difference between this tab and "למה לא באתר",
+            which counts only products that have stock. Said here so the two
+            numbers reconcile instead of merely differing. */}
+        {outOfStock > 0 && (
+          <>
+            {" · "}
+            <strong className="text-foreground">{outOfStock}</strong> מהם ללא מלאי, ולכן לא מופיעים ב״למה לא באתר״
           </>
         )}
       </p>

@@ -303,38 +303,45 @@ function toLine(p: ProductLineRow): ProductLine {
  * somebody deals with the product, which is the right clock.
  */
 export async function getNewInPriceList(limit = 300): Promise<{
-  rows: (ProductLine & { fromLastSync: boolean })[];
+  rows: (ProductLine & { fromLastSync: boolean; outOfStock: boolean })[];
   fromLastSync: number;
   /** How many are really waiting, which is not the same as how many are
       listed: the page read "300 waiting" because 300 was the take. The
       true number was 350. */
   total: number;
+  /** Of those, the ones with no stock — they are waiting, but they are not
+      part of the off-site list, which is only about products with stock.
+      Reported so the two tabs reconcile instead of merely differing. */
+  outOfStock: number;
 }> {
-  const [alerts, lastRun, total] = await Promise.all([
+  const [alerts, lastRun] = await Promise.all([
     db.inventoryAlert.findMany({
       where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { not: null } },
       select: { productId: true },
       orderBy: { createdAt: "desc" },
-      take: limit,
+      distinct: ["productId"],
     }),
     db.inventorySyncRun.findFirst({
       where: { status: { in: ["SUCCESS", "NO_CHANGES"] } },
       orderBy: { startedAt: "desc" },
       select: { startedAt: true },
     }),
-    db.inventoryAlert
-      .findMany({
-        where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { not: null } },
-        select: { productId: true },
-        distinct: ["productId"],
-      })
-      .then((rows) => rows.length),
   ]);
-  const ids = [...new Set(alerts.map((a) => a.productId).filter((id): id is string => id !== null))];
-  if (ids.length === 0) return { rows: [], fromLastSync: 0, total };
+  const ids = alerts.map((a) => a.productId).filter((id): id is string => id !== null);
+  if (ids.length === 0) return { rows: [], fromLastSync: 0, total: 0, outOfStock: 0 };
+  /* Not on the site already, asked here rather than trusted to the alert.
+     The alert is resolved by reconcileNewFromSource, which runs inside a
+     sync — and a sync is pressed by hand. So every other way a product goes
+     live left its queue entry open: the admin form, a merge, the enrich
+     endpoint's auto-publish. 59 of the 180 products this tab was listing as
+     "waiting" were already being sold, which is how the tab came to
+     disagree with "למה לא באתר" by 20 while overlapping it by 108 — two
+     numbers that could not both be read.
+     PUBLIC_PRODUCT_WHERE spread verbatim, so this cannot drift from what
+     the shop shows no matter when the last sync ran. */
   const rows = await db.product.findMany({
-    where: { id: { in: ids } },
-    select: PRODUCT_LINE_SELECT,
+    where: { id: { in: ids }, NOT: PUBLIC_PRODUCT_WHERE },
+    select: { ...PRODUCT_LINE_SELECT, stockQty: true },
     /* Newest first. The list is everything still waiting and not just the
        last run's output — 33 arrived in one run on 11 October because four
        tabs had gone unread for 35 days, and a window would have shown them
@@ -346,8 +353,14 @@ export async function getNewInPriceList(limit = 300): Promise<{
   const out = rows.map((p) => ({
     ...toLine(p),
     fromLastSync: since !== null && p.createdAt >= since,
+    outOfStock: p.stockQty <= 0,
   }));
-  return { rows: out, fromLastSync: out.filter((p) => p.fromLastSync).length, total };
+  return {
+    rows: out.slice(0, limit),
+    fromLastSync: out.filter((p) => p.fromLastSync).length,
+    total: out.length,
+    outOfStock: out.filter((p) => p.outOfStock).length,
+  };
 }
 
 /**
