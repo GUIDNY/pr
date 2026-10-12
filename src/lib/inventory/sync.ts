@@ -1400,6 +1400,69 @@ export async function reconcileNewFromSource(): Promise<number> {
   return done.count;
 }
 
+/**
+ * Publish a product the sheet brought in, once it has everything it needs.
+ *
+ * Because "press publish" was being carried as a job on a product with no
+ * photograph, and the owner said the obvious thing about it: you do not
+ * publish a product with no picture. He is right — and the flag was worse
+ * than useless there, it was a trap. PUBLIC_PRODUCT_WHERE requires an
+ * image, so a product with content, stock, a price and the publish flag
+ * off looks identical to one that is three fields short, and the moment
+ * somebody adds its photograph it still does not appear. Nothing in the
+ * shop says why, because nothing is wrong with it.
+ *
+ * So the flag stops being a step. A product that arrived from a price
+ * sheet and has since been enriched, priced, stocked and photographed goes
+ * live by itself, and the two reconciles below it resolve its queue entry
+ * in the same pass.
+ *
+ * Three guards, and each is load-bearing:
+ *
+ * - **An open NEW_FROM_SOURCE alert.** That is what makes this safe. The
+ *   alert is raised when the sync creates the product and resolved the
+ *   moment it is live or dropped (see reconcileNewFromSource), so an open
+ *   one means nobody has made a decision about this product yet. A product
+ *   a person deliberately hid has no open alert, and isPublished keeps the
+ *   meaning the rest of the file relies on: someone chose to hide this.
+ * - **ENRICHED.** Not merely "has an image". 91 products in stock have
+ *   never been enriched — their title is still the sheet's raw
+ *   "{brand} {model}" — and publishing one of those on the strength of a
+ *   photograph puts a page with no description and a department instead of
+ *   a category in front of a customer. NEEDS_REVIEW and the
+ *   *_DO_NOT_PUBLISH flags fail this test too, which is the intent: both
+ *   mean a person still has to look.
+ * - **Every public gate.** The conditions are PUBLIC_PRODUCT_WHERE's own,
+ *   so this never publishes something that would stay invisible anyway —
+ *   publishing is only ever the last missing piece.
+ */
+export async function reconcileAutoPublish(): Promise<number> {
+  const ready = await db.product.findMany({
+    where: {
+      isPublished: false,
+      /* PUBLIC_PRODUCT_WHERE, minus isPublished itself. */
+      stockQty: { gt: 0 },
+      price: { gt: 0 },
+      missingFromSourceSince: null,
+      stockStatus: { not: "NEEDS_REVIEW" },
+      images: { some: {} },
+      enrichmentStatus: "ENRICHED",
+      alerts: { some: { type: "NEW_FROM_SOURCE", isResolved: false } },
+    },
+    select: { id: true, sku: true, title: true },
+  });
+  if (ready.length === 0) return 0;
+  await db.product.updateMany({
+    where: { id: { in: ready.map((p) => p.id) } },
+    data: { isPublished: true },
+  });
+  await db.inventoryAlert.updateMany({
+    where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { in: ready.map((p) => p.id) } },
+    data: { isResolved: true, resolvedAt: new Date() },
+  });
+  return ready.length;
+}
+
 export async function reconcileResolvedUrgentFindings(): Promise<number> {
   const resolved = await db.inventoryAlert.updateMany({
     where: {
@@ -2112,6 +2175,9 @@ export async function runFullSync(
   await reconcileSourceConflictAlerts(syncRun.id);
   await reconcileRowClaimedTwice(syncRun.id);
   await reconcileResolvedUrgentFindings();
+  /* Before reconcileNewFromSource, which resolves the queue entry this one
+     uses as its evidence that nobody has decided about the product yet. */
+  await reconcileAutoPublish();
   await reconcileNewFromSource();
   await reconcileUrgentMissingMedia();
   await reconcileMissingImage();

@@ -547,21 +547,35 @@ function rowNamesAnotherModel(model: string | null, stockBreakdown: string | nul
  * problem", and not on the site, so a count that was supposed to account
  * for every product in stock came up 132 short with nowhere to look.
  *
- * What is missing *besides* the photograph is reported on the row, and it
- * is not simply "publish". The first version of this column said "photo +
- * publish" for all 139 unpublished ones, and the owner read it literally
- * and asked the right question: 91 of them have never been enriched —
- * their title is still the sheet's raw "{brand} {model}" — so pressing
- * publish would put a blank page on the site the moment a photo arrived.
- * Four different jobs were being called one thing.
+ * What is missing *besides* the photograph is reported on the row, and the
+ * states went through the owner twice. The first version said "photo +
+ * publish" on all 139 unpublished rows; 91 of those have never been
+ * enriched — their title is still the sheet's raw "{brand} {model}" — so
+ * publishing one would put a blank page on the site the moment a photo
+ * arrived. The second version said it on 20, and he answered the thing
+ * that was actually wrong with it: you do not publish a product with no
+ * picture. Pressing publish on a photo-less product changes nothing a
+ * customer can see, so it was never a job, it was a field.
+ *
+ * reconcileAutoPublish in lib/inventory/sync.ts settles that: an enriched
+ * product still in its arrival queue publishes itself the moment it has a
+ * photograph. So "photo + publish" now means the one case where that will
+ * not happen — a product somebody took off the site deliberately, where a
+ * photograph alone will not bring it back.
  */
 export type ImageBlocker =
-  /** Published and ready. The photograph is the only thing. */
+  /** The photograph is the only thing. Either it is published already, or
+      it will publish itself when the photo lands. */
   | "PHOTO"
   /** Never enriched: no real title, no description, often a department
       rather than a leaf category. Needs the enrichment pass first. */
   | "PHOTO_AND_CONTENT"
-  /** Has content, nobody pressed publish. */
+  /** Content written but not yet approved — NEEDS_REVIEW and its
+      relatives. A person has to confirm it before it goes in front of a
+      customer, so the photograph is not enough on its own. */
+  | "PHOTO_AND_REVIEW"
+  /** Taken off the site by hand: enriched, out of the arrival queue, and
+      unpublished anyway. The photo will not republish it, by design. */
   | "PHOTO_AND_PUBLISH"
   /** Flagged as a conflict — duplicate, model, spec, colour. A person has
       to decide before this is a product at all. */
@@ -570,14 +584,16 @@ export type ImageBlocker =
 export const IMAGE_BLOCKER_LABELS: Record<ImageBlocker, string> = {
   PHOTO: "תמונה בלבד",
   PHOTO_AND_CONTENT: "תמונה + תוכן",
-  PHOTO_AND_PUBLISH: "תמונה + פרסום",
+  PHOTO_AND_REVIEW: "תמונה + אישור תוכן",
+  PHOTO_AND_PUBLISH: "תמונה + פרסום (הוסתר ידנית)",
   PHOTO_AND_CONFLICT: "תמונה + הכרעה בהתנגשות",
 };
 
 export const IMAGE_BLOCKER_HINTS: Record<ImageBlocker, string> = {
-  PHOTO: "עולה לאתר ברגע שנוספת תמונה",
+  PHOTO: "עולה לאתר לבד ברגע שנוספת תמונה — אין מה ללחוץ",
   PHOTO_AND_CONTENT: "אין לו עוד כותרת, תיאור וקטגוריה — ההעשרה לא הגיעה אליו",
-  PHOTO_AND_PUBLISH: "התוכן מוכן, רק לא נלחץ פרסום",
+  PHOTO_AND_REVIEW: "התוכן נכתב וממתין לאישור בעמוד המוצר",
+  PHOTO_AND_PUBLISH: "מישהו הוריד אותו מהאתר בכוונה — תמונה לא תחזיר אותו",
   PHOTO_AND_CONFLICT: "סומן התנגשות (כפילות / דגם / מפרט) — צריך הכרעה",
 };
 
@@ -591,7 +607,19 @@ export async function getMissingImage(
       missingFromSourceSince: null,
       images: { none: {} },
     },
-    select: { ...PRODUCT_LINE_SELECT, isPublished: true, enrichmentStatus: true },
+    select: {
+      ...PRODUCT_LINE_SELECT,
+      isPublished: true,
+      enrichmentStatus: true,
+      /* Whether it is still in the arrival queue, which is what decides
+         between "will publish itself" and "somebody hid this". Same
+         evidence reconcileAutoPublish uses, read the same way. */
+      alerts: {
+        where: { type: "NEW_FROM_SOURCE", isResolved: false },
+        select: { id: true },
+        take: 1,
+      },
+    },
     orderBy: { price: "desc" },
     take: limit,
   });
@@ -605,7 +633,11 @@ export async function getMissingImage(
         ? "PHOTO"
         : status === "NOT_ENRICHED" || status === ""
           ? "PHOTO_AND_CONTENT"
-          : "PHOTO_AND_PUBLISH";
+          : status !== "ENRICHED"
+            ? "PHOTO_AND_REVIEW"
+            : p.alerts.length > 0
+              ? "PHOTO"
+              : "PHOTO_AND_PUBLISH";
     return { ...toLine(p), blocker };
   });
 }
@@ -645,7 +677,7 @@ export const OFF_SITE_LABELS: Record<OffSiteReason, string> = {
   NO_IMAGE: "חסרה תמונה",
   DO_NOT_PUBLISH: "סומן לא לפרסם",
   CONTENT_NEEDS_REVIEW: "דורש בדיקת תוכן",
-  NOT_PUBLISHED: "לא נלחץ פרסום",
+  NOT_PUBLISHED: "הוסתר מהאתר ידנית",
 };
 
 /** What closes it, in the imperative, because the label alone does not say. */
@@ -655,7 +687,10 @@ export const OFF_SITE_ACTIONS: Record<OffSiteReason, string> = {
   NO_IMAGE: "להוסיף תמונה אחת — ואם כתוב גם ׳לא מפורסם׳, גם ללחוץ פרסום",
   DO_NOT_PUBLISH: "מישהו סימן התנגשות (כפילות / דגם / מפרט) — להכריע ולהסיר את הסימון",
   CONTENT_NEEDS_REVIEW: "לאשר את התוכן בעמוד המוצר",
-  NOT_PUBLISHED: "ללחוץ פרסום. אין שום דבר אחר חסר",
+  /* Since reconcileAutoPublish, a product that has everything publishes
+     itself — so anything still here was taken off the site on purpose, or
+     is being held back for a reason outside these six fields. */
+  NOT_PUBLISHED: "יש לו הכל ובכל זאת הוא מוסתר — להחליט אם להחזיר אותו לאתר",
 };
 
 export type OffSiteProduct = ProductLine & {

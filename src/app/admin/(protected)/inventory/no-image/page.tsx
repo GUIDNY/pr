@@ -10,7 +10,13 @@ import {
 
 export const metadata = { title: "מוצרים ללא תמונה | Buy Today Admin" };
 
-const ORDER: ImageBlocker[] = ["PHOTO", "PHOTO_AND_PUBLISH", "PHOTO_AND_CONTENT", "PHOTO_AND_CONFLICT"];
+const ORDER: ImageBlocker[] = [
+  "PHOTO",
+  "PHOTO_AND_REVIEW",
+  "PHOTO_AND_CONTENT",
+  "PHOTO_AND_PUBLISH",
+  "PHOTO_AND_CONFLICT",
+];
 
 /**
  * Products the shop believes it is selling and no customer can see.

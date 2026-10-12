@@ -3,7 +3,7 @@ import { looksLikeEnergyLabelUrl } from "@/lib/inventory/import-guards";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
-import { reconcileUrgentMissingMedia, reconcileMissingImage } from "@/lib/inventory/sync";
+import { reconcileUrgentMissingMedia, reconcileMissingImage, reconcileAutoPublish } from "@/lib/inventory/sync";
 import {
   checkAuth,
   MAX_PRODUCT_IMAGES,
@@ -829,10 +829,17 @@ export async function POST(request: Request) {
   // that were only missing a photo — without it, a product the agent just
   // photographed kept sitting in the queue asking for a photo. One pass at
   // the end of the batch, not per item, since each scans the catalog.
+  // And a product this batch just finished — enriched, with a photograph,
+  // priced and in stock — goes live here rather than waiting for the next
+  // sync. The sync is pressed by hand when a new sheet arrives, so leaving
+  // it there meant a product that was ready on Monday sat invisible until
+  // somebody happened to press sync, with nothing anywhere saying why.
+  let published = 0;
   if (!dryRun) {
     await reconcileUrgentMissingMedia();
     await reconcileMissingImage();
+    published = await reconcileAutoPublish();
   }
 
-  return NextResponse.json({ dryRun, count: results.length, results });
+  return NextResponse.json({ dryRun, count: results.length, published, results });
 }
