@@ -178,7 +178,27 @@ export async function rememberRowAliases(
   const model = aliasValue(row.model);
   /* Four characters, the floor every model comparison in this file uses: a
      bare "750" names half the catalogue. */
-  if (model.length >= 4) entries.push({ kind: "MODEL", value: model });
+  if (model.length >= 4) {
+    /* And nobody else in this tab answers to it. A model string is one
+       column and a supplier repeats it freely — ten of them are shared by
+       two SKU-less products each in this catalogue, among them a Bosch
+       PUE611BB5Y held by two records and a Gorenje GW951MB that is two
+       real colours. The unique index already stops the second product
+       taking the name, which is the danger: the first would then keep it
+       and answer for the second's row forever.
+       So an ambiguous name is not written at all. The row hash below is
+       unaffected — it is the whole row and does not repeat. */
+    const alsoNamed = await db.product.count({
+      where: {
+        sourceId,
+        sourceSheet: row.sheetName,
+        missingFromSourceSince: null,
+        id: { not: productId },
+        OR: [{ model: { equals: row.model, mode: "insensitive" } }, { lastRowModel: row.model }],
+      },
+    });
+    if (alsoNamed === 0) entries.push({ kind: "MODEL", value: model });
+  }
   const key = sourceRowKeyFor(row);
   if (key) entries.push({ kind: "ROWKEY", value: key });
   if (entries.length === 0) return;

@@ -456,6 +456,13 @@ model ProductRowAlias {
   source      InventorySource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   sheetName   String
   /// MODEL — the model string the sheet printed. ROWKEY — sourceRowKeyFor.
+  ///
+  /// Two more exist and are deliberately unreachable, because the lookup
+  /// asks for the two above by name: MODEL_AMBIGUOUS, a model string that
+  /// a second product in the same tab also answers to, and MISBOUND_*, an
+  /// alias seeded from a product we know is reading the wrong row. Both
+  /// are kept rather than deleted — a name that was rejected, and why, is
+  /// worth more than a gap.
   kind        String
   value       String
   firstSeenAt DateTime @default(now())
