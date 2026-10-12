@@ -2,31 +2,40 @@ import Link from "next/link";
 import { requireCatalogPage } from "@/lib/auth";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { InventoryListTable } from "@/components/admin/inventory-list-table";
-import { getProblemProducts, getDuplicatePairs, PROBLEM_REASON_LABELS } from "@/lib/queries/inventory-control";
+import {
+  getOffSiteProducts,
+  getDuplicatePairs,
+  OFF_SITE_LABELS,
+  OFF_SITE_ACTIONS,
+} from "@/lib/queries/inventory-control";
 import { inspectNonPriceListProducts } from "@/actions/inventory-purge";
 import { PurgeNonPriceListPanel } from "@/components/admin/purge-non-price-list-panel";
 
-export const metadata = { title: "מוצרים בעייתיים | Buy Today Admin" };
+export const metadata = { title: "למה לא באתר | Buy Today Admin" };
 
 /**
- * Everything else that is wrong, one row per product.
+ * Every product with stock that is not on the site, and why.
  *
- * One list and not six, because a product is usually several of these at
- * once — a subtotal line the parser read as a product has no model, no
- * price and a quantity in the dozens all at the same time — and six lists
- * of the same forty products is how a back office stops being read.
+ * This replaced a page called "problem products", which listed the two
+ * faults somebody had decided were faults — no price, untrustworthy stock
+ * — and said nothing about the other 198 products in stock that no
+ * customer could see. The owner's question was not "what is broken", it
+ * was "1,494 in stock, 1,271 on the site, where are the rest" — and six
+ * overlapping tabs could not answer it. A product can be in the photo
+ * queue and the new-arrivals queue at once, so adding the tabs up came out
+ * higher than the total while 132 products sat on no tab at all.
  *
- * Deliberately not here: "needs a photograph" and "just arrived from the
- * sheet". Both have their own tab, and a product that is only missing
- * content is not a problem, it is work.
+ * So: one reason per product, the first that applies, and the numbers
+ * close. ON_SITE is tested with PUBLIC_PRODUCT_WHERE itself, which is what
+ * makes the arithmetic in the header true rather than approximately true.
  */
-export default async function ProblemProductsPage() {
+export default async function OffSitePage() {
   await requireCatalogPage();
-  const [rows, leftovers, duplicates, subtotals] = await Promise.all([
-    getProblemProducts(300),
+  const [{ rows, inStock, onSite, byReason }, leftovers, duplicates, subtotals] = await Promise.all([
+    getOffSiteProducts(),
     /* Products with no price list behind them at all. Not in the list below
-       — they are not a product with a problem, they are a product with no
-       source — so they get the panel above it instead. */
+       — they are not a product that is off the site, they are a product
+       with no source — so they get the panel above it instead. */
     inspectNonPriceListProducts("NO_PRICE_LIST"),
     /* The same product in two records, because the supplier renumbered its
        row. Its own section rather than a flag on a row, because the thing a
@@ -40,20 +49,62 @@ export default async function ProblemProductsPage() {
     inspectNonPriceListProducts("SUBTOTAL_ROW"),
   ]);
 
-  const counts = new Map<string, number>();
-  for (const p of rows) for (const r of p.reasons) counts.set(r, (counts.get(r) ?? 0) + 1);
+  const newInQueue = rows.filter((r) => r.isNew).length;
 
   return (
     <div>
-      <h1 className="text-2xl font-bold">מוצרים בעייתיים</h1>
-      <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
-        מוצרים שיש להם מלאי ואי אפשר למכור אותם: אין להם מחיר, נתוני המלאי שלהם סותרים את עצמם, או שהם בכלל לא מוצר
-        אלא שורת סיכום שנקלטה מהגיליון. כל אחד מהם חוזר למכירה בתיקון אחד.{" "}
-        <strong className="text-foreground">מה שיצא מהמחירון לא מופיע כאן בכלל</strong> — מוצר שהמחירון לא נושא יותר
-        אינו במלאי.
+      <h1 className="text-2xl font-bold">למה לא באתר</h1>
+      <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
+        כל מוצר שיש לו מלאי והוא במחירון ואי אפשר לקנות אותו באתר, עם הסיבה האחת שעוצרת אותו. סיבה אחת לכל מוצר — זו
+        שצריך לטפל בה ראשונה — ולכן המספרים כאן מתחברים בדיוק לסך המלאי, בלי כפל ובלי מוצר שנופל בין הדפים.
       </p>
 
       <InventoryTabs />
+
+      {/* The arithmetic, stated. This is the whole point of the page: the
+          headline number on the dashboard minus what is live equals this
+          list, and every line below is part of the difference. */}
+      <section className="border-border mb-5 overflow-hidden rounded-xl border">
+        <div className="divide-border flex flex-wrap divide-x divide-x-reverse">
+          <div className="min-w-36 flex-1 p-4">
+            <p className="text-muted-foreground text-xs">במלאי ובמחירון</p>
+            <p className="mt-0.5 text-2xl font-bold">{inStock.toLocaleString("he-IL")}</p>
+          </div>
+          <div className="min-w-36 flex-1 p-4">
+            <p className="text-muted-foreground text-xs">מתוכם באתר</p>
+            <p className="text-success-foreground mt-0.5 text-2xl font-bold">
+              {onSite.toLocaleString("he-IL")}
+            </p>
+          </div>
+          <div className="min-w-36 flex-1 p-4">
+            <p className="text-muted-foreground text-xs">לא באתר — הרשימה הזו</p>
+            <p className="text-destructive mt-0.5 text-2xl font-bold">
+              {rows.length.toLocaleString("he-IL")}
+            </p>
+          </div>
+        </div>
+        <table className="border-border w-full border-t text-sm">
+          <tbody>
+            {byReason.map((g) => (
+              <tr key={g.reason} className="border-border border-t first:border-t-0">
+                <td className="p-3 font-semibold whitespace-nowrap">{g.count.toLocaleString("he-IL")}</td>
+                <td className="p-3 font-medium whitespace-nowrap">{OFF_SITE_LABELS[g.reason]}</td>
+                <td className="text-muted-foreground p-3 text-xs">{OFF_SITE_ACTIONS[g.reason]}</td>
+                <td className="text-muted-foreground p-3 text-xs whitespace-nowrap">
+                  {g.value.toLocaleString("he-IL")} ₪
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="text-muted-foreground bg-muted/40 border-border border-t px-4 py-3 text-xs">
+          {newInQueue.toLocaleString("he-IL")} מהם מופיעים גם בלשונית{" "}
+          <Link href="/admin/inventory/new" className="underline">
+            מוצרים חדשים מהסנכרון
+          </Link>{" "}
+          — זו לא סיבה נוספת אלא תג על אותם מוצרים, ולכן אסור לחבר את שתי הלשוניות.
+        </p>
+      </section>
 
       <PurgeNonPriceListPanel initial={leftovers} target="NO_PRICE_LIST" />
 
@@ -69,7 +120,7 @@ export default async function ProblemProductsPage() {
               </span>
             </h2>
             <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-אותו דגם ואותו גוון בשתי רשומות — בדרך כלל כי המחירון מחזיק את המוצר בשתי שורות, אחת עם מק״ט ואחת בלי,
+              אותו דגם ואותו גוון בשתי רשומות — בדרך כלל כי המחירון מחזיק את המוצר בשתי שורות, אחת עם מק״ט ואחת בלי,
               ואנחנו ממנים מק״ט לשורה שאין לה. הזיווג דורש שהגוון יסכים, אחרת תנור לבן היה מוצע למיזוג עם אותו תנור
               בנירוסטה. <strong className="text-foreground">אף אחת מהן לא מוצגת באתר כרגע</strong>, וההחלטה היא איזו
               רשומה נשארת — זו עם התמונות והכתובת הציבורית — ולאיזו עובר המלאי.
@@ -124,37 +175,25 @@ export default async function ProblemProductsPage() {
         </section>
       )}
 
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-        <span className="text-muted-foreground">{rows.length.toLocaleString("he-IL")} מוצרים</span>
-        {[...counts.entries()].map(([reason, n]) => (
-          <span key={reason} className="text-muted-foreground">
-            <strong className="text-foreground">{n}</strong>{" "}
-            {PROBLEM_REASON_LABELS[reason as keyof typeof PROBLEM_REASON_LABELS] ?? reason}
-          </span>
-        ))}
-      </div>
-
       <InventoryListTable
         rows={rows}
-        empty="אין מוצרים בעייתיים. כל מה שבמלאי תקין."
-        columnLabel="הבעיה"
+        empty="כל מה שבמלאי מופיע באתר."
+        columnLabel="הסיבה"
         column={(p) => {
           const row = rows.find((r) => r.id === p.id);
           if (!row) return null;
           return (
-            <span className="flex flex-wrap gap-1">
-              {row.reasons.map((r) => (
-                <span
-                  key={r}
-                  className={`rounded px-1.5 py-0.5 text-xs font-semibold ${
-                    r === "BELOW_COST" || r === "SUMMARY_ROW"
-                      ? "bg-destructive/10 text-destructive"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {PROBLEM_REASON_LABELS[r]}
-                </span>
-              ))}
+            <span className="flex flex-wrap items-center gap-1">
+              <span
+                className={`rounded px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
+                  row.reason === "NO_PRICE" || row.reason === "DO_NOT_PUBLISH"
+                    ? "bg-destructive/10 text-destructive"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {OFF_SITE_LABELS[row.reason]}
+              </span>
+              {row.isNew && <span className="text-muted-foreground text-xs">חדש מהסנכרון</span>}
             </span>
           );
         }}

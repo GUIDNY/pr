@@ -566,105 +566,142 @@ export async function getMissingImage(
   return rows.map((p) => ({ ...toLine(p), unpublished: !p.isPublished }));
 }
 
-export type ProblemReason =
-  | "NEEDS_REVIEW"
+/**
+ * Why a product with stock is not on the site — one reason per product.
+ *
+ * This exists because the back office could not account for its own
+ * headline number. "1,494 in stock" was followed by six tabs that
+ * overlapped each other and a queue (NEW_FROM_SOURCE) that is a label
+ * rather than a place, so adding the tabs up came to more than 1,494 while
+ * 132 products appeared on none of them. The owner asked the only question
+ * that settles it: show me all of them, and why each one is not published.
+ *
+ * So the reasons are a ladder and not a set: every in-stock product gets
+ * exactly one, the first that applies, and the counts add up to the total
+ * by construction. The order is the order the work has to happen in — a
+ * product with no price cannot be sold whatever else is true of it, and a
+ * product with no photograph is not going on the site even once it has
+ * one.
+ *
+ * ON_SITE is in the ladder deliberately: it is the branch that proves the
+ * other six are exhaustive, and it is tested against PUBLIC_PRODUCT_WHERE
+ * and nothing else, so this page cannot drift from what the shop shows.
+ */
+export type OffSiteReason =
   | "NO_PRICE"
-  | "BELOW_COST"
-  | "NO_SKU"
-  | "SUMMARY_ROW";
+  | "STOCK_NOT_TRUSTED"
+  | "NO_IMAGE"
+  | "DO_NOT_PUBLISH"
+  | "CONTENT_NEEDS_REVIEW"
+  | "NOT_PUBLISHED";
 
-export const PROBLEM_REASON_LABELS: Record<ProblemReason, string> = {
-  NEEDS_REVIEW: "נתוני מלאי לא עקביים",
+export const OFF_SITE_LABELS: Record<OffSiteReason, string> = {
   NO_PRICE: "אין מחיר מכירה",
-  BELOW_COST: "מתחת למחיר העלות",
-  NO_SKU: "אין מק״ט במחירון",
-  SUMMARY_ROW: "נראה כמו שורת סיכום ולא מוצר",
+  STOCK_NOT_TRUSTED: "נתוני מלאי לא עקביים",
+  NO_IMAGE: "חסרה תמונה",
+  DO_NOT_PUBLISH: "סומן לא לפרסם",
+  CONTENT_NEEDS_REVIEW: "דורש בדיקת תוכן",
+  NOT_PUBLISHED: "לא נלחץ פרסום",
 };
 
-export type ProblemProduct = ProductLine & { reasons: ProblemReason[] };
+/** What closes it, in the imperative, because the label alone does not say. */
+export const OFF_SITE_ACTIONS: Record<OffSiteReason, string> = {
+  NO_PRICE: "המחירון לא נושא מחיר לשורה הזו — צריך להזין מחיר בעמוד המוצר",
+  STOCK_NOT_TRUSTED: "לבדוק את הכמות מול הגיליון ולאשר",
+  NO_IMAGE: "להוסיף תמונה אחת — ואם כתוב גם ׳לא מפורסם׳, גם ללחוץ פרסום",
+  DO_NOT_PUBLISH: "מישהו סימן התנגשות (כפילות / דגם / מפרט) — להכריע ולהסיר את הסימון",
+  CONTENT_NEEDS_REVIEW: "לאשר את התוכן בעמוד המוצר",
+  NOT_PUBLISHED: "ללחוץ פרסום. אין שום דבר אחר חסר",
+};
 
-/**
- * Everything else that is wrong, one row per product.
- *
- * One list and not six, because a product is usually several of these at
- * once — a summary row has no model, no price and an implausible quantity —
- * and six lists of the same forty products is how a back office stops being
- * read. The reasons are collected onto the row instead.
- *
- * None of these is "needs a photo" or "just arrived": those have their own
- * tabs, and a product that is only missing content does not belong in a list
- * headed "problems".
- */
-export async function getProblemProducts(limit = 300): Promise<ProblemProduct[]> {
-  const rows = await db.product.findMany({
-    where: {
-      source: PRICE_LIST_SOURCE,
-      /* Deliberately not "has no SKU". 835 products carry a synthetic one
-         because the sheet gives them none, which is the sheet's habit and
-         not a fault; including it put 454 rows in this list and buried the
-         forty that are actually wrong. It is still annotated on a row that
-         is here for another reason, because it is the thing that makes a
-         product hard to match. */
-      /* Still carried by the price list. The owner's rule, said twice: a
-         product the supplier has dropped is not in stock and does not
-         exist, so it has no business on a page about products that have
-         stock. 129 of them were 84% of this list, there is nothing to fix
-         on any of them, and moving them to the bottom was not what he
-         asked for. */
-      missingFromSourceSince: null,
-      OR: [
-        { stockStatus: "NEEDS_REVIEW", stockQty: { gt: 0 } },
-        { price: { lte: 0 }, stockQty: { gt: 0 } },
-      ],
-    },
-    select: {
-      ...PRODUCT_LINE_SELECT,
-      model: true,
-      stockStatus: true,
-      isTemporarySku: true,
-      missingFromSourceSince: true,
-    },
-    take: limit,
-  });
+export type OffSiteProduct = ProductLine & {
+  reason: OffSiteReason;
+  /** Waiting in the "new from the sheet" queue as well. An overlap, not a
+      seventh reason — which is the thing the two tabs never said. */
+  isNew: boolean;
+};
 
-  const out: ProblemProduct[] = [];
-  for (const p of rows) {
-    const reasons: ProblemReason[] = [];
-    if (p.stockStatus === "NEEDS_REVIEW") reasons.push("NEEDS_REVIEW");
-    if (p.price <= 0) reasons.push("NO_PRICE");
-    if (p.supplierCost !== null && p.supplierCost > 0 && p.price > 0 && p.price < p.supplierCost) {
-      reasons.push("BELOW_COST");
+export async function getOffSiteProducts(): Promise<{
+  rows: OffSiteProduct[];
+  inStock: number;
+  onSite: number;
+  byReason: { reason: OffSiteReason; count: number; value: number }[];
+}> {
+  const [products, newIds] = await Promise.all([
+    db.product.findMany({
+      where: { source: PRICE_LIST_SOURCE, stockQty: { gt: 0 }, missingFromSourceSince: null },
+      select: {
+        ...PRODUCT_LINE_SELECT,
+        isPublished: true,
+        stockStatus: true,
+        enrichmentStatus: true,
+      },
+    }),
+    db.inventoryAlert
+      .findMany({
+        where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { not: null } },
+        select: { productId: true },
+        distinct: ["productId"],
+      })
+      .then((rows) => new Set(rows.map((r) => r.productId))),
+  ]);
+
+  const rows: OffSiteProduct[] = [];
+  let onSite = 0;
+  for (const p of products) {
+    /* PUBLIC_PRODUCT_WHERE, read field by field. stockQty and
+       missingFromSourceSince are already in the where above. */
+    const live =
+      p.isPublished &&
+      p._count.images > 0 &&
+      p.stockStatus !== "NEEDS_REVIEW" &&
+      p.price > 0;
+    if (live) {
+      onSite += 1;
+      continue;
     }
-    if (p.isTemporarySku) reasons.push("NO_SKU");
-    /* A row with no model, no price and a quantity in the dozens is a
-       subtotal line the parser read as a product — "פרימייר" with 56 units
-       at ₪0, "דלונגי" with 54. Said out loud because it is not a product
-       with a problem, it is not a product. */
-    if (!p.model && p.price <= 0 && p.stockQty > 20) reasons.push("SUMMARY_ROW");
-    if (reasons.length === 0) continue;
-    out.push({ ...toLine(p), reasons });
+    const reason: OffSiteReason =
+      p.price <= 0
+        ? "NO_PRICE"
+        : p.stockStatus === "NEEDS_REVIEW"
+          ? "STOCK_NOT_TRUSTED"
+          : p._count.images === 0
+            ? "NO_IMAGE"
+            : (p.enrichmentStatus ?? "").includes("DO_NOT_PUBLISH")
+              ? "DO_NOT_PUBLISH"
+              : p.enrichmentStatus === "NEEDS_REVIEW"
+                ? "CONTENT_NEEDS_REVIEW"
+                : "NOT_PUBLISHED";
+    rows.push({ ...toLine(p), reason, isNew: newIds.has(p.id) });
   }
-  /* What can still be sold, first.
-     The order used to be "worst problem first", which put the 129 products
-     that have left the price list at the top — and they are the one group
-     on this page nobody is going to act on. The owner's rule, 12 October:
-     a product the price list no longer carries is not in stock, full stop.
-     We are not selling it, there is nothing to fix, and it was burying the
-     ones where fixing a single field puts a real product back on the shelf.
-     So the ordering is by what a person can do about it. A product bleeding
-     money on a live page is first; then the ones that are one field away
-     from sellable — a missing price, a stock figure we cannot trust; then
-     rows that are not products at all; and last, by a wide margin, the ones
-     the supplier has stopped carrying. */
-  const weight = (r: ProblemReason[]) =>
-    (r.includes("BELOW_COST") ? 400 : 0) +
-    (r.includes("NO_PRICE") ? 300 : 0) +
-    (r.includes("NEEDS_REVIEW") ? 200 : 0) +
-    (r.includes("SUMMARY_ROW") ? 100 : 0) +
-    r.length;
-  return out.sort(
-    (a, b) => weight(b.reasons) - weight(a.reasons) || b.price * b.stockQty - a.price * a.stockQty,
+
+  const order: OffSiteReason[] = [
+    "NO_PRICE",
+    "STOCK_NOT_TRUSTED",
+    "NO_IMAGE",
+    "DO_NOT_PUBLISH",
+    "CONTENT_NEEDS_REVIEW",
+    "NOT_PUBLISHED",
+  ];
+  const rank = new Map(order.map((r, i) => [r, i]));
+  rows.sort(
+    (a, b) =>
+      (rank.get(a.reason) ?? 9) - (rank.get(b.reason) ?? 9) ||
+      b.price * b.stockQty - a.price * a.stockQty,
   );
+
+  const byReason = order
+    .map((reason) => {
+      const mine = rows.filter((r) => r.reason === reason);
+      return {
+        reason,
+        count: mine.length,
+        value: mine.reduce((s, r) => s + r.price * r.stockQty, 0),
+      };
+    })
+    .filter((g) => g.count > 0);
+
+  return { rows, inStock: products.length, onSite, byReason };
 }
 
 export type DuplicatePair = {

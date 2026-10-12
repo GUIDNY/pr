@@ -29,7 +29,11 @@ const TABS = [
   { href: "/admin/inventory/new", label: "מוצרים חדשים מהסנכרון" },
   { href: "/admin/inventory/price-gaps", label: "בעיית מחיר" },
   { href: "/admin/inventory/no-image", label: "ללא תמונה" },
-  { href: "/admin/inventory/problems", label: "מוצרים בעייתיים" },
+  /* Renamed 12 October, from "מוצרים בעייתיים". The old name described a
+     list of faults somebody had nominated; the page now accounts for every
+     product in stock that no customer can buy, which is a different and
+     bigger question — and the one that was actually being asked. */
+  { href: "/admin/inventory/problems", label: "למה לא באתר" },
 ];
 
 /* Not tabs. Two of these are the only way to press a button that exists
