@@ -13,7 +13,7 @@ import { FilterSidebar } from "@/components/catalog/filter-sidebar";
 import { MobileFilters } from "@/components/catalog/mobile-filters";
 import { SortSelect } from "@/components/catalog/sort-select";
 import { ProductCard } from "@/components/product/product-card";
-import { getProductsByCategorySlug, getCategoryFacets, type ProductSort } from "@/lib/queries/products";
+import { getProductsByCategorySlug, getCategoryFacets, CATEGORY_PAGE_SIZE, type ProductSort } from "@/lib/queries/products";
 import { getArticleByCategorySlug } from "@/lib/queries/articles";
 import { getSubcategoryTiles } from "@/lib/queries/categories";
 import { SubcategoryRow } from "@/components/category/subcategory-row";
@@ -27,7 +27,7 @@ import { breadcrumbSchema, itemListSchema } from "@/lib/schema";
 /* Five cards to a row on a desktop, so a page is a multiple of five (and of
    the three and two a narrower screen shows) — a last row of four under
    rows of five reads as "something is missing". */
-const PAGE_SIZE = 30;
+const PAGE_SIZE = CATEGORY_PAGE_SIZE;
 // "Everything on one page" is really just a much larger page. Keeping it as
 // a page size rather than a separate no-limit path means the pagination
 // below keeps working unchanged: on almost every category it collapses to a
@@ -165,6 +165,12 @@ export async function CategoryPageView({
     <div className="mx-auto max-w-7xl px-4 py-6">
       <JsonLd data={breadcrumbSchema(trail)} />
       {products.length > 0 && <JsonLd data={itemListSchema(category.name, products)} />}
+      {/* The chain between the pages, stated in the head (React hoists a
+          <link> rendered here). The numbered links below are the same
+          chain for a reader; this is the one a crawler reads first, and
+          it is absent on the "all on one page" view, which is one page. */}
+      {!showAll && page > 1 && <link rel="prev" href={pageHref(page - 1)} />}
+      {!showAll && page < totalPages && <link rel="next" href={pageHref(page + 1)} />}
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>

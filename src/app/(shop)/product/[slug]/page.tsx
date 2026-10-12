@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { shareMetadata } from "@/lib/seo/share-metadata";
-import { notFound, permanentRedirect } from "next/navigation";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { ProductPageView } from "@/components/product/product-page-view";
-import { getProductBySlug, getCurrentSlugForLegacySlug } from "@/lib/queries/products";
+import { getProductBySlug, getCurrentSlugForLegacySlug, hiddenProductFallback } from "@/lib/queries/products";
 
 // The public product page, and the reason it is worth having two of them.
 //
@@ -54,9 +54,24 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   // move is announced with a permanent redirect rather than served as a 404 —
   // see lib/product-slug-history.ts. Only reached once the live lookup has
   // missed, so an ordinary page view does not pay for it.
-  if (!(await getProductBySlug(slug))) {
+  const product = await getProductBySlug(slug);
+  if (!product) {
     const current = await getCurrentSlugForLegacySlug(slug);
     if (current) permanentRedirect(`/product/${current}`);
+    notFound();
+  }
+
+  /* A product that is off the site — unpublished, or without a photo —
+     used to answer 404 here. Google was still ranking 41 such addresses
+     and sending a customer to an error page on one click in eight. The
+     product is not gone, so the address is sent somewhere real instead:
+     the published twin of the same brand and model when there is one,
+     permanently; its category otherwise, temporarily, because the
+     product may come back to this very address. See hiddenProductFallback. */
+  if (!product.isPublished || product.images.length === 0) {
+    const fallback = await hiddenProductFallback(product);
+    if (fallback.kind === "product") permanentRedirect(`/product/${fallback.slug}`);
+    if (fallback.slug) redirect(`/category/${fallback.slug}`);
     notFound();
   }
 

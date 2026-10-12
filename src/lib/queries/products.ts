@@ -113,6 +113,12 @@ const cardSelect = {
  */
 export const LISTING_MIN_PRODUCTS = 3;
 
+/** Products per category page. Shared by the page, the sitemap (which
+    lists every page) and the rel=next links, so the three cannot disagree
+    about how many pages a shelf has. Five to a row on a desktop, so a
+    multiple of five, three and two. */
+export const CATEGORY_PAGE_SIZE = 30;
+
 export const PUBLIC_PRODUCT_WHERE = {
   isPublished: true,
   stockQty: { gt: 0 },
@@ -1209,4 +1215,44 @@ export async function searchForChat(
     })),
     totalMatches: spreadRows.reduce((sum, s) => sum + Number(s.count), 0),
   };
+}
+
+/**
+ * Where a hidden product's address should send a visitor.
+ *
+ * A product that is unpublished, or has no photograph, is off the site —
+ * and its URL answered 404. Google had indexed 41 of those while they were
+ * live, and was still ranking them at position ~10 and sending clicks to
+ * an error page. Nothing about the product is gone: the row exists, often
+ * with stock, and it comes back the moment it is published with a photo.
+ *
+ * So the address is redirected, not refused. To the published product of
+ * the same brand and model when there is one (a de-duplicated twin, a
+ * colour variant) — permanently, because that is the page that should
+ * carry the signal. Otherwise to the product's own category, temporarily,
+ * because the product may return to this address and a permanent redirect
+ * would have told Google to forget it.
+ */
+export async function hiddenProductFallback(product: {
+  id: string;
+  model: string | null;
+  brandId: string | null;
+  categoryId: string;
+}): Promise<{ kind: "product"; slug: string } | { kind: "category"; slug: string }> {
+  const model = product.model?.trim();
+  if (model && product.brandId) {
+    const twin = await db.product.findFirst({
+      where: {
+        ...PUBLIC_PRODUCT_WHERE,
+        id: { not: product.id },
+        brandId: product.brandId,
+        model: { equals: model, mode: "insensitive" },
+      },
+      select: { slug: true },
+      orderBy: { updatedAt: "desc" },
+    });
+    if (twin) return { kind: "product", slug: twin.slug };
+  }
+  const category = await db.category.findUnique({ where: { id: product.categoryId }, select: { slug: true } });
+  return { kind: "category", slug: category?.slug ?? "" };
 }

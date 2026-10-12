@@ -198,6 +198,31 @@ export async function getCategoryTilesWithImages(): Promise<CategoryTile[]> {
  * photograph or no stock, which is the same reason a large part of this
  * catalog is invisible.
  */
+/** What the shelf holds, for the page's meta description: live count,
+    the lowest price, and the makers with the most live products. Two
+    cheap aggregate queries over the same scope the page lists. */
+export const getCategoryMetaFacts = cache(async (slug: string) => {
+  const category = await db.category.findUnique({
+    where: { slug },
+    select: { id: true, children: { select: { id: true } } },
+  });
+  if (!category) return { count: 0, minPrice: null, topBrands: [] as string[] };
+  const where = { ...PUBLIC_PRODUCT_WHERE, categoryId: { in: [category.id, ...category.children.map((c) => c.id)] } };
+  const [agg, byBrand] = await Promise.all([
+    db.product.aggregate({ where, _count: { _all: true }, _min: { price: true } }),
+    db.product.groupBy({ by: ["brandId"], where, _count: { _all: true }, orderBy: { _count: { brandId: "desc" } }, take: 3 }),
+  ]);
+  const brands = byBrand.length
+    ? await db.brand.findMany({ where: { id: { in: byBrand.map((b) => b.brandId) } }, select: { id: true, name: true } })
+    : [];
+  const nameOf = new Map(brands.map((b) => [b.id, b.name]));
+  return {
+    count: agg._count._all,
+    minPrice: agg._min.price ?? null,
+    topBrands: byBrand.map((b) => nameOf.get(b.brandId)).filter((n): n is string => !!n),
+  };
+});
+
 export async function countLiveProductsInCategory(slug: string): Promise<number> {
   const category = await db.category.findUnique({
     where: { slug },

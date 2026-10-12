@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { shareMetadata } from "@/lib/seo/share-metadata";
 import { CategoryPageView } from "@/components/category/category-page-view";
 import { findCategoryBySlug } from "@/lib/category-tree";
-import { countLiveProductsInCategory, categoryShareImage } from "@/lib/queries/categories";
+import { getCategoryMetaFacts, categoryShareImage } from "@/lib/queries/categories";
+import { categoryMetaDescription } from "@/lib/seo/category-description";
 
 // The canonical category page: no filter, no sort, no page number — which is
 // what a crawler asks for and what nearly every visitor lands on.
@@ -52,7 +53,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
      still answer 200, so Google keeps what it already has and they keep
      counting against the site. The sitemap and this tag now read the same
      constant, which is the only way the two stay in step. */
-  const live = await countLiveProductsInCategory(slug);
+  const facts = await getCategoryMetaFacts(slug);
+  const live = facts.count;
   /* A picture from the shelf itself, so a shared category link is a card
      with a product on it rather than a line of text. */
   const image = await categoryShareImage(slug);
@@ -60,7 +62,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     ...shareMetadata({
       title: name,
-      description: `${name} - מגוון רחב במחירים הטובים ביותר, משלוח עד הבית ואחריות יבואן רשמי.`,
+      description: categoryMetaDescription(name, facts),
       path: `/category/${slug}`,
       image,
     }),

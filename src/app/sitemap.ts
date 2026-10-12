@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { SITE_URL as BASE_URL } from "@/lib/site-url";
 import { hasDerivedHashSuffix } from "@/lib/derived-slug";
-import { LISTING_MIN_PRODUCTS } from "@/lib/queries/products";
+import { LISTING_MIN_PRODUCTS, CATEGORY_PAGE_SIZE } from "@/lib/queries/products";
 import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
 import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
 import { WARRANTY_POLICY_UPDATED } from "@/lib/warranty-policy";
@@ -289,12 +289,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     ...categories
       .filter((c) => sellableInScope(c.id) >= LISTING_MIN_PRODUCTS)
-      .map((c) => ({
-        url: `${BASE_URL}/category/${c.slug}`,
-        lastModified: categoryLastModified(c.id),
-        changeFrequency: "daily" as const,
-        priority: 0.7,
-      })),
+      .flatMap((c) => {
+        const lastModified = categoryLastModified(c.id);
+        /* Page 1, then every further page the shelf has at
+           CATEGORY_PAGE_SIZE to a page. Each is a real, self-canonical
+           page (see category-filtered/[slug]), and listing them is how a
+           crawler is told that a shelf of sixty microwaves is two pages
+           and not one page with half the products on it. */
+        const pages = Math.ceil(sellableInScope(c.id) / CATEGORY_PAGE_SIZE);
+        return Array.from({ length: Math.max(1, pages) }, (_, i) => i + 1).map((page) => ({
+          url: `${BASE_URL}/category/${c.slug}${page > 1 ? `?page=${page}` : ""}`,
+          lastModified,
+          changeFrequency: "daily" as const,
+          priority: page > 1 ? 0.5 : 0.7,
+        }));
+      }),
     ...brands
       // A brand still on an importer-generated address is left out until it
       // has a real one. 108 of the 147 are, and offering an address we are
