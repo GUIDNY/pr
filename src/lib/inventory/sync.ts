@@ -867,10 +867,29 @@ async function applyOneRow(
      of an unreadable model on either side is that the price is withheld and
      the difference stays in the price tab for a person — which is where the
      wrong bindings need to go anyway. */
+  /* And it asks the row what the row said last time, not only what the
+     catalogue holds now — the correction the owner forced on 12 October,
+     stated plainly: what the price list says is what the site shows,
+     unless a person changed it.
+     The test used to compare the row against `existing.model` alone, and
+     that is enrichment's field: it writes the manufacturer's real code
+     over the supplier's shorthand, so `8780IN` is stored as
+     `CTAC8780AFSNE` and `SIH 8080` as `SHI8080`. Every successful
+     enrichment therefore made its own product's row unassertable and
+     froze its price for good. That morning's run logged 32 price changes
+     and wrote almost none: a Fratelli cooktop stayed at ₪1,500 while the
+     sheet said otherwise, a Siemens fridge at ₪10,400.
+     `lastRowModel` is what this row itself carried on the previous run —
+     written by the sync and by nothing else — so agreeing with it is the
+     row confirming its own identity, which is the thing the guard was
+     always trying to establish. It does not weaken it: a shifted block
+     puts a different row here, and a different row's model agrees with
+     neither field. See rowStillNamesThisProduct. */
   const bindingIsAssertable =
     existing !== null &&
     (!row.skuIsSynthetic ||
-      modelsAreTheSameAllowingTypedZero(existing.model, row.model));
+      modelsAreTheSameAllowingTypedZero(existing.model, row.model) ||
+      modelsAreTheSame(existing.lastRowModel, row.model));
 
   const adoptPrice =
     existing !== null &&
