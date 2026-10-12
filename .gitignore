@@ -62,3 +62,9 @@ pelecard-secrets.txt
 # Written by scripts/indexnow-bulk.ts --dry-run for inspection before a real send.
 indexnow-bulk.json
 __pycache__/
+
+# Price exports, generated on demand from the live catalogue by
+# /api/inventory/price-export (or handed over directly in a session). Stale the
+# moment stock moves, and they carry supplier costs, so they are produced when
+# asked for and never committed.
+buytoday-prices-*.csv
