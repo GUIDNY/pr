@@ -2172,6 +2172,22 @@ export async function reconcileUrgentMissingMedia() {
     });
   }
 
+  /* The restore half, and it has to ask more than "does it have a photo now".
+     This loop published whatever had once lost its media, the moment the
+     media came back, on no other condition at all — and on 13 October it put
+     a Miele dishwasher back on the site at 3,500 ₪ against a cost of 3,990,
+     four units, hours after that product had been taken off precisely
+     because it was selling at a loss. Five others removed in the same batch
+     stayed off; this one had an open URGENT_MISSING_MEDIA alert, and that
+     was the whole difference.
+
+     So it now asks the two questions reconcileAutoPublish asks, and for the
+     same reasons. unpublishedAt: somebody decided this product should not be
+     on the site, and a photograph arriving is not an answer to that
+     decision. And an open money fault: publishing says nothing about a price
+     below cost, so publishing straight over one is the contradiction —
+     "a price can never be under the cost" is the owner's rule and this was
+     the one path in the file that could break it. */
   const openAlerts = await db.inventoryAlert.findMany({
     where: { type: "URGENT_MISSING_MEDIA", isResolved: false },
     include: {
@@ -2179,9 +2195,20 @@ export async function reconcileUrgentMissingMedia() {
         select: {
           id: true,
           stockQty: true,
+          price: true,
+          supplierCost: true,
+          unpublishedAt: true,
           images: { select: { id: true }, take: 1 },
           attributeValues: { select: { id: true }, take: 1 },
           extraSpecsRaw: true,
+          alerts: {
+            where: {
+              isResolved: false,
+              type: { in: ["INVALID_PRICE", "PRICE_BELOW_COST", "ROW_NAMES_ANOTHER_MODEL"] },
+            },
+            select: { id: true },
+            take: 1,
+          },
         },
       },
     },
@@ -2191,11 +2218,19 @@ export async function reconcileUrgentMissingMedia() {
     const p = alert.product;
     if (!p) continue;
     const hasMedia = p.images.length > 0 || p.attributeValues.length > 0 || !!p.extraSpecsRaw;
-    if (hasMedia && p.stockQty > 0) {
-      await db.product.update({ where: { id: p.id }, data: { isPublished: true } });
+    if (!hasMedia || p.stockQty <= 0) continue;
+    /* A person took this off the site. The alert is still resolved — the
+       media really did come back — but the decision is not this loop's to
+       overturn. */
+    if (p.unpublishedAt !== null) {
       await db.inventoryAlert.update({ where: { id: alert.id }, data: { isResolved: true, resolvedAt: new Date() } });
-      restored++;
+      continue;
     }
+    if (p.alerts.length > 0) continue;
+    if (p.supplierCost !== null && p.supplierCost > 0 && p.price < p.supplierCost) continue;
+    await db.product.update({ where: { id: p.id }, data: { isPublished: true } });
+    await db.inventoryAlert.update({ where: { id: alert.id }, data: { isResolved: true, resolvedAt: new Date() } });
+    restored++;
   }
 
   return { hidden: toHide.length, restored };
