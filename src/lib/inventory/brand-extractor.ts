@@ -14,7 +14,7 @@
 // mode, spotted while fixing the first three) so the same class of bug
 // doesn't quietly corrupt the next new category a future sheet introduces.
 const PRODUCT_TYPE_WORDS =
-  /(רמקולים|רמקול|אוזניות|מגברים|מגבר|סאבוופר|סאבופר|סאב|וופר|מקרן|מקרני|בידורית|בידוריות|מערכת|מערכות|כיסוי|כיסויים|כבל|כבלים|מתקן|מתקנים|סטנד|שולחן|שולחנות|קופסא|קופסאות|זרוע|זרועות|מכונת|מכונה|מכונות|טוחנת|טוחנות|מטחנת|מטחנה|מטחנות|מקציף|משטח|פודים|קומקום|מיחם|מגהץ|שואב|מטהר|מאוורר|ברז|ברזי|טאבון|טאבונים|מנגל|מנגלים|מטבח|פלאנצה|בלון|מושב|מצנם|מצנמים|טוסטר|טוסטרים|מיקסר|מיקסרים|אינדוקציה|משקל|מעבד|מעבדי|בלנדר|בלנדרים|קוצץ|קוצצים)/;
+  /(רמקולים|רמקול|אוזניות|מגברים|מגבר|סאבוופר|סאבופר|סאב|וופר|מקרן|מקרני|בידורית|בידוריות|מערכת|מערכות|כיסוי|כיסויים|כבל|כבלים|מתקן|מתקנים|סטנד|שולחן|שולחנות|קופסא|קופסאות|זרוע|זרועות|מכונת|מכונה|מכונות|טוחנת|טוחנות|מטחנת|מטחנה|מטחנות|מקציף|משטח|פודים|קומקום|מיחם|מגהץ|שואב|מטהר|מאוורר|ברז|ברזי|טאבון|טאבונים|מנגל|מנגלים|מטבח|פלאנצה|בלון|מושב|מצנם|מצנמים|טוסטר|טוסטרים|מיקסר|מיקסרים|אינדוקציה|משקל|מעבד|מעבדי|בלנדר|בלנדרים|קוצץ|קוצצים|מיקרוגל|כיריים|כיריות|תנור|מקרר|מקפיא|מדיח|קולט|מסך|מסכים|טלוויזי|קומקומים|מיחמים|מגהצים|מדפים|תאור|גריל|מייבש|כביסה|קירור|הקפאה)/;
 
 // Same failure mode as PRODUCT_TYPE_WORDS above, different word class: a
 // quantity/color/condition word sitting where a brand name is expected —
@@ -26,6 +26,18 @@ const PRODUCT_TYPE_WORDS =
 // one) is rejected the same way a product-type divider is.
 const NON_BRAND_WORDS =
   /^(זוג|יחיד|בודד|זוגי|חדש|חדשה|ישן|שנה|שנים|נייד|ניידת|קדם|נירוסטה|דיגיטלי|דיגיטלית|אוטומטי|אוטומטית|ידני|ידנית|קומפקטי|קומפקטית|מקצועי|מקצועית|ביתי|ביתית|חשמלי|חשמלית|שחור|לבן|אפור|כסוף|זהב|זהוב|כחול|ורוד|אדום|ירוק|צהוב|חום|בז'|מוצר מועדף|כל סוגי ה?|סט|סטים|סדרה|סדרת|דגם|דגמים|כללי|שונות|אחר)$/;
+
+/* What a price sheet writes in the brand column when it is not naming a
+   manufacturer at all: a banner, an instruction to the sales floor, or a
+   subtotal line. Each of these is in the Brand table today with products
+   filed under it — "סה\"כ" is the workbook's own TOTAL row read as a
+   manufacturer, "למכור מלאי ותצוגות" is a note to whoever is selling,
+   "בונוס כיריים 4 גז" is an offer attached to a different product.
+   Substring and not whole-word: the phrase is what gives it away, and it
+   never appears inside a real name — checked against all 181 brands that
+   have a product in this catalogue. */
+const COMMERCIAL_PHRASE =
+  /(חיסול|בונוס|מבצע|הנחה|למכור|סה"?כ|תצוגה|תצוגות|מלאי|משלוח|כולל|חדש \d{4}|מחיר)/;
 
 function isBrandLike(label: string): boolean {
   // A divider is more likely a sub-category label than a brand name when it
@@ -116,6 +128,14 @@ export function isPlausibleBrandCell(value: string): boolean {
   if (/^\d+[\u0590-\u05FF]/.test(v)) return false;
   if (NON_BRAND_WORDS.test(v)) return false;
   if (PRODUCT_TYPE_WORDS.test(v)) return false;
+  if (COMMERCIAL_PHRASE.test(v)) return false;
+  /* A qualifier in front of other words. NON_BRAND_WORDS is anchored on the
+     whole cell, so it rejects "חדש" and lets "דגם חדש" and
+     "זוג מדפים רפרנס" straight through — both are in the Brand table.
+     A real manufacturer does not open with "pair", "model", "new" or a
+     colour; of the 181 brands with products here, not one does. */
+  const words = v.split(" ");
+  if (words.length > 1 && NON_BRAND_WORDS.test(words[0])) return false;
   return true;
 }
 

@@ -12,6 +12,7 @@
 import * as XLSX from "xlsx";
 import { parseSheetRows } from "../src/lib/inventory/excel-parser";
 import { normalizeRow } from "../src/lib/inventory/normalizer";
+import { isPlausibleBrandCell } from "../src/lib/inventory/brand-extractor";
 
 const YELLOW = { s: { fgColor: { rgb: "FFFF00" } } };
 const HEADER = ["מק\"ט", "מותג", "תאור מוצר", "דגם", "מחיר", "יתרה"];
@@ -139,5 +140,71 @@ for (const c of cases) {
   }
 }
 
-console.log(`\n${cases.length - failed}/${cases.length} passed`);
+/* The Brand table, read back on 13 October, as the fixture it should always
+   have been.
+ *
+ * The cases above all build a synthetic sheet, and they passed 6/6 while the
+ * live Brand table held "סה\"כ", "חיסול", "למכור מלאי ותצוגות" and
+ * "בונוס כיריים 4 גז" as manufacturers with products filed under them. A
+ * guard tested only against strings someone invented is a guard tested
+ * against the author's imagination; these are the strings the sheets
+ * actually produced.
+ *
+ * Two of them show why they got through. "קומקומים חברת נוספות" passed
+ * because PRODUCT_TYPE_WORDS lists קומקום, and a Hebrew noun ending in a
+ * final letter is not a prefix of its own plural — the ם in קומקום is a
+ * different character from the מ in קומקומים, so the singular never matched.
+ * "דגם חדש" passed because NON_BRAND_WORDS is anchored on the whole cell, so
+ * it rejects "חדש" alone and waves through any phrase that merely starts
+ * with it. */
+const JUNK_BRAND_CELLS = [
+  "חדש 2026",
+  "חדש 2027",
+  "דגם חדש",
+  "סדרה 8",
+  "בונוס כיריים 4 גז",
+  'סה"כ',
+  "חיסול",
+  "למכור מלאי ותצוגות",
+  "קומקומים חברת נוספות",
+  "מיקרוגל 20",
+  "סט 5.1",
+  "כולל גריל",
+  "תאורת חירום",
+  "זוג מדפים רפרנס",
+  "5 תכ חצי כמות דיגיטלי 14",
+];
+for (const cell of JUNK_BRAND_CELLS) {
+  if (isPlausibleBrandCell(cell)) {
+    failed++;
+    console.log(`FAIL  a sheet label is not a manufacturer: ${JSON.stringify(cell)}`);
+  }
+}
+
+/* And the other half, which is the half that costs more to get wrong: every
+   brand that has a product in the catalogue today must survive. A guard that
+   also rejects real manufacturers files the whole catalogue under "unknown",
+   which is worse than the junk it removes. The Hebrew names are the ones at
+   risk — the new rules are all Hebrew — so they are listed in full; the Latin
+   ones are sampled for the shapes that could trip a rule (two words, an
+   ampersand, a digit, an apostrophe). */
+const REAL_BRAND_CELLS = [
+  "אלקטרה", "אלקטרה פרו", "אמקור", "בורמן", "הידורית", "טורנדו", "טושיבה",
+  "כרומקס", "סמיקום", "קריסטל", "שולטס",
+  "LG", "Bosch", "Bowers & Wilkins", "De'Longhi", "3i", "Audio Line",
+  "North Bayou", "Kitchen Chef", "Sanyo Aqua Fresh", "La Germania", "Le Imperial",
+];
+for (const cell of REAL_BRAND_CELLS) {
+  if (!isPlausibleBrandCell(cell)) {
+    failed++;
+    console.log(`FAIL  a real manufacturer was rejected: ${JSON.stringify(cell)}`);
+  }
+}
+
+const total = cases.length + JUNK_BRAND_CELLS.length + REAL_BRAND_CELLS.length;
+console.log(
+  `\n${total - failed}/${total} passed  ` +
+    `(${cases.length} sheet cases, ${JUNK_BRAND_CELLS.length} sheet labels refused, ` +
+    `${REAL_BRAND_CELLS.length} real brands kept)`,
+);
 process.exit(failed === 0 ? 0 : 1);
