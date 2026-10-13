@@ -5,6 +5,7 @@ import {
   reconcileReplacedProductAlert,
   reconcileCatalogSizeAlert,
   reconcileForeignRowBindingAlerts,
+  reconcileTitleModelAlerts,
 } from "@/lib/inventory/sync-watchdog";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
@@ -58,12 +59,19 @@ export async function GET(request: Request) {
      distinguishable from enrichment correcting our model — so a SKU that
      moved before anybody was watching is invisible to the run by
      construction, and twenty of them were. */
-  const [freshness, sheets, replaced, size, foreign] = await Promise.all([
+  /* And a sixth: does any product's own title print a model code its model
+     field does not know. The only one of the six that is not about the price
+     list at all — the row is right and the two halves of our record
+     disagree, which is how a page titled "Samsung Crystal UHD 65U8000H"
+     came to be an LG OLED evo 77" at 10,500 ₪. Its price was correct
+     throughout; the name on it was not, and no price check can see that. */
+  const [freshness, sheets, replaced, size, foreign, titles] = await Promise.all([
     reconcileSyncStaleAlert(),
     reconcileStaleSheetAlerts(),
     reconcileReplacedProductAlert(),
     reconcileCatalogSizeAlert(),
     reconcileForeignRowBindingAlerts(),
+    reconcileTitleModelAlerts(),
   ]);
   const staleSheets = sheets.filter((s) => s.stale);
   return NextResponse.json({
@@ -96,6 +104,12 @@ export async function GET(request: Request) {
       rowRef: f.rowRef,
       price: f.price,
       isPublished: f.isPublished,
+    })),
+    titleModelMismatches: titles.map((t) => ({
+      sku: t.sku,
+      codeInTitle: t.codeInTitle,
+      modelField: t.model,
+      price: t.price,
     })),
     staleSheets: staleSheets.map((s) => ({
       sheetName: s.sheetName,

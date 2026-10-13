@@ -16,6 +16,7 @@ import {
   modelsAreTheSameAllowingTypedZero,
   rowBindingLooksForeign,
   rowModelWasReassigned,
+  titleNamesAnotherModel,
   rowStillNamesThisProduct,
 } from "../src/lib/inventory/import-guards";
 import { resolvedPrice } from "../src/lib/inventory/diff-engine";
@@ -525,6 +526,59 @@ for (const [sku, model, lastRowModel, why] of FAMILIAR_BINDING) {
   }
 }
 
+// titleNamesAnotherModel, over the catalogue as it read on 13 October.
+//
+// Sixteen live products whose Hebrew title prints a model code their own
+// model field does not know. The first entry is the one the rule was written
+// for: a page titled "Samsung Crystal UHD 65U8000H" at 10,500 ₪ whose model,
+// row, brand, specs and photograph were all an LG OLED evo 77". Its price was
+// correct the whole time — what was wrong was the name on it.
+const TITLE_NAMES_ANOTHER: [string, string, string, string][] = [
+  ["OLED77C66LA", "טלוויזיה סמסונג Samsung Crystal UHD 65U8000H 65 אינץ' 4K", "65U8000H", "an LG OLED 77 titled as a Samsung 65"],
+  ["55UA80006LC", "טלוויזיה חכמה LG UHD 55 אינץ' 4K webOS 25 דגם 55UA73006LA", "55UA73006LA", "UA7300 in the title, UA8000 in the field and the row"],
+  ["R-WB700VRS2GS", "מקרר היטאצ'י Hitachi R-WB640VRS 4 דלתות", "R-WB640VRS", "the Hitachi before its model was corrected"],
+  ["HGN9333Z", "תנור אפייה משולב Blomberg HGN9335Z - שחור", "HGN9335Z", "title and row both say 9335, the field says 9333"],
+  ["HGN8333", "תנור אפייה משולב Blomberg HGN8335 - לבן", "HGN8335", "and the white one"],
+  ["HGN8433X", "תנור אפייה משולב Blomberg HGN8435X - נירוסטה", "HGN8435X", "and the stainless one"],
+  ["ZOPKD7XA", "תנור בנוי זנוסי Zanussi ZOPKD7X1A 75 ליטר", "ZOPKD7X1A", "one character apart"],
+  ["GET45IX", "מקרר General GE45IX NF - נירוסטה", "GE45IX", "a T that is in one and not the other"],
+  ["SDWi1040", "מדיח כלים Sauter SDW1040 - 7 תוכניות", "SDW1040", "an i that is in one and not the other"],
+  ["Ninja", "מכונת קפה אספרסו אוטומטית נינג'ה Ninja AutoBrew AE1001", "AE1001", "the model field holds the brand name"],
+  ["MWP-MM20 WH", "מיקרוגל Toshiba MWP-MM20P(WH)-IL מכני 20 ליטר", "MWP-MM20P", "the title carries the fuller code"],
+  ["CS5200JN", "מעבד מזון מגימיקס Magimix CS5200XL Premium 11 ליטר", "CS5200XL", "a colour suffix against a marketing suffix"],
+  ["R-V660 BBK", "מקרר היטאצ'י Hitachi R-V660PRS8 BBK מקפיא עליון", "R-V660PRS8", "the title adds PRS8"],
+  ["CTAC8780AFSNE", "כיריים אינדוקציה Bauknecht 8780IN - שחור", "8780IN", "the title kept the supplier's shorthand"],
+];
+for (const [model, title, expected, why] of TITLE_NAMES_ANOTHER) {
+  const got = titleNamesAnotherModel({ title, model });
+  if (got !== expected) {
+    fail(`title names another model — ${why}: expected ${expected}, got ${got}`);
+  }
+}
+
+// And the shapes that must stay quiet. Each of these was a false positive in
+// a draft of the rule, found by running it over the catalogue rather than by
+// thinking about it.
+const TITLE_AGREES: [string, string, string][] = [
+  ["65U8000H 4K", "טלוויזיה Samsung 65U8000H 65 אינץ' UHD LED 4K 120Hz", "the field has a suffix the title spreads out"],
+  ["M 7244 TC CLST", "מיקרוגל בנוי מילה Miele M 7244 TC CleanSteel 46 ליטר", "a model written with spaces, matched across them by the first draft"],
+  ["R-WB640VRS (GMG)", "מקרר 4 דלתות היטאצ'י Hitachi R-WB640VRS (GMG) 569 ליטר", "brackets and a finish code"],
+  ["SMART 30 INV לבן", "מזגן עילי אינוורטר טורנדו SMART-INV-30 X WIFI 20,543BTU", "the same code reordered, plus a BTU fragment"],
+  ["SMART 22 INV לבן", "מזגן עילי אינוורטר טורנדו SMART-INV-22 X WIFI 19,084BTU", "and the 22"],
+  ["DAV-BOWL-8L", "קערת נירוסטה 8 ליטר למיקסר DAVO – DSM5740, DSM5750, DSM5760", "a compatibility list, not a mistake"],
+  ["RQ58S", "הייסנס Hisense מקרר 4 דלתות RQ58S בנפח 483 ליטר NoFrost", "NoFrost is not a model code"],
+  ["S90QY", "LG מקרן קול 5.1.3 ערוצים 570W עם Dolby Atmos", "Dolby Atmos is not a model code"],
+  ["KQD1622GB", "מקרר Blomberg KQD1622GB 572 ליטר - זכוכית שחורה", "the title does name it"],
+  ["CMA583MB0", "תנור בנוי Bosch CMA583MBO 45 ס\"מ", "a letter O typed where a zero belongs"],
+  ["LFS-9021SBL", "תנור משולב לנקו Lenco LFS-9021SBL 90 ס\"מ 5 מבערי גז", "an ordinary agreeing title"],
+];
+for (const [model, title, why] of TITLE_AGREES) {
+  const got = titleNamesAnotherModel({ title, model });
+  if (got !== null) {
+    fail(`a title that names its own product must stay quiet — ${why}: got ${got}`);
+  }
+}
+
 // And it must not become a way in for a shifted block, which is the whole
 // reason the model guard is on those two paths. A row that has moved carries
 // its neighbour's model, which matches neither the product's model nor what
@@ -608,7 +662,8 @@ const total =
   ROW_MODEL_UNCHANGED.length + ROW_MODEL_MOVED.length + ROW_MODEL_SILENT.length +
   /* The price guard, over the same fourteen corrections plus its own cases. */
   ROW_MODEL_UNCHANGED.length + ROW_MODEL_REASSIGNED.length + ROW_MODEL_NOT_REASSIGNED.length +
-  FOREIGN_BINDING.length + FAMILIAR_BINDING.length;
+  FOREIGN_BINDING.length + FAMILIAR_BINDING.length +
+  TITLE_NAMES_ANOTHER.length + TITLE_AGREES.length;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${LABEL_URLS.length} label urls, ${PRODUCT_URLS.length} photo urls, ` +
@@ -623,6 +678,7 @@ console.log(
     `${ROW_MODEL_UNCHANGED.length} unchanged rows, ${ROW_MODEL_MOVED.length} moved rows, ` +
     `${ROW_MODEL_REASSIGNED.length} reassigned rows, ${ROW_MODEL_NOT_REASSIGNED.length} not reassigned, ` +
     `${FOREIGN_BINDING.length} foreign bindings, ${FAMILIAR_BINDING.length} familiar bindings, ` +
+    `${TITLE_NAMES_ANOTHER.length} titles naming another model, ${TITLE_AGREES.length} titles agreeing, ` +
     `${ROW_MODEL_SILENT.length} silent rows, ` +
     `${HTML_CASES.length} html descriptions)`,
 );

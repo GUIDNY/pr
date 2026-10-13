@@ -523,3 +523,74 @@ function shareAnyRunOfThree(a: string, b: string): boolean {
   }
   return false;
 }
+
+/**
+ * Does the product's own title name a different model than its model field?
+ *
+ * The third shape, after a row that moved (rowModelWasReassigned) and a row
+ * that never named this product (rowBindingLooksForeign). Here the row is
+ * fine and the two halves of our own record disagree: `Product.model` says
+ * one code and the Hebrew title, which is what the customer reads, prints
+ * another.
+ *
+ * Found by looking at three products the owner asked about on 13 October and
+ * noticing they shared a shape. SKU 0902 was the worst of them — the title
+ * read "Samsung Crystal UHD 65U8000H" on a record whose model, row, brand,
+ * specs and photograph were all an LG OLED evo 77" costing 9,900. A customer
+ * searching for the Samsung found that page at 10,500 ₪ while the real
+ * Samsung sat elsewhere at 2,400, and the LG could not be found by its name
+ * at all. Nothing was wrong with its price.
+ *
+ * It reports a disagreement; it does not say which side is wrong. Often the
+ * title is right and the model field is stale — three Blomberg ovens here
+ * have a title and a price-list row that both say HGN9335Z against a model
+ * field reading HGN9333Z. Settling that needs the manufacturer, so this
+ * hands over the pair and stops.
+ *
+ * The filters, each one measured against the live catalogue rather than
+ * imagined — 119 raw hits down to 16, and the 16 are all genuine:
+ *
+ *   - **Tokens never span a space.** The first draft matched across them and
+ *     turned "Miele M 7244 TC CleanSteel 46" into one 24-character "code"
+ *     that matched nothing. That single mistake was most of the 119.
+ *   - **Fold O to zero after testing for a digit, not before.** Folding
+ *     first turns `NoFrost` into `N0FR0ST` and `Dolby Atmos` into
+ *     `D0LBYATM0S` — two products were flagged for model codes this
+ *     function had invented itself.
+ *   - **The same characters in a different order is a rewrite.** Tornado's
+ *     air conditioners are stored as "SMART 30 INV לבן" and titled
+ *     "SMART-INV-30"; sorted, the two are identical.
+ *   - **A trailing unit is a measurement.** "543BTU" is the tail of
+ *     "20,543BTU" split on the comma.
+ *   - **Three or more foreign codes is a compatibility list**, not a
+ *     mistake: a DAVO mixing bowl's title names the three mixers it fits.
+ */
+export function titleNamesAnotherModel(product: {
+  title: string;
+  model: string | null;
+}): string | null {
+  const ours = bareModel(product.model);
+  if (ours.length < 5) return null;
+
+  const foreign: string[] = [];
+  // Whitespace-free runs only. A model code does not contain a space; a
+  // sentence does, and matching across one invents codes that never existed.
+  for (const raw of product.title.match(/[A-Za-z0-9][A-Za-z0-9./-]*/g) ?? []) {
+    const token = bareModel(raw);
+    if (token.length < 6) continue;
+    if (!/[0-9]/.test(token) || !/[A-Z]/.test(token)) continue;
+    if (/^[0-9]+(BTU|W|HZ|L|KG|CM|MM|V|MAH)$/.test(token)) continue;
+    const a = foldTypedZero(token);
+    const b = foldTypedZero(ours);
+    if (a.includes(b) || b.includes(a)) return null; // the title does name us
+    if (sortedChars(a) === sortedChars(b)) return null; // same code, rewritten
+    if (!foreign.includes(raw)) foreign.push(raw);
+  }
+
+  if (foreign.length === 0 || foreign.length >= 3) return null;
+  return foreign[0];
+}
+
+function sortedChars(value: string): string {
+  return value.split("").sort().join("");
+}

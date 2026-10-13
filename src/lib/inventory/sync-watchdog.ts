@@ -2,7 +2,10 @@ import "server-only";
 import { db } from "@/lib/db";
 import { openHoursBetween, STALE_AFTER_OPEN_HOURS } from "@/lib/inventory/office-hours";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { rowBindingLooksForeign } from "@/lib/inventory/import-guards";
+import {
+  rowBindingLooksForeign,
+  titleNamesAnotherModel,
+} from "@/lib/inventory/import-guards";
 import {
   pairReplacements,
   type ReplacedProduct,
@@ -769,6 +772,90 @@ export async function reconcileForeignRowBindingAlerts(): Promise<ForeignBinding
           row: f.rowRef,
           price: f.price,
           supplierCost: f.supplierCost,
+          raisedBy: "watchdog",
+        }),
+      },
+    });
+  }
+  return fresh;
+}
+
+// ---------------------------------------------------------------------------
+// A title that names a different product than the record does
+// ---------------------------------------------------------------------------
+
+export type TitleMismatch = {
+  id: string;
+  sku: string;
+  title: string;
+  model: string | null;
+  codeInTitle: string;
+  price: number;
+  stockQty: number;
+};
+
+/**
+ * Live products whose Hebrew title prints a model code their model field
+ * does not know.
+ *
+ * The third of the three shapes, and the only one that is entirely our own
+ * doing: the price list is right, the row is right, and the two halves of
+ * the record contradict each other. A customer reads the title.
+ *
+ * Asked from outside a run for the same reason as the other two, and with
+ * the same manners: once per product, ever. The answer needs the
+ * manufacturer, not another pass over the database, so re-asking every
+ * three hours would only teach whoever reads these to close them unread.
+ */
+export async function checkTitleModelMismatch(): Promise<TitleMismatch[]> {
+  const candidates = await db.product.findMany({
+    where: {
+      ...PUBLIC_PRODUCT_WHERE,
+      model: { not: null },
+    },
+    select: { id: true, sku: true, title: true, model: true, price: true, stockQty: true },
+  });
+
+  const found: TitleMismatch[] = [];
+  for (const p of candidates) {
+    const codeInTitle = titleNamesAnotherModel(p);
+    if (codeInTitle) found.push({ ...p, codeInTitle });
+  }
+  return found.sort((a, b) => b.price * b.stockQty - a.price * a.stockQty);
+}
+
+export async function reconcileTitleModelAlerts(): Promise<TitleMismatch[]> {
+  const found = await checkTitleModelMismatch();
+  if (found.length === 0) return found;
+
+  const alreadyAsked = await db.inventoryAlert
+    .findMany({
+      where: {
+        type: "TITLE_NAMES_ANOTHER_MODEL",
+        productId: { in: found.map((f) => f.id) },
+      },
+      select: { productId: true },
+    })
+    .then((rows) => new Set(rows.map((r) => r.productId)));
+
+  const fresh = found.filter((f) => !alreadyAsked.has(f.id));
+  for (const f of fresh) {
+    await db.inventoryAlert.create({
+      data: {
+        type: "TITLE_NAMES_ANOTHER_MODEL",
+        severity: "WARNING",
+        productId: f.id,
+        sourceSku: f.sku,
+        message:
+          `${f.title}: הכותרת מדפיסה את קוד הדגם ${f.codeInTitle}, ` +
+          `ושדה הדגם של המוצר הוא ${f.model ?? "?"}. שני קודים שונים על אותה רשומה, ` +
+          `והלקוח קורא את הכותרת. לא בהכרח הכותרת היא השגויה — לא פעם היא והשורה ` +
+          `במחירון מסכימות ודווקא שדה הדגם הוא שנשאר מאחור. צריך להכריע מול היצרן.`,
+        metadata: JSON.stringify({
+          codeInTitle: f.codeInTitle,
+          modelField: f.model,
+          price: f.price,
+          stockQty: f.stockQty,
           raisedBy: "watchdog",
         }),
       },

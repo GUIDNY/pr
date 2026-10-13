@@ -167,6 +167,50 @@ the fixtures did was clear SKU 107012 against RF60C7012SL — the founding case
 asserted against both guards, 12 reassignment transitions, and the 61 swept
 products split into the 22 the sweep should flag and the 40 it must not.
 
+## The third shape: our own title naming a different product
+
+The two guards above are both about the price list. This one is not — the row
+is right, the price is right, and the two halves of our own record contradict
+each other.
+
+SKU 0902 was a page titled **"טלוויזיה סמסונג Samsung Crystal UHD 65U8000H"**
+at 10,500 ₪ whose model, row, brand, structured specs and photograph were all
+an **LG OLED evo C6 77"** costing 9,900. Only the title, the short description
+and the long description were a different television's. A customer searching
+for that Samsung found this page at 10,500 while the real Samsung 65U8000H sat
+at 2,400 under SKU 0867, and the LG could not be found by its own name at all.
+**Nothing was wrong with its price**, which is why every price check in this
+file is blind to it.
+
+`titleNamesAnotherModel` reports the pair and does not pick a side. Often the
+title and the row agree and it is `Product.model` that is stale — three
+Blomberg ovens here have a title and a price-list row that both read HGN9335Z
+against a model field of HGN9333Z. Settling that needs the manufacturer.
+
+Its filters are where the work is, and every one came from running the thing
+over the catalogue rather than reasoning about it — 119 raw hits down to 16,
+and all 16 are genuine:
+
+- **A token never spans a space.** The first draft matched across them and
+  turned "Miele M 7244 TC CleanSteel 46" into a single 24-character "code"
+  that matched nothing. That one mistake was most of the 119.
+- **Fold O to zero *after* testing for a digit.** Folding first turns
+  `NoFrost` into `N0FR0ST` and `Dolby Atmos` into `D0LBYATM0S`, and two
+  products were flagged for model codes the function had invented itself.
+- **Same characters in a different order is a rewrite.** Tornado's air
+  conditioners are stored "SMART 30 INV לבן" and titled "SMART-INV-30".
+- **A trailing unit is a measurement** — "543BTU" is the tail of "20,543BTU"
+  split on its comma.
+- **Three or more foreign codes is a compatibility list** — a DAVO bowl's
+  title names the three mixers it fits.
+
+There was a fourth rule, for a screen size in the title contradicting the size
+in the model code. It is not here: after the one product it would have caught
+was fixed, a sweep found no other, and its only remaining hit was LG writing
+`85QNED85B` for an 86-inch set, where the leading digits are the series rather
+than the size. A rule with no work to do and a known false positive is worse
+than no rule.
+
 ## `enrichmentStatus` has three values, and the database now says so
 
 `enums.ts` is described above as the single source of truth for every

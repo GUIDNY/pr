@@ -314,6 +314,16 @@ export const INVENTORY_ALERT_TYPES = [
      reassignment moves the row. While the alert is open the price and the
      cost of that row are not adopted. */
   "ROW_NAMES_ANOTHER_MODEL",
+  /* The product's own title prints a model code its model field does not
+     know. Not about the price list at all — the row is fine and the two
+     halves of our own record disagree, which is how a page titled
+     "Samsung Crystal UHD 65U8000H" came to be an LG OLED evo 77" at
+     10,500 ₪ while the real Samsung sold elsewhere at 2,400. The price on
+     it was right the whole time; the name was not.
+     It reports the pair and does not pick a side: often the title and the
+     price-list row agree and the model field is the stale one. Settling
+     that needs the manufacturer, so a person does it. */
+  "TITLE_NAMES_ANOTHER_MODEL",
   "CATALOG_SHRANK",
 ] as const;
 export type InventoryAlertType = (typeof INVENTORY_ALERT_TYPES)[number];
@@ -344,6 +354,7 @@ export const INVENTORY_ALERT_TYPE_LABELS: Record<InventoryAlertType, string> = {
   PRODUCT_REPLACED_BY_BLANK: "מוצר יצא מהאתר ורשומה ריקה נכנסה במקומו",
   CATALOG_SHRANK: "מספר המוצרים באתר ירד",
   ROW_NAMES_ANOTHER_MODEL: "השורה מדפיסה דגם של מוצר אחר",
+  TITLE_NAMES_ANOTHER_MODEL: "הכותרת מדפיסה דגם אחר משדה הדגם",
 };
 
 export const INVENTORY_ALERT_SEVERITIES = ["INFO", "WARNING", "CRITICAL"] as const;
