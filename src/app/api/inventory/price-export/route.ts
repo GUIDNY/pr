@@ -1,6 +1,11 @@
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { db } from "@/lib/db";
+import { parseWorkbook } from "@/lib/inventory/excel-parser";
+import { normalizeRow } from "@/lib/inventory/normalizer";
+import { resolvedPrice } from "@/lib/inventory/diff-engine";
+import { downloadInventoryFile, isStorageConfigured } from "@/lib/inventory/storage";
+import type { SourceKey } from "@/lib/inventory/sheet-map";
 
 /**
  * Every product the price list carries, with the price the site is showing
@@ -54,11 +59,70 @@ function field(value: string | number | null | undefined): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
+/**
+ * What the price list says each row's selling price is, right now.
+ *
+ * The export answered "what do we charge" and stopped there, which is half
+ * a comparison. The question the owner actually asks of this file is whether
+ * the two agree, and on 13 October answering it meant sending the three
+ * workbooks into a chat and reconciling them by hand. That found exactly one
+ * stale price in 1,326 — worth knowing, and not worth repeating by hand.
+ *
+ * The sync already reads these workbooks out of storage every run, so the
+ * server has them; this walks them through the same parser and the same
+ * resolvedPrice the sync uses, so the number in the column is the number the
+ * sync would adopt, not a second opinion about the sheet.
+ *
+ * Failure is silent on purpose. Storage can be unconfigured, a download can
+ * fail, a workbook can be mid-upload — none of that should cost the person
+ * the export they asked for. The columns come back empty and the rest of the
+ * file is exactly as useful as it was before.
+ */
+type SheetPrice = { price: number | null; cost: number | null; model: string | null };
+
+async function priceListByRow(): Promise<Map<string, SheetPrice>> {
+  const out = new Map<string, SheetPrice>();
+  if (!isStorageConfigured()) return out;
+
+  const sources = await db.inventorySource.findMany({
+    where: { sourceType: "EXCEL", isActive: true, storagePath: { not: null } },
+    select: { id: true, key: true, storagePath: true },
+  });
+
+  for (const src of sources) {
+    try {
+      const buffer = await downloadInventoryFile(src.storagePath!);
+      const { sheets } = parseWorkbook(buffer, src.key as SourceKey);
+      for (const sheet of sheets) {
+        for (const row of sheet.rows) {
+          const n = normalizeRow(src.key, sheet.sheetName, row, sheet.columns);
+          const { price } = resolvedPrice({
+            retailPrice: n.retailPrice,
+            minSalePrice: n.minSalePrice,
+            managerPrice: n.managerPrice,
+            internalCost: n.internalCost,
+          });
+          out.set(`${sheet.sheetName.trim()}\u0000${n.rowIndex}`, {
+            price,
+            cost: n.internalCost,
+            model: n.model,
+          });
+        }
+      }
+    } catch {
+      /* This source contributes nothing to the comparison; the others still do. */
+    }
+  }
+  return out;
+}
+
 export async function GET() {
   const session = await getSession();
   if (!session || !canManageCatalog(session.role)) {
     return new Response("unauthorized", { status: 401 });
   }
+
+  const sheetPrices = await priceListByRow();
 
   const products = await db.product.findMany({
     where: { source: { is: { sourceType: "EXCEL", isActive: true } } },
@@ -76,6 +140,7 @@ export async function GET() {
       stockStatus: true,
       isPublished: true,
       priceManualAt: true,
+      compareAtPrice: true,
       missingFromSourceSince: true,
       enrichmentStatus: true,
       _count: { select: { images: true } },
@@ -98,6 +163,9 @@ export async function GET() {
     "דגם אצלנו",
     "דגם בשורה",
     "מחיר באתר",
+    "המחיר במחירון",
+    "פער",
+    "הסבר לפער",
     "עלות ספק",
     "מרווח",
     "מלאי",
@@ -122,6 +190,22 @@ export async function GET() {
     if (p.missingFromSourceSince !== null) reasons.push("לא במחירון יותר");
     if (!p.isPublished) reasons.push("לא מפורסם");
 
+    /* The price list's figure for the row this product is bound to, and why
+       ours differs when it does. The order of the reasons is the order
+       adoptPrice refuses in, so the column names the actual rule that held
+       the price rather than guessing at one. */
+    const sheet = sheetPrices.get(`${(p.sourceSheet ?? "").trim()}\u0000${p.sourceRowRef ?? -1}`);
+    const gap = sheet?.price != null ? p.price - sheet.price : null;
+    const gapReason = !gap
+      ? ""
+      : p.priceManualAt
+        ? "מחיר שנקבע ידנית"
+        : p.compareAtPrice !== null
+          ? "מבצע רץ"
+          : sheet?.cost != null && sheet.cost > 0 && sheet.price! < sheet.cost
+            ? "המחירון מתחת לעלות של עצמו"
+            : "לא מוסבר — לבדוק";
+
     const fault = p.alerts.length
       ? p.alerts.some((a) => a.type === "ROW_NAMES_ANOTHER_MODEL")
         ? "השורה מדפיסה דגם אחר"
@@ -139,6 +223,9 @@ export async function GET() {
         field(p.model),
         field(p.lastRowModel),
         field(p.price),
+        field(sheet?.price ?? null),
+        field(gap === null ? null : gap),
+        field(gapReason),
         field(p.supplierCost),
         /* Two decimals, and blank rather than zero when there is no cost:
            a margin column that reads 0.00 on 5 products with no cost figure
