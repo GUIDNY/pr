@@ -45,12 +45,35 @@ export function displayStockLines(row: StockLineRow): StockLine[] {
   return row.stockLines.filter((l) => l.field !== "SELLABLE_STOCK" && l.quantity > 0);
 }
 
-// A price candidate below this share of the supplier's own ex-VAT cost is
-// not a price. Half, not "below cost": a shop does sell at or under cost —
-// clearance, a display unit, a thin-margin headline model — and the catalog
-// has several of those, all of them within a fifth of cost. Nothing
-// legitimate sits at an eighth of it.
-const COST_FLOOR_RATIO = 0.5;
+// A price candidate at or below the supplier's own ex-VAT cost is not a
+// price. This floor was half of cost until 13 October, on the reasoning that
+// a shop does sell at or under cost — clearance, a display unit, a
+// thin-margin headline model. The owner's rule is the opposite and he has
+// now stated it twice, the second time as a description of the row itself:
+// "the lowest number on the row is our cost, and the one after it is the
+// price we sell at."
+//
+// Read that way the floor is not a heuristic about typos at all, it is what
+// tells the cost apart from the prices — and it has to be strict, because
+// the supplier writes the cost into a price column often enough to matter.
+// Three products were live at exactly their own cost: a Bosch PXV975DV1E
+// cooktop at 6,800 with four in stock (`מינימום למכירה` repeats the cost),
+// an LG 55UA8000 at 1,900 (`קוד מנכ"ל` repeats it) and a Kenwood kMix at
+// 1,290 (`מחיר מינ'` repeats it). Half-of-cost cannot see any of them: the
+// number is the cost exactly, so it clears a floor set below the cost.
+//
+// A fourth was worse and is the case that settles it. `מיקסרים` row 115
+// carries a single cell — `1` — and no price at all, so 1 ₪ was both the
+// cost and the only candidate. A Sauter grinder attachment was live and
+// orderable at one shekel with four units in stock. Strictly above cost
+// leaves that row with no usable candidate, the price null, and the product
+// off the site, which is the only right answer for a row that does not
+// carry a price.
+//
+// Measured over the whole price list: 25 of 3,312 priced rows resolve at or
+// under their own cost, and over the live catalogue the change moves five
+// prices and takes nothing off the site.
+const COST_FLOOR_EXCLUSIVE = true;
 
 // The website price is the lowest of whatever resale-price columns the
 // source actually gives — "מחיר מינימום", "מחיר מוצג", "קוד מנכ״ל", however
@@ -84,16 +107,16 @@ export function resolvedPrice(
     (p): p is number => p !== null
   );
   const floor =
-    row.internalCost !== null && row.internalCost > 0
-      ? row.internalCost * COST_FLOOR_RATIO
+    row.internalCost !== null && row.internalCost > 0 && COST_FLOOR_EXCLUSIVE
+      ? row.internalCost
       : null;
   if (floor === null) {
     // No cost column on this sheet, so there is nothing to check against and
     // nothing to reject. Same behaviour as before the floor existed.
     return { price: candidates.length ? Math.min(...candidates) : null, rejected: [] };
   }
-  const usable = candidates.filter((p) => p >= floor);
-  const rejected = candidates.filter((p) => p < floor);
+  const usable = candidates.filter((p) => p > floor);
+  const rejected = candidates.filter((p) => p <= floor);
   return { price: usable.length ? Math.min(...usable) : null, rejected };
 }
 

@@ -635,12 +635,26 @@ const PRICE_ROWS: [number | null, number | null, number | null, number | null, n
   // Its own sibling on the next rows of the same sheet, which was always
   // right and has to stay right: lowest-wins still decides among survivors.
   [5500, 4990, 4890, 4290, 4890, "Miele H 2467 B — manager price is genuinely lowest"],
-  // Selling at or under cost is a real thing a shop does, and the floor must
-  // not touch any of these. All four are in the catalog today.
-  [null, 7400, 6800, 6800, 6800, "Samsung RB35A6222BK — sold at cost"],
-  [null, 14900, 12900, 13900, 12900, "Samsung RF90A9015BK — 1,000 under cost"],
-  [null, 10700, 7900, 8500, 7900, "Samsung RF65A9011SL — 7% under cost"],
-  [null, 150, null, 164, 150, "Hemilton hand mixer — 14 ₪ under cost"],
+  // These four used to assert the opposite — that selling at or under cost is
+  // a real thing a shop does and the floor must not touch them. The owner's
+  // rule, stated twice and on 13 October as a description of the row itself
+  // ("the lowest number is our cost, the next one is what we sell at"), is
+  // that nothing is sold at or under cost. So each now resolves to the
+  // cheapest candidate strictly above it, and the one row whose only
+  // candidate is the cost resolves to no price at all.
+  [null, 7400, 6800, 6800, 7400, "Samsung RB35A6222BK — was live at cost"],
+  [null, 14900, 12900, 13900, 14900, "Samsung RF90A9015BK — manager code 1,000 under cost"],
+  [null, 10700, 7900, 8500, 10700, "Samsung RF65A9011SL — manager code 7% under cost"],
+  [null, 150, null, 164, null, "Hemilton hand mixer — 14 ₪ under cost, nothing above it"],
+  // The three that were live at exactly their own cost on 13 October, with
+  // the supplier having written the cost into a price column as well. Half
+  // of cost cannot see any of them.
+  [7200, 6800, 6900, 6800, 6900, "Bosch PXV975DV1E — מינימום למכירה repeats the cost"],
+  [2400, 2200, 1900, 1900, 2200, "LG 55UA8000 — קוד מנכ\"ל repeats the cost"],
+  [1790, 1290, null, 1290, 1790, "Kenwood kMix KMX753ABK — מחיר מינ' repeats the cost"],
+  // מיקסרים row 115: one cell, `1`, and no price column at all. A Sauter
+  // grinder attachment was live and orderable at one shekel, four in stock.
+  [null, 1, null, 1, null, "a row carrying only a cost of 1 ₪ has no price"],
   // No cost column on the sheet: nothing to compare against, old behaviour.
   [3200, 2890, 2790, null, 2790, "a sheet with no עלות column"],
   // Nothing usable at all.

@@ -46,7 +46,24 @@ so renaming a product must not break links already shared.
 Stated by the owner on 13 October, after a sweep found the catalogue holding
 36 hand-set prices nobody remembered setting: **nothing is priced by hand any
 more except Ninja.** Every other product shows whatever `resolvedPrice` reads
-off its row — the minimum of `מחיר מוצג`, `מינימום למכירה` and `קוד מנכ"ל`.
+off its row.
+
+He also gave the rule in the form that matters, and it is worth keeping in his
+words because it is shorter than the code and settles an argument the code was
+having with itself: **"the lowest number on the row is our cost, and the one
+after it is the price we sell at."** Not the second-lowest of the price columns
+— the second-lowest of *every* number on the row, the cost included. That is
+the same answer as "the cheapest price column" on 1,315 of the 1,324 live rows,
+which is why the distinction went unnoticed. The nine where it differs are the
+nine where the supplier wrote the cost into a price column as well, and there
+the two readings are a zero-margin sale apart. Read the header labels only to
+find which columns hold money; do not let them decide which number is the cost.
+
+A corollary that was not in the code until 13 October: a candidate equal to the
+cost is the cost, not a price, so the floor in `resolvedPrice` is strict. See
+the comment there — four products were live at exactly their own cost, one of
+them a Sauter grinder attachment at **1 ₪** with four in stock, off a row whose
+only cell is `1`.
 
 `priceManualAt` is what refuses an adoption, so it is now the whole policy in
 one column, and it may be set for exactly four reasons:
