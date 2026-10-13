@@ -41,6 +41,41 @@ presses sync in the admin when the supplier sends a new sheet.
 `slug` is never written by anything after creation — it is public in the product URL,
 so renaming a product must not break links already shared.
 
+## The price on the site is the price list's price, and Ninja is the only exception
+
+Stated by the owner on 13 October, after a sweep found the catalogue holding
+36 hand-set prices nobody remembered setting: **nothing is priced by hand any
+more except Ninja.** Every other product shows whatever `resolvedPrice` reads
+off its row — the minimum of `מחיר מוצג`, `מינימום למכירה` and `קוד מנכ"ל`.
+
+`priceManualAt` is what refuses an adoption, so it is now the whole policy in
+one column, and it may be set for exactly four reasons:
+
+- **Ninja.** Nine live products, eight of them on a running `compareAtPrice`.
+- **The sheet's own price is below the sheet's own cost.** 200052 (LG OLED 65
+  G5: cost 8,100, `קוד מנכ"ל` 6,900) and 200131 (1,800 against 1,790). Adopting
+  those would break "אין אפשרות שמחיר יהיה מתחת לעלות", so `adoptPrice` refuses
+  on its own and no flag is needed — but the refusal is the reason those two
+  read as a gap in any reconciliation, and they are not a bug.
+- **The supplier put one SKU on two rows.** 101058 is `JCF58 IX` at 3,200 on
+  מקררים 74 and `JCF88 BK` at 3,600 on row 75. Position is matched before SKU,
+  but row 75 has no claimant of its own, so the SKU lookup hands it our product
+  and the later row wins every run. The freeze is what keeps 3,200 — the price
+  of its *own* row — on the page. Repointing does not survive a sync; only the
+  supplier splitting the SKU does.
+- **A row that was reassigned** — `ROW_NAMES_ANOTHER_MODEL`, below.
+
+Everything else that looked manual was not. All 36 flags were written in one
+batch at 14:55 on 12 October by `rowModelWasReassigned` firing over a whole
+catalogue at once, and 34 of them were wrong: the row's description named our
+product exactly (`7800B` against a Sauter Cuisine-7850B, both "77 ליטר 10
+תוכניות"), and only the model *column* disagreed, because it carries the
+supplier's shorthand. **The guard compares model to model; a person has to
+compare the row to the product.** Before trusting a batch of these, read the
+row's title — `tools/dump-rows.ts` prints it — and do not read agreement
+between our price and the row's price as evidence of anything, because our
+price was adopted from that row in the first place.
+
 ## The source price sheets are read-only. Never write to them.
 
 The three price lists on the company's file server — מחירון מלאי אלקטרוניקה,
