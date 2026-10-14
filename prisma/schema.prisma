@@ -853,6 +853,9 @@ model Payment {
   approvalNo            String?
   voucherId             String?
   cardLast4             String?
+  // "MM/YY" as the gateway reports it (CreditCardExpDate, MMYY). The back
+  // office asks for it when a hold has to be re-taken or a card re-charged.
+  cardExpiry            String?
   clearerName           String?
   totalPayments         Int?
   rawResponse           Json? // the full exchange, for the day something is disputed

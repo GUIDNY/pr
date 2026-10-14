@@ -246,6 +246,12 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
                     <span dir="ltr">**** {p.cardLast4}</span>
                   </>
                 )}
+                {p.cardExpiry && (
+                  <>
+                    {" · תוקף "}
+                    <span dir="ltr">{p.cardExpiry}</span>
+                  </>
+                )}
                 {p.clearerName ? ` · ${p.clearerName}` : ""}
                 {p.approvalNo ? ` · אישור ${p.approvalNo}` : ""}
               </p>

@@ -58,6 +58,8 @@ export type SellerOrderDetail = SellerOrderSummary & {
     capturedAt: Date | null;
     /** The card as the customer knows it — last four digits, never more. */
     cardLast4: string | null;
+    /** "MM/YY", from the gateway. */
+    cardExpiry: string | null;
     approvalNo: string | null;
     clearerName: string | null;
   } | null;
@@ -207,6 +209,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
              the card.
              Last four digits only, which is all that is ever stored. */
           cardLast4: live.cardLast4,
+          cardExpiry: live.cardExpiry,
           approvalNo: live.approvalNo,
           clearerName: live.clearerName,
         }

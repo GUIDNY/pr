@@ -9,7 +9,7 @@ import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import type { StockStatus } from "@/lib/enums";
 import { cn } from "@/lib/utils";
 import { discountPercent } from "@/lib/format";
-import { FREE_DELIVERY_THRESHOLD, deliveryDaysFor } from "@/lib/delivery";
+import { FREE_DELIVERY_THRESHOLD, deliveryPromiseText } from "@/lib/delivery";
 
 export type ProductCardData = {
   id: string;
@@ -128,7 +128,7 @@ export function ProductCard({
           )}
           {cardStatus !== "OUT_OF_STOCK" && (
             <span className="hidden items-center gap-1 sm:flex">
-              <Truck className="size-3.5" /> משלוח תוך {deliveryDaysFor(product)} ימי עסקים
+              <Truck className="size-3.5" /> משלוח {deliveryPromiseText(product)}
             </span>
           )}
         </div>

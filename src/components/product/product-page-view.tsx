@@ -10,7 +10,8 @@ import {
   HANDLING_DAYS,
   TRANSIT_DAYS,
   BUSINESS_DAY_NAMES,
-  deliveryDaysFor,
+  deliveryPromiseText,
+  LOCAL_DELIVERY_NOTE,
 } from "@/lib/delivery";
 import { RETURN_WINDOW_DAYS, cancellationFee } from "@/lib/returns-policy";
 import {
@@ -299,20 +300,21 @@ export async function ProductPageView({
              handlingTime and transitTime are business days, which Google
              states outright and which schema.org's businessDays property
              presumes. Their maximums are added to produce the estimate, so
-             they sum to the three days the page promises and not to more.
+             they sum to the seven days the page promises nationally and not
+             to more; the local three-day promise is said in words, because
+             one country-level destination cannot carry two figures.
              Both come from lib/delivery.ts, derived from the same constant
              the visible sentence uses.
 
-             deliveryDaysFor, not product.deliveryDays. That was the bug.
-             Every row in the catalogue still carries the schema default of
-             7 because nothing has ever written the column, and
-             deliveryDaysFor is the function that turns that unset 7 into
-             the 3 business days /shipping actually promises. The visible
-             line further down this same file already called it; this did
-             not, so the page said three and the structured data said seven,
-             on all 1,592 products. Two answers to the same question on one
-             page is what a Merchant Center review reads as a misrepresented
-             delivery estimate. */
+             Never product.deliveryDays. Every row in the catalogue still
+             carries the schema default of 7 because nothing has ever
+             written the column; deliveryPromiseFor is what turns that unset
+             7 into the range /shipping actually promises, and the visible
+             lines in this file call the same helper. Before that, the page
+             said three and the structured data said seven on all 1,592
+             products — two answers to the same question on one page, which
+             a Merchant Center review reads as a misrepresented delivery
+             estimate. */
           shippingDetails: {
             "@type": "OfferShippingDetails",
             shippingRate: {
@@ -566,8 +568,8 @@ export async function ProductPageView({
               <span className="text-muted-foreground flex items-center gap-1 text-sm">
                 <Truck className="size-4" />
                 {deliveryFee === 0
-                  ? `עד הבית תוך ${deliveryDaysFor(product)} ימי עסקים`
-                  : `משלוח ${formatPrice(deliveryFee)} · תוך ${deliveryDaysFor(product)} ימי עסקים`}
+                  ? `עד הבית · ${deliveryPromiseText(product)}`
+                  : `משלוח ${formatPrice(deliveryFee)} · ${deliveryPromiseText(product)}`}
               </span>
             )}
           </div>
@@ -617,14 +619,17 @@ export async function ProductPageView({
                   {deliveryFee === 0 ? (
                     <>
                       <span className="font-semibold">משלוח עד הבית חינם</span>
-                      <span className="text-muted-foreground"> · מגיע תוך {deliveryDaysFor(product)} ימי עסקים</span>
+                      <span className="text-muted-foreground">
+                        {" "}
+                        · {deliveryPromiseText(product)} · {LOCAL_DELIVERY_NOTE}
+                      </span>
                     </>
                   ) : (
                     <>
                       <span className="font-semibold">משלוח עד הבית {formatPrice(deliveryFee)}</span>
                       <span className="text-muted-foreground">
                         {" "}
-                        · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · תוך {deliveryDaysFor(product)} ימי עסקים
+                        · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · {deliveryPromiseText(product)} · {LOCAL_DELIVERY_NOTE}
                       </span>
                     </>
                   )}
@@ -823,7 +828,7 @@ export async function ProductPageView({
               <div>
                 <p className="font-bold">משלוח עד הבית</p>
                 <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
-                  תוך {deliveryDaysFor(product)} ימי עסקים בכל הארץ. ניתן גם לאסוף עצמאית מהסניף.
+                  {deliveryPromiseText(product)} בכל הארץ, ו{LOCAL_DELIVERY_NOTE}. ניתן גם לאסוף עצמאית מהסניף בחדרה.
                 </p>
               </div>
             </div>

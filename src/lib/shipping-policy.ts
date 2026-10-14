@@ -9,6 +9,6 @@
  * Update this when the wording changes, and remember the wording is also
  * held in Merchant Center, which compares the two.
  */
-export const SHIPPING_POLICY_UPDATED = new Date("2026-09-17T00:00:00Z");
+export const SHIPPING_POLICY_UPDATED = new Date("2026-10-14T00:00:00Z");
 
-export const SHIPPING_POLICY_UPDATED_LABEL = "17.09.2026";
+export const SHIPPING_POLICY_UPDATED_LABEL = "14.10.2026";

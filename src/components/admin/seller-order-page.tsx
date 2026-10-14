@@ -343,6 +343,15 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
                 <Field label="כרטיס">
                   <span dir="ltr">**** {order.paid.cardLast4}</span>
                   {order.paid.clearerName ? ` · ${order.paid.clearerName}` : ""}
+                  {/* The expiry, for the day a hold lapses and the card has
+                      to be charged again — the one detail the phone call
+                      otherwise has to ask for. */}
+                  {order.paid.cardExpiry ? (
+                    <>
+                      {" · תוקף "}
+                      <span dir="ltr">{order.paid.cardExpiry}</span>
+                    </>
+                  ) : null}
                 </Field>
               )}
               {order.paid.approvalNo && <Field label="מספר אישור">{order.paid.approvalNo}</Field>}
