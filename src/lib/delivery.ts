@@ -138,10 +138,10 @@ export const BUSINESS_DAY_NAMES = [
   "https://schema.org/Thursday",
 ] as const;
 
-/** Named on the checkout and the shipping policy. A shopper choosing a
-    pickup point is agreeing to be contacted by a company whose name they
-    should have seen first. */
-export const DELIVERY_CARRIER = "צ'יטה";
+/* The carrier is deliberately not named anywhere a shopper reads — not on
+   the checkout, not on /shipping. The owner's reason (14 October): the
+   shop may ship another way, and a name printed in six places is six
+   promises to keep. "חברת המשלוחים" says what matters without saying who. */
 
 /**
  * DELIVERY      to the address the customer gives

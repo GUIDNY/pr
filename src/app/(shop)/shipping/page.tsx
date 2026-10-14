@@ -3,7 +3,6 @@ import Link from "next/link";
 import { SHIPPING_POLICY_UPDATED_LABEL } from "@/lib/shipping-policy";
 import { BUSINESS, BUSINESS_ADDRESS } from "@/lib/business";
 import {
-  DELIVERY_CARRIER,
   DELIVERY_ZONES,
   FREE_DELIVERY_THRESHOLD,
   HOME_DELIVERY_FEE,
@@ -89,7 +88,7 @@ export default function ShippingPage() {
         <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">מי מבצע את המשלוח</h2>
           <p>
-            משלוחי חבילות רגילים מבוצעים באמצעות חברת {DELIVERY_CARRIER}. מוצרים גדולים מסופקים באמצעות מוביל, יבואן
+            משלוחי חבילות רגילים מבוצעים באמצעות חברת משלוחים חיצונית. מוצרים גדולים מסופקים באמצעות מוביל, יבואן
             או ספק — ראו &quot;הובלת מוצרים גדולים&quot; בהמשך.
           </p>
         </section>
@@ -135,7 +134,7 @@ export default function ShippingPage() {
         <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">נקודת איסוף</h2>
           <p>
-            בבחירת נקודת איסוף, {DELIVERY_CARRIER} יוצרים קשר עם הלקוח לאחר ההזמנה כדי לתאם את הנקודה הנוחה לו. לכן
+            בבחירת נקודת איסוף, חברת המשלוחים יוצרת קשר עם הלקוח לאחר ההזמנה כדי לתאם את הנקודה הנוחה לו. לכן
             גם בבחירה זו יש למסור כתובת — היא משמשת כדי להציע נקודה קרובה אליכם, ולא כיעד המשלוח.
           </p>
           <p className="mt-2">

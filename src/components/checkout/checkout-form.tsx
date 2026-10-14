@@ -38,7 +38,6 @@ import { formatPrice } from "@/lib/format";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
 import { cartHasBulky } from "@/lib/bulky";
 import {
-  DELIVERY_CARRIER,
   DELIVERY_ZONES,
   FREE_DELIVERY_THRESHOLD,
   HOME_DELIVERY_FEE,
@@ -659,8 +658,8 @@ export function CheckoutForm({
                 מדיניות המשלוחים והאספקה
               </Link>{" "}
               של האתר: עד {DELIVERY_ZONES.local.max} ימי עסקים {DELIVERY_ZONES.local.label},{" "}
-              {DELIVERY_ZONES.national.min}–{DELIVERY_ZONES.national.max} ימי עסקים בשאר הארץ. משלוח חבילות באמצעות{" "}
-              {DELIVERY_CARRIER}; מוצרים גדולים מסופקים במוביל או מהיבואן בתיאום מראש.
+              {DELIVERY_ZONES.national.min}–{DELIVERY_ZONES.national.max} ימי עסקים בשאר הארץ. מוצרים גדולים מסופקים
+              במוביל או מהיבואן בתיאום מראש.
             </span>
           </p>
           <RadioGroup
@@ -728,7 +727,7 @@ export function CheckoutForm({
             <p className="text-muted-foreground mb-3 flex items-start gap-2 text-sm leading-relaxed">
               <MapPin className="mt-0.5 size-4 shrink-0" />
               <span>
-                {DELIVERY_CARRIER} יצרו איתכם קשר אחרי ההזמנה כדי לבחור את נקודת האיסוף הנוחה לכם.
+                חברת המשלוחים תיצור איתכם קשר אחרי ההזמנה כדי לבחור את נקודת האיסוף הנוחה לכם.
                 הכתובת למטה היא כדי שיציעו נקודה קרובה אליכם.
               </span>
             </p>
