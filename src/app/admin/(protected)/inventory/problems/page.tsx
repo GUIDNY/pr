@@ -12,6 +12,7 @@ import {
 import { inspectNonPriceListProducts } from "@/actions/inventory-purge";
 import { PurgeNonPriceListPanel } from "@/components/admin/purge-non-price-list-panel";
 import { OffSiteRowActions } from "@/components/admin/off-site-row-actions";
+import { cn } from "@/lib/utils";
 
 export const metadata = { title: "למה לא באתר | Buy Today Admin" };
 
@@ -198,9 +199,18 @@ export default async function OffSitePage() {
             </h2>
             <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
               שורה במחירון היא מוצר אחד — הספק לא מוכר שני דברים באותה שורה. כאן שתי רשומות מצביעות על אותה שורה,
-              אחת מהן כבר לא באתר. <strong className="text-foreground">רובן לא תקלה</strong>: הספק החליף את המוצר
-              בשורה, והישן באמת יצא. אבל חלקן אותו מוצר פעמיים — ואז יש מלאי תקוע מחוץ לאתר, לפעמים במחיר אחר
-              לגמרי. מסודר לפי כמה כסף תקוע.
+              אחת מהן כבר לא באתר.{" "}
+              <strong className="text-foreground">
+                {collisions.filter((c) => c.sameProduct).length} מתוך {collisions.length} הן אותו מוצר פעמיים
+              </strong>{" "}
+              — אלה בראש הרשימה, והן היחידות שיש בהן מה לעשות. כל השאר הן הספק שהחליף את המוצר בשורה והישן באמת
+              יצא מהמחירון, כלומר תחלופה רגילה שהסנכרון כבר מתעלם ממנה.
+            </p>
+            <p className="text-muted-foreground mt-2 max-w-3xl text-xs">
+              העמודה האחרונה היא <strong className="text-foreground">המלאי האחרון שהשורה דיווחה</strong> לפני
+              שהרשומה איבדה אותה, במחיר שהיא נשאה אז — לא כסף שיושב מחוץ לאתר. כל רשומה כאן היא רשומה שהמחירון
+              זרק, אז המלאי שלה קפוא מאז. בעשרה מהזוגות הוא זהה ליחידה למלאי הנוכחי של מי שמחזיק את השורה, כי שתי
+              הקריאות באו מאותה שורה.
             </p>
           </header>
           <table className="w-full text-sm">
@@ -209,12 +219,12 @@ export default async function OffSitePage() {
                 <th className="p-3 text-start font-semibold whitespace-nowrap">שורה</th>
                 <th className="p-3 text-start font-semibold">מה ירד מהאתר</th>
                 <th className="p-3 text-start font-semibold">מה מחזיק את השורה</th>
-                <th className="p-3 text-start font-semibold whitespace-nowrap">תקוע</th>
+                <th className="p-3 text-start font-semibold whitespace-nowrap">מלאי אחרון שדווח</th>
               </tr>
             </thead>
             <tbody>
               {collisions.map((c) => (
-                <tr key={c.dropped.id} className="border-border border-t">
+                <tr key={c.dropped.id} className={cn("border-border border-t", c.sameProduct && "bg-warning/5")}>
                   <td className="text-muted-foreground p-3 text-xs whitespace-nowrap">
                     {c.sheetName} · {c.rowRef}
                   </td>
@@ -236,7 +246,14 @@ export default async function OffSitePage() {
                       {c.holder.price.toLocaleString("he-IL")} ₪
                     </p>
                   </td>
-                  <td className="p-3 whitespace-nowrap">{c.strandedValue.toLocaleString("he-IL")} ₪</td>
+                  <td className="text-muted-foreground p-3 whitespace-nowrap tabular-nums">
+                    {c.lastReportedValue.toLocaleString("he-IL")} ₪
+                    {c.sameProduct && (
+                      <span className="text-warning-foreground bg-warning/15 ms-2 rounded-full px-2 py-0.5 text-xs font-medium">
+                        אותו מוצר
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { normaliseSheetName } from "@/lib/inventory/sheet-map";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
+import { modelsCanBeTheSame } from "@/lib/inventory/import-guards";
 
 /**
  * The one page that answers "what happened in the last sync, and what do I
@@ -1097,8 +1098,23 @@ export type RowCollision = {
   rowRef: number;
   dropped: ProductLine & { model: string; droppedAt: Date };
   holder: ProductLine & { model: string };
-  /** The stock sitting on the record that is off the site. */
-  strandedValue: number;
+  /** Can the two records be the same product? See the sort below. */
+  sameProduct: boolean;
+  /**
+   * The last stock the row reported before this record lost it, priced at
+   * the last price it carried. **Not money sitting off the site**, and the
+   * field was called strandedValue and sorted on until 14 October, which is
+   * the whole reason this section read as noise.
+   *
+   * Every record here is one the price list has dropped, so its stockQty
+   * stopped being updated on the day it was dropped — anywhere from 23
+   * August to yesterday. On ten of the 69 pairs it is the holder's own
+   * current stock to the unit, because both readings came off the same row:
+   * the SOMO air conditioner at the top of the list showed "7 units ·
+   * ₪1,000 · ₪7,000 stuck" against a Tornado holding the row with the same
+   * seven units. That is the holder's stock counted twice.
+   */
+  lastReportedValue: number;
 };
 
 export async function getRowCollisions(limit = 200): Promise<RowCollision[]> {
@@ -1139,10 +1155,23 @@ export async function getRowCollisions(limit = 200): Promise<RowCollision[]> {
         droppedAt: d.missingFromSourceSince as Date,
       },
       holder: { ...toLine(holder), model: holder.model ?? "" },
-      strandedValue: d.price * d.stockQty,
+      sameProduct: modelsCanBeTheSame(d.model, holder.model),
+      lastReportedValue: d.price * d.stockQty,
     });
   }
-  /* Biggest stranded stock first: that is where a real duplicate costs
-     something, and where turnover costs nothing. */
-  return out.sort((a, b) => b.strandedValue - a.strandedValue).slice(0, limit);
+  /* Same product first, and that is a correction rather than a preference.
+     The list was sorted by the money figure, and of the 69 pairs exactly
+     one is the same product on both sides — a Blomberg BT6992W under 0455
+     and 136992 — whose figure is 0 because the dropped record holds no
+     stock. So the single real finding sorted last, under 68 rows of
+     ordinary turnover ranked by a number that cannot be money. Within each
+     group the figure still orders, because among real duplicates it is at
+     least evidence about size. */
+  return out
+    .sort((a, b) =>
+      a.sameProduct === b.sameProduct
+        ? b.lastReportedValue - a.lastReportedValue
+        : Number(b.sameProduct) - Number(a.sameProduct)
+    )
+    .slice(0, limit);
 }

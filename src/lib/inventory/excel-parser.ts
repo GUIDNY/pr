@@ -146,6 +146,62 @@ export function parseSheetRows(sheetName: string, rows: unknown[][], sheet?: XLS
       continue;
     }
 
+    // A row whose only product signal is a number in a stock column is the
+    // block's total, not a product.
+    //
+    // hasProductSignal above is set by a SKU *or any numeric field*, and the
+    // stock columns are numeric, so a footer row that sums the brand's units
+    // and carries nothing else reads as a product row. Ten do, one per block
+    // that has a footer, and the number they carry is the sum: שאוב לורנס
+    // with 355, שטארק 228, שולטס 157, TCL 65. The title comes out as the
+    // brand name or, where the cell is empty, as the sheet's own name and
+    // the row index.
+    //
+    // They are not harmless. The one on מדיחים 165 became SKU 0812, a
+    // Schulthess dishwasher with **157 units** at 3,800 ₪, and the back
+    // office reported ₪596,600 of stock sitting off the site — the largest
+    // figure on that page, and none of it exists. The others are quieter
+    // only because their blocks are cheaper.
+    //
+    // The test is identity and money together: a real product row carries a
+    // SKU, or a model, or something in a price or cost column — or, failing
+    // all three, a model code inside its free text.
+    //
+    // That last clause is not decoration, and leaving it out is the version
+    // of this guard that was wrong. "No SKU, no model column, no price"
+    // alone drops eleven rows, and the eleventh is מיקסרים 153: "בורמן קוצץ
+    // ירקות 6 סכינים דגם MMR08R2 אדום", 400W, two units in Hadera. A real
+    // line the supplier priced at nothing. What separates it from a footer
+    // is the model code in its own description — a footer's text is the
+    // brand and nothing else ("שולטס", "שאוב לורנס", "TCL"), or where even
+    // that cell is empty, the sheet's own name. So a token carrying both a
+    // letter and a digit counts as naming something, and with it the guard
+    // drops exactly the ten footers.
+    //
+    // Checked after the divider branch and not folded into it: a footer sits
+    // at the *end* of a block, so treating it as a section divider would
+    // close the block one row late and hand its label to the next brand's
+    // rows. This drops the row and touches no running state.
+    const freeText = [values.DESCRIPTION, values.NOTES]
+      .flat()
+      .filter((v): v is string => typeof v === "string")
+      .join(" ");
+    /* A model code is a token with both a letter and a digit in it. Four
+       characters, the same floor the model comparisons use: "6" and "2" in
+       "6 סכינים" are a blade count, not a name. */
+    const textNamesAModel = (freeText.match(/[A-Za-z0-9][A-Za-z0-9./-]{3,}/g) ?? []).some(
+      (t) => /[A-Za-z]/.test(t) && /[0-9]/.test(t)
+    );
+    const namesSomething =
+      (values.SKU?.length ?? 0) > 0 || (values.MODEL?.length ?? 0) > 0 || textNamesAModel;
+    const carriesMoney =
+      (values.RETAIL_PRICE?.length ?? 0) > 0 ||
+      (values.MIN_SALE_PRICE?.length ?? 0) > 0 ||
+      (values.MANAGER_PRICE?.length ?? 0) > 0 ||
+      (values.CASH_PRICE?.length ?? 0) > 0 ||
+      (values.INTERNAL_COST?.length ?? 0) > 0;
+    if (!namesSomething && !carriesMoney) continue;
+
     // A row carrying its own believable brand starts a new block, whether or
     // not anyone coloured it. Junk in that column (a promo code, a stray
     // number) fails isPlausibleBrandCell and neither wins nor propagates,

@@ -20,6 +20,7 @@ import {
   rowStillNamesThisProduct,
 } from "../src/lib/inventory/import-guards";
 import { resolvedPrice } from "../src/lib/inventory/diff-engine";
+import { parseSheetRows } from "../src/lib/inventory/excel-parser";
 
 const LABEL_URLS = [
   "https://www.electra.co.il/media/energy-label-fridge.png",
@@ -666,8 +667,48 @@ for (const [retailPrice, minSalePrice, managerPrice, internalCost, expected, why
   if (price !== expected) fail(`price: expected ${expected} got ${price} — ${why}`);
 }
 
+// ---------------------------------------------------------------------------
+// Block-footer rows. parseSheetRows sets hasProductSignal on a SKU *or any
+// numeric field*, and the stock columns are numeric, so a footer that sums
+// the brand's units and carries nothing else reads as a product. Ten in the
+// three current workbooks do, and the one on מדיחים 165 became SKU 0812 — a
+// Schulthess dishwasher with 157 units at 3,800 ₪, ₪596,600 of stock the
+// back office reported as sitting off the site and which does not exist.
+//
+// The grid below is copied out of מיקסרים: a real priced row, the unpriced
+// Burman line beside it that must survive, and the footer shapes that must
+// not. Built without a worksheet argument on purpose — the highlight and
+// brand-fill paths need one and are not what this is testing.
+// ---------------------------------------------------------------------------
+const FOOTER_HEADER = ["מק'ט", "תאור מוצר", "עלות ללא מע\"מ", "מחיר מינ'", "מוצג", "מלאי חדרה"];
+const FOOTER_GRID: [unknown[], boolean, string][] = [
+  [["820082", "בוש קוצץ ירקות דגם MMR08R2 אדום", 179, 240, 290, 6], true, "a priced row with a SKU"],
+  [[null, "בורמן קוצץ ירקות 6 סכינים  דגם MMR08R2 אדום", null, null, null, 2], true,
+    "מיקסרים 153 — no SKU, no price, but its own text names MMR08R2"],
+  [[null, "קומקום לבן", 58, 150, 190, 6], true, "no SKU and no model, but it carries money"],
+  [[null, "שולטס", null, null, null, 157], false, "מדיחים 165 — the Schulthess block total"],
+  [[null, "TCL", null, null, null, 65], false, "מזגנים 91 — a brand name and a sum"],
+  [[null, "שאוב לורנס", null, null, null, 355], false, "כיריים 283 — the biggest of them"],
+  [[null, null, null, null, null, 30], false, "רמקולים 230 — not even a brand, just the number"],
+  [[null, "דגם 6 סכינים", null, null, null, 4], false, "a digit alone is not a model code"],
+];
+{
+  const grid: unknown[][] = [FOOTER_HEADER, ...FOOTER_GRID.map(([cells]) => cells)];
+  const parsed = parseSheetRows("מיקסרים מעבדי מזון בלנדרים קוצצ", grid);
+  if (!parsed) fail("footer grid: the header row was not recognised at all");
+  else {
+    const accepted = new Set(parsed.rows.map((r) => r.rowIndex));
+    FOOTER_GRID.forEach(([, shouldPass, why], i) => {
+      const got = accepted.has(i + 1);
+      if (got !== shouldPass) {
+        fail(`footer row: expected ${shouldPass ? "accepted" : "dropped"}, got ${got ? "accepted" : "dropped"} — ${why}`);
+      }
+    });
+  }
+}
+
 const total =
-  SAME_MODEL.length + DIFFERENT_MODEL.length + REFUSED_BUT_HARMLESS.length + PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
+  FOOTER_GRID.length + SAME_MODEL.length + DIFFERENT_MODEL.length + REFUSED_BUT_HARMLESS.length + PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
   HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
   SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length + REFUSED.length + ALLOWED.length +
   /* These five were asserted but never counted, so the summary under-reported
