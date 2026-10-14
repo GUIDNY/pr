@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { normaliseSheetName } from "@/lib/inventory/sheet-map";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { modelsCanBeTheSame } from "@/lib/inventory/import-guards";
+import { modelsAreTheSame } from "@/lib/inventory/import-guards";
 
 /**
  * The one page that answers "what happened in the last sync, and what do I
@@ -1155,7 +1155,17 @@ export async function getRowCollisions(limit = 200): Promise<RowCollision[]> {
         droppedAt: d.missingFromSourceSince as Date,
       },
       holder: { ...toLine(holder), model: holder.model ?? "" },
-      sameProduct: modelsCanBeTheSame(d.model, holder.model),
+      /* modelsAreTheSame and not modelsCanBeTheSame, which is what this
+         asked on the first attempt and got wrong in the most visible place
+         there is: the top row of the list. That one answers "could these
+         differ" and returns true when either side is empty, because its job
+         is to refuse a match only on evidence. bareModel keeps Latin
+         alphanumerics, so a model column holding Hebrew — the SOMO air
+         conditioner's "עילי אינוורטר" — reads as empty and paired with a
+         Tornado SUMO-INV-12X-EU under a badge saying they are the same
+         product. Asserting sameness needs the test that demands both sides
+         speak, which is the distinction its own doc comment draws. */
+      sameProduct: modelsAreTheSame(d.model, holder.model),
       lastReportedValue: d.price * d.stockQty,
     });
   }

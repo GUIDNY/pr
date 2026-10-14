@@ -13,6 +13,7 @@ import {
   looksLikeMisplacedQuantity,
   looksLikeOffsetStockRow,
   modelsCanBeTheSame,
+  modelsAreTheSame,
   modelsAreTheSameAllowingTypedZero,
   rowBindingLooksForeign,
   rowModelWasReassigned,
@@ -610,6 +611,23 @@ for (const [model, rowModel, lastRowModel, why] of ROW_MODEL_SILENT) {
   }
 }
 
+/* The row-collision page asserts "same product" from these, so the pairs it
+   actually holds are fixtures. The first two are why: a model column in
+   Hebrew and an empty one both read as empty after bareModel, and
+   modelsCanBeTheSame answers true to each — which put a SOMO air
+   conditioner and a Tornado SUMO-INV-12X-EU at the top of that page under a
+   badge saying they are the same product. */
+const NOT_ASSERTABLY_SAME: [string, string, string][] = [
+  ["עילי אינוורטר", "SUMO-INV-12X-EU", "a Hebrew model column is not a model"],
+  ["", "1010BLACK", "an empty model asserts nothing"],
+  ["85", "65", "two screen sizes are not a model"],
+  ["STK60GHX", "CH74BVT", "two real models that disagree"],
+  ["NV7B5755SAK", "MWB5634", "a Samsung oven against a Sauter microwave"],
+];
+for (const [a, b, why] of NOT_ASSERTABLY_SAME) {
+  if (modelsAreTheSame(a, b)) fail(`must not assert sameness — ${why}: "${a}" / "${b}"`);
+}
+
 const DIFFERENT_MODEL: [string, string, string][] = [
   ["CH74BVT", "MGH90GB", "a Candy ceramic hob bound to a Crystal gas hob's row"],
   ["STK60GHX", "STK70GHX", "60cm bound to the 70cm one row below"],
@@ -708,7 +726,7 @@ const FOOTER_GRID: [unknown[], boolean, string][] = [
 }
 
 const total =
-  FOOTER_GRID.length + SAME_MODEL.length + DIFFERENT_MODEL.length + REFUSED_BUT_HARMLESS.length + PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
+  NOT_ASSERTABLY_SAME.length + FOOTER_GRID.length + SAME_MODEL.length + DIFFERENT_MODEL.length + REFUSED_BUT_HARMLESS.length + PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
   HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
   SHAPES.length + STOCK_PHRASES.length + REAL_MODELS.length + REFUSED.length + ALLOWED.length +
   /* These five were asserted but never counted, so the summary under-reported
