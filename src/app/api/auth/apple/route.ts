@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { appleAuthUrl, appleOAuthConfigured } from "@/lib/apple-oauth";
+import { getSession, signReauthIntent } from "@/lib/auth";
 import { SITE_URL } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,12 @@ const STATE_TTL_SECONDS = 600;
 export const APPLE_STATE_COOKIE = "apple_oauth_state";
 export const APPLE_NONCE_COOKIE = "apple_oauth_nonce";
 export const APPLE_RETURN_COOKIE = "apple_oauth_return";
+/* Why this sign-in was started, and for whom. Empty means the ordinary one.
+   Otherwise it holds a signed intent naming the user who asked to prove they
+   are still themselves, and the callback must then not sign anybody in or
+   create anything. The id has to travel: the callback is a cross-site POST
+   and cannot read the Lax session cookie. See signReauthIntent. */
+export const APPLE_PURPOSE_COOKIE = "apple_oauth_purpose";
 
 /**
  * "התחברות עם Apple", step one.
@@ -27,6 +34,15 @@ export async function GET(request: Request) {
   // Same-site paths only: an open redirect here would let this endpoint
   // bounce people elsewhere with our domain in the link they were sent.
   const returnTo = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/account";
+
+  /* Read here because here it can be. Somebody not signed in has nothing to
+     re-prove, so they are sent to sign in in the ordinary way. */
+  let intent: string | null = null;
+  if (new URL(request.url).searchParams.get("purpose") === "reauth") {
+    const session = await getSession();
+    if (!session) return NextResponse.redirect(`${SITE_URL}/login?redirect=${encodeURIComponent(returnTo)}`);
+    intent = await signReauthIntent(session.sub);
+  }
 
   const state = randomBytes(32).toString("base64url");
   const nonce = randomBytes(32).toString("base64url");
@@ -57,6 +73,8 @@ export async function GET(request: Request) {
   jar.set(APPLE_STATE_COOKIE, state, options);
   jar.set(APPLE_NONCE_COOKIE, nonce, options);
   jar.set(APPLE_RETURN_COOKIE, returnTo, options);
+  if (intent) jar.set(APPLE_PURPOSE_COOKIE, intent, options);
+  else jar.delete(APPLE_PURPOSE_COOKIE);
 
   return NextResponse.redirect(appleAuthUrl(state, nonce));
 }

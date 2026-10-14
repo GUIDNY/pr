@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { getSession, createSession, clearSession, hashPassword, verifyPassword } from "@/lib/auth";
+import { getSession, createSession, clearSession, consumeReauth, hashPassword, verifyPassword } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
 import { looksLikePhone, normalizeIsraeliPhone } from "@/lib/phone";
 import { consumeResetToken, requestPasswordReset } from "@/lib/password-reset";
@@ -308,8 +308,13 @@ export async function logoutAction() {
   await clearSession();
 }
 
+/* Optional, because half the accounts in the shop have no password to give.
+   Which proof is required is decided from User.hasPassword on the server and
+   never from which field the form happened to fill in — the same rule
+   setPasswordAction states, and for the same reason: a client that simply
+   omits the field must not be able to skip the check. */
 const deleteAccountSchema = z.object({
-  password: z.string().min(1, "יש להזין את הסיסמה כדי לאשר"),
+  password: z.string().optional(),
 });
 
 /**
@@ -335,6 +340,19 @@ const deleteAccountSchema = z.object({
  * same as the account's owner standing there — and this is the one action in
  * the shop with nothing to undo it with.
  *
+ * An account opened through Apple or Google has no password to ask for, and
+ * for a month this asked anyway: the random bytes standing in for one match
+ * nothing anybody can type, so every one of those customers was told "wrong
+ * password" and none of them could close their account. That made the
+ * accounts opened through Apple the only ones that could not be deleted, in
+ * the page that exists for guideline 5.1.1(v) — the one thing it was built to
+ * prevent.
+ *
+ * They are asked for the same proof in the only form they have it: sign in
+ * with that provider again, within the last five minutes. Not "you are signed
+ * in" — that is the thirty-day cookie this check exists to distrust — but a
+ * fresh answer from Apple or Google, bound to this user id. See grantReauth.
+ *
  * Copying the email would otherwise undo half of this. claimGuestOrders above
  * gives every ownerless order with a matching email to whoever next signs in
  * with it, and a detached order is ownerless with that email written on it —
@@ -353,7 +371,7 @@ const deleteAccountSchema = z.object({
  * and sync history, and the storefront is not where an operator account should
  * be closable in one click by whoever is holding the phone.
  */
-export async function deleteAccountAction(input: { password: string }) {
+export async function deleteAccountAction(input: { password?: string }) {
   const parsed = deleteAccountSchema.safeParse(input);
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message };
 
@@ -367,8 +385,17 @@ export async function deleteAccountAction(input: { password: string }) {
     return { success: false, error: "חשבונות צוות נמחקים מהניהול, לא מהאזור האישי" };
   }
 
-  const valid = await verifyPassword(parsed.data.password, user.passwordHash);
-  if (!valid) return { success: false, error: "הסיסמה שגויה" };
+  if (user.hasPassword) {
+    const password = parsed.data.password ?? "";
+    if (!password) return { success: false, error: "יש להזין את הסיסמה כדי לאשר" };
+    const valid = await verifyPassword(password, user.passwordHash);
+    if (!valid) return { success: false, error: "הסיסמה שגויה" };
+  } else if (!(await consumeReauth(user.id))) {
+    return {
+      success: false,
+      error: "צריך לאמת מחדש מול Apple או Google לפני המחיקה. האימות תקף לחמש דקות.",
+    };
+  }
 
   await db.$transaction([
     db.order.updateMany({
