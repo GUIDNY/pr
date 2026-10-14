@@ -96,6 +96,17 @@ async function readFeedback(req: Request): Promise<{ feedback: PelecardFeedback;
  * first question asked when a customer phones about a payment that did not go
  * through, and it was being thrown away.
  */
+/** Pelecard's CreditCardExpDate is MMYY with no separator ("0231"); shown
+    as the card prints it. Anything else — empty, "0000", a stray format —
+    is left null rather than guessed. */
+export function cardExpiryFrom(raw: unknown): string | null {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (digits.length !== 4) return null;
+  const month = Number(digits.slice(0, 2));
+  if (month < 1 || month > 12) return null;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
 function paymentColumns(feedback: PelecardFeedback, details: Record<string, unknown>) {
   const cardNumber = String(details.CreditCardNumber ?? "");
   const clearerCode = String(details.CreditCardCompanyClearer ?? "");
@@ -108,6 +119,7 @@ function paymentColumns(feedback: PelecardFeedback, details: Record<string, unkn
     approvalNo: feedback.ApprovalNo ?? (details.DebitApproveNumber as string | undefined) ?? null,
     voucherId: (details.VoucherId as string | undefined) ?? null,
     cardLast4: cardNumber.replace(/\D/g, "").slice(-4) || null,
+    cardExpiry: cardExpiryFrom(details.CreditCardExpDate),
     // The card company, from its code — not TerminalName, which is this shop's
     // own name and would label every payment "פ.ר אלקטרוניקה".
     clearerName: CLEARERS[clearerCode] ?? null,
