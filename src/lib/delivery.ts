@@ -96,6 +96,19 @@ export function deliveryPromiseText(product: { deliveryDays: number }): string {
 export const LOCAL_DELIVERY_NOTE = `עד ${DELIVERY_ZONES.local.max} ימי עסקים ${DELIVERY_ZONES.local.label}`;
 
 /**
+ * Large-item carriage: what is included and what costs extra, from the
+ * owner's terms (14 October 2026). Stated on /shipping and in §12 of the
+ * terms; check:terms holds the two to the same figures.
+ */
+/** Carried up to this floor at no extra charge. */
+export const FLOORS_INCLUDED = 3;
+/** Per floor above that, when the item cannot go up in the lift. */
+export const EXTRA_FLOOR_FEE = 50;
+/** A fridge whose doors have to come off to get it in — the carrier's
+    tariff decides where in the range. */
+export const DOOR_REMOVAL_FEE = { min: 120, max: 250 } as const;
+
+/**
  * The same promise, split the way ShippingDeliveryTime wants it.
  *
  * handlingTime and transitTime are counted in BUSINESS days, not calendar
