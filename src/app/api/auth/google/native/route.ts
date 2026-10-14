@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
-import { createSession, hashPassword } from "@/lib/auth";
+import { createSession, getSession, grantReauth, hashPassword } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
 import { googleNativeClientIds, googleNativeConfigured, verifyGoogleIdToken } from "@/lib/google-oauth";
 
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "not_configured" }, { status: 503 });
   }
 
-  let body: { idToken?: unknown };
+  let body: { idToken?: unknown; purpose?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -70,6 +70,23 @@ export async function POST(request: Request) {
   if (!profile) return NextResponse.json({ error: "google_token" }, { status: 401 });
   if (!profile.emailVerified) {
     return NextResponse.json({ error: "google_unverified" }, { status: 403 });
+  }
+
+  /* Proving who you already are, rather than signing in.
+     The app's delete-account page uses the same sheet for it, because an
+     account opened through Google has no password to ask for. Nothing below
+     may run: no sign-in, no account created, no cart claimed. */
+  if (body.purpose === "reauth") {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "reauth_session" }, { status: 401 });
+
+    const me = await db.user.findUnique({ where: { id: session.sub }, select: { email: true } });
+    if (!me || me.email.toLowerCase() !== profile.email) {
+      return NextResponse.json({ error: "reauth_mismatch" }, { status: 403 });
+    }
+
+    await grantReauth(session.sub);
+    return NextResponse.json({ ok: true, reauth: true });
   }
 
   let user = await db.user.findUnique({ where: { email: profile.email } });

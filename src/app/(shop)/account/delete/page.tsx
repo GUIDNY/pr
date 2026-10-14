@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { AlertTriangle } from "lucide-react";
 import { DeleteAccountForm } from "@/components/account/delete-account-form";
+import { accountHasPassword } from "@/actions/auth";
 
 export const metadata: Metadata = {
   title: "מחיקת החשבון",
@@ -21,7 +23,11 @@ export const metadata: Metadata = {
  * from the account with the customer's details copied onto them so an invoice
  * does not end up belonging to nobody.
  */
-export default function DeleteAccountPage() {
+export default async function DeleteAccountPage() {
+  /* Which proof the form should ask for. The server decides it again when the
+     deletion is submitted — this only chooses what is drawn. */
+  const hasPassword = await accountHasPassword();
+
   return (
     <div className="flex max-w-2xl flex-col gap-6">
       <div>
@@ -74,7 +80,11 @@ export default function DeleteAccountPage() {
         </p>
       </div>
 
-      <DeleteAccountForm />
+      {/* The form reads ?reauth=ok, which the provider callback sends it back
+          with, so useSearchParams needs a boundary to suspend at. */}
+      <Suspense>
+        <DeleteAccountForm hasPassword={hasPassword} />
+      </Suspense>
     </div>
   );
 }

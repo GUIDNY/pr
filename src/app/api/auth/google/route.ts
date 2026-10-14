@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { googleAuthUrl, googleOAuthConfigured } from "@/lib/google-oauth";
+import { getSession, signReauthIntent } from "@/lib/auth";
 import { SITE_URL } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,10 @@ export const dynamic = "force-dynamic";
 const STATE_TTL_SECONDS = 600;
 export const GOOGLE_STATE_COOKIE = "google_oauth_state";
 export const GOOGLE_RETURN_COOKIE = "google_oauth_return";
+/* Why this sign-in was started, and for whom — see the Apple entry point,
+   which carries the same signed intent for the same reason. Google's callback
+   is a GET and could read the session, but one shape for both beats two. */
+export const GOOGLE_PURPOSE_COOKIE = "google_oauth_purpose";
 
 /**
  * "התחברות עם Google", step one.
@@ -36,6 +41,13 @@ export async function GET(request: Request) {
   // link they were sent.
   const returnTo = requested && requested.startsWith("/") && !requested.startsWith("//") ? requested : "/account";
 
+  let intent: string | null = null;
+  if (new URL(request.url).searchParams.get("purpose") === "reauth") {
+    const session = await getSession();
+    if (!session) return NextResponse.redirect(`${SITE_URL}/login?redirect=${encodeURIComponent(returnTo)}`);
+    intent = await signReauthIntent(session.sub);
+  }
+
   const state = randomBytes(32).toString("base64url");
   const jar = await cookies();
   const options = {
@@ -47,6 +59,8 @@ export async function GET(request: Request) {
   };
   jar.set(GOOGLE_STATE_COOKIE, state, options);
   jar.set(GOOGLE_RETURN_COOKIE, returnTo, options);
+  if (intent) jar.set(GOOGLE_PURPOSE_COOKIE, intent, options);
+  else jar.delete(GOOGLE_PURPOSE_COOKIE);
 
   return NextResponse.redirect(googleAuthUrl(state));
 }

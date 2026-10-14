@@ -96,6 +96,109 @@ export async function getSession(): Promise<SessionPayload | null> {
   return { sub, role: user.role as UserRole, name };
 }
 
+/* A fresh proof of identity, for the one action a thirty-day cookie is not
+ * enough for.
+ *
+ * Closing an account asks for the password a second time, and the reason is
+ * in deleteAccountAction: the session proves this browser was signed in at
+ * some point, which on a borrowed or shared phone is not the owner standing
+ * there, and deletion is the one thing in the shop with nothing to undo it.
+ *
+ * An account made through Apple or Google has no password to ask for. The
+ * random bytes standing in for one cannot be typed, so for a month the
+ * deletion page answered every one of those customers with "wrong password"
+ * — which made the accounts opened through Apple the only ones that could
+ * not be closed, in the page that exists for App Store guideline 5.1.1(v).
+ *
+ * So they are asked for the same thing in the only form they have it: sign
+ * in with that provider again, now. What comes back is this.
+ *
+ * Five minutes, and bound to the user id it was granted for — a proof is
+ * about one person at one moment, and must not be carryable to another
+ * account or kept for later. consumeReauth clears it whether or not it was
+ * good, so one re-authentication buys exactly one attempt.
+ */
+const REAUTH_COOKIE = "prec_reauth";
+const REAUTH_TTL_SECONDS = 300;
+
+/* Who asked for a re-authentication, carried across the provider round trip.
+ *
+ * It cannot be read from the session on the way back, and that is not an
+ * oversight to fix later: Apple does not return the visitor with a GET, it
+ * form-posts from appleid.apple.com, and a browser does not attach a
+ * SameSite=Lax cookie to a cross-site POST. The session cookie is Lax. So the
+ * callback that needs to know who this is, is the one place that cannot ask.
+ *
+ * The entry point can — it is an ordinary same-site navigation — so the id is
+ * read there and travels in a cookie the Apple flow already sets as
+ * SameSite=None, alongside its state and nonce.
+ *
+ * Signed rather than written plain, because a cookie is something the visitor
+ * holds. An unsigned one would let somebody name another account here; the
+ * grant would still be useless to them (the callback only issues it when the
+ * provider returns that account's own address, and deleteAccountAction asks
+ * for a proof bound to the session's user), but "useless to them" is a chain
+ * of three checks, and a signature is one.
+ */
+const REAUTH_INTENT_TTL_SECONDS = 600;
+
+export async function signReauthIntent(userId: string): Promise<string> {
+  return new SignJWT({ purpose: "reauth" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(userId)
+    .setIssuedAt()
+    .setExpirationTime(`${REAUTH_INTENT_TTL_SECONDS}s`)
+    .sign(secretKey());
+}
+
+export async function readReauthIntent(token: string | undefined): Promise<string | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, secretKey());
+    if (payload.purpose !== "reauth") return null;
+    return (payload.sub as string) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function grantReauth(userId: string) {
+  const token = await new SignJWT({})
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(userId)
+    .setIssuedAt()
+    .setExpirationTime(`${REAUTH_TTL_SECONDS}s`)
+    .sign(secretKey());
+
+  const cookieStore = await cookies();
+  /* Lax, not None, although the Apple callback that sets it is answering a
+     cross-site POST. SameSite governs when a cookie is *sent*, not whether
+     it may be stored, and the only thing that ever reads this is a server
+     action on our own origin. */
+  cookieStore.set(REAUTH_COOKIE, token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: REAUTH_TTL_SECONDS,
+  });
+}
+
+export async function consumeReauth(userId: string): Promise<boolean> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(REAUTH_COOKIE)?.value;
+  cookieStore.delete(REAUTH_COOKIE);
+  if (!token) return false;
+
+  try {
+    const { payload } = await jwtVerify(token, secretKey());
+    return payload.sub === userId;
+  } catch {
+    // Expired, tampered with, or signed by a different deployment's secret.
+    return false;
+  }
+}
+
 export async function getCurrentUser() {
   const session = await getSession();
   if (!session) return null;

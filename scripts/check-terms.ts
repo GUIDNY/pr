@@ -13,7 +13,7 @@
 //
 // Run: npm run check:terms
 import { TERMS_BLOCKS, TERMS_TITLE, TERMS_UPDATED_AT } from "../src/lib/content/terms";
-import { FREE_DELIVERY_THRESHOLD } from "../src/lib/delivery";
+import { FREE_DELIVERY_THRESHOLD, FLOORS_INCLUDED, EXTRA_FLOOR_FEE, DOOR_REMOVAL_FEE } from "../src/lib/delivery";
 import { BUSINESS } from "../src/lib/business";
 
 let failed = 0;
@@ -53,6 +53,15 @@ check(
   "the terms name a threshold the checkout does not charge",
 );
 
+// Large-item carriage surcharges, the same figures /shipping prints.
+check(
+  `the extra-floor surcharge matches the code (${EXTRA_FLOOR_FEE} above floor ${FLOORS_INCLUDED})`,
+  text.includes(`מעל קומה ${FLOORS_INCLUDED}`) && text.includes(`${EXTRA_FLOOR_FEE} ש"ח לכל קומה נוספת`),
+);
+check(
+  `the door-removal surcharge matches the code (${DOOR_REMOVAL_FEE.min}–${DOOR_REMOVAL_FEE.max})`,
+  text.includes(`${DOOR_REMOVAL_FEE.min} עד ${DOOR_REMOVAL_FEE.max} ש"ח`),
+);
 // Contact details. The cancellation section names where a notice may be
 // sent, and it has to be a mailbox the shop actually reads.
 check("the terms name the site's email", text.includes(BUSINESS.email));

@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
-import { createSession, hashPassword } from "@/lib/auth";
+import { createSession, grantReauth, hashPassword, readReauthIntent } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
 import { exchangeCodeForProfile, googleOAuthConfigured } from "@/lib/google-oauth";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
 import { SITE_URL } from "@/lib/site-url";
-import { GOOGLE_RETURN_COOKIE, GOOGLE_STATE_COOKIE } from "../route";
+import { GOOGLE_PURPOSE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_STATE_COOKIE } from "../route";
 
 export const dynamic = "force-dynamic";
 
@@ -55,10 +55,12 @@ export async function GET(request: Request) {
   const jar = await cookies();
   const expected = jar.get(GOOGLE_STATE_COOKIE)?.value;
   const returnTo = jar.get(GOOGLE_RETURN_COOKIE)?.value ?? "/account";
+  const purpose = jar.get(GOOGLE_PURPOSE_COOKIE)?.value ?? null;
 
   // Single use, whatever happens next.
   jar.delete(GOOGLE_STATE_COOKIE);
   jar.delete(GOOGLE_RETURN_COOKIE);
+  jar.delete(GOOGLE_PURPOSE_COOKIE);
 
   // Somebody pressed "cancel" on Google's screen.
   if (url.searchParams.get("error")) return fail("google_cancelled");
@@ -71,6 +73,21 @@ export async function GET(request: Request) {
   const profile = await exchangeCodeForProfile(code);
   if (!profile) return fail("google_exchange");
   if (!profile.emailVerified) return fail("google_unverified");
+
+  /* Proving who you already are, rather than signing in — the twin of the
+     branch in the Apple callback, and it stops in the same place. Nothing
+     below may run: no sign-in, no account created, no cart claimed. The
+     address is compared against the account the signed intent names, so
+     completing this with a different Google account proves nothing about this
+     one and earns nothing. */
+  const reauthFor = await readReauthIntent(purpose ?? undefined);
+  if (reauthFor) {
+    const me = await db.user.findUnique({ where: { id: reauthFor }, select: { email: true } });
+    if (!me || me.email.toLowerCase() !== profile.email) return fail("reauth_mismatch");
+
+    await grantReauth(reauthFor);
+    return NextResponse.redirect(`${SITE_URL}${returnTo}?reauth=ok`);
+  }
 
   let user = await db.user.findUnique({ where: { email: profile.email } });
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes, createHash } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
-import { createSession, hashPassword } from "@/lib/auth";
+import { createSession, getSession, grantReauth, hashPassword } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
 import { appleNativeConfigured, verifyAppleIdentityToken } from "@/lib/apple-oauth";
 
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   // Single use, whatever happens below.
   jar.delete(NONCE_COOKIE);
 
-  let body: { identityToken?: unknown; name?: unknown };
+  let body: { identityToken?: unknown; name?: unknown; purpose?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -93,6 +93,23 @@ export async function POST(request: Request) {
      never again, exactly as in the web callback. The plugin gives the page
      givenName and familyName at that moment and nothing afterwards. */
   const name = typeof body.name === "string" && body.name.trim() ? body.name.trim() : null;
+
+  /* Proving who you already are, rather than signing in.
+     The app's delete-account page uses the same sheet for it, because an
+     account opened through Apple has no password to ask for. Nothing below
+     may run: no sign-in, no account created, no cart claimed. */
+  if (body.purpose === "reauth") {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: "reauth_session" }, { status: 401 });
+
+    const me = await db.user.findUnique({ where: { id: session.sub }, select: { email: true } });
+    if (!me || me.email.toLowerCase() !== profile.email) {
+      return NextResponse.json({ error: "reauth_mismatch" }, { status: 403 });
+    }
+
+    await grantReauth(session.sub);
+    return NextResponse.json({ ok: true, reauth: true });
+  }
 
   let user = await db.user.findUnique({ where: { email: profile.email } });
 

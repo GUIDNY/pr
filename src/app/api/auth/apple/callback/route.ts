@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { randomBytes, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
-import { createSession, hashPassword } from "@/lib/auth";
+import { createSession, grantReauth, hashPassword, readReauthIntent } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
 import { appleOAuthConfigured, exchangeCodeForProfile } from "@/lib/apple-oauth";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
 import { SITE_URL } from "@/lib/site-url";
-import { APPLE_NONCE_COOKIE, APPLE_RETURN_COOKIE, APPLE_STATE_COOKIE } from "../route";
+import { APPLE_NONCE_COOKIE, APPLE_PURPOSE_COOKIE, APPLE_RETURN_COOKIE, APPLE_STATE_COOKIE } from "../route";
 
 export const dynamic = "force-dynamic";
 
@@ -59,11 +59,13 @@ export async function POST(request: Request) {
   const expectedState = jar.get(APPLE_STATE_COOKIE)?.value;
   const expectedNonce = jar.get(APPLE_NONCE_COOKIE)?.value;
   const returnTo = jar.get(APPLE_RETURN_COOKIE)?.value ?? "/account";
+  const purpose = jar.get(APPLE_PURPOSE_COOKIE)?.value ?? null;
 
   // Single use, whatever happens next.
   jar.delete(APPLE_STATE_COOKIE);
   jar.delete(APPLE_NONCE_COOKIE);
   jar.delete(APPLE_RETURN_COOKIE);
+  jar.delete(APPLE_PURPOSE_COOKIE);
 
   // Somebody pressed cancel on Apple's screen.
   if (form.get("error")) return fail("apple_cancelled");
@@ -106,6 +108,29 @@ export async function POST(request: Request) {
     } catch {
       // A malformed name is not a reason to refuse somebody entry.
     }
+  }
+
+  /* Proving who you already are, rather than signing in.
+   *
+   * The deletion page sends somebody here when their account has no password
+   * to ask for. Nothing below this block may run in that case: it must not
+   * sign anybody in, must not create an account, and must not claim a cart —
+   * the visitor is already signed in and the only question is whether Apple
+   * still says they are the same person.
+   *
+   * The address is compared against the account the intent names — which was
+   * read from the session back at the entry point, because this request is a
+   * cross-site POST and the session cookie is not attached to one. Signing in
+   * with a *different* Apple ID is not a failure to report as such; it is
+   * simply not a proof about this account, so it earns nothing.
+   */
+  const reauthFor = await readReauthIntent(purpose ?? undefined);
+  if (reauthFor) {
+    const me = await db.user.findUnique({ where: { id: reauthFor }, select: { email: true } });
+    if (!me || me.email.toLowerCase() !== profile.email) return fail("reauth_mismatch");
+
+    await grantReauth(reauthFor);
+    return NextResponse.redirect(`${SITE_URL}${returnTo}?reauth=ok`, 303);
   }
 
   let user = await db.user.findUnique({ where: { email: profile.email } });
