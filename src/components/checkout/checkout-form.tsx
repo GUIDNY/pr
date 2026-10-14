@@ -21,6 +21,7 @@ import { GoogleNativeButton, useGoogleNativeAvailable } from "@/components/auth/
 import { AppleNativeButton, useAppleNativeAvailable } from "@/components/auth/apple-native-button";
 import { useIsNativeApp, useNativePlatform } from "@/lib/native-app";
 import { PaymentFrame } from "@/components/checkout/payment-frame";
+import { CityCombobox } from "@/components/checkout/city-combobox";
 import SiApplepay from "@icons-pack/react-simple-icons/icons/SiApplepay";
 import SiGooglepay from "@icons-pack/react-simple-icons/icons/SiGooglepay";
 import { useCartStore } from "@/stores/cart-store";
@@ -38,11 +39,13 @@ import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
 import { cartHasBulky } from "@/lib/bulky";
 import {
   DELIVERY_CARRIER,
+  DELIVERY_ZONES,
   FREE_DELIVERY_THRESHOLD,
   HOME_DELIVERY_FEE,
   requiresAddress,
   type DeliveryMethod,
 } from "@/lib/delivery";
+import { canonicalLocality, deliveryPromiseTextForCity } from "@/lib/delivery-zones";
 import type { CheckoutInput } from "@/lib/order-schema";
 
 /** Everything an order needs before one can be created from this form. Asked
@@ -642,6 +645,24 @@ export function CheckoutForm({
 
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">2. משלוח</h2>
+          {/* Said here, where the method is chosen, and not only in a footer
+              link: the order is placed under the shipping policy, and the
+              two figures a shopper most wants from it — how long, and from
+              where it is quicker — are on the page rather than behind the
+              link. The numbers are the policy's own constants, so this line
+              cannot promise something /shipping does not. */}
+          <p className="text-muted-foreground mb-4 flex items-start gap-2 text-sm leading-relaxed">
+            <Truck className="mt-0.5 size-4 shrink-0" />
+            <span>
+              המשלוח מתבצע לפי{" "}
+              <Link href="/shipping" target="_blank" className="text-brand font-medium underline underline-offset-2">
+                מדיניות המשלוחים והאספקה
+              </Link>{" "}
+              של האתר: עד {DELIVERY_ZONES.local.max} ימי עסקים {DELIVERY_ZONES.local.label},{" "}
+              {DELIVERY_ZONES.national.min}–{DELIVERY_ZONES.national.max} ימי עסקים בשאר הארץ. משלוח חבילות באמצעות{" "}
+              {DELIVERY_CARRIER}; מוצרים גדולים מסופקים במוביל או מהיבואן בתיאום מראש.
+            </span>
+          </p>
           <RadioGroup
             value={deliveryMethod}
             onValueChange={(v) => update("deliveryMethod", v as DeliveryMethod)}
@@ -717,8 +738,17 @@ export function CheckoutForm({
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="col-span-2 sm:col-span-2">
                 <Label className="mb-1.5">עיר</Label>
-                <Input value={form.city} onChange={(e) => update("city", e.target.value)} />
+                <CityCombobox value={form.city} onChange={(v) => update("city", v)} invalid={!!errors.city} />
                 {errors.city && <p className="text-destructive mt-1 text-xs">{errors.city}</p>}
+                {/* The promise for the place they named, the moment they
+                    name it. Only for a city the register knows: a spelling
+                    it does not is still accepted, but the line would then be
+                    guessing. Large items keep their own terms. */}
+                {!hasBulky && canonicalLocality(form.city) && (
+                  <p className="text-muted-foreground mt-1 text-xs">
+                    זמן אספקה משוער ל{canonicalLocality(form.city)}: {deliveryPromiseTextForCity(form.city)}
+                  </p>
+                )}
               </div>
               <div className="col-span-2 sm:col-span-2">
                 <Label className="mb-1.5">רחוב</Label>
