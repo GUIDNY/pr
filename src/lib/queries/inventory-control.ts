@@ -781,6 +781,18 @@ export const QUARANTINE_ALERT_TYPES = ["MANUAL_URGENT", "ROW_NAMES_ANOTHER_MODEL
 export type StrandedTwin = {
   offSite: OffSiteProduct;
   live: { id: string; sku: string; title: string; price: number; stockQty: number };
+  /**
+   * The merge already happened: the live record answers to this one's old
+   * address, so somebody decided and the page was redirected.
+   *
+   * Marked rather than hidden. Two of the eleven on 14 October were merges
+   * finished the day before, still listed because a retired record keeps
+   * its stockQty — and the first instinct was to filter them out, which is
+   * a rule that quietly hides a real case the day it is slightly wrong. A
+   * marker is exact where the evidence is exact and says nothing where it
+   * is not.
+   */
+  alreadyMerged: boolean;
   /** Real stock, still maintained by the price list, that nobody can buy. */
   strandedValue: number;
 };
@@ -919,21 +931,58 @@ export async function getOffSiteProducts(): Promise<{
     rows.push({ ...toLine(p), reason, isNew: newIds.has(p.id), status, why, canPublish });
   }
 
-  /* The twins. Exactly one live match or nothing — see StrandedTwin. */
+  /* Which live record answers to which retired address. One query rather
+     than one per pair, and only the slugs still in play. */
+  const redirects = new Set(
+    (
+      await db.productSlugHistory.findMany({
+        where: { slug: { in: rows.map((r) => r.slug) } },
+        select: { productId: true, slug: true },
+      })
+    ).map((h) => `${h.productId}\u0000${h.slug}`)
+  );
+
+  /* The twins. Exactly one live match or nothing — see StrandedTwin.
+     The test is equality after stripping, not modelsAreTheSame, and the
+     first version used that and paired two products that are not the same:
+
+       - **Containment is too loose for a claim like this.** Samsung's
+         RF59C701EB1 is contained in RF59C701EB1M, so a ₪6,800 Bespoke was
+         offered beside a ₪7,300 one as the same fridge needing a price
+         decision. The price list carries both, on מקררים 553 and 554, with
+         their own costs. Containment is right where it is used — a sheet
+         writing "SJ-9630 BS" for SJ9630BS — and wrong here, where the two
+         strings come from two records that both went through enrichment.
+       - **A model column with no digit is a brand name.** Two records whose
+         model reads "NINJA" matched each other: a Ninja Crispi at ₪590 and
+         a Ninja something at ₪2,690. rowBindingLooksForeign already learned
+         this one, over CASO, GRAEF and Charleston.
+
+     What is left pairs the supplier's own duplicates, which is what this
+     list is for: a Gorenje BM235CLB on ת.בנוי 141 and 149, same model, same
+     description, same ₪2,400, two different costs. */
+  const strip = (m: string | null | undefined) => (m ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
   const twins: StrandedTwin[] = [];
   for (const r of rows) {
     if (r.stockQty <= 0) continue;
-    const mine = offSiteModel.get(r.id) ?? null;
-    const matches = liveWithModel.filter((l) => modelsAreTheSame(mine, l.model));
+    const mine = strip(offSiteModel.get(r.id));
+    if (mine.length < 4 || !/[0-9]/.test(mine)) continue;
+    const matches = liveWithModel.filter((l) => strip(l.model) === mine);
     if (matches.length !== 1) continue;
     const l = matches[0];
     twins.push({
       offSite: r,
       live: { id: l.id, sku: l.sku, title: l.title, price: l.price, stockQty: l.stockQty },
+      alreadyMerged: redirects.has(`${l.id}\u0000${r.slug}`),
       strandedValue: r.price * r.stockQty,
     });
   }
-  twins.sort((a, b) => b.strandedValue - a.strandedValue);
+  /* Settled ones last: they are history, not work. */
+  twins.sort((a, b) =>
+    a.alreadyMerged === b.alreadyMerged
+      ? b.strandedValue - a.strandedValue
+      : Number(a.alreadyMerged) - Number(b.alreadyMerged)
+  );
 
   const order: OffSiteReason[] = [
     "NO_PRICE",

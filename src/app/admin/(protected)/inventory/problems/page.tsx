@@ -230,11 +230,16 @@ export default async function OffSitePage() {
             </thead>
             <tbody>
               {twins.map((t) => (
-                <tr key={t.offSite.id} className="border-border border-t">
+                <tr key={t.offSite.id} className={cn("border-border border-t", t.alreadyMerged && "opacity-55")}>
                   <td className="p-3">
                     <Link href={`/admin/products/${t.offSite.id}`} className="font-medium hover:underline">
                       {t.offSite.title.slice(0, 44)}
                     </Link>
+                    {t.alreadyMerged && (
+                      <span className="bg-success/15 text-success ms-2 rounded-full px-2 py-0.5 text-xs font-medium">
+                        כבר מוזג
+                      </span>
+                    )}
                     <p className="text-muted-foreground mt-0.5 text-xs">
                       מק״ט {t.offSite.sku} · {t.offSite.stockQty} יח׳ ·{" "}
                       {t.offSite.price.toLocaleString("he-IL")} ₪
