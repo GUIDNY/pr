@@ -762,6 +762,29 @@ const QUARANTINE_REASONS: Record<string, string> = {
  */
 export const QUARANTINE_ALERT_TYPES = ["MANUAL_URGENT", "ROW_NAMES_ANOTHER_MODEL"] as const;
 
+/**
+ * The same product in two records, one selling and one not.
+ *
+ * This is the question the row-collision list below looks like it answers
+ * and cannot: that one only ever holds records the price list has dropped,
+ * so its stock froze on the day it was dropped and the figure beside it is
+ * a reading, not money. These are records the price list still carries,
+ * with stock it is still updating, that are simply not on the site — and
+ * there is a twin of the same model that is. That stock is real and it is
+ * not for sale: eleven records, ₪64,270, on 14 October.
+ *
+ * Paired on modelsAreTheSame and on exactly one live twin. Several twins
+ * means a colour family — the Miele H 2861 BP in grey, black and stainless
+ * — and picking one of them would be picking arbitrarily, which is the
+ * mistake getDuplicatePairs was corrected for.
+ */
+export type StrandedTwin = {
+  offSite: OffSiteProduct;
+  live: { id: string; sku: string; title: string; price: number; stockQty: number };
+  /** Real stock, still maintained by the price list, that nobody can buy. */
+  strandedValue: number;
+};
+
 export type OffSiteProduct = ProductLine & {
   reason: OffSiteReason;
   /** Waiting in the "new from the sheet" queue as well. An overlap, not a
@@ -789,6 +812,7 @@ export async function getOffSiteProducts(): Promise<{
   inStock: number;
   onSite: number;
   byReason: { reason: OffSiteReason; count: number; value: number }[];
+  twins: StrandedTwin[];
 }> {
   const [products, newIds, openAlerts] = await Promise.all([
     db.product.findMany({
@@ -798,6 +822,11 @@ export async function getOffSiteProducts(): Promise<{
         isPublished: true,
         stockStatus: true,
         enrichmentStatus: true,
+        /* For the twin pairing at the end. Not added to
+           PRODUCT_LINE_SELECT: the other callers of that constant do not
+           need it and a shared select that grows per caller is the shape
+           of the cardInclude problem. */
+        model: true,
         /* The objection, if there is one. See QUARANTINE_ALERT_TYPES —
            this is the evidence that used to be dug out of
            enrichmentStatus with a substring test. */
@@ -843,6 +872,8 @@ export async function getOffSiteProducts(): Promise<{
   }
 
   const rows: OffSiteProduct[] = [];
+  const liveWithModel: (typeof products)[number][] = [];
+  const offSiteModel = new Map<string, string | null>();
   let onSite = 0;
   for (const p of products) {
     /* PUBLIC_PRODUCT_WHERE, read field by field. stockQty and
@@ -854,6 +885,7 @@ export async function getOffSiteProducts(): Promise<{
       p.price > 0;
     if (live) {
       onSite += 1;
+      liveWithModel.push(p);
       continue;
     }
     const reason: OffSiteReason =
@@ -883,8 +915,25 @@ export async function getOffSiteProducts(): Promise<{
       reason === "CONTENT_NEEDS_REVIEW" ||
       reason === "NOT_PUBLISHED";
 
+    offSiteModel.set(p.id, p.model);
     rows.push({ ...toLine(p), reason, isNew: newIds.has(p.id), status, why, canPublish });
   }
+
+  /* The twins. Exactly one live match or nothing — see StrandedTwin. */
+  const twins: StrandedTwin[] = [];
+  for (const r of rows) {
+    if (r.stockQty <= 0) continue;
+    const mine = offSiteModel.get(r.id) ?? null;
+    const matches = liveWithModel.filter((l) => modelsAreTheSame(mine, l.model));
+    if (matches.length !== 1) continue;
+    const l = matches[0];
+    twins.push({
+      offSite: r,
+      live: { id: l.id, sku: l.sku, title: l.title, price: l.price, stockQty: l.stockQty },
+      strandedValue: r.price * r.stockQty,
+    });
+  }
+  twins.sort((a, b) => b.strandedValue - a.strandedValue);
 
   const order: OffSiteReason[] = [
     "NO_PRICE",
@@ -912,7 +961,7 @@ export async function getOffSiteProducts(): Promise<{
     })
     .filter((g) => g.count > 0);
 
-  return { rows, inStock: products.length, onSite, byReason };
+  return { rows, inStock: products.length, onSite, byReason, twins };
 }
 
 export type DuplicatePair = {

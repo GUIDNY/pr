@@ -34,7 +34,7 @@ export const metadata = { title: "למה לא באתר | Buy Today Admin" };
  */
 export default async function OffSitePage() {
   await requireCatalogPage();
-  const [{ rows, inStock, onSite, byReason }, leftovers, duplicates, subtotals] = await Promise.all([
+  const [{ rows, inStock, onSite, byReason, twins }, leftovers, duplicates, subtotals] = await Promise.all([
     getOffSiteProducts(),
     /* Products with no price list behind them at all. Not in the list below
        — they are not a product that is off the site, they are a product
@@ -57,6 +57,16 @@ export default async function OffSitePage() {
      nothing, and the few that are real duplicates are at the top of their
      own section by what they have stranded. */
   const collisions = await getRowCollisions(200);
+  /* Of 69 row collisions on 14 October, one is the same product on both
+     sides. The other 68 are the supplier putting a different product on a
+     row it had finished with, and the old record still pointing at it is
+     bookkeeping nobody cleared — findExistingProduct drops a claimant that
+     has left the price list, so the sync does not look at them either.
+     Shown as a count rather than a table: the owner opened this page, read
+     68 rows of working-as-intended ranked by a number that cannot be money,
+     and asked what the hell it was. He was right. */
+  const sameProduct = collisions.filter((c) => c.sameProduct);
+  const turnover = collisions.length - sameProduct.length;
 
   const newInQueue = rows.filter((r) => r.isNew).length;
 
@@ -185,56 +195,92 @@ export default async function OffSitePage() {
               ))}
             </tbody>
           </table>
+          {turnover > 0 && (
+            <p className="text-muted-foreground border-border border-t px-4 py-3 text-xs">
+              בנוסף, {turnover.toLocaleString("he-IL")} רשומות ישנות עדיין מצביעות על שורה שהספק מאז החליף — הן
+              יצאו מהמחירון באמת, והסנכרון כבר מתעלם מהן. אין בהן מה לעשות.
+            </p>
+          )}
         </section>
       )}
 
-      {collisions.length > 0 && (
+      {(twins.length > 0 || sameProduct.length > 0) && (
         <section className="border-border mt-6 mb-5 overflow-hidden rounded-xl border">
           <header className="bg-muted/50 border-border border-b px-4 py-3">
             <h2 className="text-base font-bold">
-              שורה אחת במחירון, שתי רשומות{" "}
+              אותו מוצר, שתי רשומות — מלאי שאי אפשר למכור{" "}
               <span className="bg-background border-border rounded-full border px-2 py-0.5 text-xs font-semibold">
-                {collisions.length}
+                {twins.length + sameProduct.length}
               </span>
             </h2>
             <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-              שורה במחירון היא מוצר אחד — הספק לא מוכר שני דברים באותה שורה. כאן שתי רשומות מצביעות על אותה שורה,
-              אחת מהן כבר לא באתר.{" "}
-              <strong className="text-foreground">
-                {collisions.filter((c) => c.sameProduct).length} מתוך {collisions.length} הן אותו מוצר פעמיים
-              </strong>{" "}
-              — אלה בראש הרשימה, והן היחידות שיש בהן מה לעשות. כל השאר הן הספק שהחליף את המוצר בשורה והישן באמת
-              יצא מהמחירון, כלומר תחלופה רגילה שהסנכרון כבר מתעלם ממנה.
-            </p>
-            <p className="text-muted-foreground mt-2 max-w-3xl text-xs">
-              העמודה האחרונה היא <strong className="text-foreground">המלאי האחרון שהשורה דיווחה</strong> לפני
-              שהרשומה איבדה אותה, במחיר שהיא נשאה אז — לא כסף שיושב מחוץ לאתר. כל רשומה כאן היא רשומה שהמחירון
-              זרק, אז המלאי שלה קפוא מאז. בעשרה מהזוגות הוא זהה ליחידה למלאי הנוכחי של מי שמחזיק את השורה, כי שתי
-              הקריאות באו מאותה שורה.
+              אותו דגם בשתי רשומות: אחת מוכרת באתר, השנייה לא — והמלאי שלה אמיתי, המחירון עדיין מעדכן אותו.
+              זה מלאי שיושב בחנות ואף אחד לא יכול לקנות, ולפעמים במחיר אחר לגמרי מהתאום שכן באתר.
+              <strong className="text-foreground"> העמודה ׳למה לא באתר׳ אומרת מה חוסם כל אחת.</strong>
             </p>
           </header>
           <table className="w-full text-sm">
             <thead className="text-muted-foreground">
               <tr className="border-border border-b">
-                <th className="p-3 text-start font-semibold whitespace-nowrap">שורה</th>
-                <th className="p-3 text-start font-semibold">מה ירד מהאתר</th>
-                <th className="p-3 text-start font-semibold">מה מחזיק את השורה</th>
-                <th className="p-3 text-start font-semibold whitespace-nowrap">מלאי אחרון שדווח</th>
+                <th className="p-3 text-start font-semibold">לא באתר</th>
+                <th className="p-3 text-start font-semibold whitespace-nowrap">למה לא באתר</th>
+                <th className="p-3 text-start font-semibold">התאום שכן באתר</th>
+                <th className="p-3 text-start font-semibold whitespace-nowrap">תקוע</th>
               </tr>
             </thead>
             <tbody>
-              {collisions.map((c) => (
-                <tr key={c.dropped.id} className={cn("border-border border-t", c.sameProduct && "bg-warning/5")}>
-                  <td className="text-muted-foreground p-3 text-xs whitespace-nowrap">
-                    {c.sheetName} · {c.rowRef}
-                  </td>
+              {twins.map((t) => (
+                <tr key={t.offSite.id} className="border-border border-t">
                   <td className="p-3">
-                    <Link href={`/admin/products/${c.dropped.id}`} className="font-medium hover:underline">
-                      {c.dropped.title.slice(0, 40)}
+                    <Link href={`/admin/products/${t.offSite.id}`} className="font-medium hover:underline">
+                      {t.offSite.title.slice(0, 44)}
                     </Link>
                     <p className="text-muted-foreground mt-0.5 text-xs">
-                      מק״ט {c.dropped.sku} · {c.dropped.model || "ללא דגם"} · {c.dropped.stockQty} יח׳ ·{" "}
+                      מק״ט {t.offSite.sku} · {t.offSite.stockQty} יח׳ ·{" "}
+                      {t.offSite.price.toLocaleString("he-IL")} ₪
+                    </p>
+                  </td>
+                  <td className="p-3 align-top">
+                    <span className="bg-accent text-accent-foreground rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+                      {OFF_SITE_LABELS[t.offSite.reason]}
+                    </span>
+                    <p className="text-muted-foreground mt-1 max-w-[18rem] text-xs">
+                      {OFF_SITE_ACTIONS[t.offSite.reason]}
+                    </p>
+                  </td>
+                  <td className="p-3">
+                    <Link href={`/admin/products/${t.live.id}`} className="font-medium hover:underline">
+                      {t.live.title.slice(0, 40)}
+                    </Link>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      מק״ט {t.live.sku} · {t.live.stockQty} יח׳ ·{" "}
+                      <span className={cn(t.live.price !== t.offSite.price && "text-warning-foreground font-semibold")}>
+                        {t.live.price.toLocaleString("he-IL")} ₪
+                      </span>
+                    </p>
+                  </td>
+                  <td className="p-3 font-semibold whitespace-nowrap tabular-nums">
+                    {t.strandedValue.toLocaleString("he-IL")} ₪
+                  </td>
+                </tr>
+              ))}
+              {sameProduct.map((c) => (
+                <tr key={c.dropped.id} className="border-border border-t">
+                  <td className="p-3">
+                    <Link href={`/admin/products/${c.dropped.id}`} className="font-medium hover:underline">
+                      {c.dropped.title.slice(0, 44)}
+                    </Link>
+                    <p className="text-muted-foreground mt-0.5 text-xs">
+                      מק״ט {c.dropped.sku} · {c.dropped.stockQty} יח׳ ·{" "}
                       {c.dropped.price.toLocaleString("he-IL")} ₪
+                    </p>
+                  </td>
+                  <td className="p-3 align-top">
+                    <span className="bg-accent text-accent-foreground rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap">
+                      יצא מהמחירון
+                    </span>
+                    <p className="text-muted-foreground mt-1 max-w-[18rem] text-xs">
+                      {c.sheetName} · שורה {c.rowRef} — הרשומה השנייה מחזיקה את השורה. ניקוי בלבד.
                     </p>
                   </td>
                   <td className="p-3">
@@ -242,17 +288,12 @@ export default async function OffSitePage() {
                       {c.holder.title.slice(0, 40)}
                     </Link>
                     <p className="text-muted-foreground mt-0.5 text-xs">
-                      מק״ט {c.holder.sku} · {c.holder.model || "ללא דגם"} · {c.holder.stockQty} יח׳ ·{" "}
+                      מק״ט {c.holder.sku} · {c.holder.stockQty} יח׳ ·{" "}
                       {c.holder.price.toLocaleString("he-IL")} ₪
                     </p>
                   </td>
                   <td className="text-muted-foreground p-3 whitespace-nowrap tabular-nums">
                     {c.lastReportedValue.toLocaleString("he-IL")} ₪
-                    {c.sameProduct && (
-                      <span className="text-warning-foreground bg-warning/15 ms-2 rounded-full px-2 py-0.5 text-xs font-medium">
-                        אותו מוצר
-                      </span>
-                    )}
                   </td>
                 </tr>
               ))}
