@@ -4,9 +4,9 @@ import { SHIPPING_POLICY_UPDATED_LABEL } from "@/lib/shipping-policy";
 import { BUSINESS, BUSINESS_ADDRESS } from "@/lib/business";
 import {
   DELIVERY_CARRIER,
+  DELIVERY_ZONES,
   FREE_DELIVERY_THRESHOLD,
   HOME_DELIVERY_FEE,
-  STANDARD_DELIVERY_DAYS,
 } from "@/lib/delivery";
 import { formatPrice } from "@/lib/format";
 
@@ -96,9 +96,35 @@ export default function ShippingPage() {
 
         <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">זמני אספקה</h2>
-          <p>
-            מוצרים המתאימים למשלוח חבילות רגיל מסופקים בדרך כלל בתוך <strong className="text-foreground">עד{" "}
-            {STANDARD_DELIVERY_DAYS} ימי עסקים</strong>, אלא אם נכתב אחרת בדף המוצר או במהלך ההזמנה.
+          {/* Two figures, by where the parcel goes. The shop is in Hadera and
+              the carrier's routes run the coastal strip, so the local promise
+              is the faster one; the national range is what every product page
+              and the Merchant Center feed state, because neither knows the
+              address yet. */}
+          <div className="border-border overflow-hidden rounded-xl border">
+            <table className="w-full text-start">
+              <thead className="bg-muted/50 text-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-start font-semibold">יעד המשלוח</th>
+                  <th className="px-3 py-2 text-start font-semibold">זמן אספקה</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-border border-t">
+                  <td className="px-3 py-2">{DELIVERY_ZONES.local.label}</td>
+                  <td className="text-foreground px-3 py-2 font-medium">עד {DELIVERY_ZONES.local.max} ימי עסקים</td>
+                </tr>
+                <tr className="border-border border-t">
+                  <td className="px-3 py-2">{DELIVERY_ZONES.national.label}</td>
+                  <td className="text-foreground px-3 py-2 font-medium">
+                    {DELIVERY_ZONES.national.min}–{DELIVERY_ZONES.national.max} ימי עסקים
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3">
+            הזמנים לעיל חלים על מוצרים המתאימים למשלוח חבילות רגיל, אלא אם נכתב אחרת בדף המוצר או במהלך ההזמנה.
           </p>
           <p className="mt-2">
             ימי עסקים אינם כוללים שבתות, חגים וימים שבהם המשק אינו פועל באופן רגיל. זמני האספקה עשויים להיות שונים

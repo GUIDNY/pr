@@ -3,8 +3,9 @@
  *
  * `Product.deliveryDays` is 7 on every row in the catalogue, because 7 is the
  * column's schema default and nothing has ever written to it. The shop
- * promises three business days. `deliveryDaysFor()` is what turns the one
- * into the other, and the only bug this family has ever had is a component
+ * promises a range — up to three business days between Herzliya and Zichron
+ * Yaakov, three to seven anywhere else. `deliveryPromiseFor()` is what turns
+ * the one into the other, and the only bug this family has ever had is a component
  * printing the column instead of calling it.
  *
  * It has happened three times. The structured data said seven while the page
@@ -27,6 +28,8 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import {
   deliveryDaysFor,
+  deliveryPromiseText,
+  DELIVERY_ZONES,
   STANDARD_DELIVERY_DAYS,
   HANDLING_DAYS,
   TRANSIT_DAYS,
@@ -43,6 +46,10 @@ function is(name: string, got: unknown, want: unknown) {
 console.log("The policy itself");
 is("an unset 7 becomes the published promise", deliveryDaysFor({ deliveryDays: 7 }), STANDARD_DELIVERY_DAYS);
 is("a real number is left alone", deliveryDaysFor({ deliveryDays: 10 }), 10);
+is("the published promise is the national maximum", STANDARD_DELIVERY_DAYS, DELIVERY_ZONES.national.max);
+is("the local promise is the faster one", DELIVERY_ZONES.local.max < DELIVERY_ZONES.national.max, true);
+is("an unset row is told the national range", deliveryPromiseText({ deliveryDays: 7 }), "3–7 ימי עסקים");
+is("a row with its own figure is told that figure", deliveryPromiseText({ deliveryDays: 5 }), "עד 5 ימי עסקים");
 /* Google adds the two maximums to produce the estimate it shows, and counts
    both in business days. So their sum is the promise, and anything larger
    advertises a delivery slower than the one the page makes — which is what
@@ -52,6 +59,11 @@ is(
   "handling + transit equals the published promise",
   HANDLING_DAYS.max + TRANSIT_DAYS.max,
   STANDARD_DELIVERY_DAYS,
+);
+is(
+  "handling + transit minimums equal the earliest the shop says nationally",
+  HANDLING_DAYS.min + TRANSIT_DAYS.min,
+  DELIVERY_ZONES.national.min,
 );
 is("nothing is promised to arrive in zero days", TRANSIT_DAYS.min >= 1, true);
 is("handling may be same-day", HANDLING_DAYS.min, 0);
@@ -97,7 +109,7 @@ for (const file of files) {
     });
 }
 if (offenders.length === 0) {
-  console.log("  ok    every rendered figure goes through deliveryDaysFor()");
+  console.log("  ok    every rendered figure goes through the delivery helpers");
 } else {
   failures += offenders.length;
   for (const o of offenders) console.log(`  FAIL  ${o}`);
