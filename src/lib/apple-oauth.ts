@@ -101,6 +101,35 @@ function privateKeyPem(): string {
   return `-----BEGIN PRIVATE KEY-----\n${wrapped}\n-----END PRIVATE KEY-----\n`;
 }
 
+/**
+ * How many bytes the stored key decodes to. For the error path only — a
+ * length is not the key, and nothing here is ever logged beyond this number.
+ *
+ * It is here because "Invalid keyData" does not distinguish the two ways
+ * this goes wrong, and the difference decides what somebody does next. A
+ * .p8 holds a 138-byte PKCS#8 structure: materially short and it arrived
+ * truncated, so the stored value is a fragment of a good key; the right
+ * length and still unparseable and the base64 itself was altered in
+ * transit — a `+` turned into a space by a form field, which the whitespace
+ * strip above then deletes rather than restores, which is the one failure
+ * reformatting cannot undo.
+ *
+ * Either way the answer is to re-paste, but only one of them also means the
+ * key on disk is still good. That is worth one number in a log read weeks
+ * after the paste is forgotten.
+ */
+function keyBodyBytes(): number {
+  try {
+    const body = env("APPLE_PRIVATE_KEY")!
+      .replace(/\\n/g, "\n")
+      .replace(/-----[A-Z ]+-----/g, "")
+      .replace(/\s+/g, "");
+    return Buffer.from(body, "base64").length;
+  } catch {
+    return -1;
+  }
+}
+
 async function clientSecret(): Promise<string> {
   const key = await importPKCS8(privateKeyPem(), "ES256");
   const now = Math.floor(Date.now() / 1000);
@@ -178,8 +207,12 @@ export async function exchangeCodeForProfile(code: string): Promise<AppleExchang
     secret = await clientSecret();
   } catch (error) {
     // Almost always the .p8 arriving mangled — re-saved by a text editor,
-    // or pasted without its BEGIN/END lines.
-    return { ok: false, detail: `client secret: ${(error as Error).message}` };
+    // or pasted without its BEGIN/END lines. The byte count says which, and
+    // keyBodyBytes explains why that is worth carrying.
+    return {
+      ok: false,
+      detail: `client secret: ${(error as Error).message} (key decodes to ${keyBodyBytes()} bytes, a P-256 .p8 is 138)`,
+    };
   }
 
   const res = await fetch("https://appleid.apple.com/auth/token", {
