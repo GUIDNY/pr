@@ -34,6 +34,15 @@ const TABS = [
      product in stock that no customer can buy, which is a different and
      bigger question — and the one that was actually being asked. */
   { href: "/admin/inventory/problems", label: "למה לא באתר" },
+  /* Added 14 October, at the owner's request, after a 04:30 run moved a
+     price overnight and finding out which one took a database query. The
+     two pages that looked like they answered it do not: סנכרון history
+     gives a run's counters with nothing under them, and שינויים gives every
+     event ever in one flat list — and 1,114 of that run's 1,148 events were
+     PRODUCT_DATA_CHANGED, which is the sheet disagreeing with an enriched
+     title and is logged on every run for every enriched product. The eight
+     price moves were on page three. */
+  { href: "/admin/inventory/sync-changes", label: "מה השתנה בסנכרון" },
 ];
 
 /* Not tabs. Two of these are the only way to press a button that exists

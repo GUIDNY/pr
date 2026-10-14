@@ -667,3 +667,147 @@ export async function getImageReadiness(): Promise<ImageReadinessRow[]> {
     },
   ];
 }
+
+/* ---------------------------------------------------------------------------
+   What one sync run actually did.
+
+   The owner asked for this on 14 October, after a run moved a price
+   overnight and the only way to find out which one was a database query.
+   Two pages already existed and neither answers it: סנכרון history shows a
+   run's counters ("1,116 מוצרים עודכנו") with nothing under them, and
+   שינויים shows every event ever in one flat list, newest first, 50 to a
+   page.
+
+   The flat list is the instructive failure. The 04:30 run on 14 October
+   wrote 1,148 events and **1,114 of them were PRODUCT_DATA_CHANGED**, which
+   does not mean the product's data changed: it means the sheet's raw
+   description differs from the title we hold, the enrichment guard refused
+   the overwrite, and the event was logged anyway. Every enriched product
+   produces one on every run, forever. So the page that shows "changes"
+   shows 97% rows where nothing happened, and the eight price moves that did
+   happen are on page three.
+
+   Hence the split below. `real` is what the run changed — price, stock,
+   products in, products gone. `reported` is the noise, counted and named
+   honestly rather than hidden, because "the sheet disagrees with our title"
+   is worth knowing in bulk and worthless one row at a time. */
+
+/** Changes the run made. PRODUCT_DATA_CHANGED is deliberately not here. */
+const REAL_CHANGE_TYPES = [
+  "PRICE_CHANGED",
+  "NEW_PRODUCT",
+  "PRODUCT_MISSING_FROM_SOURCE",
+  "BECAME_OUT_OF_STOCK",
+  "BACK_IN_STOCK",
+  "STOCK_INCREASED",
+  "STOCK_DECREASED",
+  "SUPPLIER_STOCK_CHANGED",
+  "SHOWROOM_STOCK_CHANGED",
+  "SOURCE_CONFLICT",
+] as const;
+
+/* The alert types that explain a change to a product, or a refusal to make
+   one. A run raises plenty of others and the list was wider on the first
+   draft, which the 14 October run settled by measurement: it raised 243
+   alerts and 174 of them were UNMATCHED_ROW — a sheet row that found no
+   product at all, which is a real problem and not an answer to "why did
+   this product's price move". Dropping that one type takes the section from
+   243 rows to 69, and the page is read by somebody holding one product. */
+const EXPLANATORY_ALERT_TYPES = [
+  "INVALID_PRICE",
+  "PRICE_BELOW_COST",
+  "ROW_NAMES_ANOTHER_MODEL",
+  "ROW_CLAIMED_TWICE",
+  "SOURCE_CONFLICT",
+  "DUPLICATE_SKU",
+  "MISSING_FROM_SOURCE",
+  "MAJOR_STOCK_CHANGE",
+] as const;
+
+export type SyncRunChangeRow = {
+  id: string;
+  changeType: string;
+  sourceSku: string | null;
+  sourceSheet: string | null;
+  previousValue: string | null;
+  newValue: string | null;
+  product: { id: string; sku: string; title: string; model: string | null; price: number; stockQty: number } | null;
+};
+
+export async function getSyncRunChanges(runId?: string) {
+  /* The run to show. Not simply the newest: a NO_CHANGES run has no events
+     and landing on it reads as "the feature is broken" rather than "nothing
+     happened", so without an explicit id we open the newest run that
+     actually wrote something. */
+  const runs = await db.inventorySyncRun.findMany({
+    orderBy: { startedAt: "desc" },
+    take: 20,
+    include: { triggeredBy: { select: { name: true } }, _count: { select: { changeEvents: true } } },
+  });
+
+  const run = runId ? runs.find((r) => r.id === runId) ?? null : runs.find((r) => r._count.changeEvents > 0) ?? runs[0] ?? null;
+  if (!run)
+    return { runs, run: null, real: [], realTotal: 0, counts: [], reportedCount: 0, alerts: [], alertTotal: 0, money: { perUnit: 0, listed: 0 } };
+
+  /* Both lists below are capped, so both totals are fetched separately and
+     rendered beside them. A list that silently stops at its limit is worse
+     than no list on a page whose job is to account for a run completely —
+     the reader has no way to tell "that is all of them" from "that is the
+     first 400". */
+  const [counts, real, realTotal, reportedCount, alerts, alertTotal] = await Promise.all([
+    db.inventoryChangeEvent.groupBy({
+      by: ["changeType"],
+      where: { syncRunId: run.id },
+      _count: { _all: true },
+    }),
+    db.inventoryChangeEvent.findMany({
+      where: { syncRunId: run.id, changeType: { in: [...REAL_CHANGE_TYPES] } },
+      orderBy: { createdAt: "asc" },
+      /* A cap, because a run that re-sorts a tab can report hundreds of
+         products gone and the page still has to render. 400 is past any
+         healthy run and short of a browser problem. */
+      take: 400,
+      select: {
+        id: true,
+        changeType: true,
+        sourceSku: true,
+        sourceSheet: true,
+        previousValue: true,
+        newValue: true,
+        product: { select: { id: true, sku: true, title: true, model: true, price: true, stockQty: true } },
+      },
+    }),
+    db.inventoryChangeEvent.count({ where: { syncRunId: run.id, changeType: { in: [...REAL_CHANGE_TYPES] } } }),
+    db.inventoryChangeEvent.count({ where: { syncRunId: run.id, changeType: "PRODUCT_DATA_CHANGED" } }),
+    db.inventoryAlert.findMany({
+      where: { syncRunId: run.id, type: { in: [...EXPLANATORY_ALERT_TYPES] } },
+      orderBy: { createdAt: "asc" },
+      take: 120,
+      select: {
+        id: true,
+        type: true,
+        message: true,
+        isResolved: true,
+        product: { select: { id: true, sku: true } },
+      },
+    }),
+    db.inventoryAlert.count({ where: { syncRunId: run.id, type: { in: [...EXPLANATORY_ALERT_TYPES] } } }),
+  ]);
+
+  /* The money, both ways, because they answer different questions. Per unit
+     is "how much did the price of this thing move"; listed is that times the
+     stock behind it, which is what actually moves off the shelf. Only
+     PRICE_CHANGED contributes — a stock event is not a price. */
+  let perUnit = 0;
+  let listed = 0;
+  for (const e of real) {
+    if (e.changeType !== "PRICE_CHANGED") continue;
+    const before = Number(e.previousValue);
+    const after = Number(e.newValue);
+    if (!Number.isFinite(before) || !Number.isFinite(after)) continue;
+    perUnit += after - before;
+    listed += (after - before) * (e.product?.stockQty ?? 0);
+  }
+
+  return { runs, run, real, realTotal, counts, reportedCount, alerts, alertTotal, money: { perUnit, listed } };
+}
