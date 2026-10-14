@@ -35,8 +35,14 @@ it, and the same goes for every content field. That is what finally stopped the 
 where a morning's corrections were gone by the next morning — the sync has nothing left
 to overwrite them with.
 
-It also no longer runs on a schedule, so it and the endpoint cannot race. Someone
-presses sync in the admin when the supplier sends a new sheet.
+**It does run on a schedule, twice a day, and this file said otherwise until
+14 October.** `InventorySyncRun.trigger` reads `SCHEDULED` on every recent run,
+at 04:30 and 12:30, and the 04:30 run on 14 October scanned 2,273 rows against
+a price list that had changed overnight: eight prices adopted, two products
+added, four row bindings frozen by `rowModelWasReassigned`. Anyone reasoning
+from "someone presses sync in the admin" will date a verification wrongly and
+will not expect the catalogue to move while nobody is watching — and the sync
+and the enrich endpoint *can* race, whatever the next paragraph used to claim.
 
 `slug` is never written by anything after creation — it is public in the product URL,
 so renaming a product must not break links already shared.

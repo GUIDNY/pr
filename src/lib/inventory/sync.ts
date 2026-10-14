@@ -1353,7 +1353,7 @@ async function applyOneRow(
       sourceSku: sku,
       message:
         rejectedPrices.length > 0
-          ? `${row.title}: כל המחירים בשורה נמוכים מחצי מעלות הספק (${(row.internalCost ?? 0).toLocaleString("he-IL")} ₪) — ${rejectedPrices.map((p) => p.toLocaleString("he-IL")).join(", ")} ₪. לא פורסם.`
+          ? `${row.title}: כל המחירים בשורה אינם מעל עלות הספק (${(row.internalCost ?? 0).toLocaleString("he-IL")} ₪) — ${rejectedPrices.map((p) => p.toLocaleString("he-IL")).join(", ")} ₪. לא פורסם.`
           : `${row.title}: אין מחיר מינימום במקור — לא פורסם`,
     });
   } else if (rejectedPrices.length > 0) {
@@ -1369,7 +1369,7 @@ async function applyOneRow(
       sourceId,
       syncRunId,
       sourceSku: sku,
-      message: `${row.title}: ${rejectedPrices.map((p) => `${p.toLocaleString("he-IL")} ₪`).join(", ")} נמוך מחצי מעלות הספק (${(row.internalCost ?? 0).toLocaleString("he-IL")} ₪) ולא יכול להיות מחיר מכירה. המחיר נלקח מעמודה אחרת (${resolved.toLocaleString("he-IL")} ₪) — כדאי לתקן בגיליון.`,
+      message: `${row.title}: ${rejectedPrices.map((p) => `${p.toLocaleString("he-IL")} ₪`).join(", ")} אינו מעל עלות הספק (${(row.internalCost ?? 0).toLocaleString("he-IL")} ₪) ולא יכול להיות מחיר מכירה. המחיר נלקח מעמודה אחרת (${resolved.toLocaleString("he-IL")} ₪) — כדאי לתקן בגיליון.`,
     });
   }
 
