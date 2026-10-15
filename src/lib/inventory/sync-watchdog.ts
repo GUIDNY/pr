@@ -1,6 +1,10 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { openHoursBetween, STALE_AFTER_OPEN_HOURS } from "@/lib/inventory/office-hours";
+import {
+  openHoursBetween,
+  missedReportsBetween,
+  STALE_AFTER_MISSED_REPORTS,
+} from "@/lib/inventory/office-hours";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import {
   rowBindingLooksForeign,
@@ -80,9 +84,15 @@ export type SyncFreshness = {
   /** Hours on the clock since the last report. What a person reads. */
   hoursSince: number | null;
   /** Of those, the ones in which the agent could have reported at all.
-      What `stale` is actually measured against — see SERVER_WINDOW. */
+      Printed next to the wall clock; it is no longer what decides. */
   openHoursSince: number | null;
-  thresholdHours: number;
+  /** Scheduled runs the agent could have made since the last contact and
+      did not. What `stale` is measured against — see
+      STALE_AFTER_MISSED_REPORTS for why this and not hours. */
+  missedReports: number | null;
+  missedThreshold: number;
+  /** One missed run: worth showing, not worth a CRITICAL. */
+  lagging: boolean;
   lastRunFailed: boolean;
 };
 
@@ -117,9 +127,10 @@ export async function checkSyncFreshness(): Promise<SyncFreshness> {
      the system working — and measuring it on a wall clock raised a CRITICAL
      alert every Saturday on a healthy shop. */
   const openHoursSince = at ? openHoursBetween(at, now) : null;
+  const missedReports = at ? missedReportsBetween(at, now) : null;
   /* Never having heard from it is stale too. A shop with products on the
      site and no sheet on record is not a state to treat as "early days". */
-  const stale = openHoursSince === null || openHoursSince > STALE_AFTER_OPEN_HOURS;
+  const stale = missedReports === null || missedReports >= STALE_AFTER_MISSED_REPORTS;
 
   return {
     stale,
@@ -127,7 +138,9 @@ export async function checkSyncFreshness(): Promise<SyncFreshness> {
     lastUploadAt,
     hoursSince,
     openHoursSince,
-    thresholdHours: STALE_AFTER_OPEN_HOURS,
+    missedReports,
+    missedThreshold: STALE_AFTER_MISSED_REPORTS,
+    lagging: missedReports !== null && missedReports > 0 && !stale,
     lastRunFailed: lastRun?.status === "FAILED",
   };
 }
@@ -140,7 +153,7 @@ export async function checkSyncFreshness(): Promise<SyncFreshness> {
  */
 export async function reconcileSyncStaleAlert(): Promise<SyncFreshness> {
   const freshness = await checkSyncFreshness();
-  const problem = freshness.stale || freshness.lastRunFailed;
+  const problem = freshness.stale || freshness.lagging || freshness.lastRunFailed;
 
   if (!problem) {
     await db.inventoryAlert.updateMany({
@@ -160,26 +173,37 @@ export async function reconcileSyncStaleAlert(): Promise<SyncFreshness> {
       ? "לא התקבל אף מחירון. המלאי והמחירים באתר אינם מעודכנים."
       : /* The wall-clock number, because that is the one a person can check
            against their own memory of when the shop last did anything. The
-           open-hours figure is what decided to raise this and is the wrong
-           number to print — "9 hours" on a Sunday morning reads like a
-           non-event when the sheets are in fact two days old. */
-        `לא התקבל עדכון מהמחשב במשרד כבר ${Math.floor(hours)} שעות. המלאי והמחירים באתר עלולים להיות לא מעודכנים.`
-    : "הסנכרון האחרון נכשל. המלאי והמחירים באתר עלולים להיות לא מעודכנים.";
+           missed-runs figure is what decided to raise this, and it goes in
+           beside it rather than instead of it — "2 ריצות" is the reason and
+           "24 שעות" is the damage. */
+        `המחשב במשרד לא דיווח כבר ${Math.floor(hours)} שעות — ${freshness.missedReports} ריצות סנכרון לא התקיימו. המלאי והמחירים באתר אינם מעודכנים.`
+    : freshness.lastRunFailed
+      ? "הסנכרון האחרון נכשל. המלאי והמחירים באתר עלולים להיות לא מעודכנים."
+      : /* One missed run. Said plainly and kept a WARNING, because the
+           commonest cause is a Mac that woke late and will report on its
+           own in a few hours — and because the next missed run turns this
+           same alert red without anybody having to notice twice. */
+        `ריצת סנכרון אחת לא התקיימה${hours === null ? "" : ` (${Math.floor(hours)} שעות ללא דיווח)`}. אם גם הבאה תחסר — המלאי באתר יישאר מאחור.`;
+
+  const severity = freshness.stale || freshness.lastRunFailed ? "CRITICAL" : "WARNING";
 
   /* Rewritten rather than added to, so the open alert always states the
      current gap instead of leaving the first hour's wording in place while
-     the number it describes keeps growing. */
+     the number it describes keeps growing. The severity is rewritten with
+     it: one missed run opens this as a WARNING and the second has to be
+     able to turn that same row red, or the escalation only exists in the
+     text and every screen that sorts or filters by severity misses it. */
   const open = await db.inventoryAlert.findFirst({
     where: { type: "SYNC_STALE", isResolved: false },
-    select: { id: true, message: true },
+    select: { id: true, message: true, severity: true },
   });
   if (open) {
-    if (open.message !== message) {
-      await db.inventoryAlert.update({ where: { id: open.id }, data: { message } });
+    if (open.message !== message || open.severity !== severity) {
+      await db.inventoryAlert.update({ where: { id: open.id }, data: { message, severity } });
     }
   } else {
     await db.inventoryAlert.create({
-      data: { type: "SYNC_STALE", severity: "CRITICAL", message },
+      data: { type: "SYNC_STALE", severity, message },
     });
   }
 

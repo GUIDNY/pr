@@ -9,26 +9,54 @@
  */
 
 /**
- * How long a gap is allowed before somebody is told — counted in hours when
- * the agent could actually have reported, not hours on the clock.
+ * How many reports may be missed before somebody is told.
  *
- * The agent runs twice a day and the widest healthy gap between runs is
- * sixteen hours, so eighteen leaves slack for a late one without letting a
- * whole cycle pass. That was right about weekdays and wrong about weekends.
+ * Counted in the agent's own scheduled runs, not in hours, and the history
+ * of this number is the argument for that unit.
  *
- * The file server the sheets live on is in the office, and the office shuts
- * it down from Friday afternoon until somebody opens on Sunday morning. The
- * agent keeps firing on schedule through all of it — Friday 15:30, Saturday
- * twice, Sunday 07:30 — finds no share, says so in its log and reports
- * nothing. That is the system behaving correctly, and on a wall clock it is
- * a 45-hour silence: two and a half times this threshold, every single week.
+ * It started as 18 hours on the clock: the agent runs twice a day, the
+ * widest healthy gap between runs is sixteen hours, so eighteen left slack
+ * for a late one without letting a whole cycle pass. Right about weekdays
+ * and wrong about weekends — the file server is in the office and the
+ * office shuts it down from Friday afternoon until somebody opens on
+ * Sunday morning, which is a 45-hour silence on a healthy shop, every
+ * single week. So the hours were changed to count only when the server was
+ * on, which removed the false alarm and quietly destroyed the threshold:
+ * the widest healthy gap is about four *open* hours, so eighteen of them
+ * stopped meaning "one missed cycle plus slack" and started meaning four
+ * missed cycles.
  *
- * An alert that fires every Saturday on a healthy shop is the failure this
- * watchdog exists to prevent. Its own comment says so: the back office
- * learns to scroll past it and takes the next real one with it. So the
- * weekend is not counted — the clock only runs while a report was possible.
+ * Which is not a hypothetical. The agent last reported on Wednesday
+ * 14 October at 15:30 and then stopped. Thursday's 07:30 run did not
+ * happen, Thursday's 15:30 run did not happen, the shop sold all day
+ * against Wednesday's stock, and this watchdog would not have said a word
+ * until Friday at 10:30 — 43 hours and four missed runs later. The owner
+ * noticed first, which is the one outcome the whole file exists to prevent.
+ *
+ * Missed scheduled runs is the unit that cannot drift like that. It says
+ * what the alert means in the words the threshold is written in, and it is
+ * weekend-proof by construction rather than by arithmetic: a run that falls
+ * when the server is off was never an opportunity to report, so it is not a
+ * missed one.
+ *
+ * Two, not one. A single missed run is worth seeing and is not worth waking
+ * anybody — a Mac that woke late pushes its 07:30 run to 08:40 and reports
+ * normally. So one missed run is a WARNING and two is the CRITICAL, which
+ * on weekdays lands the same day rather than the day after tomorrow.
  */
-export const STALE_AFTER_OPEN_HOURS = 18;
+export const STALE_AFTER_MISSED_REPORTS = 2;
+
+/**
+ * When the agent is scheduled to report, in Israel's local time.
+ *
+ * Must stay in step with `StartCalendarInterval` in
+ * scripts/agent/com.buytoday.pricesheets.plist, which is the only thing
+ * that actually fires it — launchd on a Mac inside the company network,
+ * because the site cannot reach the file server and never will. There is no
+ * cron on the server for this and there cannot be one.
+ */
+export const AGENT_RUN_HOURS = [7, 15] as const;
+export const AGENT_RUN_MINUTE = 30;
 
 /**
  * When the file server is on, in Israel time.
@@ -76,12 +104,17 @@ function israelParts(at: Date): { day: number; hour: number } {
 /**
  * Hours between two instants during which the agent could have reported.
  *
+ * No longer what raises the alert — see STALE_AFTER_MISSED_REPORTS — but
+ * still the honest measure of how long a silence has lasted in hours the
+ * office was open, and that is worth printing next to the wall clock on the
+ * screen a person reads.
+ *
  * Hour by hour rather than by arithmetic on day boundaries, because the
  * arithmetic is where the off-by-one lives and the loop is bounded: it stops
  * counting the moment it passes the threshold, so a server that has been
  * silent for a year costs the same as one silent for a day.
  */
-export function openHoursBetween(from: Date, to: Date, capAt = STALE_AFTER_OPEN_HOURS * 4): number {
+export function openHoursBetween(from: Date, to: Date, capAt = 72): number {
   let open = 0;
   const cursor = new Date(from.getTime());
   cursor.setUTCMinutes(0, 0, 0);
@@ -92,4 +125,47 @@ export function openHoursBetween(from: Date, to: Date, capAt = STALE_AFTER_OPEN_
     cursor.setUTCHours(cursor.getUTCHours() + 1);
   }
   return open;
+}
+
+/**
+ * Scheduled reports the agent could have made in a window, and did not.
+ *
+ * "Could have" is the whole point. launchd fires at 07:30 and 15:30 every
+ * day including Friday afternoon and Saturday, but the share it reads is
+ * powered off, so those firings were never chances to report and a system
+ * that misses them is working exactly as designed. Only a run that lands
+ * while the server is on is counted, which is what makes this immune to the
+ * weekend without a single special case about weekends.
+ *
+ * Walked hour by hour over Israel's own clock rather than computed from day
+ * boundaries, for the reason openHoursBetween is: the arithmetic is where
+ * the off-by-one and the DST mistake live. Israel changes its clock at
+ * 02:00, so 07 and 15 are never the skipped or the repeated hour and a run
+ * is never counted twice or dropped.
+ *
+ * Bounded by `capAt`, so a machine that has been off for a year is as cheap
+ * to ask about as one that missed breakfast.
+ */
+export function missedReportsBetween(
+  from: Date,
+  to: Date,
+  capAt = STALE_AFTER_MISSED_REPORTS * 4,
+): number {
+  let missed = 0;
+  const cursor = new Date(from.getTime());
+  cursor.setUTCMinutes(0, 0, 0);
+  while (cursor < to && missed < capAt) {
+    const { day, hour } = israelParts(cursor);
+    if ((AGENT_RUN_HOURS as readonly number[]).includes(hour)) {
+      const window = SERVER_WINDOW[day];
+      /* The run fires at :30 past the hour the cursor is sitting on. It
+         counts as missed only if it fell strictly after the last contact
+         and has already passed — a run due in ten minutes is not late. */
+      const dueAt = new Date(cursor.getTime() + AGENT_RUN_MINUTE * 60_000);
+      const serverOn = window !== null && hour >= window.from && hour < window.to;
+      if (serverOn && dueAt > from && dueAt <= to) missed++;
+    }
+    cursor.setUTCHours(cursor.getUTCHours() + 1);
+  }
+  return missed;
 }

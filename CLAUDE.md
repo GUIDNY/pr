@@ -44,6 +44,42 @@ from "someone presses sync in the admin" will date a verification wrongly and
 will not expect the catalogue to move while nobody is watching — and the sync
 and the enrich endpoint *can* race, whatever the next paragraph used to claim.
 
+**That schedule is not on the server, and there is nothing on the server that
+can start a sync.** `vercel.json` has crons for the image migration and the
+watchdog and deliberately none for the sync: the price sheets live on an SMB
+share inside the company network, the site cannot reach it and never will, so
+everything moves outward from a Mac in the office — launchd at 07:30 and 15:30
+Israel time, `scripts/agent/`, which reads the three workbooks, uploads only
+what changed, and then calls `/api/inventory/sync`. 04:30 and 12:30 in
+`InventorySyncRun` are those two runs in UTC.
+
+So the whole catalogue updating twice a day rests on one computer being awake,
+having the share mounted and holding a keychain entry, and the ways it stops
+are mundane: a reboot, a sleep, a blip of the ADSL line the share sits behind.
+Three runs were lost to exactly that between 28 and 29 September, and on
+15 October it went quiet for a whole working day — Thursday's 07:30 and 15:30
+both missed, the shop selling against Wednesday afternoon's stock, and the
+owner was the one who noticed. The log on that Mac
+(`~/Library/Logs/buytoday-sync.log`) is the only place the reason is written;
+`ERROR folder not reachable` is the usual line. Nothing in this repository or
+this database can tell you which of the causes it was, and no amount of
+checking from here substitutes for reading that file.
+
+What *is* answerable from here is whether it reported at all:
+`InventorySource.lastScannedAt` is stamped by `/api/inventory/heartbeat` on
+every run that read the sheets, changed or not, so three sources all reading
+the same old timestamp is the office machine having gone silent and not a
+quiet supplier. `sync-watchdog.ts` raises `SYNC_STALE` off that, and it now
+counts **missed scheduled runs** rather than hours: the hours version was
+18 wall hours, which was then measured only in hours the office was open to
+stop a false alarm every Saturday, and nobody re-derived the number — in open
+hours the widest healthy gap is about four, so eighteen quietly came to mean
+four missed cycles. That is why Thursday passed in silence. One missed run is
+now a WARNING, two is the CRITICAL, and a run that falls while the file server
+is powered down was never an opportunity to report so it is never a missed
+one. `npm run check:watchdog` carries both the weekend that raised the false
+alarm and the Thursday that raised nothing.
+
 `slug` is never written by anything after creation — it is public in the product URL,
 so renaming a product must not break links already shared.
 

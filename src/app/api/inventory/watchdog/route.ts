@@ -122,6 +122,10 @@ export async function GET(request: Request) {
     lastRunFailed: freshness.lastRunFailed,
     hoursSince: freshness.hoursSince === null ? null : Math.round(freshness.hoursSince * 10) / 10,
     openHoursSince: freshness.openHoursSince,
-    thresholdHours: freshness.thresholdHours,
+    /* What actually decided `stale`: scheduled runs the agent could have
+       made and did not. Hours are the damage; this is the fault. */
+    missedReports: freshness.missedReports,
+    missedThreshold: freshness.missedThreshold,
+    lagging: freshness.lagging,
   });
 }

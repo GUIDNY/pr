@@ -19,7 +19,11 @@
  *   npm run check:watchdog
  */
 
-import { openHoursBetween } from "../src/lib/inventory/office-hours";
+import {
+  openHoursBetween,
+  missedReportsBetween,
+  STALE_AFTER_MISSED_REPORTS,
+} from "../src/lib/inventory/office-hours";
 import { pairReplacements } from "../src/lib/inventory/replaced-products";
 
 let failures = 0;
@@ -42,26 +46,49 @@ function under(name: string, got: number, max: number) {
   console.log(`${ok ? "  ok  " : "  FAIL"}  ${name} → ${got}${ok ? "" : `  (expected < ${max})`}`);
 }
 
-const THRESHOLD = 18;
+const THRESHOLD = STALE_AFTER_MISSED_REPORTS;
 
-/* The incident. Last contact Friday 2 October 07:30 Israel (04:30 UTC);
-   the alert fired on Sunday morning with the server simply switched off. */
+/* The weekend that raised the false alarm. Last contact Friday 2 October
+   07:30 Israel (04:30 UTC); the alert fired on Sunday morning with the
+   server simply switched off, which is the office working normally. */
 const lastContact = new Date("2026-10-02T04:30:00Z");
 
 console.log("The weekend that raised the false alarm");
-under("Friday evening, hours after the last run", openHoursBetween(lastContact, new Date("2026-10-02T17:00:00Z")), THRESHOLD);
-under("Saturday — the server is off, nothing counts", openHoursBetween(lastContact, new Date("2026-10-03T17:00:00Z")), THRESHOLD);
-under("Sunday 10:44, when the alert was found open", openHoursBetween(lastContact, new Date("2026-10-04T07:44:00Z")), THRESHOLD);
-is("Saturday adds nothing at all",
-  openHoursBetween(lastContact, new Date("2026-10-03T05:00:00Z")),
-  openHoursBetween(lastContact, new Date("2026-10-04T03:00:00Z")));
+/* Friday 15:30 fires into a powered-down server, and so does Saturday
+   twice. None of them was a chance to report, so none of them is missed —
+   and this is now true by construction rather than by a threshold wide
+   enough to swallow it. */
+is("Friday afternoon, after the server goes off", missedReportsBetween(lastContact, new Date("2026-10-02T17:00:00Z")), 0);
+is("Saturday — nothing was ever due", missedReportsBetween(lastContact, new Date("2026-10-03T17:00:00Z")), 0);
+is("Sunday 10:44, when the alert was found open", missedReportsBetween(lastContact, new Date("2026-10-04T04:00:00Z")), 0);
+under("so the whole weekend stays quiet", missedReportsBetween(lastContact, new Date("2026-10-04T04:00:00Z")), THRESHOLD);
 
-console.log("\nA real failure is still caught");
-/* Same silence starting on a Monday: two working days of nothing is a
-   machine that has stopped, and the shop should be told. */
+console.log("\nThursday 15 October, the day the owner noticed first");
+/* The incident this unit was chosen after. The agent last reported on
+   Wednesday 14 October at 15:30 Israel and then stopped — the office Mac is
+   the only thing that fires a sync, and nothing on the server can start one.
+   Thursday's 07:30 and 15:30 runs never happened, the shop sold all day
+   against Wednesday's stock, and the watchdog said nothing because twelve
+   open hours is nowhere near eighteen. */
+const wednesdayAfternoon = new Date("2026-10-14T12:30:00Z");
+is("07:20 Thursday — the run is not late yet", missedReportsBetween(wednesdayAfternoon, new Date("2026-10-15T04:20:00Z")), 0);
+is("08:00 Thursday — the morning run is gone", missedReportsBetween(wednesdayAfternoon, new Date("2026-10-15T05:00:00Z")), 1);
+under("and one missed run is a warning, not a CRITICAL", missedReportsBetween(wednesdayAfternoon, new Date("2026-10-15T05:00:00Z")), THRESHOLD);
+atLeast(
+  "16:00 Thursday — both runs gone, and this is the alert that was missing",
+  missedReportsBetween(wednesdayAfternoon, new Date("2026-10-15T13:00:00Z")),
+  THRESHOLD,
+);
+/* What the old rule said at that same instant, kept as a fixture because it
+   is the whole argument for the change: a working day of silence, twelve
+   open hours, two thirds of the way to a threshold of eighteen. */
+is("the old clock had reached 12 of its 18", openHoursBetween(wednesdayAfternoon, new Date("2026-10-15T13:00:00Z")), 12);
+under("i.e. it would have stayed silent all day", openHoursBetween(wednesdayAfternoon, new Date("2026-10-15T13:00:00Z")), 18);
+
+console.log("\nA weekday failure is caught the same day");
 const mondayMorning = new Date("2026-10-05T04:30:00Z");
-under("Monday afternoon, one run missed", openHoursBetween(mondayMorning, new Date("2026-10-05T14:00:00Z")), THRESHOLD);
-atLeast("Wednesday morning, after two silent working days", openHoursBetween(mondayMorning, new Date("2026-10-07T06:00:00Z")), THRESHOLD);
+under("Monday noon, nothing missed yet", missedReportsBetween(mondayMorning, new Date("2026-10-05T09:00:00Z")), THRESHOLD);
+atLeast("Tuesday morning, after the afternoon and the morning run", missedReportsBetween(mondayMorning, new Date("2026-10-06T05:00:00Z")), THRESHOLD);
 
 console.log("\nThe clock reads Israel, not the server");
 /* Israel is UTC+3 in October and UTC+2 in December. 05:00 UTC is 08:00
@@ -71,13 +98,25 @@ console.log("\nThe clock reads Israel, not the server");
 atLeast("an October weekday morning counts", openHoursBetween(new Date("2026-10-06T04:00:00Z"), new Date("2026-10-06T10:00:00Z")), 5);
 atLeast("a December weekday morning counts", openHoursBetween(new Date("2026-12-08T05:00:00Z"), new Date("2026-12-08T11:00:00Z")), 5);
 is("a December Saturday still counts nothing", openHoursBetween(new Date("2026-12-12T05:00:00Z"), new Date("2026-12-12T20:00:00Z")), 0);
+/* And the same for the runs themselves: a December Thursday's 07:30 is
+   05:30 UTC, an October Thursday's is 04:30, and both are due. */
+is("the December morning run is still counted", missedReportsBetween(new Date("2026-12-09T13:30:00Z"), new Date("2026-12-10T06:00:00Z")), 1);
+/* Friday 11 December 07:30 Israel to midnight on Saturday: the Friday
+   afternoon firing and both of Saturday's fall on a powered-down server, so
+   a dead agent and a healthy one are indistinguishable here on purpose —
+   and Sunday morning is where the silence becomes a fact. */
+is("a Friday evening and a whole Saturday are never due", missedReportsBetween(new Date("2026-12-11T05:30:00Z"), new Date("2026-12-12T22:00:00Z")), 0);
+is("Sunday 08:00 is where it shows", missedReportsBetween(new Date("2026-12-11T05:30:00Z"), new Date("2026-12-13T06:00:00Z")), 1);
 
 console.log("\nIt cannot run away");
 /* A year of silence must not cost a year of iterations. */
 const started = Date.now();
-const huge = openHoursBetween(new Date("2025-10-04T00:00:00Z"), new Date("2026-10-04T00:00:00Z"));
+const huge = missedReportsBetween(new Date("2025-10-04T00:00:00Z"), new Date("2026-10-04T00:00:00Z"));
 atLeast("a year of silence is still stale", huge, THRESHOLD);
 under("and is counted in well under a second", Date.now() - started, 1000);
+const hoursStarted = Date.now();
+atLeast("so is a year of it on the open-hours clock", openHoursBetween(new Date("2025-10-04T00:00:00Z"), new Date("2026-10-04T00:00:00Z")), 18);
+under("also under a second", Date.now() - hoursStarted, 1000);
 
 console.log("\nA run that swapped a product for a blank record on its own row");
 /* Both real incidents. On 11 October at 19:39 a run marked 45 enriched,
@@ -175,7 +214,7 @@ is("a quiet morning raises nothing", pairReplacements([], []).length, 0);
 
 console.log(
   failures === 0
-    ? "\nThe watchdog counts the hours the office is open.\n"
+    ? "\nThe watchdog counts the reports the agent could have made.\n"
     : `\n${failures} watchdog rule(s) BROKEN.\n`,
 );
 process.exit(failures === 0 ? 0 : 1);
