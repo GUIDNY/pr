@@ -82,6 +82,8 @@ export type SellerOrderDetail = SellerOrderSummary & {
   readiness: { id: NotifyChannel; configured: boolean; missing: string[] }[];
   /** Whether this order may be deleted outright, or only cancelled. */
   canDelete: boolean;
+  /** Bin, purge, and the sentence that says why not. */
+  removal: RemovalRule;
 };
 
 const LIST_SELECT = {
@@ -102,7 +104,7 @@ const LIST_SELECT = {
   deletedAt: true,
   /* Only to answer "may this one be binned". Two columns rather than the
      whole payment row, on a list that loads 200 of them. */
-  payments: { select: { provider: true, status: true } },
+  payments: { select: { provider: true, status: true, holdExpiresAt: true } },
   user: { select: { name: true, phone: true } },
   items: {
     select: {
@@ -248,7 +250,8 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
     updates: buildUpdates(row, summary),
     previousStatus: row.statusHistory[0]?.fromStatus ?? null,
     readiness: channelReadiness(),
-    canDelete: !tookRealMoney(row.payments),
+    canDelete: removalRule(row).canPurge,
+    removal: removalRule(row),
   };
 }
 
@@ -383,21 +386,78 @@ function toSummary(row: ListRow): SellerOrderSummary {
     itemCount: row.items.reduce((sum, i) => sum + i.quantity, 0),
     problems,
     deletedAt: row.deletedAt,
-    canDelete: !tookRealMoney(row.payments),
+    canDelete: removalRule(row).canBin,
   };
 }
 
 /**
  * The one rule that decides whether an order may be removed at all.
  *
- * A card that was charged or is being held makes the row a financial record
- * — the shop's, the customer's and the gateway's — and no back-office button
- * gets to make one of those disappear. Shared by the list, the order page
- * and all three bin actions so the button a person sees and the check the
- * server makes can never say different things.
+ * Money that MOVED — a capture at the gateway — makes the row a financial
+ * record: the shop's, the customer's and the gateway's, and no button in a
+ * back office gets to make one disappear. The honest end for those is
+ * CANCELLED, which keeps the row and says what happened.
+ *
+ * A hold is different, and it was not until 15 October. An authorisation
+ * freezes the sum on the customer's card and takes nothing; cancelling the
+ * order does not release it (nothing here can — it lapses on its own, see
+ * Payment.holdExpiresAt), so for up to twenty days the row is the only place
+ * that says why ₪1,800 is frozen on somebody's card. The owner asked to
+ * delete exactly such an order and could not, and "it took money" was the
+ * wrong answer: it took none. So a cancelled order whose hold is still
+ * running may go to the BIN — out of every list, still here for the phone
+ * call — and may be destroyed only once the hold has lapsed. A hold on an
+ * order that is not cancelled blocks both: bin the order and the hold is
+ * forgotten while the customer's money is still frozen.
+ *
+ * Shared by the list, the order page and all three bin actions so the
+ * button a person sees and the check the server makes can never say
+ * different things.
  */
+export type RemovablePayment = { provider: string; status: string; holdExpiresAt?: Date | null };
+
+/** Money moved: a real capture. */
 export function tookRealMoney(payments: { provider: string; status: string }[]): boolean {
-  return payments.some(
-    (p) => p.provider !== "DEMO" && (p.status === "CAPTURED" || p.status === "AUTHORIZED"),
+  return payments.some((p) => p.provider !== "DEMO" && p.status === "CAPTURED");
+}
+
+/** The hold that is still sitting on a customer's card, if any. */
+export function activeHold(payments: RemovablePayment[], now = new Date()): RemovablePayment | null {
+  return (
+    payments.find(
+      (p) => p.provider !== "DEMO" && p.status === "AUTHORIZED" && (!p.holdExpiresAt || p.holdExpiresAt > now),
+    ) ?? null
   );
 }
+
+export type RemovalRule = { canBin: boolean; canPurge: boolean; reason: string | null };
+
+export function removalRule(order: { status: string; payments: RemovablePayment[] }, now = new Date()): RemovalRule {
+  if (tookRealMoney(order.payments)) {
+    return {
+      canBin: false,
+      canPurge: false,
+      reason: "בהזמנה הזאת נגבה כסף אמיתי, ולכן אי אפשר למחוק אותה — זה רישום כספי. אפשר לבטל אותה, והביטול נשמר.",
+    };
+  }
+  const hold = activeHold(order.payments, now);
+  if (hold && order.status !== "CANCELLED") {
+    return {
+      canBin: false,
+      canPurge: false,
+      reason: "יש תפיסה פעילה בכרטיס של הלקוח. קודם מבטלים את ההזמנה; אחרי הביטול אפשר להעביר אותה לפח.",
+    };
+  }
+  if (hold) {
+    const until = hold.holdExpiresAt
+      ? new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "numeric", year: "numeric" }).format(hold.holdExpiresAt)
+      : null;
+    return {
+      canBin: true,
+      canPurge: false,
+      reason: `ההזמנה בוטלה, אבל התפיסה בכרטיס של הלקוח עדיין תקפה${until ? ` עד ${until}` : ""} — הכסף לא נגבה והוא ישתחרר מעצמו. עד אז אפשר להעביר לפח (יוצא מהרשימות, נשאר לרישום), ולמחוק לצמיתות רק אחרי שהתפיסה פוקעת.`,
+    };
+  }
+  return { canBin: true, canPurge: true, reason: null };
+}
+

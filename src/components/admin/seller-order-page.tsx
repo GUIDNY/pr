@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight, Truck, Store, Phone, Mail, AlertTriangle, Check, Loader2,
   Package, Clock, MessageSquare, CreditCard, Send, Undo2, Trash2, ExternalLink, Eye,
@@ -21,7 +22,7 @@ import { stageOf } from "@/lib/order-stage";
 import { formatPrice, formatDateTime } from "@/lib/format";
 import {
   approveOrderAction, closeOrderAction, markShippedAction, logManualWhatsappAction,
-  undoLastStatusAction, deleteOrderAction, resendNotificationAction, markPaidManuallyAction,
+  undoLastStatusAction, deleteOrderAction, resendNotificationAction, markPaidManuallyAction, trashOrdersAction,
 } from "@/actions/seller-orders";
 import { COURIERS } from "@/lib/couriers";
 import { describeTouch } from "@/lib/attribution";
@@ -43,6 +44,7 @@ import { describeTouch } from "@/lib/attribution";
  * offering the next one asks them to press it.
  */
 export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
+  const router = useRouter();
   const [pending, start] = useTransition();
   const whatsappAuto = order.readiness.some((c) => c.id === "WHATSAPP" && c.configured);
   const [error, setError] = useState<string | null>(null);
@@ -628,19 +630,39 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
       {/* ---- the exit for something that should not exist ---- */}
       <div className="border-border mt-2 rounded-2xl border border-dashed p-4">
         <p className="text-muted-foreground text-xs">
-          {order.canDelete
-            ? "מחיקה מוחקת את ההזמנה לגמרי ואי אפשר לשחזר. מיועדת להזמנות בדיקה ולטעויות שלא נגבה בהן כסף."
-            : "בהזמנה הזאת נגבה או נתפס כסף אמיתי, ולכן אי אפשר למחוק אותה — זה רישום כספי. אפשר לבטל אותה, והביטול נשמר."}
+          {order.removal.reason ??
+            "העברה לפח מוציאה את ההזמנה מכל הרשימות ואפשר לשחזר אותה. מחיקה לצמיתות מוחקת אותה לגמרי ומיועדת להזמנות בדיקה ולטעויות שלא נגבה בהן כסף."}
         </p>
-        <button
-          type="button"
-          disabled={pending || !order.canDelete || confirming !== "ready"}
-          onClick={() => run(() => deleteOrderAction(order.orderNumber))}
-          className="text-destructive hover:bg-destructive/10 mt-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
-        >
-          <Trash2 className="size-4" /> מחק את ההזמנה לצמיתות
-        </button>
-        {order.canDelete && confirming !== "ready" && (
+        {/* The bin, from the page itself: it used to be reachable only by
+            ticking a row in the list, and a person standing on a cancelled
+            order who wants it gone should not have to go and find it. */}
+        {order.removal.canBin && !order.deletedAt && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              run(async () => {
+                const result = await trashOrdersAction([order.orderNumber]);
+                if (result.success) router.push("/admin/orders");
+                return result;
+              })
+            }
+            className="border-border hover:bg-muted mt-2 flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-40"
+          >
+            <Trash2 className="size-4" /> העבר לפח
+          </button>
+        )}
+        {order.removal.canPurge && (
+          <button
+            type="button"
+            disabled={pending || confirming !== "ready"}
+            onClick={() => run(() => deleteOrderAction(order.orderNumber))}
+            className="text-destructive hover:bg-destructive/10 mt-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold disabled:opacity-40"
+          >
+            <Trash2 className="size-4" /> מחק את ההזמנה לצמיתות
+          </button>
+        )}
+        {order.removal.canPurge && confirming !== "ready" && (
           <button
             type="button"
             onClick={() => setConfirming("ready")}
