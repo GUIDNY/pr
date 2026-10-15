@@ -10,6 +10,7 @@ import { notifyOrder } from "@/lib/notify";
 import type { NotifyEvent } from "@/lib/notify/types";
 import { tookRealMoney } from "@/lib/queries/seller-orders";
 import { INTERNAL_DELIVERY_NAME } from "@/lib/couriers";
+import { MANUAL_PAYMENT_METHOD_LABELS, manualPaymentMethodSchema, type ManualPaymentMethod } from "@/lib/enums";
 
 /**
  * The two buttons on a salesperson's order card.
@@ -124,6 +125,93 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
   // After the order has moved, never before, and never inside a transaction
   // with it. A customer told their payment was approved when the update then
   // failed is worse than a customer told a minute late.
+  await notifyOrder(order.id, "PAYMENT_APPROVED");
+
+  revalidateSellerViews(orderNumber);
+  return { success: true, error: null, note };
+}
+
+/**
+ * "שולם ידנית" — the money arrived some other way than the gateway.
+ *
+ * The owner's case, 15 October: a customer abandoned the payment page and
+ * was then closed over the phone — card read out, or a transfer, or a bit.
+ * The order sat in "עגלות נטושות" as טרם שולם with no button that could say
+ * otherwise, and "אשר הזמנה" correctly refused it because no payment had
+ * ever opened.
+ *
+ * This records the payment the way the gateway would have, so everything
+ * downstream is the same as after a captured deposit: a CAPTURED Payment
+ * row (provider MANUAL — it took real money, so the bin refuses it like any
+ * other), the order's paymentStatus CAPTURED, status PROCESSING, the
+ * customer's "התשלום אושר" message, the loyalty points, and a history row
+ * naming who pressed it and how the customer paid. The amount is the
+ * order's total — a partial payment is not a paid order, and a different
+ * sum is an edit to the order first.
+ *
+ * Refused on an order the gateway already settled or refunded: a manual
+ * mark over a real charge would be two payments for one sale.
+ */
+export async function markPaidManuallyAction(
+  orderNumber: string,
+  input: { method: ManualPaymentMethod; reference?: string },
+): Promise<Result> {
+  const session = await requireBackOffice();
+  const parsed = manualPaymentMethodSchema.safeParse(input.method);
+  if (!parsed.success) return { success: false, error: "צריך לבחור איך הלקוח שילם." };
+  const method = parsed.data;
+  const reference = (input.reference ?? "").trim().slice(0, 80) || null;
+
+  const order = await db.order.findUnique({
+    where: { orderNumber },
+    select: { id: true, status: true, paymentStatus: true, total: true, deletedAt: true },
+  });
+  if (!order) return { success: false, error: "הזמנה לא נמצאה" };
+  if (order.deletedAt) return { success: false, error: "ההזמנה בפח. שחזרו אותה קודם." };
+  if (order.paymentStatus === "CAPTURED" || order.paymentStatus === "AUTHORIZED") {
+    return { success: false, error: "להזמנה הזאת כבר יש תשלום." };
+  }
+  if (order.paymentStatus === "REFUNDED" || order.status === "CANCELLED") {
+    return { success: false, error: "ההזמנה בוטלה או זוכתה. אי אפשר לסמן אותה כשולמה." };
+  }
+  if (!(order.total > 0)) return { success: false, error: "להזמנה אין סכום לתשלום." };
+
+  const label = MANUAL_PAYMENT_METHOD_LABELS[method];
+  const note = `סומן כשולם ידנית — ${label}${reference ? ` (${reference})` : ""}`;
+  const now = new Date();
+
+  await db.$transaction([
+    db.payment.create({
+      data: {
+        orderId: order.id,
+        provider: "MANUAL",
+        amount: order.total,
+        amountAgorot: Math.round(order.total * 100),
+        status: "CAPTURED",
+        reference,
+        capturedAt: now,
+        environment: "production",
+        rawResponse: { manual: { method, reference, by: session.sub, at: now.toISOString() } },
+      },
+    }),
+    db.order.update({
+      where: { id: order.id },
+      data: { paymentStatus: "CAPTURED", paymentMethod: method, status: "PROCESSING" },
+    }),
+    db.orderStatusHistory.create({
+      data: { orderId: order.id, fromStatus: order.status, toStatus: "PROCESSING", changedById: session.sub, note },
+    }),
+  ]);
+  await logAudit({
+    actorId: session.sub,
+    action: "ORDER_PAID_MANUALLY",
+    entityType: "Order",
+    entityId: order.id,
+    metadata: { from: order.status, method, reference, amount: order.total },
+  });
+  await awardPurchase(order.id);
+
+  // After the order has moved, never before — same reasoning as approve.
   await notifyOrder(order.id, "PAYMENT_APPROVED");
 
   revalidateSellerViews(orderNumber);

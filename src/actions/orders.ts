@@ -185,13 +185,20 @@ export async function createOrderAction(input: CheckoutInput) {
   });
 
   for (const item of summary.items) {
+    const product = (await db.product.findUnique({
+      where: { id: item.productId },
+      select: { sku: true, supplierCost: true },
+    }))!;
     await db.orderItem.create({
       data: {
         orderId: order.id,
         productId: item.productId,
         titleSnap: item.title,
-        skuSnap: (await db.product.findUnique({ where: { id: item.productId }, select: { sku: true } }))!.sku,
+        skuSnap: product.sku,
         priceSnap: item.price,
+        /* The cost on the day, so the dashboard's profit is the profit this
+           order actually made and not one re-read off a later price list. */
+        costSnap: product.supplierCost && product.supplierCost > 0 ? product.supplierCost : null,
         quantity: item.quantity,
       },
     });

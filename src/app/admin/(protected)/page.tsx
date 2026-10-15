@@ -48,6 +48,44 @@ export default async function AdminDashboardPage() {
         ))}
       </div>
 
+      {/* What the shop actually made, not what went through the till. The
+          revenue tiles above count the whole order; these count the goods
+          against their cost on the day, after discounts, and say what they
+          leave out. A line without a cost on record is flagged, never
+          assumed free. */}
+      <div className="border-border bg-card rounded-xl border p-5">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="font-semibold">רווח גולמי</h2>
+          <p className="text-muted-foreground text-xs">
+            מחיר מכירה פחות עלות ספק, אחרי הנחות · לפני משלוח, עמלת סליקה ומע״מ על הרווח
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {(
+            [
+              ["היום", stats.profit.today],
+              ["7 ימים", stats.profit.week],
+              ["30 ימים", stats.profit.month],
+            ] as const
+          ).map(([label, w]) => (
+            <div key={label} className="bg-muted/40 rounded-lg p-4">
+              <p className={`text-2xl font-bold tabular-nums ${w.profit < 0 ? "text-destructive" : ""}`}>
+                {formatPrice(Math.round(w.profit))}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                {label} · {w.orders} הזמנות · מחזור מוצרים {formatPrice(Math.round(w.revenue - w.discount))}
+                {w.revenue - w.discount > 0 ? ` · ${Math.round((w.profit / (w.revenue - w.discount)) * 100)}% רווח` : ""}
+              </p>
+              {w.missing > 0 && (
+                <p className="text-warning-foreground mt-1 text-xs">
+                  {w.missing} פריטים ללא עלות ספק — נספרו במחזור ולא בעלות
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="border-border bg-card rounded-xl border p-5 lg:col-span-2">
           <h2 className="mb-4 font-semibold">הכנסות - 7 ימים אחרונים</h2>

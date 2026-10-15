@@ -86,6 +86,36 @@ export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
   REFUNDED: "זוכה",
 };
 
+/**
+ * How an order was paid when it was not paid through the gateway: the
+ * salesperson took the card over the phone, the customer transferred, sent
+ * a bit, or paid cash at the counter. Chosen on the "שולם ידנית" button and
+ * stored in Order.paymentMethod beside the gateway's own value.
+ */
+export const MANUAL_PAYMENT_METHODS = ["PHONE_CARD", "BANK_TRANSFER", "BIT", "CASH"] as const;
+export type ManualPaymentMethod = (typeof MANUAL_PAYMENT_METHODS)[number];
+export const manualPaymentMethodSchema = z.enum(MANUAL_PAYMENT_METHODS);
+
+export const MANUAL_PAYMENT_METHOD_LABELS: Record<ManualPaymentMethod, string> = {
+  PHONE_CARD: "אשראי טלפוני",
+  BANK_TRANSFER: "העברה בנקאית",
+  BIT: "ביט",
+  CASH: "מזומן",
+};
+
+/** Every value Order.paymentMethod has carried, in Hebrew. The back office
+    printed the raw column — "PELECARD" on a Hebrew screen. */
+export const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  PELECARD: "כרטיס אשראי",
+  DEMO_CARD: "דמו",
+  CASH_ON_DELIVERY: "מזומן באספקה",
+  ...MANUAL_PAYMENT_METHOD_LABELS,
+};
+export function paymentMethodLabel(method: string | null | undefined): string {
+  if (!method) return "—";
+  return PAYMENT_METHOD_LABELS[method] ?? method;
+}
+
 export const PAYMENT_STATUS_COLORS: Record<PaymentStatus, string> = {
   PENDING: "bg-warning/15 text-warning-foreground",
   AUTHORIZED: "bg-accent text-accent-foreground",
