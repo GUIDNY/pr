@@ -820,6 +820,11 @@ model OrderItem {
   titleSnap String // product title snapshot at purchase time
   skuSnap   String
   priceSnap Float
+  // What the product cost us the day it was ordered (Product.supplierCost
+  // then). A snapshot, like the price, because the price list moves and a
+  // profit figure read off today's cost would drift under last month's
+  // orders. Null when the product had no cost on record.
+  costSnap  Float?
   quantity  Int
 
   @@index([orderId])

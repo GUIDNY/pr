@@ -8,13 +8,20 @@ import {
 } from "lucide-react";
 import type { SellerOrderDetail } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
-import { ORDER_STATUS_LABELS, type OrderStatus } from "@/lib/enums";
+import {
+  ORDER_STATUS_LABELS,
+  MANUAL_PAYMENT_METHODS,
+  MANUAL_PAYMENT_METHOD_LABELS,
+  paymentMethodLabel,
+  type ManualPaymentMethod,
+  type OrderStatus,
+} from "@/lib/enums";
 import { NOTIFY_CHANNEL_LABELS, NOTIFY_EVENT_LABELS } from "@/lib/notify/types";
 import { stageOf } from "@/lib/order-stage";
 import { formatPrice, formatDateTime } from "@/lib/format";
 import {
   approveOrderAction, closeOrderAction, markShippedAction, logManualWhatsappAction,
-  undoLastStatusAction, deleteOrderAction, resendNotificationAction,
+  undoLastStatusAction, deleteOrderAction, resendNotificationAction, markPaidManuallyAction,
 } from "@/actions/seller-orders";
 import { COURIERS } from "@/lib/couriers";
 import { describeTouch } from "@/lib/attribution";
@@ -49,6 +56,12 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
      a confirm() dialog: those are dismissed by muscle memory, and this is the
      only irreversible button on the page. */
   const [confirming, setConfirming] = useState<"idle" | "ready">("idle");
+  /* "שולם ידנית": how the customer paid and, optionally, a reference. Not a
+     one-click button, because it is the one action on this page that
+     invents money — the panel is the second look. */
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualMethod, setManualMethod] = useState<ManualPaymentMethod>("PHONE_CARD");
+  const [manualRef, setManualRef] = useState("");
 
   const signal = paymentSignal(order.paymentStatus);
   const stage = stageOf(order.status);
@@ -59,13 +72,23 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
     start(async () => {
       const result = await action();
       if (!result.success) setError(result.error);
-      else setShipOpen(false);
+      else {
+        setShipOpen(false);
+        setManualOpen(false);
+      }
     });
   }
 
   const needsApproval = stage === "open" && (order.paymentStatus === "AUTHORIZED" || order.paymentStatus === "CAPTURED");
   const canShip = stage === "processing" && order.status !== "SHIPPED" && order.paymentStatus === "CAPTURED";
   const canClose = stage === "processing" && order.paymentStatus === "CAPTURED";
+  /* The customer paid some other way — over the phone, a transfer, bit,
+     cash — and the gateway never heard of it. Offered wherever no payment
+     settled: the abandoned-cart tab is where these actually live. */
+  const canMarkPaid =
+    (stage === "open" || stage === "unpaid") &&
+    (order.paymentStatus === "PENDING" || order.paymentStatus === "FAILED") &&
+    order.status !== "CANCELLED";
 
   return (
     <div className="flex flex-col gap-4">
@@ -114,6 +137,16 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               {order.paymentStatus === "AUTHORIZED" ? "אשר תשלום וגבה" : "אשר הזמנה"}
             </button>
           )}
+          {canMarkPaid && !manualOpen && (
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => setManualOpen(true)}
+              className="bg-brand text-brand-foreground hover:bg-brand-hover flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-sm font-bold disabled:opacity-60"
+            >
+              <CreditCard className="size-4" /> שולם ידנית
+            </button>
+          )}
           {canShip && !shipOpen && (
             <button
               type="button"
@@ -150,6 +183,53 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
             </button>
           )}
         </div>
+
+        {manualOpen && (
+          <div className="border-border mt-3 flex flex-col gap-3 rounded-xl border p-3">
+            <p className="text-sm font-bold">איך הלקוח שילם {formatPrice(order.total)}?</p>
+            <div className="flex flex-wrap gap-2">
+              {MANUAL_PAYMENT_METHODS.map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setManualMethod(m)}
+                  className={`rounded-lg border px-3 py-1.5 text-sm ${
+                    manualMethod === m ? "border-brand bg-brand/10 font-bold" : "border-border hover:bg-muted"
+                  }`}
+                >
+                  {MANUAL_PAYMENT_METHOD_LABELS[m]}
+                </button>
+              ))}
+            </div>
+            <input
+              value={manualRef}
+              onChange={(e) => setManualRef(e.target.value)}
+              placeholder="אסמכתא (אופציונלי): מספר אישור, מספר העברה…"
+              className="border-input h-9 rounded-lg border px-3 text-sm"
+              maxLength={80}
+            />
+            <p className="text-muted-foreground text-xs">
+              ההזמנה תסומן כשולמה במלואה, תעבור לטיפול והלקוח יקבל הודעה שהתשלום אושר — בדיוק כמו אחרי גביית
+              דפוזיט.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  run(() => markPaidManuallyAction(order.orderNumber, { method: manualMethod, reference: manualRef }))
+                }
+                className="bg-brand text-brand-foreground hover:bg-brand-hover flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-60"
+              >
+                {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                אשר — התקבל תשלום של {formatPrice(order.total)}
+              </button>
+              <button type="button" onClick={() => setManualOpen(false)} className="border-border rounded-lg border px-4 py-2 text-sm">
+                ביטול
+              </button>
+            </div>
+          </div>
+        )}
 
         {shipOpen && (
           <div className="border-border mt-3 flex flex-col gap-2 rounded-xl border p-3">
@@ -328,7 +408,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
           <Field label="סה״כ להזמנה">
             <span className="font-black">{formatPrice(order.total)}</span>
           </Field>
-          <Field label="אמצעי תשלום">{order.paymentMethod ?? "—"}</Field>
+          <Field label="אמצעי תשלום">{paymentMethodLabel(order.paymentMethod)}</Field>
           {order.paid ? (
             <>
               <Field label={order.paymentStatus === "AUTHORIZED" ? "נתפס בכרטיס" : "נגבה בפועל"}>
