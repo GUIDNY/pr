@@ -15,6 +15,7 @@ import { InventoryTable } from "@/components/admin/inventory-table";
 import { InventoryProductDrawer } from "@/components/admin/inventory-product-drawer";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
 import { formatDateTime } from "@/lib/format";
+import { checkSyncFreshness } from "@/lib/inventory/sync-watchdog";
 import type { StockStatus } from "@/lib/enums";
 
 export const metadata = { title: "מרכז המלאי | Buy Today Admin" };
@@ -56,11 +57,15 @@ export default async function AdminInventoryPage({
     pageSize: PAGE_SIZE,
   };
 
-  const [summary, { products, total }, filterOptions, sheetCards] = await Promise.all([
+  const [summary, { products, total }, filterOptions, sheetCards, freshness] = await Promise.all([
     getInventorySummary(),
     getInventoryProducts(filters),
     getInventoryFilterOptions(),
     getSheetSummaryCards(sp.sourceId),
+    /* The same function the watchdog raises SYNC_STALE from, rather than a
+       second reading of the same timestamps — the one thing worse than no
+       indicator here would be one that disagrees with the alert. */
+    checkSyncFreshness(),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -79,6 +84,23 @@ export default async function AdminInventoryPage({
   const activeSources = filterOptions.sources.filter((s) => s.isActive);
   const activeSourcesCount = activeSources.length;
 
+  /* Worded from the missed runs and not from the hours, so that it says the
+     same thing as the alert: the agent reports at 07:30 and 15:30, and a
+     firing that lands while the office file server is off was never a
+     chance to report. The hours are printed anyway once it is late, because
+     "2 ריצות" is the fault and "26 שעות" is what it has cost. */
+  const hours = freshness.hoursSince === null ? null : Math.floor(freshness.hoursSince);
+  const contact = !freshness.lastSeenAt
+    ? { text: "לא נבדק מעולם", tone: "text-destructive font-semibold" }
+    : freshness.stale
+      ? {
+          text: `לא דווח כבר ${hours} שעות (${freshness.missedReports} ריצות)`,
+          tone: "text-destructive font-semibold",
+        }
+      : freshness.lagging
+        ? { text: `ריצה אחת לא התקיימה · נבדק ${timeAgo(freshness.lastSeenAt)}`, tone: "text-warning-foreground font-semibold" }
+        : { text: `נבדק ${timeAgo(freshness.lastSeenAt)}`, tone: "" };
+
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -89,7 +111,19 @@ export default async function AdminInventoryPage({
         <div className="flex flex-col items-end gap-1">
           {summary.latestRun && (
             <p className="text-muted-foreground text-xs">
-              סונכרן {timeAgo(summary.latestRun.startedAt)} · {activeSourcesCount} מקורות נתונים מחוברים
+              סונכרן {timeAgo(summary.latestRun.startedAt)} ·{" "}
+              {/* Two different facts, and conflating them is what cost a
+                  working day. "סונכרן" is the last run that imported
+                  something, and it stands still for as long as the supplier
+                  sends the same file — correctly. "נבדק" is the last time
+                  the machine in the office read the sheets and reached this
+                  server at all, changed or not, and that one should move
+                  twice a day no matter what the supplier does. A screen
+                  showing only the first looks identical on a quiet Sunday
+                  and on a Thursday when the office Mac has stopped, which
+                  is exactly the morning somebody sells against two-day-old
+                  stock. */}
+              <span className={contact.tone}>{contact.text}</span> · {activeSourcesCount} מקורות נתונים מחוברים
             </p>
           )}
           <div className="flex items-center gap-2">
