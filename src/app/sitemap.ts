@@ -8,6 +8,10 @@ import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
 import { WARRANTY_POLICY_UPDATED } from "@/lib/warranty-policy";
 import { TERMS_UPDATED } from "@/lib/content/terms";
 
+/* Same hourly refresh as the article list, for the same reason: an article
+   written by a script must reach the sitemap without waiting for a deploy. */
+export const revalidate = 3600;
+
 // One catalog this size (products + categories + articles) comfortably
 // fits under the 50k-URL-per-file cap a sitemap.xml is allowed, so this
 // stays a single file rather than the split-index pattern a bigger catalog

@@ -7,6 +7,13 @@ import { getPublishedArticles } from "@/lib/queries/articles";
 import { formatDate } from "@/lib/format";
 import { absoluteUrl } from "@/lib/site-url";
 
+/* Rendered at build and then refreshed hourly. Articles are written into
+   the database by scripts (seed-buying-guides) and not by a deploy, and
+   on 18 October three guides went live on their own URLs while this list
+   — and the sitemap — still showed only the one that happened to exist at
+   the last build. An hour is a small lag for a list; a deploy is not. */
+export const revalidate = 3600;
+
 const TITLE = "מדריכי קנייה ומאמרים";
 const DESCRIPTION = "מדריכי קנייה, טיפים והשוואות למוצרי חשמל ואלקטרוניקה — איך לבחור נכון לפני שקונים.";
 
