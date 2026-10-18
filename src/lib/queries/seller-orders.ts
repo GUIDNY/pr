@@ -450,7 +450,12 @@ export function removalRule(order: { status: string; payments: RemovablePayment[
   }
   if (hold) {
     const until = hold.holdExpiresAt
-      ? new Intl.DateTimeFormat("he-IL", { day: "numeric", month: "numeric", year: "numeric" }).format(hold.holdExpiresAt)
+      ? new Intl.DateTimeFormat("he-IL", {
+          timeZone: "Asia/Jerusalem",
+          day: "numeric",
+          month: "numeric",
+          year: "numeric",
+        }).format(hold.holdExpiresAt)
       : null;
     return {
       canBin: true,
