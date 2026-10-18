@@ -8,7 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { completeDebitByUid } from "@/lib/pelecard/client";
 import { notifyOrder } from "@/lib/notify";
 import type { NotifyEvent } from "@/lib/notify/types";
-import { tookRealMoney } from "@/lib/queries/seller-orders";
+import { removalRule } from "@/lib/queries/seller-orders";
 import { INTERNAL_DELIVERY_NAME } from "@/lib/couriers";
 import { MANUAL_PAYMENT_METHOD_LABELS, manualPaymentMethodSchema, type ManualPaymentMethod } from "@/lib/enums";
 
@@ -494,23 +494,16 @@ export async function deleteOrderAction(orderNumber: string): Promise<Result> {
     where: { orderNumber },
     select: {
       id: true,
+      status: true,
       total: true,
       paymentStatus: true,
-      payments: { select: { provider: true, status: true } },
+      payments: { select: { provider: true, status: true, holdExpiresAt: true } },
     },
   });
   if (!order) return { success: false, error: "הזמנה לא נמצאה" };
 
-  const tookRealMoney = order.payments.some(
-    (p) => p.provider !== "DEMO" && (p.status === "CAPTURED" || p.status === "AUTHORIZED"),
-  );
-  if (tookRealMoney) {
-    return {
-      success: false,
-      error: "אי אפשר למחוק הזמנה שנגבה או נתפס בה כסף אמיתי. אפשר לבטל אותה — הביטול נשמר ברישום.",
-    };
-  }
-
+  const rule = removalRule(order);
+  if (!rule.canPurge) return { success: false, error: rule.reason ?? "אי אפשר למחוק את ההזמנה הזאת." };
   // Written before the row goes, because afterwards there is nothing to point
   // at. Items, payments, notifications and history all cascade with it.
   await logAudit({
@@ -547,7 +540,7 @@ type BulkResult = Result & { count?: number };
 
 const LIMIT = 200;
 
-async function loadSelection(orderNumbers: string[], wantBinned: boolean) {
+async function loadSelection(orderNumbers: string[], wantBinned: boolean, mode: "bin" | "purge" = "bin") {
   const unique = [...new Set(orderNumbers.filter(Boolean))];
   if (unique.length === 0) return { error: "לא נבחרו הזמנות" as const, orders: [] };
   if (unique.length > LIMIT) return { error: `אפשר עד ${LIMIT} הזמנות בפעולה אחת`, orders: [] };
@@ -557,10 +550,11 @@ async function loadSelection(orderNumbers: string[], wantBinned: boolean) {
     select: {
       id: true,
       orderNumber: true,
+      status: true,
       total: true,
       paymentStatus: true,
       deletedAt: true,
-      payments: { select: { provider: true, status: true } },
+      payments: { select: { provider: true, status: true, holdExpiresAt: true } },
     },
   });
   if (orders.length !== unique.length) {
@@ -569,18 +563,22 @@ async function loadSelection(orderNumbers: string[], wantBinned: boolean) {
 
   /* Checked even on restore. The rule is about what the row is, not about
      which direction it is moving, and an order that took real money should
-     never have been in the bin to begin with. */
-  const paid = orders.filter((o) => tookRealMoney(o.payments));
-  if (paid.length > 0) {
+     never have been in the bin to begin with. Destroying asks the stricter
+     question: a cancelled order with a hold still on the card may sit in
+     the bin, and may not be purged until the hold lapses. */
+  const refused = orders.filter((o) => {
+    const rule = removalRule(o);
+    return mode === "purge" ? !rule.canPurge : !rule.canBin;
+  });
+  if (refused.length > 0) {
     return {
-      error: `נגבה כסף אמיתי ב-${paid.length} מההזמנות שנבחרו (${paid
+      error: `${refused.length} מההזמנות שנבחרו הן רישום כספי (${refused
         .slice(0, 3)
         .map((o) => o.orderNumber)
-        .join(", ")}${paid.length > 3 ? "…" : ""}). אלה רישומים כספיים — אפשר לבטל אותן, לא למחוק.`,
+        .join(", ")}${refused.length > 3 ? "…" : ""}). ${removalRule(refused[0]).reason ?? ""}`,
       orders: [],
     };
   }
-
   const wrongSide = orders.filter((o) => (o.deletedAt !== null) !== wantBinned);
   if (wrongSide.length > 0) {
     return { error: "חלק מההזמנות כבר לא במצב הזה — רענן את הדף", orders: [] };
@@ -648,7 +646,7 @@ export async function restoreOrdersAction(orderNumbers: string[]): Promise<BulkR
  */
 export async function purgeOrdersAction(orderNumbers: string[]): Promise<BulkResult> {
   const session = await requireBackOffice();
-  const { error, orders } = await loadSelection(orderNumbers, true);
+  const { error, orders } = await loadSelection(orderNumbers, true, "purge");
   if (error) return { success: false, error };
 
   for (const order of orders) {

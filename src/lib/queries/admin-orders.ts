@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { ORDER_STALE_AFTER_HOURS, type OrderStatus } from "@/lib/enums";
-import { tookRealMoney } from "@/lib/queries/seller-orders";
+import { removalRule } from "@/lib/queries/seller-orders";
 
 export type AdminOrderFilters = {
   search?: string;
@@ -55,7 +55,7 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
         assignedTo: true,
         /* Two columns, only to answer "may this one be binned" — the same
            question and the same rule as the seller list. */
-        payments: { select: { provider: true, status: true } },
+        payments: { select: { provider: true, status: true, holdExpiresAt: true } },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
@@ -78,7 +78,7 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
       ...order,
       hoursInStatus,
       isStale: staleAfter !== null && hoursInStatus > staleAfter,
-      canDelete: !tookRealMoney(order.payments),
+      canDelete: removalRule(order).canBin,
     };
   });
 
