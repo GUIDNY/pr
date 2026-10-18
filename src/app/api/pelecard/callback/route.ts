@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { rememberAddress } from "@/lib/address-book";
 import { retireGameCoupon } from "@/lib/game-wheel";
 import { awardPurchase } from "@/lib/game-levels";
+import { sendPurchaseToGa4 } from "@/lib/analytics/ga4-purchase";
 import { timingSafeEqual as nodeTimingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import {
@@ -358,6 +359,9 @@ export async function POST(req: Request) {
   await retireGameCoupon(order.couponCode);
   // the club: cashback on this order, and any level gift it reaches
   await awardPurchase(orderId);
+  // GA4's revenue, from the server, whatever the visitor said to the banner.
+  // A hold is not a purchase yet; it is reported when it is captured.
+  if (!held) await sendPurchaseToGa4(orderId);
 
   /* The payment is real, so the address it was paid for goes into the
      account's address book now, once (rememberAddress reuses an identical

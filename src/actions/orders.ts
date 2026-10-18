@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
+import { currentVisitSid } from "@/lib/pageview/visit.server";
 import { getCart, getOrCreateCart } from "@/lib/cart";
 import { getSession, getCurrentUser } from "@/lib/auth";
 import { buildCartSummary } from "@/lib/cart-summary";
@@ -157,6 +158,9 @@ export async function createOrderAction(input: CheckoutInput) {
         undefined,
       // The tick beside the phone field. Missing (an older client) means yes,
       // which is what the column defaults to as well.
+      // The visit this was placed in, so the path log can be read up to the
+      // sale. See lib/pageview.
+      visitSid: await currentVisitSid(),
       whatsappOptIn: data.whatsappOptIn ?? true,
       // Consent to advertising is never assumed: missing means no.
       marketingOptIn: data.marketingOptIn === true,

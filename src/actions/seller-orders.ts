@@ -11,6 +11,7 @@ import type { NotifyEvent } from "@/lib/notify/types";
 import { removalRule } from "@/lib/queries/seller-orders";
 import { INTERNAL_DELIVERY_NAME } from "@/lib/couriers";
 import { MANUAL_PAYMENT_METHOD_LABELS, manualPaymentMethodSchema, type ManualPaymentMethod } from "@/lib/enums";
+import { sendPurchaseToGa4 } from "@/lib/analytics/ga4-purchase";
 
 /**
  * The two buttons on a salesperson's order card.
@@ -99,6 +100,7 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
     ]);
     note = "הדפוזיט נגבה ואושר לטיפול";
     await awardPurchase(order.id);
+    await sendPurchaseToGa4(order.id);
   }
 
   // PROCESSING and not PAID: PAID is what the gateway says, and overwriting it
@@ -210,6 +212,7 @@ export async function markPaidManuallyAction(
     metadata: { from: order.status, method, reference, amount: order.total },
   });
   await awardPurchase(order.id);
+  await sendPurchaseToGa4(order.id);
 
   // After the order has moved, never before — same reasoning as approve.
   await notifyOrder(order.id, "PAYMENT_APPROVED");

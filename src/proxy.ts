@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import type { NextFetchEvent, NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import {
   LEGACY_PRODUCT_SLUGS,
   LEGACY_BRAND_SLUGS,
 } from "@/generated/legacy-slugs";
 import { MALL_PASS_COOKIE, verifyMallPass } from "@/lib/mall-access";
+import { pageViewFromRequest } from "@/lib/pageview/capture";
+import { resolveSid, serializeSid, SID_COOKIE, SID_IDLE_SECONDS } from "@/lib/pageview/sid";
 
 // The one thing that runs before the cache.
 //
@@ -34,7 +36,53 @@ import { MALL_PASS_COOKIE, verifyMallPass } from "@/lib/mall-access";
 // including the ones that were about to be a cache hit.
 const SESSION_COOKIE = "prec_session";
 
-export async function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest, event: NextFetchEvent) {
+  const response = await route(request);
+  logPageView(request, response, event);
+  return response;
+}
+
+/**
+ * The first-party path log — see lib/pageview for what is and is not kept.
+ *
+ * Here, and not in the page, because this is the one place that sees both a
+ * full load and an App Router navigation (which is an RSC fetch that passes
+ * through the proxy). It costs one cookie refresh and one fire-and-forget
+ * POST per page view; the page never waits for it, and a failed log is a
+ * failed log, never a failed page. Redirects are not logged — the request
+ * that follows them is. The visit cookie is set on every logged response so
+ * the 30-minute idle clock restarts with each page.
+ */
+function logPageView(request: NextRequest, response: NextResponse, event: NextFetchEvent) {
+  if (response.status >= 300) return;
+  const view = pageViewFromRequest({
+    pathname: request.nextUrl.pathname,
+    search: request.nextUrl.search,
+    headers: request.headers,
+  });
+  if (!view) return;
+
+  const sid = resolveSid(request.cookies.get(SID_COOKIE)?.value);
+  response.cookies.set(SID_COOKIE, serializeSid(sid), {
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: SID_IDLE_SECONDS,
+  });
+
+  const secret = process.env.PV_SECRET || process.env.INTERNAL_API_KEY;
+  if (!secret) return;
+  event.waitUntil(
+    fetch(new URL("/api/internal/pv", request.url), {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-pv-secret": secret },
+      body: JSON.stringify({ sid: sid.id, ...view }),
+    }).catch(() => {}),
+  );
+}
+
+async function route(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   // The 3D mall at /mall (the iOS app's address for it) is private while the
@@ -227,13 +275,15 @@ function rewriteSegment(
   return NextResponse.rewrite(url);
 }
 
+/* Every page, so the path log sees every page. Assets, the data routes, the
+   feeds, the image route and the back office are excluded here — before the
+   function runs at all — and lib/pageview/capture.ts refuses the same set
+   again for anything that slips through (a path with no extension under a
+   new prefix, say). The routing above still keys on its own prefixes, so a
+   request this matcher newly admits falls straight through to
+   NextResponse.next() with nothing but the log. */
 export const config = {
   matcher: [
-    "/product/:slug",
-    "/category/:slug",
-    "/brand/:slug",
-    "/account/:path*",
-    "/mall",
-    "/mall/:path*",
+    "/((?!api/|_next/|feeds/|img/|admin|favicon|\\.well-known/|.*\\.(?:ico|png|jpe?g|gif|webp|avif|svg|css|js|mjs|map|txt|xml|json|webmanifest|woff2?|ttf|otf|mp4|webm|pdf)$).*)",
   ],
 };

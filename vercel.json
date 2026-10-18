@@ -10,6 +10,10 @@
     {
       "path": "/api/inventory/watchdog",
       "schedule": "0 */3 * * *"
+    },
+    {
+      "path": "/api/internal/pv-rollup",
+      "schedule": "20 1 * * *"
     }
   ]
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { currentVisitSid } from "@/lib/pageview/visit.server";
 import { randomUUID } from "crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
@@ -209,7 +210,10 @@ export async function getOrCreateCart() {
     maxAge: CART_COOKIE_TTL,
   });
 
-  return db.cart.create({ data: { sessionId: sid, attribution: await currentAttribution() }, include: cartInclude });
+  return db.cart.create({
+    data: { sessionId: sid, attribution: await currentAttribution(), visitSid: await currentVisitSid() },
+    include: cartInclude,
+  });
 }
 
 /** Where this visitor came from, as the browser recorded it — see
