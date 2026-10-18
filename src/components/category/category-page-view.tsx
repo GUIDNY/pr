@@ -22,6 +22,7 @@ import { PackageSearch, BookOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GuideIntro } from "@/components/category/guide-intro";
 import { JsonLd } from "@/components/seo/json-ld";
+import { GaViewItemList } from "@/components/analytics/ga-events";
 import { breadcrumbSchema, itemListSchema } from "@/lib/schema";
 
 /* Five cards to a row on a desktop, so a page is a multiple of five (and of
@@ -165,6 +166,9 @@ export async function CategoryPageView({
     <div className="mx-auto max-w-7xl px-4 py-6">
       <JsonLd data={breadcrumbSchema(trail)} />
       {products.length > 0 && <JsonLd data={itemListSchema(category.name, products)} />}
+      {/* The same list GA4 gets, with the same positions — one event per
+          rendered page of results, never one per card. */}
+      <GaViewItemList listId={`category_${category.slug}`} listName={category.name} products={products} />
       {/* The chain between the pages, stated in the head (React hoists a
           <link> rendered here). The numbered links below are the same
           chain for a reader; this is the one a crawler reads first, and

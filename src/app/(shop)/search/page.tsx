@@ -2,6 +2,7 @@ import { Search as SearchIcon } from "lucide-react";
 import { ProductCard } from "@/components/product/product-card";
 import { searchProducts } from "@/lib/queries/products";
 import { MetaSearch } from "@/components/analytics/meta-events";
+import { GaViewItemList } from "@/components/analytics/ga-events";
 
 export const metadata = { title: "תוצאות חיפוש" };
 
@@ -16,6 +17,7 @@ export default async function SearchPage({
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <MetaSearch query={q} resultSkus={products.map((p) => p.sku)} />
+      <GaViewItemList listId="search_results" listName="תוצאות חיפוש" products={products} />
       <div className="mb-6 flex items-center gap-2">
         <SearchIcon className="text-muted-foreground size-5" />
         <h1 className="text-xl font-bold">

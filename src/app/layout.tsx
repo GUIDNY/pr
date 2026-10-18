@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { SessionSummaryProvider } from "@/components/layout/session-summary-provider";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { AttributionCapture } from "@/components/analytics/attribution-capture";
+import { GoogleTagManager } from "@/components/analytics/google-tag-manager";
 import { PathLog } from "@/components/analytics/path-log";
 import { NativeViewport } from "@/components/layout/native-viewport";
 import { Clarity } from "@/components/analytics/clarity";
@@ -163,6 +164,7 @@ export default function RootLayout({
             <MallBridge />
             <Toaster position="top-center" richColors />
             <GoogleAnalytics />
+            <GoogleTagManager />
             <Clarity />
             <MetaPixel />
             <AttributionCapture />

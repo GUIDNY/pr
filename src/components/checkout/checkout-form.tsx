@@ -26,6 +26,8 @@ import SiApplepay from "@icons-pack/react-simple-icons/icons/SiApplepay";
 import SiGooglepay from "@icons-pack/react-simple-icons/icons/SiGooglepay";
 import { useCartStore } from "@/stores/cart-store";
 import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
+import { GaBeginCheckout } from "@/components/analytics/ga-events";
+import { readGaIds } from "@/lib/analytics/ga";
 import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/orders";
 import {
   applyCouponAction,
@@ -475,6 +477,11 @@ export function CheckoutForm({
         ...form,
         paymentMethod:
           payViaGateway && form.paymentMethod === "DEMO_CARD" ? "PELECARD" : form.paymentMethod,
+        /* GA4's own ids for this browser, when it has any (consent given),
+           so the server-side purchase report carries the same client as
+           the browser's and GA4 counts the sale once — see lib/analytics/ga.ts.
+           Not personal data: two numbers GA4 minted for this browser. */
+        ...readGaIds(process.env.NEXT_PUBLIC_GA_ID),
       };
       const result = await createOrderAction(payload as CheckoutInput);
       if (!result.success) {
@@ -521,6 +528,17 @@ export function CheckoutForm({
       <MetaInitiateCheckout
         value={cart.total}
         contents={cart.items.map((i) => ({ id: i.sku, quantity: i.quantity }))}
+      />
+      <GaBeginCheckout
+        lines={cart.items.map((i) => ({
+          sku: i.sku,
+          title: i.title,
+          price: i.price,
+          compareAtPrice: i.compareAtPrice,
+          brandName: i.brandName,
+          quantity: i.quantity,
+        }))}
+        coupon={cart.couponCode}
       />
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-bold">תשלום</h1>

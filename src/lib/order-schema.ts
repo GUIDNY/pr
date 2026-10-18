@@ -23,6 +23,10 @@ export const checkoutSchema = z.object({
   whatsappOptIn: z.boolean().optional(),
   /** Consent to advertising — the unticked box under the phone field. */
   marketingOptIn: z.boolean().optional(),
+  /** GA4's client and session ids from its cookies (lib/analytics/ga.ts),
+      present only when the visitor consented to measurement. */
+  gaClientId: z.string().max(64).regex(/^[\d.]+$/).nullable().optional(),
+  gaSessionId: z.string().max(32).regex(/^\d+$/).nullable().optional(),
 }).refine(
   (data) => data.deliveryMethod !== "DELIVERY" || (data.city && data.street && data.houseNo),
   { message: "יש להזין כתובת מלאה למשלוח", path: ["city"] }

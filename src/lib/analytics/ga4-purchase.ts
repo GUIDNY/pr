@@ -7,11 +7,21 @@ import { db } from "@/lib/db";
  *
  * The browser's purchase event fires only for a visitor who agreed to be
  * measured, so GA4's revenue undercounted by exactly the share who did not.
- * The Measurement Protocol sends the same event from here, once per order,
- * with no client identity at all: the client_id is a hash of the order
- * number, which identifies the order to GA4 and nothing else. GA4 will
- * therefore not tie the purchase to a session — that is the point — but it
- * will count the money.
+ * The Measurement Protocol sends the same event from here, once per order.
+ *
+ * Under which identity matters. When the browser consented, the checkout
+ * stored GA4's own client_id and session_id from its cookies on the order
+ * (lib/analytics/ga.ts), and this report is sent as that client: the
+ * browser's purchase event (GaPurchase) and this one then share
+ * transaction_id AND client_id, which is the condition under which GA4
+ * counts them once — and the sale stays attributed to the session and the
+ * campaign that brought it. Without consent there is no cookie, the id is a
+ * hash of the order number, and the money is counted unattributed. Either
+ * way an ad blocker that ate the browser's event is covered from here.
+ *
+ * value is the goods after discount and shipping is apart, the same
+ * convention as the browser's event — the two must agree or GA4 keeps
+ * whichever arrived first, with the other's numbers lost.
  *
  * Silent when GA4_API_SECRET or NEXT_PUBLIC_GA_ID is unset, and never
  * throws: a report is not worth a failed payment path. ga4PurchaseSentAt is
@@ -27,16 +37,19 @@ export async function sendPurchaseToGa4(orderId: string): Promise<void> {
       where: { id: orderId },
       select: {
         orderNumber: true,
-        total: true,
+        subtotal: true,
+        discountTotal: true,
         deliveryFee: true,
         couponCode: true,
+        gaClientId: true,
+        gaSessionId: true,
         ga4PurchaseSentAt: true,
         items: { select: { skuSnap: true, titleSnap: true, priceSnap: true, quantity: true } },
       },
     });
     if (!order || order.ga4PurchaseSentAt) return;
 
-    const clientId = createHash("sha256").update(`ga4:${order.orderNumber}`).digest("hex").slice(0, 32);
+    const clientId = order.gaClientId ?? createHash("sha256").update(`ga4:${order.orderNumber}`).digest("hex").slice(0, 32);
     const payload = {
       client_id: clientId,
       non_personalized_ads: true,
@@ -44,8 +57,9 @@ export async function sendPurchaseToGa4(orderId: string): Promise<void> {
         {
           name: "purchase",
           params: {
+            ...(order.gaSessionId ? { session_id: order.gaSessionId, engagement_time_msec: 1 } : {}),
             transaction_id: order.orderNumber,
-            value: Number(order.total.toFixed(2)),
+            value: Number((order.subtotal - order.discountTotal).toFixed(2)),
             currency: "ILS",
             shipping: Number(order.deliveryFee.toFixed(2)),
             ...(order.couponCode ? { coupon: order.couponCode } : {}),

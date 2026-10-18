@@ -747,6 +747,11 @@ model Order {
   /// The visit (bt_sid, lib/pageview) the order was placed in — joins the
   /// page-view log to the sale. Lapses within 24 hours by design.
   visitSid           String?
+  /// GA4's client and session ids from the browser that placed the order,
+  /// so the server-side purchase report is the same client as the browser's
+  /// and GA4 deduplicates the two. Null without consent.
+  gaClientId         String?
+  gaSessionId        String?
   /// GA4 Measurement Protocol purchase sent for this order (once only).
   ga4PurchaseSentAt  DateTime?
   /// The customer's answer to "updates on WhatsApp too?" for this order.

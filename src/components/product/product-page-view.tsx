@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/seo/json-ld";
 import { MetaViewContent } from "@/components/analytics/meta-events";
+import { GaViewItem } from "@/components/analytics/ga-events";
 import { breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
 import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw } from "lucide-react";
@@ -424,7 +425,20 @@ export async function ProductPageView({
           would otherwise teach the ad platform to find more people like its
           own employees. */}
       {!isAdminViewer && (
-        <MetaViewContent sku={product.sku} price={product.price} title={product.title} />
+        <>
+          <MetaViewContent sku={product.sku} price={product.price} title={product.title} />
+          <GaViewItem
+            product={{
+              sku: product.sku,
+              title: product.title,
+              price: product.price,
+              compareAtPrice: product.compareAtPrice,
+              brandName: product.brand.name,
+              category: product.category.parent?.name ?? product.category.name,
+              category2: product.category.parent ? product.category.name : null,
+            }}
+          />
+        </>
       )}
 
       <Breadcrumb>

@@ -161,6 +161,8 @@ export async function createOrderAction(input: CheckoutInput) {
       // The visit this was placed in, so the path log can be read up to the
       // sale. See lib/pageview.
       visitSid: await currentVisitSid(),
+      gaClientId: data.gaClientId ?? null,
+      gaSessionId: data.gaSessionId ?? null,
       whatsappOptIn: data.whatsappOptIn ?? true,
       // Consent to advertising is never assumed: missing means no.
       marketingOptIn: data.marketingOptIn === true,

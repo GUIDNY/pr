@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { addToCartAction } from "@/actions/cart";
 import { useCartStore } from "@/stores/cart-store";
 import { META_CURRENCY, trackMeta } from "@/lib/analytics/meta";
+import { pushEcommerce, toAnalyticsItem, itemsValue } from "@/lib/analytics/ga";
 import { reportAddedToMall } from "@/lib/mall";
 import { cn } from "@/lib/utils";
 
@@ -77,12 +78,18 @@ export function AddToCartButton({
  * every extra item and stop meaning anything.
  */
 function reportAddToCart(
-  summary: { items: { productId: string; sku: string; price: number }[] },
+  summary: {
+    items: { productId: string; sku: string; title: string; price: number; compareAtPrice: number | null; brandName: string }[];
+  },
   productId: string,
   qty: number,
 ) {
   const line = summary.items.find((i) => i.productId === productId);
   if (!line) return;
+  /* GA4, with the quantity added now and the server's price for it — the
+     same reasoning as the Meta event below. */
+  const items = [toAnalyticsItem(line, { quantity: qty })];
+  pushEcommerce("add_to_cart", { value: itemsValue(items), items });
   trackMeta("AddToCart", {
     content_ids: [line.sku],
     contents: [{ id: line.sku, quantity: qty }],

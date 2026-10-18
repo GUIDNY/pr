@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Minus, Plus, ShoppingCart, Trash2, Truck, X } from "lucide-react";
@@ -24,11 +24,28 @@ import {
   removeCouponAction,
 } from "@/actions/cart";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
+import { pushEcommerce, toAnalyticsItem, itemsValue } from "@/lib/analytics/ga";
 
 export function CartDrawer() {
   const { cart, isDrawerOpen, closeDrawer, setCart, setPending, isPending } = useCartStore();
   const [couponInput, setCouponInput] = useState("");
   const [, startTransition] = useTransition();
+
+  /* view_cart each time the drawer opens with something in it — the
+     cart's contents as the server last priced them. */
+  useEffect(() => {
+    if (!isDrawerOpen || cart.items.length === 0) return;
+    const items = cart.items.map((i) => toAnalyticsItem(i, { quantity: i.quantity }));
+    pushEcommerce("view_cart", { value: itemsValue(items), items });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDrawerOpen]);
+
+  /* Reported before the server removes it, with the line as it was: after
+     the action returns there is no line left to describe. */
+  function reportRemove(item: (typeof cart.items)[number]) {
+    const items = [toAnalyticsItem(item, { quantity: item.quantity })];
+    pushEcommerce("remove_from_cart", { value: itemsValue(items), items });
+  }
 
   function runAction(promise: Promise<Awaited<ReturnType<typeof updateCartItemAction>>>) {
     setPending(true);
@@ -90,7 +107,10 @@ export function CartDrawer() {
                           {item.title}
                         </Link>
                         <button
-                          onClick={() => runAction(removeCartItemAction(item.id))}
+                          onClick={() => {
+                            reportRemove(item);
+                            runAction(removeCartItemAction(item.id));
+                          }}
                           className="text-muted-foreground hover:text-destructive shrink-0"
                           aria-label="הסר מהעגלה"
                         >
