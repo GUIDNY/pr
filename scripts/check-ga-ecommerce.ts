@@ -20,7 +20,7 @@ const g = globalThis as unknown as Record<string, unknown>;
 g.window = g;
 g.document = { cookie: "_ga=GA1.1.1234567890.1700000000; _ga_Y2TT301GB2=GS1.1.1760000000.3.1.1760000100.0.0.0; other=x" };
 g.localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
-g.navigator = { userAgent: "Mozilla/5.0 test" };
+Object.defineProperty(g, "navigator", { value: { userAgent: "Mozilla/5.0 test" }, configurable: true });
 
 const { pushEcommerce, toAnalyticsItem, itemsValue, readGaIds } = await import("../src/lib/analytics/ga");
 
