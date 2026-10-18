@@ -121,30 +121,34 @@ export function CookieNotice() {
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:flex-nowrap">
         <Cookie className="text-brand hidden size-5 shrink-0 sm:block" aria-hidden="true" />
         <p className="text-muted-foreground min-w-0 flex-1 text-xs leading-snug sm:text-sm">
-          לתפעול האתר יש רק שתי עוגיות הכרחיות (התחברות ועגלה). מדידת שימוש ופרסום דרך Google Analytics,
-          Microsoft Clarity ו־Meta Pixel נטענים רק אם תאשרו, ואפשר לשנות את הבחירה בכל רגע.{" "}
+          לתפעול האתר יש רק עוגיות הכרחיות (התחברות, עגלה ומזהה גלישה זמני). אישור מדידה דרך Google Analytics,
+          Microsoft Clarity ו־Meta Pixel עוזר לנו להבין מה עובד באתר ולשפר אותו; שום דבר לא נטען בלי אישורכם,
+          ואפשר לשנות את הבחירה בכל רגע.{" "}
           <Link href="/privacy" className="text-brand underline underline-offset-2">
             למדיניות הפרטיות
           </Link>
         </p>
-        {/* Same size, same row, same weight. The refusal is not a faint link
-            beside a big coloured button — that is the pattern this replaces.
-            Below sm: the pair takes its own full-width row under the text,
-            each button half of it, so both stay a full-size touch target. */}
+        {/* Same size, same row, same weight, one click each. "מאשר" comes
+            first in reading order (18 October) and carries the brand colour;
+            the refusal is the same height, the same width and the same font
+            beside it — not a faint link, not a smaller button, not a second
+            step. Making the no harder than the yes is the pattern this bar
+            exists to not be. Below sm: the pair takes its own full-width row
+            under the text, each button half of it. */}
         <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
-          <button
-            type="button"
-            onClick={decline}
-            className="bg-muted text-foreground hover:bg-muted/70 border-border flex-1 rounded-lg border px-4 py-1.5 text-sm font-medium sm:min-w-24 sm:flex-none"
-          >
-            לא מאשר
-          </button>
           <button
             type="button"
             onClick={accept}
             className="bg-brand text-brand-foreground hover:bg-brand-hover border-brand flex-1 rounded-lg border px-4 py-1.5 text-sm font-medium sm:min-w-24 sm:flex-none"
           >
             מאשר
+          </button>
+          <button
+            type="button"
+            onClick={decline}
+            className="bg-muted text-foreground hover:bg-muted/70 border-border flex-1 rounded-lg border px-4 py-1.5 text-sm font-medium sm:min-w-24 sm:flex-none"
+          >
+            לא מאשר
           </button>
         </div>
       </div>
