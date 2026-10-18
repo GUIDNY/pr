@@ -199,7 +199,7 @@ export function ProductGallery({
             href={active.sourcePageUrl}
             target="_blank"
             rel="noopener noreferrer"
-            title={[active.sourceDomain, active.capturedAt ? `נשמר ${new Date(active.capturedAt).toLocaleDateString("he-IL")}` : null]
+            title={[active.sourceDomain, active.capturedAt ? `נשמר ${new Date(active.capturedAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}` : null]
               .filter(Boolean)
               .join(" · ")}
             className="bg-background/90 text-foreground hover:text-brand absolute bottom-3 start-3 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium shadow"

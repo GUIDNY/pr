@@ -53,6 +53,7 @@
     "check:article-faq": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed-article-faq.ts",
     "fix:article-faq": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed-article-faq.ts --write",
     "check:watchdog": "tsx scripts/check-sync-watchdog.ts",
+    "check:dates": "TZ=UTC tsx scripts/check-dates.ts",
     "check:dimensions": "tsx scripts/backfill-dimension-specs.ts",
     "fix:dimensions": "tsx scripts/backfill-dimension-specs.ts --write",
     "check:leaf-categories": "tsx scripts/check-leaf-categories.ts",

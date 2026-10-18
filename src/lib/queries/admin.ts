@@ -105,7 +105,7 @@ export async function getDashboardStats() {
   }
   const revenueByDay = Array.from(dayBuckets.entries()).map(([date, total]) => ({
     date,
-    label: new Intl.DateTimeFormat("he-IL", { weekday: "short" }).format(new Date(date)),
+    label: new Intl.DateTimeFormat("he-IL", { timeZone: "Asia/Jerusalem", weekday: "short" }).format(new Date(date)),
     total,
   }));
 

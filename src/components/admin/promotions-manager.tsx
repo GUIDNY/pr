@@ -157,8 +157,8 @@ function discountText(p: { type: string; value: number; maxDiscount: number | nu
 function conditionsText(p: AdminPromotion): string {
   const parts: string[] = [];
   if (p.minCartAmount) parts.push(`מעל ${formatPrice(p.minCartAmount)}`);
-  if (p.startsAt) parts.push(`מ‑${new Date(p.startsAt).toLocaleDateString("he-IL")}`);
-  if (p.endsAt) parts.push(`עד ${new Date(p.endsAt).toLocaleDateString("he-IL")}`);
+  if (p.startsAt) parts.push(`מ‑${new Date(p.startsAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`);
+  if (p.endsAt) parts.push(`עד ${new Date(p.endsAt).toLocaleDateString("he-IL", { timeZone: "Asia/Jerusalem" })}`);
   if (p.firstOrderOnly) parts.push("הזמנה ראשונה");
   if (p.membersOnly) parts.push("לרשומים בלבד");
   if (p.perCustomerLimit) parts.push(p.perCustomerLimit === 1 ? "פעם אחת ללקוח" : `${p.perCustomerLimit} ללקוח`);
