@@ -45,13 +45,16 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
 /**
  * The first-party path log — see lib/pageview for what is and is not kept.
  *
- * Here, and not in the page, because this is the one place that sees both a
- * full load and an App Router navigation (which is an RSC fetch that passes
- * through the proxy). It costs one cookie refresh and one fire-and-forget
- * POST per page view; the page never waits for it, and a failed log is a
- * failed log, never a failed page. Redirects are not logged — the request
- * that follows them is. The visit cookie is set on every logged response so
- * the 30-minute idle clock restarts with each page.
+ * Full document loads are logged here, before the cache, which is what
+ * every crawler and every arrival from outside sends. In-app navigations do
+ * not reliably reach the server at all (the router renders prefetched pages
+ * from its own cache), so those are reported by the page — see
+ * components/analytics/path-log.tsx and api/internal/pv/nav. It costs one
+ * cookie refresh and one fire-and-forget POST per page view; the page never
+ * waits for it, and a failed log is a failed log, never a failed page.
+ * Redirects are not logged — the request that follows them is. The visit
+ * cookie is set on every logged response so the 30-minute idle clock
+ * restarts with each page.
  */
 function logPageView(request: NextRequest, response: NextResponse, event: NextFetchEvent) {
   if (response.status >= 300) return;

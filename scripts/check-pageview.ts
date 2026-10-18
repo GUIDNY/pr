@@ -5,7 +5,14 @@
  *
  *   npm run check:pageview
  */
-import { pageViewFromRequest, keptQuery, trimReferrer, deviceClass, isSkippedPath } from "../src/lib/pageview/capture";
+import {
+  pageViewFromRequest,
+  pageViewFromNavigation,
+  keptQuery,
+  trimReferrer,
+  deviceClass,
+  isSkippedPath,
+} from "../src/lib/pageview/capture";
 import { parseSid, resolveSid, serializeSid, SID_IDLE_SECONDS, SID_MAX_SECONDS } from "../src/lib/pageview/sid";
 
 let failures = 0;
@@ -23,7 +30,7 @@ const html = { accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/
 
 console.log("\nwhat is a page view");
 is("a full page load is logged", !!pageViewFromRequest({ pathname: "/product/x", search: "", headers: headers({ ...html, "user-agent": CHROME }) }), true);
-is("an in-app navigation (RSC) is logged and flagged", pageViewFromRequest({ pathname: "/category/tvs", search: "", headers: headers({ rsc: "1", accept: "*/*", "user-agent": CHROME }) })?.isRsc, true);
+is("an RSC fetch is not logged at the proxy (the page reports navigations)", pageViewFromRequest({ pathname: "/category/tvs", search: "", headers: headers({ rsc: "1", accept: "*/*", "user-agent": CHROME }) }), null);
 is("a hover prefetch is not", pageViewFromRequest({ pathname: "/product/x", search: "", headers: headers({ rsc: "1", "next-router-prefetch": "1", "user-agent": CHROME }) }), null);
 is("a purpose: prefetch is not", pageViewFromRequest({ pathname: "/product/x", search: "", headers: headers({ ...html, purpose: "prefetch", "user-agent": CHROME }) }), null);
 is("a non-document request is not", pageViewFromRequest({ pathname: "/product/x", search: "", headers: headers({ accept: "*/*", "user-agent": CHROME }) }), null);
@@ -50,6 +57,21 @@ is("a desktop is desktop", deviceClass(CHROME), "desktop");
 is("no query means null", keptQuery(""), null);
 is("a junk referrer is null", trimReferrer("javascript:void(0)"), null);
 is("nothing in the record names the person", Object.keys(view).sort(), ["country", "device", "isBot", "isRsc", "path", "query", "referrer"]);
+
+console.log("\nin-app navigations, as the page reports them");
+const nav = pageViewFromNavigation(
+  { path: "/product/x", search: "?utm_source=a&email=b", from: "/category/tvs" },
+  headers({ "user-agent": IPHONE, "x-vercel-ip-country": "il" }),
+  "buytoday.co.il",
+)!;
+is("logged and flagged as a navigation", nav.isRsc, true);
+is("the path it left stands in for the referrer", nav.referrer, "buytoday.co.il/category/tvs");
+is("query is still allow-listed", nav.query, "utm_source=a");
+is("device and country still come from the request", [nav.device, nav.country], ["mobile", "IL"]);
+is("a path with a host in it is refused", pageViewFromNavigation({ path: "//evil.com/x" }, headers({}), "h"), null);
+is("a path that is not a path is refused", pageViewFromNavigation({ path: "javascript:alert(1)" }, headers({}), "h"), null);
+is("the back office is refused here too", pageViewFromNavigation({ path: "/admin/orders" }, headers({}), "h"), null);
+is("a junk 'from' is dropped, not stored", pageViewFromNavigation({ path: "/x", from: "https://x.y/z" }, headers({}), "h")?.referrer, null);
 
 console.log("\ncrawlers are kept and flagged");
 const bot = pageViewFromRequest({ pathname: "/product/x", search: "", headers: headers({ ...html, "user-agent": GOOGLEBOT }) });

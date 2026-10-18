@@ -101,27 +101,69 @@ export function trimReferrer(referrer: string | null): string | null {
 
 /**
  * The page view this request is, or null when it is not one: an asset, a
- * prefetch, a request that is not for a document at all.
+ * prefetch, an RSC fetch, a request that is not for a document at all.
+ *
+ * DOCUMENTS ONLY, by design. The first version also logged RSC fetches
+ * (in-app navigations) here, and the browser probe showed why that is not
+ * enough: the App Router prefetches a link's page on hover or on scroll,
+ * and a click then renders from that cache without asking the server at
+ * all. The prefetch is refused (nobody opened it), the click never arrives,
+ * and the navigation is invisible. So in-app navigations are reported by
+ * the page itself — components/analytics/path-log.tsx, through
+ * pageViewFromNavigation below — and this function keeps to full loads,
+ * which is also what every crawler sends.
  */
 export function pageViewFromRequest(req: { pathname: string; search: string; headers: HeaderReader }): PageViewInput | null {
   const { pathname, search, headers } = req;
   if (isSkippedPath(pathname)) return null;
   if (isPrefetch(headers)) return null;
-
-  const isRsc = headers.get("rsc") === "1";
-  const accept = headers.get("accept") ?? "";
-  if (!isRsc && !accept.includes("text/html")) return null;
+  if (headers.get("rsc") === "1") return null;
+  if (!(headers.get("accept") ?? "").includes("text/html")) return null;
 
   const ua = headers.get("user-agent");
-  const country = (headers.get("x-vercel-ip-country") ?? "").toUpperCase().slice(0, 2) || null;
-
   return {
     path: pathname.slice(0, MAX_PATH),
     query: keptQuery(search),
     referrer: trimReferrer(headers.get("referer")),
     isBot: isBotAgent(ua),
-    isRsc,
-    country,
+    isRsc: false,
+    country: countryFrom(headers),
+    device: deviceClass(ua),
+  };
+}
+
+function countryFrom(headers: HeaderReader): string | null {
+  return (headers.get("x-vercel-ip-country") ?? "").toUpperCase().slice(0, 2) || null;
+}
+
+/** A page path as the browser reports it, and nothing else: absolute,
+    single-slash, no scheme, no host, no query (that is sent apart). */
+const NAV_PATH = /^\/(?!\/)[^\s?#]*$/;
+
+/**
+ * An in-app navigation, as the page reported it after the App Router moved
+ * to a new path. `from` is the path it left, which stands in for the
+ * referrer: an in-app move has no Referer of its own. The agent and country
+ * still come from the request the beacon travelled on; the body is trusted
+ * for nothing but the two paths and the query, each checked.
+ */
+export function pageViewFromNavigation(
+  body: { path?: unknown; search?: unknown; from?: unknown },
+  headers: HeaderReader,
+  host: string,
+): PageViewInput | null {
+  const path = typeof body.path === "string" ? body.path : "";
+  if (!NAV_PATH.test(path) || path.length > MAX_PATH || isSkippedPath(path)) return null;
+  const search = typeof body.search === "string" && body.search.length <= 2000 ? body.search : "";
+  const from = typeof body.from === "string" && NAV_PATH.test(body.from) ? body.from : null;
+  const ua = headers.get("user-agent");
+  return {
+    path,
+    query: keptQuery(search),
+    referrer: from ? `${host}${from}`.slice(0, MAX_REFERRER) : null,
+    isBot: isBotAgent(ua),
+    isRsc: true,
+    country: countryFrom(headers),
     device: deviceClass(ua),
   };
 }
