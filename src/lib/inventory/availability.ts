@@ -81,6 +81,31 @@ export function sellableWithoutStock(availability: SourceAvailability): boolean 
   return availability === "ORDERABLE";
 }
 
+/**
+ * Can this product be sold right now?
+ *
+ * The runtime twin of the `AND` clause in PUBLIC_PRODUCT_WHERE, for the places
+ * that hold a product in hand rather than a Prisma filter: the product page's
+ * own sold-out state, the sitemap, the back office's "why is this not live"
+ * lists. A Prisma where-object cannot call a function, so the rule is
+ * necessarily written twice — and writing it twice is exactly how a rule like
+ * this rots, so both copies name `sourceAvailability` and check:sheet-facts
+ * asserts that they do.
+ *
+ * `product-page-view.tsx` is why this exists. It derived its own sold-out
+ * state from `stockQty <= 0`, which would have shown all 1,163 products the
+ * new rule admits as out of stock, with no buy button, on a page the listings
+ * had just started linking to.
+ *
+ * A null availability reads as ORDERABLE, matching the column's default: a
+ * product created by the admin form has never been near a price list and
+ * nothing has said it cannot be got.
+ */
+export function isSellableNow(p: { stockQty: number; sourceAvailability?: string | null }): boolean {
+  if (p.stockQty > 0) return true;
+  return sellableWithoutStock((p.sourceAvailability ?? "ORDERABLE") as SourceAvailability);
+}
+
 /* For the back office only. The customer is told nothing about where the unit
    comes from — the owner was explicit: we take the payment and talk to the
    supplier, as though the warehouse had it. */

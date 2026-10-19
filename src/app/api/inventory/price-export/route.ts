@@ -6,6 +6,7 @@ import { normalizeRow } from "@/lib/inventory/normalizer";
 import { resolvedPrice } from "@/lib/inventory/diff-engine";
 import { downloadInventoryFile, isStorageConfigured } from "@/lib/inventory/storage";
 import type { SourceKey } from "@/lib/inventory/sheet-map";
+import { isSellableNow } from "@/lib/inventory/availability";
 
 /**
  * Every product the price list carries, with the price the site is showing
@@ -137,6 +138,7 @@ export async function GET() {
       price: true,
       supplierCost: true,
       stockQty: true,
+      sourceAvailability: true,
       stockStatus: true,
       isPublished: true,
       priceManualAt: true,
@@ -184,7 +186,10 @@ export async function GET() {
        to report the reason as well as the verdict, and one boolean cannot. */
     const reasons: string[] = [];
     if (p.price <= 0) reasons.push("אין מחיר");
-    if (p.stockQty <= 0) reasons.push("אין מלאי");
+    /* "No stock" stopped being a reason on 19 October: a product the price
+       list still offers is sellable with nothing in a warehouse. Only a row
+       marked gone, with nothing left, is held back for it. */
+    if (!isSellableNow(p)) reasons.push("אין מלאי ואזל אצל הספק");
     if (p._count.images === 0) reasons.push("אין תמונה");
     if (p.stockStatus === "NEEDS_REVIEW") reasons.push("נתוני מלאי לא עקביים");
     if (p.missingFromSourceSince !== null) reasons.push("לא במחירון יותר");

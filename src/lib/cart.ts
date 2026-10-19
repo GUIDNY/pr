@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { planCartMerge } from "@/lib/cart-merge";
 import { ATTRIBUTION_COOKIE, parseAttribution } from "@/lib/attribution";
+import { maxCartQuantity } from "@/lib/cart-merge";
 
 const CART_COOKIE = "prec_cart_sid";
 const CART_COOKIE_TTL = 60 * 60 * 24 * 90; // 90 days
@@ -124,9 +125,9 @@ export async function claimGuestCart(userId: string) {
        pressing "add" twice. */
     const products = await db.product.findMany({
       where: { id: { in: guestCart.items.map((i) => i.productId) } },
-      select: { id: true, stockQty: true },
+      select: { id: true, stockQty: true, sourceAvailability: true },
     });
-    const stock = new Map(products.map((p) => [p.id, p.stockQty]));
+    const stock = new Map(products.map((p) => [p.id, { qty: p.stockQty, availability: p.sourceAvailability }]));
     const plan = planCartMerge(guestCart.items, userCart.items, stock);
 
     const writes: Prisma.PrismaPromise<unknown>[] = [];
@@ -236,11 +237,11 @@ async function currentAttribution() {
  */
 export async function addLineToCart(
   cart: { id: string; items: { id: string; productId: string; quantity: number }[] },
-  product: { id: string; stockQty: number },
+  product: { id: string; stockQty: number; sourceAvailability?: string | null },
   quantity: number,
 ) {
   const existing = cart.items.find((i) => i.productId === product.id);
-  const maxQty = Math.max(1, Math.min(product.stockQty, 10));
+  const maxQty = maxCartQuantity(product.stockQty, product.sourceAvailability);
 
   if (existing) {
     const nextQty = Math.min(existing.quantity + quantity, maxQty);
@@ -260,11 +261,11 @@ export async function addLineToCart(
  */
 export async function ensureCartLine(
   cart: { id: string; items: { id: string; productId: string; quantity: number }[] },
-  product: { id: string; stockQty: number },
+  product: { id: string; stockQty: number; sourceAvailability?: string | null },
   quantity: number,
 ) {
   const existing = cart.items.find((i) => i.productId === product.id);
-  const wanted = Math.min(quantity, Math.max(1, Math.min(product.stockQty, 10)));
+  const wanted = Math.min(quantity, maxCartQuantity(product.stockQty, product.sourceAvailability));
   if (!existing) {
     await db.cartItem.create({ data: { cartId: cart.id, productId: product.id, quantity: wanted } });
   } else if (existing.quantity < wanted) {

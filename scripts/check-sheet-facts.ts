@@ -10,7 +10,8 @@
 //
 //   npm run check:sheet-facts
 import { parseWarranty, warrantySentence } from "../src/lib/inventory/warranty-parser";
-import { sourceAvailability, sellableWithoutStock } from "../src/lib/inventory/availability";
+import { readFileSync } from "fs";
+import { sourceAvailability, sellableWithoutStock, isSellableNow } from "../src/lib/inventory/availability";
 import { splitImporterFromBrand, rowImportChannel } from "../src/lib/inventory/import-channel";
 
 let failed = 0;
@@ -294,6 +295,47 @@ for (const row of ROW_OFFICIAL) {
   if (r.channel !== "OFFICIAL") bad(`row must stay OFFICIAL ${JSON.stringify(row)}`, r, { channel: "OFFICIAL" });
 }
 
+// ------------------------------------------------------------- sellability --
+
+// The runtime twin of PUBLIC_PRODUCT_WHERE's own clause, which is where a
+// product page, the sitemap and the back office's "why is this not live"
+// lists get their answer. A Prisma where-object cannot call a function, so
+// the rule is written twice on purpose — and the two drifting apart is the
+// whole failure mode, so the last block below reads both files back.
+const SELLABILITY: [{ stockQty: number; sourceAvailability?: string | null }, boolean][] = [
+  [{ stockQty: 4, sourceAvailability: "ORDERABLE" }, true],
+  [{ stockQty: 0, sourceAvailability: "ORDERABLE" }, true], //  drawn from the supplier
+  [{ stockQty: 2, sourceAvailability: "STOCK_ONLY" }, true], // sell what we hold
+  [{ stockQty: 0, sourceAvailability: "STOCK_ONLY" }, false],
+  [{ stockQty: 1, sourceAvailability: "END_OF_LINE" }, true],
+  [{ stockQty: 0, sourceAvailability: "END_OF_LINE" }, false],
+  [{ stockQty: 0, sourceAvailability: "TEMPORARILY_OUT" }, false],
+  // A record never near a price list — the admin form, the integrations API.
+  // Null reads as ORDERABLE, which is the column's own default.
+  [{ stockQty: 0, sourceAvailability: null }, true],
+  [{ stockQty: 0 }, true],
+];
+for (const [product, want] of SELLABILITY) {
+  const got = isSellableNow(product);
+  if (got !== want) bad(`isSellableNow(${JSON.stringify(product)})`, got, want);
+}
+
+// Both copies of the rule have to name the column. A copy that forgets it is
+// a copy that reads "no stock, not for sale" — which is the behaviour the
+// 19 October decision replaced, and it would show 1,163 products as sold out
+// on pages the listings had just started linking to.
+const BOTH_COPIES: [string, string][] = [
+  ["src/lib/queries/products.ts", "the PUBLIC_PRODUCT_WHERE clause"],
+  ["src/lib/inventory/availability.ts", "isSellableNow"],
+  ["src/components/product/product-page-view.tsx", "the product page's sold-out state"],
+  ["src/app/sitemap.ts", "the sitemap's sellable rollup"],
+];
+for (const [file, what] of BOTH_COPIES) {
+  const src = readFileSync(file, "utf8");
+  const names = src.includes("sourceAvailability") || src.includes("isSellableNow");
+  if (!names) bad(`${what} (${file}) no longer asks about availability`, false, true);
+}
+
 // -------------------------------------------------------------------- total --
 
 const total =
@@ -305,12 +347,15 @@ const total =
   ORDERABLE.length +
   BRAND_CELLS.length +
   ROW_PARALLEL.length +
-  ROW_OFFICIAL.length;
+  ROW_OFFICIAL.length +
+  SELLABILITY.length +
+  BOTH_COPIES.length;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${WARRANTY.length} warranty shapes, ${PROVIDERS.length} providers, ` +
     `${NOT_WARRANTY.length} non-warranty values, ${SENTENCES.length} sentences, ` +
     `${AVAILABILITY.length} availability markers, ${ORDERABLE.length} orderable rows, ` +
-    `${BRAND_CELLS.length} brand cells, ${ROW_PARALLEL.length} parallel rows, ${ROW_OFFICIAL.length} official rows)`,
+    `${BRAND_CELLS.length} brand cells, ${ROW_PARALLEL.length} parallel rows, ${ROW_OFFICIAL.length} official rows, ` +
+    `${SELLABILITY.length} sellability cases, ${BOTH_COPIES.length} copies of the rule)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;

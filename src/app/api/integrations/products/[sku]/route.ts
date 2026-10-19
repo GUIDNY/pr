@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { checkAuth } from "@/lib/integrations/product-enrich-shared";
+import { isSellableNow } from "@/lib/inventory/availability";
 
 // One product, by SKU. Reading a single product used to mean paging the
 // list endpoint from a SKU you hoped came just before it —
@@ -35,6 +36,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ sku:
       colorName: true,
       price: true,
       stockQty: true,
+      sourceAvailability: true,
       stockStatus: true,
       isPublished: true,
       enrichmentStatus: true,
@@ -108,6 +110,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ sku:
     lastModifiedAt: p.updatedAt,
     // Exactly the rule the storefront applies (PUBLIC_PRODUCT_WHERE), so a
     // caller can tell "saved" from "actually on the site" without guessing.
-    liveOnSite: p.isPublished && p.stockQty > 0 && p.images.length > 0,
+    liveOnSite: p.isPublished && isSellableNow(p) && p.images.length > 0,
   });
 }

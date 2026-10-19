@@ -24,11 +24,23 @@ export function ProductFactCard({
   brand,
   model,
   warrantyMonths,
+  warrantyText,
+  importChannel,
+  importerName,
 }: {
   facts: SpecRow[];
   brand: string;
   model?: string | null;
   warrantyMonths?: number | null;
+  /** The warranty as the price list states it, parsed into a sentence — a
+   *  term and, where the sheet says so, an extension and its price. When it
+   *  is present it replaces the bare month count rather than sitting beside
+   *  it: "אחריות שנה" twice on one card tells nobody anything. */
+  warrantyText?: string | null;
+  /** "PARALLEL" where the price list marked the unit as a parallel import.
+   *  Stating it is the condition the owner attached to listing them. */
+  importChannel?: string | null;
+  importerName?: string | null;
 }) {
   const rows: SpecRow[] = [{ label: "מותג", value: brand }];
   if (model) rows.push({ label: "דגם", value: model });
@@ -37,7 +49,9 @@ export function ProductFactCard({
     if (rows.some((r) => r.label === fact.label)) continue;
     rows.push(fact);
   }
-  if (warrantyMonths) rows.push({ label: "אחריות", value: `${warrantyMonths} חודשים` });
+  const isParallel = importChannel === "PARALLEL";
+  if (warrantyMonths && !warrantyText) rows.push({ label: "אחריות", value: `${warrantyMonths} חודשים` });
+  if (isParallel) rows.push({ label: "יבוא", value: importerName ? `מקביל — ${importerName}` : "מקביל" });
 
   // self-start, or the grid stretches the card to the height of the
   // description next to it and it becomes a mostly-empty box a metre tall
@@ -63,6 +77,20 @@ export function ProductFactCard({
           </div>
         ))}
       </dl>
+      {/* The fine print under the facts rather than inside them: a warranty
+          sentence runs to sixty characters and a value cell in a narrow
+          sidebar is the wrong shape for it. 1,797 products have one. */}
+      {(warrantyText || isParallel) && (
+        <div className="border-border/60 text-muted-foreground mt-3 space-y-1.5 border-t pt-3 text-xs leading-relaxed">
+          {warrantyText && <p>{warrantyText}</p>}
+          {isParallel && (
+            <p>
+              מוצר ביבוא מקביל{importerName ? ` של ${importerName}` : ""}. האחריות היא של היבואן ולא של
+              היצרן.
+            </p>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

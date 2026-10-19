@@ -1,6 +1,7 @@
 import "server-only";
 import { computeCartSubtotal, computeDeliveryFee, resolveCoupon } from "@/lib/pricing";
 import { isBulkyCategory } from "@/lib/bulky";
+import { maxCartQuantity } from "@/lib/cart-merge";
 
 type CartWithItems = {
   id: string;
@@ -21,6 +22,7 @@ type CartWithItems = {
       compareAtPrice: number | null;
       stockStatus: string;
       stockQty: number;
+      sourceAvailability?: string | null;
       categoryId: string;
       brandId: string;
       brand: { name: string };
@@ -92,7 +94,10 @@ export async function buildCartSummary(
     quantity: i.quantity,
     lineTotal: i.product.price * i.quantity,
     stockStatus: i.product.stockStatus,
-    maxQuantity: i.product.stockStatus === "OUT_OF_STOCK" ? 0 : Math.max(1, Math.min(i.product.stockQty, 10)),
+    maxQuantity:
+      i.product.stockStatus === "OUT_OF_STOCK"
+        ? 0
+        : maxCartQuantity(i.product.stockQty, i.product.sourceAvailability),
     isBulky: isBulkyCategory(i.product.category.slug, i.product.category.parent?.slug ?? null),
   }));
 
