@@ -16,6 +16,12 @@ import {
   type InventoryAlertType,
 } from "@/lib/enums";
 import type { SourceKey } from "./sheet-map";
+import { sellableWithoutStock } from "./availability";
+import { warrantySentence } from "./warranty-parser";
+import {
+  parallelImportWarrantySentence,
+  PARALLEL_IMPORT_DEFAULT_WARRANTY_MONTHS,
+} from "./import-channel";
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
@@ -757,13 +763,25 @@ async function applyOneRow(
   };
   const rawStock = totalStock(row);
 
-  // Zero stock, never seen before: don't pull it into the system at all —
-  // not a product record, not a temp SKU, not an alert. It's not "a
-  // product that needs review," it's not a product yet. If a real product
-  // that used to have stock drops to zero, it's still updated below (kept,
-  // not deleted, so it can come back) — this only skips rows with nothing
-  // to reactivate in the first place.
-  if (rawStock <= 0 && !existing) return null;
+  // Zero stock, never seen before, **and the price list says it is gone**:
+  // don't pull it into the system at all — not a product record, not a temp
+  // SKU, not an alert. There is nothing to sell and nothing to reactivate.
+  //
+  // The availability clause is what the owner's decision of 19 October added,
+  // and dropping it was the single line that kept the largest hole in the
+  // catalogue open. The rule used to be "no stock, never seen → skip", and
+  // 1,472 of the 3,572 rows in the current workbooks are exactly that: a
+  // model, a price, a mapped category, and an empty stock column. 1,163 of
+  // them are a complete product — ₪4.7M of catalogue, a 115" LG at ₪49,000
+  // among them — and not one had so much as a hidden page, because a row the
+  // owner simply had not filled in looked identical to a row that had sold
+  // out.
+  //
+  // It no longer does. An empty stock column means the warehouse is empty,
+  // not that the product cannot be got: someone rings the supplier and the
+  // supplier delivers to the customer. So only a row the price list has
+  // actually marked gone is skipped here, and the other 1,163 become products.
+  if (rawStock <= 0 && !existing && !sellableWithoutStock(row.availability)) return null;
 
   /* A subtotal line, not a product. The sheets carry running totals among
      the rows — a brand name in the description cell, the sum of its
@@ -845,8 +863,12 @@ async function applyOneRow(
      Measured before removing: of 648 products holding NEEDS_REVIEW, exactly
      one would reach the site without this line, and it has a price. */
   const status = deriveStockStatus(row, stock, hasConflict);
+  /* "מלאי אחרון" has to be true to be worth saying. A product drawn from the
+     supplier reads IN_STOCK with a stockQty of zero, and zero clears any
+     threshold, so without the `stock > 0` clause every one of the 1,163 rows
+     the new rule admits would announce itself as the last unit in the shop. */
   const finalStatus =
-    status === "IN_STOCK" && stock <= threshold ? "LOW_STOCK" : status;
+    status === "IN_STOCK" && stock > 0 && stock <= threshold ? "LOW_STOCK" : status;
 
 
   // Real SKU always wins. No real SKU: reuse the existing product's
@@ -866,6 +888,42 @@ async function applyOneRow(
   // findExistingProduct shrink to nothing instead of living forever.
   const sourceRowKey = sourceRowKeyFor(row);
 
+  /* The warranty the sheet states. 1,915 rows state one and the catalog kept
+     it from none of them: `warrantyMonths` read `existing?.warrantyMonths ?? 12`,
+     so every product on the site claimed twelve months whether its row said
+     "1+9 מדחס", "5 שנים מלא" or nothing at all.
+
+     Written on create, and on update only when the sheet's own text has moved
+     since we last read it. That is the test `lastRowModel` uses, for the same
+     reason: it distinguishes "the supplier changed the warranty" from "a
+     person corrected our wording", and only the first is ours to overwrite.
+     An admin's edit to warrantyText therefore survives every sync until the
+     supplier actually changes the cell.
+
+     A parallel-import unit with nothing in the column gets twelve months from
+     the importer — the owner's instruction of 19 October — and the condition
+     he attached is why `parseWarranty` is asked first: a value in the sheet
+     overrides the default. */
+  const sheetWarrantyText = row.warranty?.trim() || null;
+  const sheetWarrantyMoved = sheetWarrantyText !== (existing?.warrantySourceText ?? null);
+  const warrantyFields =
+    !existing || sheetWarrantyMoved
+      ? {
+          warrantySourceText: sheetWarrantyText,
+          warrantyText:
+            warrantySentence(row.parsedWarranty) ??
+            (row.importChannel === "PARALLEL"
+              ? parallelImportWarrantySentence(row.importerName)
+              : null),
+          warrantyMonths:
+            row.parsedWarranty.baseYears !== null
+              ? row.parsedWarranty.baseYears * 12
+              : row.importChannel === "PARALLEL"
+                ? PARALLEL_IMPORT_DEFAULT_WARRANTY_MONTHS
+                : (existing?.warrantyMonths ?? 12),
+        }
+      : { warrantyMonths: existing.warrantyMonths };
+
   const data = {
     sku,
     isTemporarySku,
@@ -876,9 +934,15 @@ async function applyOneRow(
     price: resolved ?? existing?.price ?? 0,
     minSalePrice: row.minSalePrice,
     supplierCost: row.internalCost,
-    warrantyMonths: existing?.warrantyMonths ?? 12,
+    ...warrantyFields,
     stockStatus: finalStatus,
     stockQty: stock,
+    // What the price list says about getting hold of this at all, which is the
+    // other half of the sellability question and the half `stockQty` cannot
+    // answer. PUBLIC_PRODUCT_WHERE reads both.
+    sourceAvailability: row.availability,
+    importChannel: row.importChannel,
+    importerName: row.importerName,
     stockBreakdown: JSON.stringify(row.rawSnapshot),
     internalNotes: row.color ? `צבע: ${row.color}` : null,
     // The sheet's צבע column is the authority on finish whenever it has one,

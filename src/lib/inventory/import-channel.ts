@@ -1,3 +1,5 @@
+import type { ImportChannel } from "@/lib/enums";
+
 /**
  * Official importer or parallel importer, read off the price list.
  *
@@ -35,12 +37,10 @@
  * not precede `שלום`, which rejects all of them.
  */
 
-export type ImportChannel = "OFFICIAL" | "PARALLEL";
-
-export const IMPORT_CHANNEL_LABELS: Record<ImportChannel, string> = {
-  OFFICIAL: "יבואן רשמי",
-  PARALLEL: "יבוא מקביל",
-};
+/* The values and their labels live in enums.ts — the single source of truth
+   for every enum-like column. */
+export type { ImportChannel } from "@/lib/enums";
+export { IMPORT_CHANNEL_LABELS } from "@/lib/enums";
 
 /** What the page prints. The owner asked for it to be stated plainly. */
 export const PARALLEL_IMPORT_NOTICE = "יבוא מקביל";

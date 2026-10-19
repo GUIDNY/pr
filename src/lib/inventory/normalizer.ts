@@ -2,6 +2,10 @@ import { categoryForSheet, subCategoryFromSectionLabel, type SourceKey } from ".
 import { extractBrand, extractBrandFromDivider, cleanBrandCell } from "./brand-extractor";
 import type { ClassifiedColumn, NormalizedProductRow, ParsedRow, RowIssue, StockLine } from "./types";
 import { looksLikeStockPhrase } from "./import-guards";
+import { sourceAvailability } from "./availability";
+import { parseWarranty } from "./warranty-parser";
+import { splitImporterFromBrand, rowImportChannel } from "./import-channel";
+import type { ImportChannel } from "@/lib/enums";
 
 function isMappedSourceKey(key: string): key is SourceKey {
   return key === "electronics" || key === "small-appliances" || key === "white-goods-screens";
@@ -170,6 +174,18 @@ export function normalizeRow(
     modelFromDescription(description);
   const color = firstString(row.values.COLOR) ?? firstColorLike(row.values.VARIANT_TEXT);
   const warranty = firstString(row.values.WARRANTY);
+  // A sheet can have two warranty-headed columns — `אחריות` and
+  // `אחריות/הערות למבצע` — and the second mostly holds accessory text ("קערה
+  // 2.1 ליטר"). Take the first value that actually parses as a warranty rather
+  // than the first value, so a bowl's capacity never shadows a real term.
+  const parsedWarranty = (() => {
+    const values = row.values.WARRANTY ?? [];
+    for (const v of values) {
+      const parsed = parseWarranty(String(v));
+      if (parsed.recognised) return parsed;
+    }
+    return parseWarranty(values.length ? String(values[0]) : null);
+  })();
   const imageUrlRaw = firstString(row.values.IMAGE_URL);
   const imageUrl = imageUrlRaw && /^https?:\/\//i.test(imageUrlRaw) ? imageUrlRaw : null;
 
@@ -188,12 +204,32 @@ export function normalizeRow(
   // לקסוס instead of each minting a brand row of its own — which is how one
   // manufacturer ended up split four ways and eight model numbers ended up
   // filed as manufacturers.
-  const ownBrand = firstString(row.values.BRAND);
+  // The importer comes out of the brand cell before anything else looks at it.
+  // The price list writes the parallel importer inside the manufacturer's own
+  // cell — "גורניה י.שלום", "ASKO י שלום", or on nine rows just "י שלום" with
+  // no manufacturer at all — and the column actually headed `י.שלום` is empty
+  // on every row of both tabs that have one. Eleven rows reached
+  // cleanBrandCell with the importer still attached, which is why the
+  // catalogue now holds Brand rows called "ASKO י שלום" and "LG י.שלום".
+  //
+  // The inherited value is split too: a block header reading "גורניה י.שלום"
+  // is forward-filled onto every blank row under it, so the pollution travels
+  // with it — and so does the channel, which is right, because that header is
+  // the sheet saying the whole block came through that importer.
+  const ownBrandSplit = splitImporterFromBrand(firstString(row.values.BRAND));
+  const inheritedSplit = splitImporterFromBrand(row.inheritedBrand);
   const brandName =
-    (ownBrand ? cleanBrandCell(ownBrand) : null) ??
-    row.inheritedBrand ??
+    (ownBrandSplit.brand ? cleanBrandCell(ownBrandSplit.brand) : null) ??
+    inheritedSplit.brand ??
     (description ? extractBrand(description, knownBrands) : null) ??
     extractBrandFromDivider(row.sectionLabel);
+
+  // On 22 further rows (the Smeg kettles and toasters) the marker sits in a
+  // notes or variant column instead and the brand came out correct, so the
+  // row's own text is the last place asked.
+  const rowChannel = rowImportChannel(row.raw);
+  const importerName = ownBrandSplit.importer ?? inheritedSplit.importer ?? rowChannel.importer;
+  const importChannel: ImportChannel = importerName ? "PARALLEL" : "OFFICIAL";
 
   // The full description is the richest text available and should win as
   // the title whenever it exists — brandName+model is only a fallback for
@@ -261,6 +297,12 @@ export function normalizeRow(
     managerPrice,
     internalCost,
     stockLines,
+    // Read off every text cell on the row, because the marker has no column of
+    // its own: 187 rows carry one, spread over six different headers.
+    availability: sourceAvailability(row.raw),
+    parsedWarranty,
+    importChannel,
+    importerName,
     rawSnapshot: row.raw,
     issues,
   };

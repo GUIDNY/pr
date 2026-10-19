@@ -235,9 +235,32 @@ model Product {
   gtin13               String?
   installmentMonths    Int?
   warrantyMonths       Int       @default(12)
+  // The warranty the price list actually states, which 1,915 rows do and the
+  // catalog kept from none of them: every product read 12 months regardless.
+  // warrantyText is the sentence the product page prints — a term, and where
+  // the sheet says so an extension, its price and what it covers. The
+  // extension is bought from the supplier, never from us, so it is a sentence
+  // and not a line item. warrantySourceText is the cell verbatim: the sync
+  // compares against it to tell "the supplier changed the warranty" from "a
+  // person edited our wording", and rewrites only on the former.
+  warrantyText         String?
+  warrantySourceText   String?
   deliveryDays         Int       @default(7)
   stockStatus          String    @default("IN_STOCK") // IN_STOCK | LOW_STOCK | OUT_OF_STOCK | SPECIAL_ORDER | DISCONTINUED
   stockQty             Int       @default(0)
+  // Whether the price list still offers this at all, which is a different
+  // question from how many units a warehouse holds — see enums.ts
+  // SOURCE_AVAILABILITIES and inventory/availability.ts. ORDERABLE sells with
+  // no stock on hand (someone rings the supplier); the other three sell only
+  // while a warehouse or showroom still has one. PUBLIC_PRODUCT_WHERE asks
+  // both this and stockQty, and neither answers for the other.
+  sourceAvailability   String    @default("ORDERABLE")
+  // Which importer the unit came through, and who it was. The marker is
+  // written inside the price list's brand cell ("גורניה י.שלום"), which is how
+  // seven Brand rows came to be named after an importer; import-channel.ts
+  // splits it off before the brand is resolved. A parallel-import page says so.
+  importChannel        String    @default("OFFICIAL")
+  importerName         String?
   isPublished          Boolean   @default(true)
   isFeatured           Boolean   @default(false)
   isBestSeller         Boolean   @default(false)

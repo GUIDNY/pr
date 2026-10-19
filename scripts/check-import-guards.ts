@@ -10,6 +10,7 @@ import {
   looksLikeMarketingTitle,
   hasEnergyLabelShape,
   looksLikeStockPhrase,
+  looksLikeSupplierSku,
   looksLikeMisplacedQuantity,
   looksLikeOffsetStockRow,
   modelsCanBeTheSame,
@@ -725,6 +726,46 @@ const FOOTER_GRID: [unknown[], boolean, string][] = [
   }
 }
 
+
+// A SKU cell that is really the importer's rep and their service number. The
+// sheets keep 168 of these on rows of their own, and five `סה"כ` block
+// totals besides; until the catalog opened to stock-less rows they were held
+// out only because they also carry no stock.
+const REAL_SKUS = [
+  "109208",
+  "0120813", //  a genuine leading zero
+  "O180235", //  a genuine leading letter
+  "O151251",
+  "9158610",
+  "100825",
+  "730006",
+];
+const NOT_SKUS = [
+  "אל גי-חזי ברימאג--0506660374    שירות--1700700909   *8404",
+  "סמסונג מ.כביסה--אריה ניופרו--0503018588    שירות--*6963     התקנות *3049",
+  "אריה טכנאי להתקנות מסכים--0522822240 --התקנה סטנדרטית למסך אחד-150/250שח",
+  "בקו --שגיא ברימאג--0523685252    שירות--1700700909   *8404",
+  'סה"כ',
+  "חדש",
+  "י שלום",
+  // Placeholders a person typed. Eleven rows carry one, and each names a real
+  // model and a real price, so the row survives on those — it simply stops
+  // claiming that its SKU column holds a SKU.
+  "0",
+  "1",
+  "3",
+  ";",
+  ";;",
+  "",
+  "  ",
+];
+for (const sku of REAL_SKUS) {
+  if (!looksLikeSupplierSku(sku)) fail(`looksLikeSupplierSku("${sku}") should be true`);
+}
+for (const sku of NOT_SKUS) {
+  if (looksLikeSupplierSku(sku)) fail(`looksLikeSupplierSku("${sku.slice(0, 40)}") should be false`);
+}
+
 const total =
   NOT_ASSERTABLY_SAME.length + FOOTER_GRID.length + SAME_MODEL.length + DIFFERENT_MODEL.length + REFUSED_BUT_HARMLESS.length + PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
   HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
@@ -736,7 +777,7 @@ const total =
   /* The price guard, over the same fourteen corrections plus its own cases. */
   ROW_MODEL_UNCHANGED.length + ROW_MODEL_REASSIGNED.length + ROW_MODEL_NOT_REASSIGNED.length +
   FOREIGN_BINDING.length + FAMILIAR_BINDING.length +
-  TITLE_NAMES_ANOTHER.length + TITLE_AGREES.length;
+  TITLE_NAMES_ANOTHER.length + TITLE_AGREES.length + REAL_SKUS.length + NOT_SKUS.length;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${LABEL_URLS.length} label urls, ${PRODUCT_URLS.length} photo urls, ` +
@@ -753,6 +794,7 @@ console.log(
     `${FOREIGN_BINDING.length} foreign bindings, ${FAMILIAR_BINDING.length} familiar bindings, ` +
     `${TITLE_NAMES_ANOTHER.length} titles naming another model, ${TITLE_AGREES.length} titles agreeing, ` +
     `${ROW_MODEL_SILENT.length} silent rows, ` +
-    `${HTML_CASES.length} html descriptions)`,
+    `${HTML_CASES.length} html descriptions, ` +
+    `${REAL_SKUS.length} real skus, ${NOT_SKUS.length} contact lines and placeholders)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;

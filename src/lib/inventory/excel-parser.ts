@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { classifyHeader, headerScore } from "./classifier";
 import { isProductSheet, type SourceKey } from "./sheet-map";
 import { isPlausibleBrandCell } from "./brand-extractor";
+import { looksLikeSupplierSku } from "./import-guards";
 import type { ClassifiedColumn, ParsedRow, ParsedSheet, ParsedWorkbook } from "./types";
 
 const HEADER_SEARCH_ROWS = 5;
@@ -192,8 +193,16 @@ export function parseSheetRows(sheetName: string, rows: unknown[][], sheet?: XLS
     const textNamesAModel = (freeText.match(/[A-Za-z0-9][A-Za-z0-9./-]{3,}/g) ?? []).some(
       (t) => /[A-Za-z]/.test(t) && /[0-9]/.test(t)
     );
+    /* A SKU cell only counts as naming something when it holds a SKU. The
+       sheets put the importer's rep and their service number on a row of
+       their own, in that column — 168 of them, plus five `סה"כ` totals — and
+       "any non-empty SKU cell" accepted every one as a product that names
+       itself. They were kept out until now only because they also have no
+       stock, and the row below this one no longer skips a stock-less row.
+       See looksLikeSupplierSku for the measured shape. */
+    const skuNamesSomething = (values.SKU ?? []).some((v) => looksLikeSupplierSku(String(v)));
     const namesSomething =
-      (values.SKU?.length ?? 0) > 0 || (values.MODEL?.length ?? 0) > 0 || textNamesAModel;
+      skuNamesSomething || (values.MODEL?.length ?? 0) > 0 || textNamesAModel;
     const carriesMoney =
       (values.RETAIL_PRICE?.length ?? 0) > 0 ||
       (values.MIN_SALE_PRICE?.length ?? 0) > 0 ||

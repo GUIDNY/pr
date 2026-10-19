@@ -1,3 +1,6 @@
+import type { SourceAvailability } from "@/lib/enums";
+import { SOURCE_AVAILABILITY_LABELS } from "@/lib/enums";
+
 /**
  * What the price list says about whether a product can still be got.
  *
@@ -33,22 +36,11 @@
  * precede them.
  */
 
-export type SourceAvailability =
-  /** Nothing said. Sell it; order from the supplier when no warehouse has it. */
-  | "ORDERABLE"
-  /** "אזל. למכור מלאי ותצוגה" — 113 rows. The supplier is out; sell what we hold. */
-  | "STOCK_ONLY"
-  /** "סוף דגם" — 34 rows. Out of production. Sell what we hold. */
-  | "END_OF_LINE"
-  /** "אזל זמנית" — 14 rows. Expected back. Sell what we hold until then. */
-  | "TEMPORARILY_OUT";
-
-export const SOURCE_AVAILABILITY_LABELS: Record<SourceAvailability, string> = {
-  ORDERABLE: "זמין להזמנה",
-  STOCK_ONLY: "אזל אצל הספק — מלאי בלבד",
-  END_OF_LINE: "סוף דגם",
-  TEMPORARILY_OUT: "אזל זמנית",
-};
+/* The values and their Hebrew labels live in enums.ts, which CLAUDE.md makes
+   the single source of truth for every enum-like column — this module reads
+   them off a row and decides what they mean, it does not define them. */
+export type { SourceAvailability } from "@/lib/enums";
+export { SOURCE_AVAILABILITY_LABELS } from "@/lib/enums";
 
 /* `(?<![א-ת])` is the whole defence against "כסוף דגם". Node has supported
    lookbehind since 8.3; the build targets far newer. */
