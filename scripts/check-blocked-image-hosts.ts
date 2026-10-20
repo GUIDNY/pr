@@ -7,7 +7,10 @@
 // enrichment agent had found in the meantime.
 //
 // Run: npx tsx scripts/check-blocked-image-hosts.ts
-import { isBlockedImageHost } from "../src/lib/inventory/blocked-image-hosts";
+import {
+  imageIsFromBlockedHost,
+  isBlockedImageHost,
+} from "../src/lib/inventory/blocked-image-hosts";
 
 // Real hosts, taken from the backup written when those images were deleted.
 const MUST_BLOCK = [
@@ -30,6 +33,7 @@ const MUST_BLOCK = [
   "https://www.electricshop.co.il/images/itempics/TAF2023IX_1.jpg",
   "https://www.avc.co.il/images/itempics/EZ4K500_1.jpg",
   "https://yarid-b.co.il/wp-content/uploads/2026/07/a.jpeg",
+  "https://www.zap.co.il/pics/114/1234567.jpg",
 ];
 
 // prec.co.il is ours. Manufacturer and importer sites must pass, http://
@@ -54,6 +58,44 @@ const MUST_ALLOW = [
   "https://cdn.electra.co.il/soferavi-comparison-chart.jpg",
 ];
 
+/* The provenance cases.
+ *
+ * An image copied to our CDN keeps its origin only in sourceDomain /
+ * sourceImageUrl, so a test against `url` alone answers "no" for every
+ * migrated image. Real rows, taken from the catalogue on 20/10/2026: zap
+ * had 43 images and every one of them was already on our server. */
+type ImageRow = { url: string; sourceDomain?: string | null; sourceImageUrl?: string | null };
+
+const OURS = "https://buytoday.co.il/img/product-images/migrated/v2/p/i.webp";
+
+const IMAGE_MUST_BLOCK: [string, ImageRow][] = [
+  ["zap, already migrated — sourceDomain is the only tell", { url: OURS, sourceDomain: "zap.co.il" }],
+  [
+    "zabilo, already migrated (SKU 730242, live)",
+    { url: OURS, sourceDomain: "zabilo.com", sourceImageUrl: "https://zabilo.com/27936/a.jpg" },
+  ],
+  [
+    "sourceImageUrl set, sourceDomain not — 25 rows are in this state",
+    { url: OURS, sourceDomain: null, sourceImageUrl: "https://www.soferavi.co.il/pictures/big/1.jpg" },
+  ],
+  ["still hotlinked, no provenance at all", { url: "https://www.payngo.co.il/media/a.png" }],
+];
+
+const IMAGE_MUST_ALLOW: [string, ImageRow][] = [
+  [
+    "sarig — importer, taken off the list 01/10, 124 images on our CDN",
+    { url: OURS, sourceDomain: "sarig.com", sourceImageUrl: "https://sarig.com/app/uploads/a.png" },
+  ],
+  ["omegador — importer, 43 on our CDN", { url: OURS, sourceDomain: "omegador.co.il" }],
+  ["the manufacturer, migrated", { url: OURS, sourceDomain: "media3.bsh-group.com" }],
+  ["prec — ours to use", { url: OURS, sourceDomain: "www.prec.co.il" }],
+  ["an admin upload with no provenance", { url: OURS, sourceDomain: null, sourceImageUrl: null }],
+  [
+    "a competitor's name in the path, the host is the manufacturer's",
+    { url: "https://cdn.electra.co.il/soferavi-comparison-chart.jpg", sourceDomain: "cdn.electra.co.il" },
+  ],
+];
+
 let failed = 0;
 for (const url of MUST_BLOCK) {
   if (!isBlockedImageHost(url)) {
@@ -68,6 +110,23 @@ for (const url of MUST_ALLOW) {
   }
 }
 
-const total = MUST_BLOCK.length + MUST_ALLOW.length;
-console.log(`${total - failed}/${total} passed  (${MUST_BLOCK.length} blocked, ${MUST_ALLOW.length} allowed)`);
+for (const [label, image] of IMAGE_MUST_BLOCK) {
+  if (!imageIsFromBlockedHost(image)) {
+    console.log(`FAIL  image should be blocked but is not: ${label}`);
+    failed++;
+  }
+}
+for (const [label, image] of IMAGE_MUST_ALLOW) {
+  if (imageIsFromBlockedHost(image)) {
+    console.log(`FAIL  image should be allowed but is blocked: ${label}`);
+    failed++;
+  }
+}
+
+const total =
+  MUST_BLOCK.length + MUST_ALLOW.length + IMAGE_MUST_BLOCK.length + IMAGE_MUST_ALLOW.length;
+console.log(
+  `${total - failed}/${total} passed  (${MUST_BLOCK.length} urls blocked, ${MUST_ALLOW.length} urls allowed, ` +
+    `${IMAGE_MUST_BLOCK.length} images blocked, ${IMAGE_MUST_ALLOW.length} images allowed)`,
+);
 process.exit(failed === 0 ? 0 : 1);

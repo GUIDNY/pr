@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { StockStatus } from "@/lib/enums";
-import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
+import { imageIsFromBlockedHost } from "@/lib/inventory/blocked-image-hosts";
 import { isSelfHosted } from "@/lib/inventory/image-migration";
 import type { Prisma } from "@/generated/prisma/client";
 
@@ -549,6 +549,12 @@ export async function getCompetitorImageProducts(): Promise<CompetitorImageRow[]
     select: {
       id: true,
       url: true,
+      /* An image already copied to our CDN carries the host it came from
+         here and nowhere else — without these two the report is blind to
+         every migrated image, which is how 28 live zap.co.il photographs
+         went unlisted. */
+      sourceDomain: true,
+      sourceImageUrl: true,
       productId: true,
       product: {
         select: {
@@ -565,7 +571,7 @@ export async function getCompetitorImageProducts(): Promise<CompetitorImageRow[]
 
   const byProduct = new Map<string, CompetitorImageRow>();
   for (const img of images) {
-    if (!isBlockedImageHost(img.url)) continue;
+    if (!imageIsFromBlockedHost(img)) continue;
     const total = img.product._count.images;
     const row = byProduct.get(img.productId) ?? {
       productId: img.productId,
@@ -581,7 +587,12 @@ export async function getCompetitorImageProducts(): Promise<CompetitorImageRow[]
     row.images.push({
       id: img.id,
       url: img.url,
-      host: img.url.replace(/^https?:\/\//i, "").split("/")[0],
+      /* The host that matters is where the photograph came from, not where
+         it is served from now. A migrated image would otherwise print
+         "buytoday.co.il" in a list of other people's pictures. */
+      host:
+        img.sourceDomain ??
+        (img.sourceImageUrl ?? img.url).replace(/^https?:\/\//i, "").split("/")[0],
       onlyImageForProduct: total === 1,
     });
     byProduct.set(img.productId, row);
@@ -646,18 +657,31 @@ export async function getImageReadiness(): Promise<ImageReadinessRow[]> {
      either way. */
   const rows = await db.product.findMany({
     where: { isPublished: true, images: { some: {} } },
-    select: { id: true, images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
+    select: {
+      id: true,
+      images: {
+        orderBy: { sortOrder: "asc" },
+        take: 1,
+        select: { url: true, sourceDomain: true, sourceImageUrl: true },
+      },
+    },
   });
 
   const REFUSING = /c100|sel\.co\.il|payngo|yshalom|electricshop|shekem-electric/i;
 
   const count = { ours: 0, migratable: 0, prec: 0, refusing: 0, blocked: 0 };
   for (const r of rows) {
-    const url = r.images[0]?.url;
-    if (!url) continue;
-    if (isSelfHosted(url)) count.ours++;
+    const image = r.images[0];
+    if (!image) continue;
+    const url = image.url;
+    /* Blocked is asked first, and of the provenance rather than the URL.
+       With the self-hosted test in front of it a copied competitor image
+       counted as "already ours — ready for Google", which is the one
+       answer that can get the Merchant Center account suspended: it is
+       ready to be served, under our name, and it is not ours. */
+    if (imageIsFromBlockedHost(image)) count.blocked++;
+    else if (isSelfHosted(url)) count.ours++;
     else if (/prec\.co\.il/i.test(url)) count.prec++;
-    else if (isBlockedImageHost(url)) count.blocked++;
     else if (REFUSING.test(url)) count.refusing++;
     else count.migratable++;
   }
