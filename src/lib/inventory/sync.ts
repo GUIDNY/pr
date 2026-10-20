@@ -1193,6 +1193,30 @@ async function applyOneRow(
     stockStatus: data.stockStatus,
     stockQty: data.stockQty,
     stockBreakdown: data.stockBreakdown,
+    /* Whether the price list still offers this at all, which is the other
+       half of the same answer stockStatus and stockQty give and belongs to
+       the sync for exactly the same reason: it is a fact about the row, not
+       content anybody curated.
+       It was left out of this list in the first version and the omission was
+       invisible, because the field is in `data` and `data` is the *create*
+       payload. The sync of 20 October therefore gave all 1,501 products it
+       created a true availability and left every product it merely updated
+       at whatever the column already held — 318 of them, including the 278
+       that should have come back onto the site. The catalogue grew by 1,502
+       and the shop showed the same 1,333 products it had the day before,
+       with nothing in the run to say why. */
+    sourceAvailability: data.sourceAvailability,
+    /* Same argument. Which importer a unit came through is written in the
+       row, and a parallel-import page has to say so — the condition the
+       owner attached to listing them at all. */
+    importChannel: data.importChannel,
+    importerName: data.importerName,
+    /* The warranty the sheet states. Spread rather than named field by field
+       because it is already conditional: on an existing product whose sheet
+       text has not moved, warrantyFields carries only the month count the
+       product already had, so a person's correction to the wording survives
+       every sync until the supplier actually changes the cell. */
+    ...warrantyFields,
     sourceId: data.sourceId,
     sourceSheet: data.sourceSheet,
     sourceRowRef: data.sourceRowRef,
@@ -1216,6 +1240,12 @@ async function applyOneRow(
       adoptPrice ||
       existing.stockQty !== data.stockQty ||
       existing.stockStatus !== data.stockStatus ||
+      /* Availability moving is a product arriving on the site or leaving it,
+         which is as much a page change as the stock going to zero — and the
+         three fields above can all stand still while it happens, since a
+         product drawn from the supplier has had a stockQty of zero the whole
+         time. */
+      existing.sourceAvailability !== data.sourceAvailability ||
       JSON.stringify(existing.stockBreakdown ?? null) !== JSON.stringify(data.stockBreakdown ?? null)
     ) {
       /* adoptPrice belongs in here and not only in the update: the price is
