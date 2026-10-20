@@ -73,6 +73,8 @@ import { colorInTitle } from "@/lib/catalog/variant-colors";
 import { formatDate, formatPrice } from "@/lib/format";
 import type { StockStatus } from "@/lib/enums";
 import { BUSINESS } from "@/lib/business";
+import { maxCartQuantity } from "@/lib/cart-merge";
+import { isSellableNow } from "@/lib/inventory/availability";
 
 /**
  * The product page itself, rendered identically for everyone except an admin.
@@ -116,7 +118,11 @@ export async function ProductPageView({
   //
   // So "unavailable" rather than "sold out" is the real condition here, and
   // stock is one of its two causes.
-  const isSoldOut = product.stockQty <= 0 || product.missingFromSourceSince !== null;
+  /* Sellable, not stocked — the runtime twin of PUBLIC_PRODUCT_WHERE's own
+     clause. `stockQty <= 0` alone would have shown every one of the 1,163
+     products the 19 October rule admits as sold out, with no buy button, on
+     pages the listings had just started linking to. */
+  const isSoldOut = !isSellableNow(product) || product.missingFromSourceSince !== null;
 
   // A regular visitor still gets a 404 for anything unpublished, and for
   // anything with no photograph — the two conditions PUBLIC_PRODUCT_WHERE
@@ -159,7 +165,7 @@ export async function ProductPageView({
   const highlightFacts = pickHighlights(specRows);
 
   const categoryIcon = product.category.parent?.icon ?? product.category.icon;
-  const maxQuantity = Math.max(1, Math.min(product.stockQty, 10));
+  const maxQuantity = maxCartQuantity(product.stockQty, product.sourceAvailability);
   // For one unit of this product on its own — the same rule the cart
   // applies, stated before anything is in the cart.
   const deliveryFee = computeDeliveryFee(product.price);
@@ -761,6 +767,9 @@ export async function ProductPageView({
                 brand={product.brand.name}
                 model={product.model}
                 warrantyMonths={product.warrantyMonths}
+                warrantyText={product.warrantyText}
+                importChannel={product.importChannel}
+                importerName={product.importerName}
               />
             </div>
 

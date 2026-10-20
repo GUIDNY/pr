@@ -7,6 +7,7 @@ import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
 import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
 import { WARRANTY_POLICY_UPDATED } from "@/lib/warranty-policy";
 import { TERMS_UPDATED } from "@/lib/content/terms";
+import { isSellableNow } from "@/lib/inventory/availability";
 
 /* Same hourly refresh as the article list, for the same reason: an article
    written by a script must reach the sitemap without waiting for a deploy. */
@@ -54,6 +55,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         categoryId: true,
         brandId: true,
         stockQty: true,
+        sourceAvailability: true,
         missingFromSourceSince: true,
       },
     }),
@@ -105,7 +107,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      The sitemap and the page were telling Google opposite things. */
   const sellableCount = new Map<string, number>();
   for (const p of products) {
-    if (p.stockQty <= 0) continue;
+    /* Sellable, not stocked. A product the price list still offers is sellable
+       with nothing in a warehouse, and counting only the stocked ones would
+       keep a shelf out of the sitemap that the shelf itself is happy to
+       show — the drift between the two this rollup exists to prevent. */
+    if (!isSellableNow(p)) continue;
     sellableCount.set(p.categoryId, (sellableCount.get(p.categoryId) ?? 0) + 1);
   }
 
@@ -208,7 +214,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const brandNewest = new Map<string, Date>();
   const brandSellableCount = new Map<string, number>();
   for (const p of products) {
-    if (p.stockQty <= 0) continue;
+    if (!isSellableNow(p)) continue;
     const current = brandNewest.get(p.brandId);
     if (!current || p.updatedAt > current) brandNewest.set(p.brandId, p.updatedAt);
     brandSellableCount.set(p.brandId, (brandSellableCount.get(p.brandId) ?? 0) + 1);

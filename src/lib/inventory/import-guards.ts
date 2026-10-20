@@ -100,6 +100,41 @@ export function looksLikeMarketingTitle(title: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// A contact line typed into the SKU column
+// ---------------------------------------------------------------------------
+
+// The price list puts the importer's rep and their service number on a row of
+// its own, in the SKU column, with nothing else on the row:
+//
+//   "אל גי-חזי ברימאג--0506660374    שירות--1700700909   *8404"
+//   "סמסונג מ.כביסה--אריה ניופרו--0503018588    שירות--*6963"
+//   "אריה טכנאי להתקנות מסכים--0522822240 --התקנה סטנדרטית למסך אחד-150/250שח"
+//
+// 168 such rows across the three workbooks, plus five `סה"כ` block totals and
+// the odd `חדש`. Nothing kept them out: `hasProductSignal` and `namesSomething`
+// in excel-parser.ts both accept any non-empty SKU cell, so each one was a
+// product waiting to be created — and until 19 October they were held back
+// only by accident, because a row with no stock number was skipped outright.
+// Opening the catalog to stock-less rows removes that accident, so the shape
+// has to be tested on purpose.
+//
+// What a supplier SKU looks like here, measured over 2,323 rows that carry
+// one: no Hebrew letter, no whitespace, at least one digit, and three to
+// twelve characters. 2,139 pass. The 184 that do not are the contact lines,
+// the totals, and eleven real products whose SKU cell holds a placeholder
+// (`3`, `1`, `0`, `;;`, `חדש`) — those eleven name a model and carry a price,
+// so they survive on that and lose only the claim that their SKU is a SKU.
+//
+// `O180235` and `0120813` are why the test is a shape and not "digits only":
+// both are genuine SKUs in this catalogue, one with a leading letter and one
+// with a leading zero.
+const SKU_SHAPE = /^(?=.*\d)[^\s֐-׿]{3,12}$/;
+
+export function looksLikeSupplierSku(value: string | null | undefined): boolean {
+  return SKU_SHAPE.test((value ?? "").trim());
+}
+
+// ---------------------------------------------------------------------------
 // A stock status typed into the model column
 // ---------------------------------------------------------------------------
 

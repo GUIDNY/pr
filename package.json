@@ -17,6 +17,7 @@
     "fix:brands": "NODE_OPTIONS=--conditions=react-server tsx scripts/backfill-brand-attribution.ts",
     "check:content": "tsx scripts/check-product-content.ts",
     "check:guards": "tsx scripts/check-import-guards.ts",
+    "check:sheet-facts": "tsx scripts/check-sheet-facts.ts",
     "scan:labels": "tsx scripts/check-energy-labels.ts",
     "check:robots": "tsx scripts/check-robots-txt.ts",
     "check:terms": "tsx scripts/check-terms.ts",

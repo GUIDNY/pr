@@ -1,5 +1,6 @@
 import type { InventoryChangeType, StockStatus } from "@/lib/enums";
 import type { NormalizedProductRow, StockLine } from "./types";
+import { sellableWithoutStock } from "./availability";
 
 export type ExistingProductSnapshot = {
   id: string;
@@ -120,20 +121,49 @@ export function resolvedPrice(
   return { price: usable.length ? Math.min(...usable) : null, rejected };
 }
 
+/**
+ * What the customer is told, from the row's stock and what the row says about
+ * getting hold of the product at all.
+ *
+ * An empty stock column used to mean NEEDS_REVIEW, on the honest reasoning
+ * that a blank cell and a confirmed zero look identical in a spreadsheet and
+ * asserting OUT_OF_STOCK would report information nobody gave. That was the
+ * right answer while stock was the only thing that decided a sale, and it is
+ * the wrong one now: it is **2,079 of the 3,572 rows**, 58% of the price list,
+ * and NEEDS_REVIEW is excluded by PUBLIC_PRODUCT_WHERE, so the single largest
+ * reason a product never reached the site was a cell the owner had not filled
+ * in.
+ *
+ * The blank is no longer unanswerable, because `availability` answers it. The
+ * owner's rule of 19 October: a row the price list has not marked as gone is
+ * sellable with nothing on hand — someone rings the supplier and the supplier
+ * delivers to the customer — and he was explicit that the customer is told
+ * nothing about it. Same page, same button, as though the warehouse had it.
+ * So an ORDERABLE row with no stock reads IN_STOCK, and `stockQty` keeps the
+ * true number for the back office.
+ *
+ * A row that *is* marked gone has no supplier to ring, so there stock on hand
+ * really is the limit, and zero means zero.
+ */
 export function deriveStockStatus(row: NormalizedProductRow, stock: number, hasConflict: boolean): StockStatus {
   if (hasConflict) return "NEEDS_REVIEW";
   if (row.issues.some((i) => i.type === "MISSING_MODEL" || i.type === "INVALID_PRICE")) return "NEEDS_REVIEW";
-  if (!hasAnyStockData(row)) return "NEEDS_REVIEW";
-  if (stock <= 0) {
-    const hasSupplierOrBonded = row.stockLines.some(
-      (l) => (l.field === "SUPPLIER_STOCK" || l.field === "BONDED_STOCK") && l.quantity > 0
-    );
-    if (hasSupplierOrBonded) return "SUPPLIER_STOCK";
-    const hasShowroom = row.stockLines.some((l) => l.field === "SHOWROOM_STOCK" && l.quantity > 0);
-    if (hasShowroom) return "DISPLAY_ONLY";
-    return "OUT_OF_STOCK";
-  }
-  return "IN_STOCK"; // LOW_STOCK is applied by the caller against the configured threshold
+  if (stock > 0) return "IN_STOCK"; // LOW_STOCK is applied by the caller against the configured threshold
+
+  /* Nothing on hand, or nothing said about what is on hand. */
+  if (sellableWithoutStock(row.availability)) return "IN_STOCK";
+
+  const hasSupplierOrBonded = row.stockLines.some(
+    (l) => (l.field === "SUPPLIER_STOCK" || l.field === "BONDED_STOCK") && l.quantity > 0
+  );
+  if (hasSupplierOrBonded) return "SUPPLIER_STOCK";
+  const hasShowroom = row.stockLines.some((l) => l.field === "SHOWROOM_STOCK" && l.quantity > 0);
+  if (hasShowroom) return "DISPLAY_ONLY";
+  /* "סוף דגם" and "הופסק" are not the same statement as "אזל": the model is
+     out of production, so DISCONTINUED is what the page should say and
+     "אזל מהמלאי" would imply it is coming back. */
+  if (row.availability === "END_OF_LINE") return "DISCONTINUED";
+  return "OUT_OF_STOCK";
 }
 
 // Pure comparison — no DB access — so it's independently testable and reused

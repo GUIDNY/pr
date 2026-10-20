@@ -418,6 +418,48 @@ export const ENRICHMENT_STATUS_LABELS: Record<EnrichmentStatus, string> = {
   NEEDS_REVIEW: "דורש בדיקה",
 };
 
+// What the price list says about whether a product can still be got, which is
+// a different question from how many units a warehouse holds. The owner's rule
+// of 19 October: everything in the list is sellable — no stock means someone
+// rings the supplier — **unless** the row is marked gone, and then stock on
+// hand is the limit. Only ORDERABLE sells without stock; see
+// inventory/availability.ts, which reads these off the row, and
+// sellableWithoutStock(), which is the single place the rule is encoded.
+//
+// The three non-orderable values say different things to a person even though
+// they share one selling rule, so they are not collapsed: "the supplier is
+// out", "out of production" and "expected back" lead to different decisions in
+// the back office.
+export const SOURCE_AVAILABILITIES = [
+  "ORDERABLE",
+  "STOCK_ONLY",
+  "END_OF_LINE",
+  "TEMPORARILY_OUT",
+] as const;
+export type SourceAvailability = (typeof SOURCE_AVAILABILITIES)[number];
+export const sourceAvailabilitySchema = z.enum(SOURCE_AVAILABILITIES);
+
+export const SOURCE_AVAILABILITY_LABELS: Record<SourceAvailability, string> = {
+  ORDERABLE: "זמין להזמנה",
+  STOCK_ONLY: "אזל אצל הספק — מלאי בלבד",
+  END_OF_LINE: "סוף דגם",
+  TEMPORARILY_OUT: "אזל זמנית",
+};
+
+// Which importer a unit came through. A parallel-import unit may be listed and
+// sold like any other as long as the page says so — the owner's instruction —
+// and its warranty is the importer's rather than the manufacturer's. The
+// marker is written inside the price list's brand cell; see
+// inventory/import-channel.ts.
+export const IMPORT_CHANNELS = ["OFFICIAL", "PARALLEL"] as const;
+export type ImportChannel = (typeof IMPORT_CHANNELS)[number];
+export const importChannelSchema = z.enum(IMPORT_CHANNELS);
+
+export const IMPORT_CHANNEL_LABELS: Record<ImportChannel, string> = {
+  OFFICIAL: "יבואן רשמי",
+  PARALLEL: "יבוא מקביל",
+};
+
 // SELLER is the back office without the shop attached to it: orders, and
 // nothing else. ADMIN and STAFF are still the same thing as each other and
 // see everything — see lib/permissions.ts, which is the only place that

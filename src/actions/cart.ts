@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { addLineToCart, getCart, getOrCreateCart } from "@/lib/cart";
 import { buildCartSummary } from "@/lib/cart-summary";
+import { maxCartQuantity } from "@/lib/cart-merge";
 
 async function currentSummary() {
   const cart = await getOrCreateCart();
@@ -34,7 +35,7 @@ export async function updateCartItemAction(itemId: string, quantity: number) {
   if (quantity <= 0) {
     await db.cartItem.delete({ where: { id: itemId } });
   } else {
-    const maxQty = Math.max(1, Math.min(item.product.stockQty, 10));
+    const maxQty = maxCartQuantity(item.product.stockQty, item.product.sourceAvailability);
     await db.cartItem.update({ where: { id: itemId }, data: { quantity: Math.min(quantity, maxQty) } });
   }
 

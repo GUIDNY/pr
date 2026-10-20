@@ -40,11 +40,19 @@ function is(name: string, got: unknown, want: unknown) {
   console.log(`${ok ? "  ok  " : "  FAIL"}  ${name}${ok ? "" : `\n          got  ${g}\n          want ${w}`}`);
 }
 
-const stock = new Map([
-  ["plenty", 50],
-  ["scarce", 3],
-  ["last-one", 1],
-  ["none-left", 0],
+/* The map carries availability beside the quantity since 19 October: a
+   product the price list still offers is sellable with nothing on hand, and
+   the cap for one of those is the flat line limit rather than the stock. */
+const stock = new Map<string, { qty: number; availability?: string | null }>([
+  ["plenty", { qty: 50 }],
+  ["scarce", { qty: 3 }],
+  ["last-one", { qty: 1 }],
+  ["none-left", { qty: 0 }],
+  // No unit in any warehouse, and orderable from the supplier: a customer may
+  // take as many as the line cap allows, exactly as with "plenty".
+  ["from-supplier", { qty: 0, availability: "ORDERABLE" }],
+  // Marked gone in the price list with nothing left. Stock is the real limit.
+  ["gone-for-good", { qty: 0, availability: "END_OF_LINE" }],
 ]);
 
 console.log("\nAn account with no cart of its own is the common case, and the\nguest cart is simply re-keyed — nothing here runs for it.");
@@ -115,18 +123,46 @@ is(
 is("the cap of an empty shelf is one, not zero", maxCartQuantity(0), 1);
 is("the cap of a deep shelf is ten", maxCartQuantity(999), 10);
 
-/* The cap is written out in addToCartAction as well, because that file is a
-   "use server" module and importing it here would pull a server action into a
-   plain node process. Restating it is fine; the two drifting apart is not, and
-   a merge that admits a quantity the shop would refuse to sell is exactly the
-   kind of thing nobody notices until an order cannot be filled. */
-console.log("\nThe cap is the same one the shop applies everywhere else");
-const addToCart = readFileSync("src/actions/cart.ts", "utf8");
+is("a supplier-drawn line may reach the full cap", maxCartQuantity(0, "ORDERABLE"), 10);
+is("a line the price list has dropped is still capped by its stock", maxCartQuantity(0, "END_OF_LINE"), 1);
 is(
-  "addToCartAction still caps with Math.max(1, Math.min(stockQty, 10))",
-  /Math\.max\(1,\s*Math\.min\(\w+(?:\.\w+)*\.stockQty,\s*10\)\)/.test(addToCart),
-  true,
+  "a supplier-drawn guest line is carried across in full",
+  planCartMerge([{ productId: "from-supplier", quantity: 4 }], [], stock),
+  { updates: [], creates: [{ productId: "from-supplier", quantity: 4 }] },
 );
+is(
+  "a dropped line with nothing left is kept at one",
+  planCartMerge([{ productId: "gone-for-good", quantity: 4 }], [], stock),
+  { updates: [], creates: [{ productId: "gone-for-good", quantity: 1 }] },
+);
+
+/* The cap used to be written out by hand in five places — the add action, the
+   update action, the merge, the cart summary and the product page — because
+   `src/actions/cart.ts` is a "use server" module and importing *it* here
+   would pull a server action into a plain node process. So this check read
+   the formula back out of the file as text and asserted the two copies still
+   matched.
+
+   They no longer need to match, because there is no longer a second copy: the
+   cap lives in maxCartQuantity() above, in a plain module every one of those
+   five can import. The check that matters now is the opposite one — that
+   nobody has gone back to spelling it out, which is how the five copies
+   happened in the first place. A hand-rolled cap in any of them would also
+   miss what the shared one learned on 19 October: a product drawn from the
+   supplier has a stockQty of zero and may still be bought by the handful. */
+console.log("\nThe cap is the same one the shop applies everywhere else");
+const CAP_CALLERS = [
+  "src/actions/cart.ts",
+  "src/lib/cart.ts",
+  "src/lib/cart-summary.ts",
+  "src/components/product/product-page-view.tsx",
+];
+const HAND_ROLLED = /Math\.max\(1,\s*Math\.min\([^)]*stockQty[^)]*,\s*10\)\)/;
+for (const file of CAP_CALLERS) {
+  const src = readFileSync(file, "utf8");
+  is(`${file} asks maxCartQuantity for the cap`, src.includes("maxCartQuantity("), true);
+  is(`${file} does not spell the cap out itself`, HAND_ROLLED.test(src), false);
+}
 
 /* Every door into the shop has to hand the cart over on the way through. The
    check is deliberately dumb — a createSession() with no claimGuestCart()

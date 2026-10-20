@@ -7,6 +7,7 @@
 //   npm run check:rowkeys
 import { sourceRowKeyFor } from "../src/lib/inventory/source-row-key";
 import type { NormalizedProductRow } from "../src/lib/inventory/types";
+import { parseWarranty } from "../src/lib/inventory/warranty-parser";
 
 let failed = 0;
 const fail = (msg: string) => {
@@ -29,6 +30,10 @@ function row(over: Partial<NormalizedProductRow> = {}): NormalizedProductRow {
     title: "סמסונג RT62K7044BS",
     color: null,
     warranty: null,
+    parsedWarranty: parseWarranty(null),
+    availability: "ORDERABLE",
+    importChannel: "OFFICIAL",
+    importerName: null,
     imageUrl: null,
     retailPrice: 5990,
     minSalePrice: 5490,

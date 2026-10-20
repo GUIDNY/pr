@@ -19,25 +19,47 @@ export type CartMergePlan = {
   creates: { productId: string; quantity: number }[];
 };
 
-export function maxCartQuantity(stockQty: number) {
-  return Math.max(1, Math.min(stockQty, 10));
+/** Most of any one product a single cart may hold. */
+export const CART_LINE_CAP = 10;
+
+/**
+ * The cap on one cart line.
+ *
+ * `max(1, min(stockQty, 10))` was written out by hand in five places — the
+ * add action, the update action, the merge, the cart summary and the product
+ * page — which is how a rule like this rots: one copy learns something and
+ * four keep the old behaviour. It learned something on 19 October.
+ *
+ * A product drawn from the supplier carries a stockQty of zero and is sellable
+ * anyway, and the old formula caps it at one unit: a customer could buy a
+ * single cooktop and not two. The owner's instruction is that such a product
+ * behaves exactly like a stocked one, so for those the cap is the flat line
+ * limit and stock does not enter into it.
+ *
+ * A product the price list has marked gone is the opposite case and needs no
+ * special handling: there stock on hand is the real limit, which is what the
+ * original formula already says.
+ */
+export function maxCartQuantity(stockQty: number, sourceAvailability?: string | null) {
+  if (sourceAvailability === "ORDERABLE") return CART_LINE_CAP;
+  return Math.max(1, Math.min(stockQty, CART_LINE_CAP));
 }
 
 export function planCartMerge(
   guestItems: { productId: string; quantity: number }[],
   userItems: { id: string; productId: string; quantity: number }[],
-  stock: Map<string, number>,
+  stock: Map<string, { qty: number; availability?: string | null }>,
 ): CartMergePlan {
   const plan: CartMergePlan = { updates: [], creates: [] };
 
   for (const item of guestItems) {
-    const stockQty = stock.get(item.productId);
+    const entry = stock.get(item.productId);
     // The product was deleted, or is no longer sellable, while the cart sat
     // there. Nothing to merge, and nothing to report — it is already gone from
     // the guest's own view of the cart.
-    if (stockQty === undefined) continue;
+    if (entry === undefined) continue;
 
-    const maxQty = maxCartQuantity(stockQty);
+    const maxQty = maxCartQuantity(entry.qty, entry.availability);
     const mine = userItems.find((i) => i.productId === item.productId);
 
     if (!mine) {

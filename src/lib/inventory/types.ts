@@ -1,3 +1,6 @@
+import type { ImportChannel, SourceAvailability } from "@/lib/enums";
+import type { ParsedWarranty } from "./warranty-parser";
+
 export type ClassifiedField =
   | "SKU"
   | "MODEL"
@@ -88,6 +91,23 @@ export type NormalizedProductRow = {
   internalCost: number | null; // e.g. "עלות ללא מעמ" — supplier cost, internal only, never a price candidate
 
   stockLines: StockLine[]; // every stock-classified column that had a numeric value for this row, zeros included
+
+  // What the row says about whether this can still be got at all, as against
+  // how many units a warehouse holds — see inventory/availability.ts. Only
+  // ORDERABLE may be sold with nothing on hand.
+  availability: SourceAvailability;
+
+  // The warranty the row states, parsed out of the `warranty` cell above.
+  // `recognised` is false for the 46 phrasings in that column that are not
+  // warranties at all (dimensions, a bowl's capacity, importer codes), and
+  // nothing is then written to the product.
+  parsedWarranty: ParsedWarranty;
+
+  // Which importer the unit came through. The marker is written inside the
+  // brand cell on 11 rows and in a notes column on 22 more, so it is read
+  // from both and the manufacturer is split out before brandName is resolved.
+  importChannel: ImportChannel;
+  importerName: string | null;
 
   rawSnapshot: Record<string, string | number | null>;
 

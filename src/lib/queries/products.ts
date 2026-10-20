@@ -7,6 +7,7 @@ import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 import { resolveIntent } from "@/lib/alfred/intent";
+import type { Prisma } from "@/generated/prisma/client";
 
 /**
  * Exactly what a product card renders, and nothing else.
@@ -119,9 +120,36 @@ export const LISTING_MIN_PRODUCTS = 3;
     multiple of five, three and two. */
 export const CATEGORY_PAGE_SIZE = 30;
 
+/* Declared out here, and typed rather than `as const`, because the enclosing
+   object is `as const` and Prisma will not take a readonly array for AND. */
+const SELLABLE_CLAUSE: Prisma.ProductWhereInput[] = [
+  { OR: [{ stockQty: { gt: 0 } }, { sourceAvailability: "ORDERABLE" }] },
+];
+
 export const PUBLIC_PRODUCT_WHERE = {
   isPublished: true,
-  stockQty: { gt: 0 },
+  /* And it is sellable — which is no longer the same question as "is there one
+     in a warehouse".
+     Stated by the owner on 19 October, after a meeting with the business's
+     owner: almost everything in the price list can be sold. When no warehouse
+     has it, someone rings the supplier and the supplier delivers to the
+     customer, and the customer is told nothing about that — same page, same
+     button, same checkout, "as though the warehouse had it" in his words. So
+     an empty stock column stops being a reason to hide a product.
+     It was the biggest reason by far. 1,163 complete products sit in the three
+     workbooks with a model, a price and no stock number — ₪4.7M of catalogue,
+     a 115" LG at ₪49,000 among them — and `stockQty > 0` alone kept every one
+     of them off the site even once the sync was willing to create it.
+     The exception is a row the price list marks as gone: "אזל. למכור מלאי
+     ותצוגה", "סוף דגם", "אזל זמנית". There is no supplier left to ring, so
+     there stock on hand really is the limit and zero means hidden. That is
+     what sourceAvailability carries — see inventory/availability.ts, and
+     sellableWithoutStock(), which is the one place the rule is written.
+     An AND rather than an OR at the top level on purpose: one caller
+     (alfred-chat) already spreads this constant alongside an OR of its own,
+     and a second OR here would silently replace it, turning a pinned-picks
+     query into every product on the site. */
+  AND: SELLABLE_CLAUSE,
   images: { some: {} },
   stockStatus: { not: "NEEDS_REVIEW" },
   /* And it has to still be in a price list.

@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { isSellableNow } from "@/lib/inventory/availability";
 
 /**
  * Everything currently on sale, for the back office.
@@ -37,6 +38,7 @@ export async function getDealRows(): Promise<DealRow[]> {
       compareAtPrice: true,
       isPublished: true,
       stockQty: true,
+      sourceAvailability: true,
       brand: { select: { name: true } },
       images: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
       _count: { select: { images: true } },
@@ -51,7 +53,7 @@ export async function getDealRows(): Promise<DealRow[]> {
     // being told so one round at a time is how that turns into three trips.
     const reasons: string[] = [];
     if (!p.isPublished) reasons.push("לא מפורסם");
-    if (p.stockQty <= 0) reasons.push("אזל מהמלאי");
+    if (!isSellableNow(p)) reasons.push("אזל מהמלאי");
     if (p._count.images === 0) reasons.push("אין תמונה");
 
     return {
