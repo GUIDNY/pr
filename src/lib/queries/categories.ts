@@ -3,7 +3,7 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { SITE_URL } from "@/lib/site-url";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
+import { imageIsFromBlockedHost } from "@/lib/inventory/blocked-image-hosts";
 
 export type NavigableCategory = { slug: string; name: string };
 export type NavigableDepartment = NavigableCategory & { children: NavigableCategory[] };
@@ -158,24 +158,40 @@ export async function getCategoryTilesWithImages(): Promise<CategoryTile[]> {
       if (picked) {
         const override = await db.product.findFirst({
           where: { sku: picked, ...PUBLIC_PRODUCT_WHERE },
-          select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
+          select: {
+            images: {
+              orderBy: { sortOrder: "asc" },
+              take: 1,
+              // Provenance, not just the URL: a competitor's photograph
+              // copied to our CDN would otherwise pass this filter and
+              // become a category tile on the home page.
+              select: { url: true, sourceDomain: true, sourceImageUrl: true },
+            },
+          },
         });
-        const url = override?.images[0]?.url;
+        const image = override?.images[0];
         // A sold-out or de-listed override falls through to the automatic
         // pick rather than blanking the tile. The wrong-but-real photo the
         // override was correcting is better than a hole in the grid.
-        if (url && !isBlockedImageHost(url)) return { slug: c.slug, name: c.name, imageUrl: url };
+        if (image && !imageIsFromBlockedHost(image))
+          return { slug: c.slug, name: c.name, imageUrl: image.url };
       }
 
       const products = await db.product.findMany({
         where: { categoryId: c.id, ...PUBLIC_PRODUCT_WHERE },
         orderBy: [{ isBestSeller: "desc" }, { ratingCount: "desc" }],
         take: 8,
-        select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { url: true } } },
+        select: {
+          images: {
+            orderBy: { sortOrder: "asc" },
+            take: 1,
+            select: { url: true, sourceDomain: true, sourceImageUrl: true },
+          },
+        },
       });
       const imageUrl = products
-        .map((p) => p.images[0]?.url)
-        .find((url): url is string => Boolean(url) && !isBlockedImageHost(url!));
+        .map((p) => p.images[0])
+        .find((image) => image !== undefined && !imageIsFromBlockedHost(image))?.url;
 
       return imageUrl ? { slug: c.slug, name: c.name, imageUrl } : null;
     })
