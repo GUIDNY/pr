@@ -350,13 +350,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
        verified live — answered 200, said OutOfStock, and sat in the
        sitemap.
 
-       Only the sitemap entry goes. The page still answers 200 rather than
-       404 or 410, deliberately: missingFromSourceSince is set by the
-       matcher, 24 of the products holding it are ones whose binding I could
-       not account for today, and a 410 is the version of this you cannot
-       take back if the matcher was wrong. Not telling Google about a URL is
-       reversible on the next sync; telling it the page is gone for good is
-       not. */
+       The sitemap entry goes, and since 20 October the page redirects too
+       (product/[slug]/page.tsx): to the published twin of the same model
+       when the sheet re-created one, otherwise to the category, temporarily.
+       Never a 410 — missingFromSourceSince is set by the matcher, and a 410
+       is the version of this you cannot take back if the matcher was wrong.
+       A redirect is reversible on the next sync. Until then the page
+       answered 200 with "אזל מהמלאי" while this file disowned it, which is
+       the page and the sitemap telling Google opposite things. */
     ...products
       .filter((p) => p.missingFromSourceSince === null)
       .map((p) => ({

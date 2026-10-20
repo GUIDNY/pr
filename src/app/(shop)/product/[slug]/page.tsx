@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // canonical is indistinguishable from a 404 to anything reading the page —
   // which is exactly how it looked when this was checked in production.
   if (!product || !product.isPublished || product.images.length === 0) return {};
-  if (isOffCatalogue(product)) return {};
+  if (isOffCatalogue(product) || product.missingFromSourceSince !== null) return {};
   // Always the product's own slug, never the requested one: a legacy
   // address renders nothing here (the page redirects before this matters),
   // and the live page must never point a canonical at a URL that 301s.
@@ -82,7 +82,24 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
      has no source at all and had a fully working public page. The owner's
      rule, 11 October: a product that is not in the price list must not
      appear on the site. */
-  if (!product.isPublished || product.images.length === 0 || isOffCatalogue(product)) {
+  /* And a product the price list has stopped carrying. It was already out
+     of every listing, the search, the cart, the feed and the sitemap
+     (missingFromSourceSince is in PUBLIC_PRODUCT_WHERE), and this page was
+     the one place it still answered 200 — "אזל מהמלאי", a price, OutOfStock
+     in the markup — so Google kept ranking 24 addresses the sitemap had
+     disowned, and a shopper who clicked one found a product that cannot be
+     bought. The sitemap kept the page at 200 on purpose, because a 410 is
+     not something you can take back if the matcher was wrong; a redirect
+     is. The twin — the record the sheet re-created for the same model,
+     which is the usual way a product comes to be "missing" — is the right
+     permanent destination when there is one; otherwise the category,
+     temporarily, and the address comes back the day the sheet does. */
+  if (
+    !product.isPublished ||
+    product.images.length === 0 ||
+    isOffCatalogue(product) ||
+    product.missingFromSourceSince !== null
+  ) {
     const fallback = await hiddenProductFallback(product);
     if (fallback.kind === "product") permanentRedirect(`/product/${fallback.slug}`);
     if (fallback.slug) redirect(`/category/${fallback.slug}`);
