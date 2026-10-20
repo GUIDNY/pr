@@ -12,7 +12,7 @@
 import * as XLSX from "xlsx";
 import { parseSheetRows } from "../src/lib/inventory/excel-parser";
 import { normalizeRow } from "../src/lib/inventory/normalizer";
-import { isPlausibleBrandCell } from "../src/lib/inventory/brand-extractor";
+import { extractBrandFromDivider, isPlausibleBrandCell } from "../src/lib/inventory/brand-extractor";
 
 const YELLOW = { s: { fgColor: { rgb: "FFFF00" } } };
 const HEADER = ["מק\"ט", "מותג", "תאור מוצר", "דגם", "מחיר", "יתרה"];
@@ -156,7 +156,14 @@ for (const c of cases) {
  * different character from the מ in קומקומים, so the singular never matched.
  * "דגם חדש" passed because NON_BRAND_WORDS is anchored on the whole cell, so
  * it rejects "חדש" alone and waves through any phrase that merely starts
- * with it. */
+ * with it.
+ *
+ * The last two arrived on 20/10/2026 from מקררים rows 446 and 465, where the
+ * brand column carries what has become of the model rather than who made it.
+ * Both cleared every rule: "דגם חדש" is caught by its first word and "סוף"
+ * was not in that list, and פרימיום is a Liebherr product line. Eight
+ * products were titled from them, "סוף דגם CNSFD5743" among them — a page
+ * announcing a discontinuation on a product the price list still sells. */
 const JUNK_BRAND_CELLS = [
   "חדש 2026",
   "חדש 2027",
@@ -173,6 +180,18 @@ const JUNK_BRAND_CELLS = [
   "תאורת חירום",
   "זוג מדפים רפרנס",
   "5 תכ חצי כמות דיגיטלי 14",
+  "סוף דגם",
+  "פרימיום",
+  // The same labels as they reach the column in practice, and two more of
+  // the availability vocabulary that could land there just as easily.
+  "סוף דגם ",
+  "אזל",
+  "הופסק",
+  // A divider of X's sits between the Liebherr blocks in מקררים, and the
+  // Brand table holds an "XXXX" with three products under it.
+  "XXXX",
+  "XXXXXXXXXXXXXXXX",
+  "----",
 ];
 for (const cell of JUNK_BRAND_CELLS) {
   if (isPlausibleBrandCell(cell)) {
@@ -193,6 +212,17 @@ const REAL_BRAND_CELLS = [
   "כרומקס", "סמיקום", "קריסטל", "שולטס",
   "LG", "Bosch", "Bowers & Wilkins", "De'Longhi", "3i", "Audio Line",
   "North Bayou", "Kitchen Chef", "Sanyo Aqua Fresh", "La Germania", "Le Imperial",
+  /* The availability gate added on 20/10 reads a brand cell with
+     availability.ts, so the brands that are shaped like its markers have to
+     survive: "אייזו" opens the way אזל does and "פיור" the way הופסק does.
+     The colour כסוף — the substring that ruins a naive "סוף דגם" test — is
+     refused here for being a colour, which NON_BRAND_WORDS has always done;
+     that the marker itself does not fire on it is check:sheet-facts' case,
+     taken from מקרנים row 16. */
+  "אייזו", "פיור",
+  // The shortest real names in the catalogue, against the repeated-character
+  // rule: none of them is one letter repeated.
+  "LG", "SOL", "PL", "3i",
 ];
 for (const cell of REAL_BRAND_CELLS) {
   if (!isPlausibleBrandCell(cell)) {
@@ -201,10 +231,45 @@ for (const cell of REAL_BRAND_CELLS) {
   }
 }
 
-const total = cases.length + JUNK_BRAND_CELLS.length + REAL_BRAND_CELLS.length;
+/* The divider path asks the same question with a different predicate, and
+   only the cell one was guarded. The X-run divider in מקררים matched the
+   trailing-caps pattern — `[A-Z]` plus fifteen more — and was returned as a
+   brand before isBrandLike was consulted at all, so twelve Liebherr rows
+   came out titled "XXXXXXXXXXXXXXXX ICNSF5103". A junk divider has to yield
+   nothing, and a real one still has to yield its brand. */
+const JUNK_DIVIDERS = ["XXXXXXXXXXXXXXXX", "XXXX", "----", "סוף דגם", "אזל", "הופסק"];
+for (const divider of JUNK_DIVIDERS) {
+  const got = extractBrandFromDivider(divider);
+  if (got !== null) {
+    failed++;
+    console.log(`FAIL  a junk divider yielded a brand: ${JSON.stringify(divider)} -> ${JSON.stringify(got)}`);
+  }
+}
+
+const REAL_DIVIDERS: [string, string][] = [
+  ["GAGGIA", "GAGGIA"],
+  ["מוצרי ברזי מים WOTERLABS", "WOTERLABS"],
+  ["EAZO מתקנים", "EAZO"],
+  ["מקרנים מבית אפסון", "אפסון"],
+];
+for (const [divider, want] of REAL_DIVIDERS) {
+  const got = extractBrandFromDivider(divider);
+  if (got !== want) {
+    failed++;
+    console.log(`FAIL  divider ${JSON.stringify(divider)} gave ${JSON.stringify(got)}, wanted ${JSON.stringify(want)}`);
+  }
+}
+
+const total =
+  cases.length +
+  JUNK_BRAND_CELLS.length +
+  REAL_BRAND_CELLS.length +
+  JUNK_DIVIDERS.length +
+  REAL_DIVIDERS.length;
 console.log(
   `\n${total - failed}/${total} passed  ` +
     `(${cases.length} sheet cases, ${JUNK_BRAND_CELLS.length} sheet labels refused, ` +
+    `${JUNK_DIVIDERS.length} junk dividers refused, ${REAL_DIVIDERS.length} real dividers kept, ` +
     `${REAL_BRAND_CELLS.length} real brands kept)`,
 );
 process.exit(failed === 0 ? 0 : 1);

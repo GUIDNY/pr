@@ -13,6 +13,8 @@
 // singular/related forms (טוסטר, משקל, מעבד, בלנדר, קוצץ — same failure
 // mode, spotted while fixing the first three) so the same class of bug
 // doesn't quietly corrupt the next new category a future sheet introduces.
+import { sourceAvailability } from "./availability";
+
 const PRODUCT_TYPE_WORDS =
   /(רמקולים|רמקול|אוזניות|מגברים|מגבר|סאבוופר|סאבופר|סאב|וופר|מקרן|מקרני|בידורית|בידוריות|מערכת|מערכות|כיסוי|כיסויים|כבל|כבלים|מתקן|מתקנים|סטנד|שולחן|שולחנות|קופסא|קופסאות|זרוע|זרועות|מכונת|מכונה|מכונות|טוחנת|טוחנות|מטחנת|מטחנה|מטחנות|מקציף|משטח|פודים|קומקום|מיחם|מגהץ|שואב|מטהר|מאוורר|ברז|ברזי|טאבון|טאבונים|מנגל|מנגלים|מטבח|פלאנצה|בלון|מושב|מצנם|מצנמים|טוסטר|טוסטרים|מיקסר|מיקסרים|אינדוקציה|משקל|מעבד|מעבדי|בלנדר|בלנדרים|קוצץ|קוצצים|מיקרוגל|כיריים|כיריות|תנור|מקרר|מקפיא|מדיח|קולט|מסך|מסכים|טלוויזי|קומקומים|מיחמים|מגהצים|מדפים|תאור|גריל|מייבש|כביסה|קירור|הקפאה)/;
 
@@ -25,7 +27,7 @@ const PRODUCT_TYPE_WORDS =
 // consists ONLY of one of these words (whole match, not merely containing
 // one) is rejected the same way a product-type divider is.
 const NON_BRAND_WORDS =
-  /^(זוג|יחיד|בודד|זוגי|חדש|חדשה|ישן|שנה|שנים|נייד|ניידת|קדם|נירוסטה|דיגיטלי|דיגיטלית|אוטומטי|אוטומטית|ידני|ידנית|קומפקטי|קומפקטית|מקצועי|מקצועית|ביתי|ביתית|חשמלי|חשמלית|שחור|לבן|אפור|כסוף|זהב|זהוב|כחול|ורוד|אדום|ירוק|צהוב|חום|בז'|מוצר מועדף|כל סוגי ה?|סט|סטים|סדרה|סדרת|דגם|דגמים|כללי|שונות|אחר)$/;
+  /^(זוג|יחיד|בודד|זוגי|חדש|חדשה|ישן|שנה|שנים|נייד|ניידת|קדם|נירוסטה|דיגיטלי|דיגיטלית|אוטומטי|אוטומטית|ידני|ידנית|קומפקטי|קומפקטית|מקצועי|מקצועית|ביתי|ביתית|חשמלי|חשמלית|שחור|לבן|אפור|כסוף|זהב|זהוב|כחול|ורוד|אדום|ירוק|צהוב|חום|בז'|מוצר מועדף|כל סוגי ה?|סט|סטים|סדרה|סדרת|דגם|דגמים|פרימיום|כללי|שונות|אחר)$/;
 
 /* What a price sheet writes in the brand column when it is not naming a
    manufacturer at all: a banner, an instruction to the sales floor, or a
@@ -38,6 +40,15 @@ const NON_BRAND_WORDS =
    have a product in this catalogue. */
 const COMMERCIAL_PHRASE =
   /(חיסול|בונוס|מבצע|הנחה|למכור|סה"?כ|תצוגה|תצוגות|מלאי|משלוח|כולל|חדש \d{4}|מחיר)/;
+
+/* One character repeated is a placeholder, not a name. מקררים carries a
+   divider row of sixteen X's between the two Liebherr blocks, and the Brand
+   table holds an "XXXX" with three products filed under it. No manufacturer
+   here is a single repeated character — the shortest real names are LG, SOL,
+   PL and 3i. */
+function isPlaceholderRun(value: string): boolean {
+  return /^(.)\1+$/.test(value.trim());
+}
 
 function isBrandLike(label: string): boolean {
   // A divider is more likely a sub-category label than a brand name when it
@@ -118,6 +129,26 @@ export function cleanBrandCell(value: string): string | null {
 export function isPlausibleBrandCell(value: string): boolean {
   const v = value.trim();
   if (v.length < 2 || v.length > 24) return false;
+  /* The brand column is also where this supplier writes what has become of a
+     model. מקררים row 446 reads `B=סוף דגם` beside a real SKU, and the
+     Liebherr block below it reads `B=פרימיום` on every row — a product line,
+     not a manufacturer. Both cleared every test here: "דגם חדש" is refused
+     because NON_BRAND_WORDS catches its first word, and "סוף" was never in
+     that list.
+    
+     Eight products were titled from them — "סוף דגם CNSFD5743",
+     "פרימיום ICBNCI5665" — because the raw title is `{brandName} {model}`,
+     and since the Brand table is tidied separately `brandId` read Liebherr
+     correctly while the title kept the label. A page headed "end of model"
+     on a product the price list still sells, sitting in the queue of titles
+     somebody is about to write by hand.
+    
+     Asked of availability.ts rather than spelled out again: that module owns
+     this vocabulary, its patterns are anchored against the "כסוף דגם" row a
+     substring test ruins, and check:sheet-facts already holds the 18
+     markers. A cell that reads as a marker there is a marker, not a name. */
+  if (sourceAvailability({ cell: v }) !== "ORDERABLE") return false;
+  if (isPlaceholderRun(v)) return false;
   if (!/[A-Za-z\u0590-\u05FF]/.test(v)) return false;
   if (/^[\d/\\.\-\s]+$/.test(v)) return false;
   // A leading count — "5 גז רשתות", "3 סלסלאות דיגיטלי 15", and the same
@@ -186,6 +217,14 @@ export function extractBrand(description: string, knownBrands: string[]): string
 // only ever appears once, on the section divider that groups those rows.
 export function extractBrandFromDivider(sectionLabel: string | null): string | null {
   if (!sectionLabel) return null;
+  /* Asked of the whole divider before anything is pulled out of it. The
+     X-run divider reached the trailing-caps pattern first — `[A-Z]` followed
+     by fifteen more — and was returned as a brand without isBrandLike ever
+     being consulted, so twelve Liebherr rows were titled
+     "XXXXXXXXXXXXXXXX ICNSF5103". Two predicates for one question, and only
+     one of them was guarded: the same shape as the brand cell above. */
+  if (isPlaceholderRun(sectionLabel)) return null;
+  if (sourceAvailability({ divider: sectionLabel.trim() }) !== "ORDERABLE") return null;
 
   // "...מבית X" ("from the house of X") is a common Hebrew retail phrase
   // naming the supplier/brand at the end of an otherwise category-ish label.
