@@ -144,6 +144,7 @@ export default async function AdminInventoryPage({
 
       <InventorySummaryBar
         totalProducts={summary.totalProducts}
+        sellable={summary.sellable}
         sources={activeSources.map((s) => ({ id: s.id, filename: s.filename }))}
       />
 

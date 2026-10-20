@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { StockStatus } from "@/lib/enums";
 import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
 import { isSelfHosted } from "@/lib/inventory/image-migration";
+import type { Prisma } from "@/generated/prisma/client";
 
 /* From a price list, and only from a price list.
    This used to be `sourceId: { not: null }` — any source at all — and the
@@ -33,6 +34,25 @@ const FROM_A_PRICE_LIST = { source: { sourceType: "EXCEL", isActive: true } } as
 const STILL_CARRIED = { ...FROM_A_PRICE_LIST, missingFromSourceSince: null } as const;
 const IN_STOCK = { ...STILL_CARRIED, stockQty: { gt: 0 } } as const;
 
+/* And a second question, which until 19 October had the same answer as the
+   first and no longer does: how many can we actually sell.
+   A product the price list still offers is sellable with nothing in a
+   warehouse — someone rings the supplier — so "in stock" stopped being the
+   count of what the shop can take money for. It is now 1,444 against 2,947,
+   and the summary bar showed only the first, which is how a screen comes to
+   be read as saying the catalogue did not grow when it had grown by 1,502.
+   The same predicate as PUBLIC_PRODUCT_WHERE's sellability clause, written
+   the same way round, so the back office and the storefront cannot disagree
+   about what is for sale. */
+/* Typed rather than `as const`, because Prisma will not take a readonly
+   array for OR — the same reason PUBLIC_PRODUCT_WHERE declares its clause
+   outside the object. */
+const SELLABLE_OR: Prisma.ProductWhereInput[] = [
+  { stockQty: { gt: 0 } },
+  { sourceAvailability: "ORDERABLE" },
+];
+const SELLABLE = { ...STILL_CARRIED, OR: SELLABLE_OR } as const;
+
 export async function getInventorySummary() {
   const latestRun = await db.inventorySyncRun.findFirst({
     where: { status: { in: ["SUCCESS", "NO_CHANGES"] } },
@@ -41,6 +61,7 @@ export async function getInventorySummary() {
 
   const [
     totalProducts,
+    sellable,
     inStock,
     outOfStock,
     lowStock,
@@ -54,6 +75,7 @@ export async function getInventorySummary() {
     // "Total products" means what it says on the inventory page's summary
     // bar: real, currently-in-stock products — not every row ever imported.
     db.product.count({ where: IN_STOCK }),
+    db.product.count({ where: SELLABLE }),
     db.product.count({ where: { ...STILL_CARRIED, stockStatus: "IN_STOCK" } }),
     db.product.count({ where: { ...STILL_CARRIED, stockStatus: "OUT_OF_STOCK" } }),
     db.product.count({ where: { ...STILL_CARRIED, stockStatus: "LOW_STOCK" } }),
@@ -67,6 +89,7 @@ export async function getInventorySummary() {
 
   return {
     totalProducts,
+    sellable,
     inStock,
     outOfStock,
     lowStock,

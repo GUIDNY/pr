@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
-import { Boxes } from "lucide-react";
+import { Boxes, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Recognizable Excel-green document glyph — kept as a plain inline SVG
@@ -35,7 +35,20 @@ export type InventorySource = { id: string; filename: string };
 // same summary strip rather than a separate control. Picking a file scopes
 // the category tabs and table below it to that file's own sub-categories;
 // picking none (or re-clicking "כל הקבצים") shows everything combined.
-export function InventorySummaryBar({ totalProducts, sources }: { totalProducts: number; sources: InventorySource[] }) {
+export function InventorySummaryBar({
+  totalProducts,
+  sellable,
+  sources,
+}: {
+  totalProducts: number;
+  /* What the shop can actually take money for, which stopped being the same
+     number as "in stock" on 19 October: a product the price list still
+     offers is sold with nothing in a warehouse. Shown beside it rather than
+     instead of it — the owner needs both, because the gap between them is
+     the stock he does not hold and the one above is what he does. */
+  sellable: number;
+  sources: InventorySource[];
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -61,6 +74,16 @@ export function InventorySummaryBar({ totalProducts, sources }: { totalProducts:
         <div>
           <p className="text-xl font-bold tabular-nums">{totalProducts.toLocaleString("he-IL")}</p>
           <p className="text-muted-foreground text-xs">מוצרים במלאי</p>
+        </div>
+      </div>
+
+      <div className="border-border bg-card flex items-center gap-3 rounded-xl border px-4 py-3">
+        <span className="bg-success/15 text-success flex size-9 items-center justify-center rounded-lg">
+          <ShoppingCart className="size-4.5" />
+        </span>
+        <div>
+          <p className="text-xl font-bold tabular-nums">{sellable.toLocaleString("he-IL")}</p>
+          <p className="text-muted-foreground text-xs">ניתן למכירה</p>
         </div>
       </div>
 
