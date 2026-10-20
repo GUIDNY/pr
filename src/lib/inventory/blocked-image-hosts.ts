@@ -20,9 +20,23 @@
 //   isfar          ישפאר — official importer of Sony, Lenco, Elica
 //   fratelli       the brand's own site
 //   hidurit        the manufacturer's own site
-// Still here, verified as retail: hye (קבוצת ח.י, a chain), 100-100,
-// kreizman, cwc. cdn.shopify.com stays: it serves everyone, and a third of
-// what we have from it is Electra's benefits shop.
+// Still here, verified as retail: 100-100, kreizman, cwc. cdn.shopify.com
+// stays: it serves everyone, and a third of what we have from it is
+// Electra's benefits shop.
+//
+// hye (קבוצת ח.י) was in that sentence too, read as a chain because it
+// sells. It is the importer of Hisense and Gorenje, and the thing that
+// settles it is cheaper than reading an about page: count the brands.
+// A shop photographs whatever it stocks, an importer photographs its own
+// portfolio, and the catalogue holds 28 products from hye carrying
+// exactly two brands — Gorenje and Hisense. Every host whose answer was
+// already known agrees: omegador 2, isfar 2, saynet 3, sarig 6 and all
+// six of them one brand portfolio, against cdn.shopify.com's 11,
+// 100-100's 5 and cwc's 5. Taken out on 20/10/2026 on the owner's
+// decision; 22 live products, ₪67,400, had no other photograph.
+//
+// The test needs about ten products to mean anything — lastprice shows
+// two brands across four products and is a discount retailer.
 const BLOCKED_HOSTS = [
   "soferavi",
   "lior-electric",
@@ -43,7 +57,6 @@ const BLOCKED_HOSTS = [
   "electricland",
   "orsale",
   "newpro",
-  "hye.co.il",
   "i0.wp.com",
   "cdn.shopify.com",
   // Found still hotlinked on 30/09/2026, all retail shops, all answering 403
