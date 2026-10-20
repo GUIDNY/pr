@@ -821,6 +821,7 @@ export type OffSiteProduct = ProductLine & {
 
 export async function getOffSiteProducts(): Promise<{
   rows: OffSiteProduct[];
+  /** Sellable and still carried — the population this page explains. */
   inStock: number;
   onSite: number;
   byReason: { reason: OffSiteReason; count: number; value: number }[];
@@ -828,7 +829,20 @@ export async function getOffSiteProducts(): Promise<{
 }> {
   const [products, newIds, openAlerts] = await Promise.all([
     db.product.findMany({
-      where: { source: PRICE_LIST_SOURCE, stockQty: { gt: 0 }, missingFromSourceSince: null },
+      /* Everything the shop can sell, which stopped meaning "everything with
+         a unit in a warehouse" on 19 October: a product the price list still
+         offers is sold with nothing on a shelf.
+         Scoping this page to stocked products alone was the difference
+         between "81 products are waiting for a photograph" and the real
+         1,573. The page exists to answer "what is stopping each sellable
+         product from reaching the site", and a product with no stock is now
+         exactly the kind it has to count. Same predicate as
+         PUBLIC_PRODUCT_WHERE's sellability clause. */
+      where: {
+        source: PRICE_LIST_SOURCE,
+        missingFromSourceSince: null,
+        OR: [{ stockQty: { gt: 0 } }, { sourceAvailability: "ORDERABLE" }],
+      },
       select: {
         ...PRODUCT_LINE_SELECT,
         isPublished: true,

@@ -74,8 +74,8 @@ export default async function OffSitePage() {
     <div>
       <h1 className="text-2xl font-bold">למה לא באתר</h1>
       <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-        כל מוצר שיש לו מלאי והוא במחירון ואי אפשר לקנות אותו באתר, עם הסיבה האחת שעוצרת אותו. סיבה אחת לכל מוצר — זו
-        שצריך לטפל בה ראשונה — ולכן המספרים כאן מתחברים בדיוק לסך המלאי, בלי כפל ובלי מוצר שנופל בין הדפים.{" "}
+        כל מוצר שאפשר למכור — יש לו מלאי או שהוא במחירון ולא אזל — ואי אפשר לקנות אותו באתר, עם הסיבה האחת שעוצרת אותו. סיבה אחת לכל מוצר — זו
+        שצריך לטפל בה ראשונה — ולכן המספרים כאן מתחברים בדיוק לכל מה שניתן למכירה, בלי כפל ובלי מוצר שנופל בין הדפים.{" "}
         <strong className="text-foreground">״למה?״</strong> פותח את הנימוק המלא, ו-
         <strong className="text-foreground">״אשר ופרסם״</strong> מבטל את הסימון ומעלה את המוצר לאתר — רק במקרים שבהם
         הסימון הוא הדבר האחרון שחסר.
@@ -89,7 +89,7 @@ export default async function OffSitePage() {
       <section className="border-border mb-5 overflow-hidden rounded-xl border">
         <div className="divide-border flex flex-wrap divide-x divide-x-reverse">
           <div className="min-w-36 flex-1 p-4">
-            <p className="text-muted-foreground text-xs">במלאי ובמחירון</p>
+            <p className="text-muted-foreground text-xs">ניתן למכירה</p>
             <p className="mt-0.5 text-2xl font-bold">{inStock.toLocaleString("he-IL")}</p>
           </div>
           <div className="min-w-36 flex-1 p-4">
