@@ -336,6 +336,27 @@ for (const [file, what] of BOTH_COPIES) {
   if (!names) bad(`${what} (${file}) no longer asks about availability`, false, true);
 }
 
+// A field the sync owns has to be in *both* payloads. `data` is the create
+// payload and `stockOnlyUpdate` is the whitelist for a product that already
+// exists — the field-ownership rule, which is why the second one is a list
+// and not a spread of the first.
+//
+// Writing sourceAvailability into only the first was invisible: the 20 October
+// sync gave all 1,501 products it created a true availability and left the
+// 318 it merely updated at whatever the column already held, among them the
+// 278 that should have come back onto the site. The catalogue grew by 1,502
+// and the shop showed the same 1,333 products as the day before, with nothing
+// in the run to say why.
+console.log("");
+const sync = readFileSync("src/lib/inventory/sync.ts", "utf8");
+const update = sync.slice(sync.indexOf("const stockOnlyUpdate"), sync.indexOf("let productId"));
+const SYNC_OWNED = ["sourceAvailability", "importChannel", "importerName", "warrantyFields"];
+for (const field of SYNC_OWNED) {
+  if (!update.includes(field)) {
+    bad(`stockOnlyUpdate must write ${field} — an existing product would keep a stale value`, false, true);
+  }
+}
+
 // -------------------------------------------------------------------- total --
 
 const total =
@@ -349,13 +370,15 @@ const total =
   ROW_PARALLEL.length +
   ROW_OFFICIAL.length +
   SELLABILITY.length +
-  BOTH_COPIES.length;
+  BOTH_COPIES.length +
+  SYNC_OWNED.length;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${WARRANTY.length} warranty shapes, ${PROVIDERS.length} providers, ` +
     `${NOT_WARRANTY.length} non-warranty values, ${SENTENCES.length} sentences, ` +
     `${AVAILABILITY.length} availability markers, ${ORDERABLE.length} orderable rows, ` +
     `${BRAND_CELLS.length} brand cells, ${ROW_PARALLEL.length} parallel rows, ${ROW_OFFICIAL.length} official rows, ` +
-    `${SELLABILITY.length} sellability cases, ${BOTH_COPIES.length} copies of the rule)`,
+    `${SELLABILITY.length} sellability cases, ${BOTH_COPIES.length} copies of the rule, ` +
+    `${SYNC_OWNED.length} sync-owned fields)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;
