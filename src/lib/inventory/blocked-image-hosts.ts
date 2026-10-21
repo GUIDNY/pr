@@ -169,13 +169,27 @@ export function imageIsFromBlockedHost(image: {
  * Returns the reason to refuse it, in Hebrew, for the caller's `skipped`
  * list — or null to accept.
  *
- * This path had no host check of any kind, which is how 204 of the 272
- * blocked-host images in the catalogue got there: every one of them arrived
- * through the enrich endpoint, not the sync, whose own guard has always
- * worked. savoy.co.il alone wrote 30 images onto 38 live products on the
- * evening of 20/10, and cdn.shopify.com was still writing at 11:58 the next
- * day. The rule existed in three places that read images and in none that
- * wrote them.
+ * This path had no host check of any kind. The rule existed in three places
+ * that read images and in none that wrote one, while 201 blocked-host
+ * images accumulated on 169 products — savoy.co.il alone put 30 onto 38
+ * live products on the evening of 20/10.
+ *
+ * It is worth being exact about what this does and does not stop, because
+ * the first version of this note got it wrong. 204 of those images carry a
+ * `sourcePageUrl`, which was read here as the enrich endpoint's signature.
+ * It is not one: the column is just a column, and anything writing to the
+ * table can fill it. `AuditLog` is the signature, and it holds **no**
+ * `PRODUCT_ENRICHED_EXTERNAL` row in the whole preceding week — the
+ * endpoint had not been called once. Those images were written as direct
+ * SQL, which also bypasses `renumberImages` (hence six live products whose
+ * manufacturer and retailer photographs both sat at sortOrder 0, leaving
+ * which one is primary to the query planner), `checkImageUrl`, the
+ * energy-label filter, the enrichmentStatus flip, and the audit log itself.
+ *
+ * So this guard covers the HTTP paths, and covers them properly. It is not
+ * a guarantee about the table. Anything that must hold whoever writes
+ * belongs in a database constraint, the way CLAUDE.md's two enum-like
+ * columns ended up with CHECK constraints for exactly this reason.
  */
 export function blockedImageRefusal(image: {
   url: string;
