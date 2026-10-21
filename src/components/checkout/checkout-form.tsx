@@ -217,14 +217,23 @@ export function CheckoutForm({
      been looked at. All three without consent, nothing personal in any. */
   const openedAt = useRef(Date.now());
   const submitted = useRef(false);
+  const started = useRef(false);
+  /* Not on mount: the store hydrates after it (session-summary-provider),
+     so the first render has an empty cart and a mount-once effect saw no
+     checkout at all — the first live test logged the add-to-cart and the
+     drawer and nothing from this page. Like GaBeginCheckout below, it
+     fires on the first render that has items, once. */
+  const hasItems = cart.items.length > 0;
   useEffect(() => {
-    if (cart.items.length === 0) return;
-    trackVisit("checkout_start", { itemCount: cart.itemCount, total: cart.total });
+    if (!hasItems || started.current) return;
+    started.current = true;
+    openedAt.current = Date.now();
+    const snapshot = { itemCount: cart.itemCount, total: cart.total };
+    trackVisit("checkout_start", snapshot);
     const onLeave = () => {
       if (submitted.current) return;
       trackVisit("checkout_abandon", {
-        itemCount: cart.itemCount,
-        total: cart.total,
+        ...snapshot,
         secondsOnPage: Math.round((Date.now() - openedAt.current) / 1000),
       });
     };
@@ -233,9 +242,9 @@ export function CheckoutForm({
       window.removeEventListener("pagehide", onLeave);
       onLeave();
     };
-    // Once per checkout, with the cart as it was on arrival.
+    // The cart as it was when the checkout really began.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [hasItems]);
   /* An order that exists but whose payment could not be opened. Kept apart
      from a failed order: there is nothing to fill in again, only something to
      retry, and telling somebody to re-enter an address they already gave is
