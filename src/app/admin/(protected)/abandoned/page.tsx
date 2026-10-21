@@ -146,6 +146,9 @@ export default async function AbandonedCartsPage({
                       {cart.followUpBy && (
                         <div className="text-muted-foreground mt-0.5 text-xs">{cart.followUpBy.name}</div>
                       )}
+                      {cart.followUpNote && (
+                        <div className="text-warning-foreground mt-1 max-w-[14rem] text-xs leading-snug">{cart.followUpNote}</div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <AbandonedCartActions cartId={cart.id} status={followUpStatus} />

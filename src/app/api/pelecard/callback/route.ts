@@ -231,6 +231,7 @@ export async function POST(req: Request) {
         },
       }),
     ]);
+    if (movesToFailed) await noteDeclinedCart(order.visitSid, order.orderNumber, feedback.PelecardStatusCode);
     // 200 on purpose: the payment failed, but the notification was received and
     // recorded. A 500 here only makes Pelecard redeliver something we already
     // understand.
@@ -463,4 +464,41 @@ function readsAsRefusal(validation: unknown): boolean {
   }
 
   return false;
+}
+
+
+/* What a declined card looks like from /admin/abandoned. The cart is kept
+   until a payment is confirmed, so a customer whose card was refused is
+   already on that list — items, phone and all — but as one more walk-away,
+   indistinguishable from someone who closed the tab at the address step.
+   A refusal is the opposite: they got to the end and wanted to pay, and
+   004 in particular (the issuer said no) is the kind a phone call turns
+   around — another card, a limit raised, a word with the bank. So the
+   reason goes on the cart, with the order number to quote back. The cart
+   is found through the visit that placed the order; without one there is
+   nothing to annotate, and nothing is guessed. Only a cart nobody has
+   touched yet: a note already written by a person stays theirs. */
+const DECLINE_SHORT: Record<string, string> = {
+  "004": "הבנק המנפיק סירב",
+  "033": "כרטיס לא תקין",
+  "036": "תוקף הכרטיס פג",
+  "650": "אימות מול הבנק לא הושלם",
+};
+async function noteDeclinedCart(visitSid: string | null, orderNumber: string, statusCode: string | undefined) {
+  if (!visitSid) return;
+  try {
+    const cart = await db.cart.findFirst({
+      where: { visitSid, items: { some: {} }, followUpStatus: "NEW", followUpNote: null },
+      orderBy: { updatedAt: "desc" },
+      select: { id: true },
+    });
+    if (!cart) return;
+    const why = statusCode ? `קוד ${statusCode}${DECLINE_SHORT[statusCode] ? ` · ${DECLINE_SHORT[statusCode]}` : ""}` : "ללא קוד";
+    await db.cart.update({
+      where: { id: cart.id },
+      data: { followUpNote: `הגיע לתשלום ונדחה (${why}) · הזמנה ${orderNumber}` },
+    });
+  } catch (error) {
+    console.error("[pelecard] could not note the declined cart", { orderNumber, error });
+  }
 }

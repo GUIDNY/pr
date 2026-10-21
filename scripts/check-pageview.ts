@@ -103,7 +103,7 @@ is("only the type's own keys survive", sanitizeEventMeta("add_to_cart_click", { 
 is("a key of the wrong shape is dropped", sanitizeEventMeta("add_to_cart_result", { productSlug: "x", ok: "yes" }), { productSlug: "x" });
 is("a number is rounded to two decimals", sanitizeEventMeta("cart_open", { itemCount: 2, total: 1234.5678 })?.total, 1234.57);
 is("a non-finite number is dropped", sanitizeEventMeta("cart_open", { itemCount: NaN, total: Infinity }), null);
-is("a string is trimmed and capped at 120 characters", sanitizeEventMeta("add_to_cart_blocked", { productSlug: " " + "x".repeat(200), blockedBy: "consent-banner" })?.productSlug.length, 120);
+is("a string is trimmed and capped at 120 characters", String(sanitizeEventMeta("add_to_cart_blocked", { productSlug: " " + "x".repeat(200), blockedBy: "consent-banner" })?.productSlug).length, 120);
 is("an empty string is dropped", sanitizeEventMeta("payment_result", { orderNumber: "PR-1", statusCode: "   " }), { orderNumber: "PR-1" });
 is("nothing allowed → null, not {}", sanitizeEventMeta("checkout_start", { foo: 1 }), null);
 is("a non-object meta → null", sanitizeEventMeta("checkout_start", "itemCount=3"), null);
