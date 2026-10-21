@@ -8,6 +8,7 @@
 //
 // Run: npx tsx scripts/check-blocked-image-hosts.ts
 import {
+  blockedImageRefusal,
   imageIsFromBlockedHost,
   isBlockedImageHost,
 } from "../src/lib/inventory/blocked-image-hosts";
@@ -100,6 +101,59 @@ const IMAGE_MUST_ALLOW: [string, ImageRow][] = [
   ],
 ];
 
+/* The write-time refusal, which is the one that was missing entirely: 204
+ * of the 272 blocked-host images in the catalogue arrived through the enrich
+ * endpoint, which had no host check at all.
+ *
+ * cdn.shopify.com is why this cannot be a plain host test. Of 151 images we
+ * hold from it, 10 are ישפאר's own Shopify store — an importer, taken off
+ * the list on 01/10 — and 79 are Electra's staff-benefits shop. One host,
+ * two answers, so the page decides. */
+type EnrichImage = {
+  url: string;
+  sourcePageUrl?: string | null;
+  sourceImageUrl?: string | null;
+  sourceDomain?: string | null;
+};
+
+const SHOPIFY = "https://cdn.shopify.com/s/files/1/0123/4567/files/hood.png";
+
+const WRITE_MUST_REFUSE: [string, EnrichImage][] = [
+  ["savoy — 30 images onto 38 live products on 20/10", { url: "https://www.savoy.co.il/wp-content/uploads/2026/06/BO8090.png" }],
+  [
+    "Electra's benefits shop, behind the Shopify CDN",
+    { url: SHOPIFY, sourcePageUrl: "https://ovd.ecp.co.il/products/liebherr-cnd-5223" },
+  ],
+  ["a shared CDN with no page to judge", { url: SHOPIFY, sourcePageUrl: null }],
+  ["a shared CDN with an empty page", { url: SHOPIFY, sourcePageUrl: "   " }],
+  [
+    "a clean url whose provenance gives it away",
+    { url: "https://example.org/a.jpg", sourcePageUrl: "https://www.zap.co.il/model.aspx?modelid=1" },
+  ],
+  [
+    "sourceDomain alone gives it away",
+    { url: "https://example.org/a.jpg", sourceDomain: "zap.co.il" },
+  ],
+];
+
+const WRITE_MUST_ACCEPT: [string, EnrichImage][] = [
+  [
+    "ישפאר's own Shopify store — the importer of Elica, Sony, Lenco",
+    { url: SHOPIFY, sourcePageUrl: "https://isfar.co.il/products/elica-tamaya" },
+  ],
+  [
+    "the manufacturer, which is where the Elica hoods came from",
+    {
+      url: "https://www.elica.com/storage/Variant/tamaya-20-inox-60-down-ol.png",
+      sourcePageUrl: "https://www.elica.com/il/tamaya",
+      sourceDomain: "www.elica.com",
+    },
+  ],
+  ["an importer over plain http", { url: "http://www.sarig.com/app/uploads/a.png", sourceDomain: "sarig.com" }],
+  ["prec — ours", { url: "https://www.prec.co.il/images/product/1.jpg" }],
+  ["no provenance at all, and nothing against it", { url: "https://media3.bsh-group.com/a.png" }],
+];
+
 let failed = 0;
 for (const url of MUST_BLOCK) {
   if (!isBlockedImageHost(url)) {
@@ -127,10 +181,30 @@ for (const [label, image] of IMAGE_MUST_ALLOW) {
   }
 }
 
+for (const [label, image] of WRITE_MUST_REFUSE) {
+  if (blockedImageRefusal(image) === null) {
+    console.log(`FAIL  the write should have been refused: ${label}`);
+    failed++;
+  }
+}
+for (const [label, image] of WRITE_MUST_ACCEPT) {
+  const refusal = blockedImageRefusal(image);
+  if (refusal !== null) {
+    console.log(`FAIL  the write should have been accepted: ${label}\n      refused with: ${refusal}`);
+    failed++;
+  }
+}
+
 const total =
-  MUST_BLOCK.length + MUST_ALLOW.length + IMAGE_MUST_BLOCK.length + IMAGE_MUST_ALLOW.length;
+  MUST_BLOCK.length +
+  MUST_ALLOW.length +
+  IMAGE_MUST_BLOCK.length +
+  IMAGE_MUST_ALLOW.length +
+  WRITE_MUST_REFUSE.length +
+  WRITE_MUST_ACCEPT.length;
 console.log(
   `${total - failed}/${total} passed  (${MUST_BLOCK.length} urls blocked, ${MUST_ALLOW.length} urls allowed, ` +
-    `${IMAGE_MUST_BLOCK.length} images blocked, ${IMAGE_MUST_ALLOW.length} images allowed)`,
+    `${IMAGE_MUST_BLOCK.length} images blocked, ${IMAGE_MUST_ALLOW.length} images allowed, ` +
+    `${WRITE_MUST_REFUSE.length} writes refused, ${WRITE_MUST_ACCEPT.length} writes accepted)`,
 );
 process.exit(failed === 0 ? 0 : 1);
