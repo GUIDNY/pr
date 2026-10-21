@@ -17,6 +17,7 @@ import {
   type NormalizedImage,
 } from "@/lib/integrations/product-enrich-shared";
 import { unknownKeysIn, CREATE_ITEM_KEYS, CREATE_TOP_LEVEL_KEYS } from "@/lib/integrations/api-fields";
+import { blockedImageRefusal } from "@/lib/inventory/blocked-image-hosts";
 
 // Bearer-token-protected endpoint (same PRODUCT_ENRICH_SECRET as
 // /api/integrations/product-enrich) for an external agent to create a
@@ -114,8 +115,18 @@ async function processCreateItem(item: CreateItem, dryRun: boolean) {
   const checks = await Promise.all(capped.map(async (img) => [img, await checkImageUrl(img.url)] as const));
   const imageWrites: NormalizedImage[] = [];
   for (const [img, status] of checks) {
-    if (status === "confirmed-bad") warnings.push({ field: "images", reason: `URL confirmed dead (404/410), not saved: ${img.url}` });
-    else imageWrites.push(img);
+    if (status === "confirmed-bad") {
+      warnings.push({ field: "images", reason: `URL confirmed dead (404/410), not saved: ${img.url}` });
+      continue;
+    }
+    /* The same refusal the enrich endpoint applies. This path creates the
+       product, so an image it accepts is the one the page launches with. */
+    const refusal = blockedImageRefusal(img);
+    if (refusal) {
+      warnings.push({ field: "images", reason: refusal });
+      continue;
+    }
+    imageWrites.push(img);
   }
 
   // Same "match a real CategoryAttribute, else keep as free text" rule as

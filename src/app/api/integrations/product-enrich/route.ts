@@ -23,6 +23,7 @@ import {
   type NormalizedImage,
 } from "@/lib/integrations/product-enrich-shared";
 import { unknownKeysIn, ENRICH_ITEM_KEYS, ENRICH_TOP_LEVEL_KEYS } from "@/lib/integrations/api-fields";
+import { blockedImageRefusal } from "@/lib/inventory/blocked-image-hosts";
 
 // Bearer-token-protected endpoint for an external agent (e.g. a scraping/
 // enrichment tool) to fill in *missing* data on products that already exist
@@ -148,6 +149,15 @@ function usableImageUrls(images: NormalizedImage[], skipped: FieldOutcome[]): No
     // because nothing about it looks wrong.
     if (looksLikeEnergyLabelUrl(img.url)) {
       skipped.push({ field: "images", reason: `looks like an EU energy label rather than a product photo, not saved: ${img.url}` });
+      continue;
+    }
+    /* A competitor's photograph. The rule lived in three places that read
+       images — the sync, the migration, two admin reports — and in none
+       that wrote one, so this endpoint accepted any host at all. 204 of the
+       272 blocked-host images in the catalogue came in through here. */
+    const refusal = blockedImageRefusal(img);
+    if (refusal) {
+      skipped.push({ field: "images", reason: refusal });
       continue;
     }
     usable.push(img);

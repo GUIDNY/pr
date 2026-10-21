@@ -75,7 +75,43 @@ const BLOCKED_HOSTS = [
   // comparison site, which is the opposite of the importer test applied on
   // 01/10, and 28 of those products are live.
   "zap.co.il",
+  /* Electra Consumer Products' staff-benefits shop, found on 21/10/2026
+     behind cdn.shopify.com — 79 images on 48 products, 39 of them written
+     the day before. Six manufacturers that no single importer holds
+     (Liebherr, Meister, Miele, Philips, Sauter, TCL), which is the brand
+     count of a shop and not of a portfolio. It is also the "third of what
+     we have from cdn.shopify.com is Electra's benefits shop" the note
+     above was about, now that the page it came from is recorded. */
+  "ovd.ecp.co.il",
 ];
+
+/* A CDN's hostname says nothing about whose photograph it is serving, and
+   cdn.shopify.com is the proof: of the 151 images we hold from it, 10 are
+   ישפאר's own store — the official importer of Elica, Sony and Lenco, and
+   one of the six hosts deliberately taken off this list on 01/10 — and 79
+   are Electra's benefits shop. One host, two answers. Refusing the CDN
+   rejects the importer's own photographs; allowing it admits a retailer's.
+  
+   So for these the question is asked of `sourcePageUrl`, the page the image
+   was taken from, and a shared CDN with no recorded page is refused: there
+   is nothing to judge, and "we could not tell" is not a reason to publish
+   somebody else's picture. The sheet's image column has no provenance at
+   all, which is why the plain host test above keeps cdn.shopify.com and the
+   sync keeps refusing it. */
+const SHARED_IMAGE_CDNS = ["cdn.shopify.com"];
+
+function hostOf(url: string): string {
+  return url
+    .replace(/^https?:\/\//i, "")
+    .split("/")[0]
+    .split(":")[0]
+    .toLowerCase();
+}
+
+export function isSharedImageCdn(url: string): boolean {
+  const host = hostOf(url);
+  return SHARED_IMAGE_CDNS.some((cdn) => host.includes(cdn));
+}
 
 // Matches on the host alone, never the whole URL: a competitor's name
 // appearing in a path or query string ("?ref=savoy") is not the same as
@@ -125,6 +161,48 @@ export function imageIsFromBlockedHost(image: {
   if (image.sourceDomain && isBlockedImageHost(image.sourceDomain)) return true;
   if (image.sourceImageUrl && isBlockedImageHost(image.sourceImageUrl)) return true;
   return false;
+}
+
+/**
+ * May an image an enrichment caller is offering be written at all?
+ *
+ * Returns the reason to refuse it, in Hebrew, for the caller's `skipped`
+ * list — or null to accept.
+ *
+ * This path had no host check of any kind, which is how 204 of the 272
+ * blocked-host images in the catalogue got there: every one of them arrived
+ * through the enrich endpoint, not the sync, whose own guard has always
+ * worked. savoy.co.il alone wrote 30 images onto 38 live products on the
+ * evening of 20/10, and cdn.shopify.com was still writing at 11:58 the next
+ * day. The rule existed in three places that read images and in none that
+ * wrote them.
+ */
+export function blockedImageRefusal(image: {
+  url: string;
+  sourcePageUrl?: string | null;
+  sourceImageUrl?: string | null;
+  sourceDomain?: string | null;
+}): string | null {
+  if (isSharedImageCdn(image.url)) {
+    const page = image.sourcePageUrl?.trim();
+    if (!page) {
+      return `${hostOf(image.url)} משרת את כולם, ובלי sourcePageUrl אין דרך לדעת של מי התמונה — לא נשמר: ${image.url}`;
+    }
+    if (isBlockedImageHost(page)) {
+      return `הדף שממנו נלקחה התמונה הוא של קמעונאי (${hostOf(page)}) — לא נשמר: ${image.url}`;
+    }
+    return null;
+  }
+
+  /* Not a shared CDN, so every field that can name an origin is asked.
+     sourceDomain holds a bare host, which isBlockedImageHost accepts
+     unchanged. */
+  for (const candidate of [image.url, image.sourcePageUrl, image.sourceImageUrl, image.sourceDomain]) {
+    if (candidate && isBlockedImageHost(candidate)) {
+      return `${hostOf(candidate)} הוא קמעונאי, לא יצרן או יבואן — לא נשמר: ${image.url}`;
+    }
+  }
+  return null;
 }
 
 export const BLOCKED_IMAGE_HOST_COUNT = BLOCKED_HOSTS.length;
