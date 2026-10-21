@@ -18,21 +18,27 @@ import type { CategoryTile } from "@/lib/queries/categories";
 export function CategoryCircles({ tiles, className }: { tiles: CategoryTile[]; className?: string }) {
   if (tiles.length === 0) return null;
   const shown = tiles.slice(0, 6);
-  const disc = "relative block size-[76px] overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-black/5";
+  const disc = "relative block size-[76px] overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-black/5 md:size-[92px]";
   return (
     <nav aria-label="קטגוריות" className={className}>
-      <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {/* Seven tiles at 76px come to ~600px. On a phone that is a rail
+          that scrolls; on an iPad held upright (768px) it is a row that
+          stops 130px short of the left edge and looks unfinished. From
+          sm: the tiles spread across the width (justify-between does
+          nothing while the row overflows, so the phone is unchanged), and
+          from md: they are a size the wider row can carry. */}
+      <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 py-1 sm:justify-between [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {shown.map((t) => (
-          <li key={t.slug} className="w-[76px] shrink-0">
+          <li key={t.slug} className="w-[76px] shrink-0 md:w-[92px]">
             <Link href={`/category/${t.slug}`} className="group flex flex-col items-center gap-1.5 active:opacity-80">
               <span className={disc}>
-                <Image src={t.imageUrl} alt="" fill sizes="76px" className="object-contain p-2.5" referrerPolicy="no-referrer" />
+                <Image src={t.imageUrl} alt="" fill sizes="(min-width: 768px) 92px, 76px" className="object-contain p-2.5" referrerPolicy="no-referrer" />
               </span>
-              <span className="line-clamp-2 text-center text-xs leading-tight font-semibold">{t.name}</span>
+              <span className="line-clamp-2 text-center text-xs leading-tight font-semibold md:text-[13px]">{t.name}</span>
             </Link>
           </li>
         ))}
-        <li className="w-[76px] shrink-0">
+        <li className="w-[76px] shrink-0 md:w-[92px]">
           <button
             type="button"
             onClick={() => window.dispatchEvent(new Event(DEPARTMENTS_OPEN_EVENT))}
@@ -41,7 +47,7 @@ export function CategoryCircles({ tiles, className }: { tiles: CategoryTile[]; c
             <span className={`${disc} bg-brand/10 text-brand flex items-center justify-center ring-0`}>
               <LayoutGrid className="size-7" strokeWidth={1.75} />
             </span>
-            <span className="text-xs leading-tight font-semibold">כל המחלקות</span>
+            <span className="text-xs leading-tight font-semibold md:text-[13px]">כל המחלקות</span>
           </button>
         </li>
       </ul>
