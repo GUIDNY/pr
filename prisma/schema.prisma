@@ -1321,3 +1321,23 @@ model PageViewDaily {
   @@unique([date, path, isBot])
   @@index([date])
 }
+
+/// An action a visit took — add to cart, the drawer, the checkout, a
+/// payment's result — from a closed list of types with a closed list of
+/// keys each (lib/pageview/events.ts). Same terms as PageView: the visit
+/// id that lapses within a day, a path with no query, nothing that names a
+/// person. Raw rows live 90 days (api/internal/pv-rollup).
+model VisitEvent {
+  id        String   @id @default(cuid())
+  sid       String
+  type      String
+  path      String
+  meta      Json?
+  isBot     Boolean  @default(false)
+  isRsc     Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([sid, createdAt])
+  @@index([type, createdAt])
+  @@index([createdAt])
+}

@@ -3,6 +3,7 @@
 import { addToCartAction } from "@/actions/cart";
 import { META_CURRENCY, trackMeta } from "@/lib/analytics/meta";
 import { pushEcommerce, toAnalyticsItem, itemsValue } from "@/lib/analytics/ga";
+import { trackVisit } from "@/lib/pageview/track";
 
 /**
  * The one way a page adds to the cart, with the reporting attached.
@@ -21,9 +22,19 @@ import { pushEcommerce, toAnalyticsItem, itemsValue } from "@/lib/analytics/ga";
  * carrying the whole cart grows with every extra item and stops meaning
  * anything.
  */
-export async function addToCartReported(productId: string, qty: number) {
-  const summary = await addToCartAction(productId, qty);
+export async function addToCartReported(productId: string, qty: number, known?: { slug: string; price: number }) {
+  /* The shop's own log, before the server is asked: a click that never
+     comes back as a result is what a dead button looks like from here. */
+  trackVisit("add_to_cart_click", { productSlug: known?.slug ?? productId, price: known?.price ?? 0 });
+  let summary: Awaited<ReturnType<typeof addToCartAction>>;
+  try {
+    summary = await addToCartAction(productId, qty);
+  } catch (error) {
+    trackVisit("add_to_cart_result", { productSlug: known?.slug ?? productId, ok: false });
+    throw error;
+  }
   const line = summary.items.find((i) => i.productId === productId);
+  trackVisit("add_to_cart_result", { productSlug: line?.slug ?? known?.slug ?? productId, ok: !!line });
   if (line) {
     const items = [toAnalyticsItem(line, { quantity: qty })];
     pushEcommerce("add_to_cart", { value: itemsValue(items), items });

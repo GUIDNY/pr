@@ -244,6 +244,12 @@ export const CLEARERS: Record<string, string> = {
 
 /** What the customer is told when a payment is declined. */
 export const PELECARD_STATUS_MESSAGES: Record<string, string> = {
+  // The issuer's refusal, not ours, and the one that most often turns
+  // around: another card, a limit that was just raised, a phone call to the
+  // bank. On 20 October the only real customer of the week met this code
+  // and a generic screen, and left. Say whose decision it was and what to
+  // do next.
+  "004": "הבנק שהנפיק את הכרטיס דחה את החיוב. זה לא קרה בגלל משהו באתר. אפשר לנסות כרטיס אחר, או להתקשר לבנק לאשר את החיוב ולנסות שוב.",
   "006": "קוד ה-CVV שהוזן שגוי. אפשר לנסות שוב.",
   "033": "הכרטיס אינו תקין. נסו כרטיס אחר.",
   "036": "תוקף הכרטיס פג. נסו כרטיס אחר.",
@@ -258,6 +264,10 @@ export const PELECARD_STATUS_MESSAGES: Record<string, string> = {
 /** 301 is a timeout, not a decline: the charge may have gone through, so a
     retry is how a customer gets billed twice. */
 export const NO_RETRY_STATUS_CODES = ["301"];
+
+/** Codes where the right next step is a different card, so the button says
+    so instead of "try again" with the same one. */
+export const TRY_ANOTHER_CARD_CODES = ["004", "033", "036"];
 
 /**
  * Whether checkout should hold the money instead of taking it.

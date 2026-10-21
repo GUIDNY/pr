@@ -47,6 +47,10 @@ export async function GET(request: Request) {
   const deleted = await db.$executeRawUnsafe(
     `DELETE FROM "PageView" WHERE "createdAt" < now() - interval '${RETENTION_DAYS} days'`,
   );
+  /* The actions keep the page log's shelf life; they carry the same id. */
+  const deletedEvents = await db.$executeRawUnsafe(
+    `DELETE FROM "VisitEvent" WHERE "createdAt" < now() - interval '${RETENTION_DAYS} days'`,
+  );
 
-  return NextResponse.json({ ok: true, aggregatedRows: aggregated, deletedRaw: deleted, retentionDays: RETENTION_DAYS });
+  return NextResponse.json({ ok: true, aggregatedRows: aggregated, deletedRaw: deleted, deletedEvents, retentionDays: RETENTION_DAYS });
 }

@@ -24,7 +24,7 @@ export function MobileBuyBar({
   // always show the single-unit price regardless of the stepper.
   const qty = useProductQtyStore((s) => s.qty);
   return (
-    <div className="bg-background/95 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 rounded-t-2xl border-t px-4 py-3 backdrop-blur lg:hidden">
+    <div className="floating-launcher bg-background/95 shadow-[0_-4px_16px_rgba(0,0,0,0.06)] fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 rounded-t-2xl border-t px-4 py-3 backdrop-blur lg:hidden">
       <span className="text-lg font-bold tabular-nums">{formatPrice(price * qty)}</span>
       <AddToCartButton
         productId={productId}

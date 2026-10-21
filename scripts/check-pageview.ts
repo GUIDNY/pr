@@ -14,6 +14,7 @@ import {
   isSkippedPath,
 } from "../src/lib/pageview/capture";
 import { parseSid, resolveSid, serializeSid, SID_IDLE_SECONDS, SID_MAX_SECONDS } from "../src/lib/pageview/sid";
+import { VISIT_EVENT_TYPES, isVisitEventType, sanitizeEventMeta } from "../src/lib/pageview/events";
 
 let failures = 0;
 function is(name: string, got: unknown, want: unknown) {
@@ -92,6 +93,21 @@ is("a cookie from the future is not trusted", resolveSid(serializeSid({ id: fres
 is("garbage is a new id, not a crash", resolveSid("not-a-cookie", now).isNew, true);
 is("the idle window is 30 minutes", SID_IDLE_SECONDS, 1800);
 is("the hard cap is 24 hours", SID_MAX_SECONDS, 86400);
+
+console.log("\nvisit events: a closed list of types, a closed list of keys");
+is("eight event types", VISIT_EVENT_TYPES.length, 8);
+is("a listed type is accepted", isVisitEventType("cart_open"), true);
+is("an unlisted type is refused, not stored", isVisitEventType("page_scroll"), false);
+is("a non-string is refused", isVisitEventType(42), false);
+is("only the type's own keys survive", sanitizeEventMeta("add_to_cart_click", { productSlug: "lg-c6", price: 9900, email: "a@b.c", phone: "050" }), { productSlug: "lg-c6", price: 9900 });
+is("a key of the wrong shape is dropped", sanitizeEventMeta("add_to_cart_result", { productSlug: "x", ok: "yes" }), { productSlug: "x" });
+is("a number is rounded to two decimals", sanitizeEventMeta("cart_open", { itemCount: 2, total: 1234.5678 })?.total, 1234.57);
+is("a non-finite number is dropped", sanitizeEventMeta("cart_open", { itemCount: NaN, total: Infinity }), null);
+is("a string is trimmed and capped at 120 characters", sanitizeEventMeta("add_to_cart_blocked", { productSlug: " " + "x".repeat(200), blockedBy: "consent-banner" })?.productSlug.length, 120);
+is("an empty string is dropped", sanitizeEventMeta("payment_result", { orderNumber: "PR-1", statusCode: "   " }), { orderNumber: "PR-1" });
+is("nothing allowed → null, not {}", sanitizeEventMeta("checkout_start", { foo: 1 }), null);
+is("a non-object meta → null", sanitizeEventMeta("checkout_start", "itemCount=3"), null);
+is("the abandon event carries its seconds", sanitizeEventMeta("checkout_abandon", { itemCount: 1, total: 100, secondsOnPage: 42.4 }), { itemCount: 1, total: 100, secondsOnPage: 42.4 });
 
 console.log(failures === 0 ? "\nall good" : `\n${failures} failing`);
 process.exit(failures === 0 ? 0 : 1);

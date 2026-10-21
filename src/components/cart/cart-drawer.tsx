@@ -25,6 +25,7 @@ import {
 } from "@/actions/cart";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { pushEcommerce, toAnalyticsItem, itemsValue } from "@/lib/analytics/ga";
+import { trackVisit } from "@/lib/pageview/track";
 
 export function CartDrawer() {
   const { cart, isDrawerOpen, closeDrawer, setCart, setPending, isPending } = useCartStore();
@@ -37,6 +38,7 @@ export function CartDrawer() {
     if (!isDrawerOpen || cart.items.length === 0) return;
     const items = cart.items.map((i) => toAnalyticsItem(i, { quantity: i.quantity }));
     pushEcommerce("view_cart", { value: itemsValue(items), items });
+    trackVisit("cart_open", { itemCount: cart.itemCount, total: cart.total });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDrawerOpen]);
 

@@ -3,6 +3,7 @@ import { rememberAddress } from "@/lib/address-book";
 import { retireGameCoupon } from "@/lib/game-wheel";
 import { awardPurchase } from "@/lib/game-levels";
 import { sendPurchaseToGa4 } from "@/lib/analytics/ga4-purchase";
+import { recordOrderVisitEvent } from "@/lib/pageview/record.server";
 import { timingSafeEqual as nodeTimingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
 import {
@@ -194,6 +195,12 @@ export async function POST(req: Request) {
        by other means — or already shipped — backwards. */
     const movesToFailed = order.status === "PAYMENT_PENDING" || order.status === "NEW";
     const details = feedback.ResultData ?? {};
+    // The result, against the visit that placed the order — the one event
+    // in the visit log that only the server can write.
+    await recordOrderVisitEvent(orderId, "payment_result", "/checkout", {
+      orderNumber: order.orderNumber,
+      statusCode: feedback.PelecardStatusCode ?? "unknown",
+    });
 
   await db.$transaction([
       db.payment.update({
@@ -357,6 +364,10 @@ export async function POST(req: Request) {
 
   // A personal coupon from the mall's wheel is good for one paid order.
   await retireGameCoupon(order.couponCode);
+  await recordOrderVisitEvent(orderId, "payment_result", "/checkout", {
+    orderNumber: order.orderNumber,
+    statusCode: feedback.PelecardStatusCode ?? "000",
+  });
   // the club: cashback on this order, and any level gift it reaches
   await awardPurchase(orderId);
   // GA4's revenue, from the server, whatever the visitor said to the banner.

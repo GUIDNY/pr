@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Cookie } from "lucide-react";
 import { setConsent, useIsUndecided } from "@/lib/consent";
+import { trackVisit } from "@/lib/pageview/track";
 import { useIsNativeApp } from "@/lib/native-app";
 
 /* This used to be a notice with one "הבנתי" button, and it said so: the site
@@ -102,6 +103,22 @@ export function CookieNotice() {
   const accept = useCallback(() => setConsent("granted"), []);
   const decline = useCallback(() => setConsent("denied"), []);
 
+  /* The measurement behind #230. A click that lands on the notice's own
+     background — not on either of its buttons — and would have landed on
+     an הוספה לעגלה button if the notice were not there, is a blocked
+     purchase, and the shop's own log should count it rather than a
+     consultant finding one by accident. With the body padded for the
+     notice (globals.css) this should stay at zero; if it ever does not,
+     the padding has regressed. */
+  const onBackgroundClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button, a")) return;
+    const beneath = document.elementsFromPoint(e.clientX, e.clientY);
+    const buy = beneath.find((el) => el instanceof HTMLButtonElement && /הוספה לעגלה/.test(el.textContent ?? ""));
+    if (!buy) return;
+    const slug = window.location.pathname.startsWith("/product/") ? window.location.pathname.slice("/product/".length) : "";
+    trackVisit("add_to_cart_blocked", { productSlug: slug || "-", blockedBy: "consent-banner" });
+  }, []);
+
   if (!open) return null;
 
   return (
@@ -109,6 +126,7 @@ export function CookieNotice() {
       ref={ref}
       role="region"
       aria-label="בחירת הסכמה לעוגיות מדידה ופרסום"
+      onClick={onBackgroundClick}
       className="border-border bg-background fixed inset-x-0 bottom-0 z-[55] border-t shadow-[0_-4px_20px_rgb(0_0_0/0.08)]"
     >
       {/* One row, not a paragraph. The previous version ran three lines on

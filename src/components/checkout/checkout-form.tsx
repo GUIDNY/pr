@@ -28,6 +28,7 @@ import { useCartStore } from "@/stores/cart-store";
 import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
 import { GaBeginCheckout } from "@/components/analytics/ga-events";
 import { readGaIds } from "@/lib/analytics/ga";
+import { trackVisit } from "@/lib/pageview/track";
 import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/orders";
 import {
   applyCouponAction,
@@ -209,6 +210,32 @@ export function CheckoutForm({
      being our fields and becomes Pelecard's, in the same place, so the
      customer never leaves the page they have been filling in. */
   const [payment, setPayment] = useState<{ url: string; orderNumber: string } | null>(null);
+
+  /* The shop's own log of this checkout: it opened with a cart; it was
+     submitted (payment_submit, below, once the gateway's form is open); or
+     it was left — pagehide with nothing submitted — with how long it had
+     been looked at. All three without consent, nothing personal in any. */
+  const openedAt = useRef(Date.now());
+  const submitted = useRef(false);
+  useEffect(() => {
+    if (cart.items.length === 0) return;
+    trackVisit("checkout_start", { itemCount: cart.itemCount, total: cart.total });
+    const onLeave = () => {
+      if (submitted.current) return;
+      trackVisit("checkout_abandon", {
+        itemCount: cart.itemCount,
+        total: cart.total,
+        secondsOnPage: Math.round((Date.now() - openedAt.current) / 1000),
+      });
+    };
+    window.addEventListener("pagehide", onLeave);
+    return () => {
+      window.removeEventListener("pagehide", onLeave);
+      onLeave();
+    };
+    // Once per checkout, with the cart as it was on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   /* An order that exists but whose payment could not be opened. Kept apart
      from a failed order: there is nothing to fill in again, only something to
      retry, and telling somebody to re-enter an address they already gave is
@@ -375,6 +402,8 @@ export function CheckoutForm({
       }
       paidOrderId.current = orderId;
       setPayment({ url: data.redirectUrl, orderNumber });
+      submitted.current = true;
+      trackVisit("payment_submit", { orderNumber, total: orderTotal });
     } catch {
       setStranded({ orderId, orderNumber, reason: "אין חיבור לשרת התשלומים" });
     }
@@ -503,6 +532,7 @@ export function CheckoutForm({
         return;
       }
 
+      submitted.current = true;
       setCart({ ...cart, items: [], itemCount: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0, couponCode: null });
       router.push(`/checkout/success/${result.orderNumber}`);
     });

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { XCircle, Phone } from "lucide-react";
+import { XCircle, Phone, MessageCircle, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
-import { PELECARD_STATUS_MESSAGES, NO_RETRY_STATUS_CODES } from "@/lib/pelecard/client";
+import { PELECARD_STATUS_MESSAGES, NO_RETRY_STATUS_CODES, TRY_ANOTHER_CARD_CODES } from "@/lib/pelecard/client";
 import { BUSINESS } from "@/lib/business";
 
 export const metadata = { title: "התשלום לא הושלם" };
@@ -46,6 +46,7 @@ export default async function CheckoutErrorPage({
     (statusCode && PELECARD_STATUS_MESSAGES[statusCode]) ??
     "התשלום לא הושלם. לא בוצע חיוב, וניתן לנסות שוב.";
   const allowRetry = !statusCode || !NO_RETRY_STATUS_CODES.includes(statusCode);
+  const anotherCard = !!statusCode && TRY_ANOTHER_CARD_CODES.includes(statusCode);
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16">
@@ -59,12 +60,20 @@ export default async function CheckoutErrorPage({
             וממתינה לתשלום.
           </p>
         )}
+        {/* Said outright, because it is the thing a customer on this screen
+            assumes is lost: the cart is only ever emptied once a payment is
+            confirmed, so everything they chose is still in it. */}
+        {allowRetry && (
+          <p className="text-muted-foreground flex items-center gap-1.5 text-sm">
+            <ShoppingCart className="size-3.5" /> שמרנו לכם את העגלה — אין צורך לבחור את המוצרים מחדש.
+          </p>
+        )}
       </div>
 
       <div className="mt-8 flex flex-col gap-2 sm:flex-row">
         {allowRetry && (
           <Button variant="brand" asChild className="flex-1">
-            <Link href="/checkout">ניסיון נוסף</Link>
+            <Link href="/checkout">{anotherCard ? "נסו כרטיס אחר" : "ניסיון נוסף"}</Link>
           </Button>
         )}
         <Button variant="outline" asChild className="flex-1">
@@ -72,12 +81,21 @@ export default async function CheckoutErrorPage({
         </Button>
       </div>
 
-      <p className="text-muted-foreground mt-6 flex items-center justify-center gap-1.5 text-sm">
-        <Phone className="size-3.5" />
-        לעזרה:{" "}
-        <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
-          {BUSINESS.phone}
-        </a>
+      {/* A person, not only a button. Someone whose bank just refused them
+          wants to talk to someone, and WhatsApp is where this shop answers. */}
+      <p className="text-muted-foreground mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm">
+        <span className="flex items-center gap-1.5">
+          <Phone className="size-3.5" />
+          <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
+            {BUSINESS.phone}
+          </a>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <MessageCircle className="size-3.5" />
+          <a href={BUSINESS.whatsappHref} target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">
+            וואטסאפ {BUSINESS.whatsapp}
+          </a>
+        </span>
       </p>
     </div>
   );

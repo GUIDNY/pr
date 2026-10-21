@@ -381,6 +381,17 @@ html[data-cookie-notice="open"] .floating-launcher {
   margin-bottom: var(--cookie-notice-h, 0px);
 }
 
+/* And the page itself makes room for it. The notice is fixed over the
+   bottom of the viewport; a button that happens to be laid out there —
+   measured on 21 October: the product page's הוספה לעגלה at y=698..754 in
+   an 801px window, under a 79px notice — took the click for the notice
+   instead, and nothing happened. Padding the body by the notice's own
+   height puts every bottom-of-page element above it, however tall the
+   notice wraps on a phone, and goes away with the notice. */
+html[data-cookie-notice="open"] body {
+  padding-bottom: var(--cookie-notice-h, 0px);
+}
+
 /* The Pelecard payment frame in checkout step 3.
 
    The number is measured, not guessed: the live form is ~645px, taken by
