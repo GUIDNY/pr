@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Package, Heart, MapPin, ArrowLeft, Trophy } from "lucide-react";
+import { Package, Heart, MapPin, ArrowLeft, Trophy, Gamepad2 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -12,6 +12,7 @@ import { ConsentToggle } from "@/components/account/consent-toggle";
 import { purchaseLevel } from "@/lib/game-levels";
 import { listMemberCoupons } from "@/lib/member-coupons";
 import { mallViewerEmail } from "@/lib/mall-access-server";
+import { MallAnchor } from "@/components/layout/mall-link";
 
 export default async function AccountDashboardPage() {
   const session = await getSession();
@@ -81,6 +82,26 @@ export default async function AccountDashboardPage() {
           <p className="text-muted-foreground text-xs">כתובות</p>
         </Link>
       </div>
+
+      {/* The way into the game, for the accounts that may see it. Nothing
+          public on the shop points at the mall while it is private, so the
+          personal area is where a management account finds the door; the
+          club card below it is the standing, this is the entrance. */}
+      {showClub && (
+        <MallAnchor
+          medium="account-home"
+          className="from-brand to-brand-hover text-brand-foreground flex items-center gap-4 rounded-xl bg-gradient-to-l p-4 shadow-sm transition-opacity hover:opacity-95"
+        >
+          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-white/20">
+            <Gamepad2 className="size-6" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">כניסה לקניון התלת־ממדי</p>
+            <p className="text-xs opacity-90">המשחק פתוח כרגע לצוות ההנהלה בלבד</p>
+          </div>
+          <ArrowLeft className="size-4 shrink-0" />
+        </MallAnchor>
+      )}
 
       {/* The mall's club in one line: the level, the cashback, the coupons waiting. */}
       {showClub && (
