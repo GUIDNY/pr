@@ -143,6 +143,8 @@ export default function ComparePage() {
                 <td key={p.id} className="border-border border p-3">
                   <AddToCartButton
                     productId={p.id}
+                    slug={p.slug}
+                    price={p.price}
                     disabled={p.stockStatus === "OUT_OF_STOCK" || p.stockStatus === "DISPLAY_ONLY"}
                     className="w-full"
                     openDrawerOnAdd

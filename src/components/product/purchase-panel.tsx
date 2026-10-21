@@ -13,10 +13,14 @@ import { navigateOutOfMallFrame, reportAddedToMall } from "@/lib/mall";
 
 export function PurchasePanel({
   productId,
+  slug,
+  price,
   stockStatus,
   maxQuantity,
 }: {
   productId: string;
+  slug: string;
+  price: number;
   stockStatus: StockStatus;
   maxQuantity: number;
 }) {
@@ -38,7 +42,7 @@ export function PurchasePanel({
   function addToCart(then?: "drawer" | "checkout") {
     startTransition(async () => {
       try {
-        const summary = await addToCartReported(productId, qty);
+        const summary = await addToCartReported(productId, qty, { slug, price });
         setCart(summary);
         // Nothing unless this page is inside the 3D mall's frame — then the
         // game hears what was added. See lib/mall.ts.

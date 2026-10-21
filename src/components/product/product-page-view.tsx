@@ -421,7 +421,7 @@ export async function ProductPageView({
   ];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 pb-24 lg:pb-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 pb-24 md:pb-6">
       {/* The escaping this used to spell out inline now lives in JsonLd, so
           the article page gets it too — see the component for why it matters. */}
       <JsonLd data={productJsonLd} />
@@ -488,14 +488,18 @@ export async function ProductPageView({
       {isAdminViewer && (
         <Link
           href={`/admin/products/${product.id}`}
-          className="fixed bottom-20 end-4 z-40 flex items-center gap-1.5 rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-amber-600 lg:bottom-6"
+          className="fixed bottom-20 end-4 z-40 flex items-center gap-1.5 rounded-full bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-amber-600 md:bottom-6"
         >
           <Pencil className="size-4" />
           ערוך מוצר
         </Link>
       )}
 
-      <div className="mt-5 grid grid-cols-1 gap-8 lg:grid-cols-2">
+      {/* Two columns from md:, not lg:. On an iPad held upright (768px) the
+          single column put a 736px-square photograph first and the price
+          and the buy button at y≈1,330 — a full screen below the fold, on
+          a device wide enough for the photo and the panel side by side. */}
+      <div className="mt-5 grid grid-cols-1 gap-6 md:grid-cols-2 lg:gap-8">
         <ProductGallery
           productId={product.id}
           images={galleryImages}
@@ -515,7 +519,7 @@ export async function ProductPageView({
             {isAdminViewer ? (
               <ProductTitleEditor productId={product.id} title={product.title} />
             ) : (
-              <h1 className="mt-1 text-xl leading-snug font-bold sm:text-3xl sm:leading-tight">{product.title}</h1>
+              <h1 className="mt-1 text-xl leading-snug font-bold sm:text-3xl sm:leading-tight md:text-2xl lg:text-3xl">{product.title}</h1>
             )}
             <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-sm">
               <span>מק&quot;ט: {product.sku}</span>
@@ -609,6 +613,8 @@ export async function ProductPageView({
           ) : (
             <PurchasePanel
               productId={product.id}
+              slug={product.slug}
+              price={product.price}
               stockStatus={product.stockStatus as StockStatus}
               maxQuantity={maxQuantity}
             />
@@ -943,7 +949,7 @@ export async function ProductPageView({
       <ProductRail title="מוצרים דומים" products={related} />
 
       {!isSoldOut && (
-        <MobileBuyBar productId={product.id} price={product.price} stockStatus={product.stockStatus as StockStatus} />
+        <MobileBuyBar productId={product.id} slug={product.slug} price={product.price} stockStatus={product.stockStatus as StockStatus} />
       )}
     </div>
   );

@@ -31,7 +31,13 @@ export function MegaMenu({ departments }: { departments: NavigableDepartment[] }
           three storeys; the names alone fit, and the icons still appear in
           the panel that opens. justify-between spreads them across the
           width instead of bunching at the start. */}
-      <ul className="mx-auto flex max-w-7xl items-center justify-between overflow-x-auto px-2">
+      {/* Ten names at 14px with 10px of padding each come to 1,174px, and
+          the bar first appears at 1,024 — an iPad in landscape, an iPad Pro
+          upright — where the last two departments sat off the edge of a bar
+          that looked complete, reachable only by a sideways scroll nobody
+          is told about. Measured at 13px with 6px they come to ~1,010, so
+          the tighter setting holds until xl: where the full size fits. */}
+      <ul className="mx-auto flex max-w-7xl items-center justify-between overflow-x-auto px-1 xl:px-2">
         {departments.map((dept) => {
           const isOpen = openSlug === dept.slug;
           return (
@@ -39,7 +45,7 @@ export function MegaMenu({ departments }: { departments: NavigableDepartment[] }
               <Link
                 href={`/category/${dept.slug}`}
                 className={cn(
-                  "relative block px-2.5 py-3 text-sm font-medium whitespace-nowrap transition-colors after:absolute after:inset-x-2.5 after:bottom-0 after:h-0.5 after:rounded-full after:transition-opacity",
+                  "relative block px-1.5 py-3 text-[13px] font-medium whitespace-nowrap transition-colors after:absolute after:inset-x-1.5 after:bottom-0 after:h-0.5 after:rounded-full after:transition-opacity xl:px-2.5 xl:text-sm xl:after:inset-x-2.5",
                   isOpen ? "text-brand after:bg-brand after:opacity-100" : "hover:text-brand after:opacity-0"
                 )}
               >

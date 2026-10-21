@@ -11,6 +11,8 @@ import { cn } from "@/lib/utils";
 
 export function AddToCartButton({
   productId,
+  slug,
+  price,
   qty = 1,
   disabled,
   size = "default",
@@ -19,6 +21,10 @@ export function AddToCartButton({
   openDrawerOnAdd = true,
 }: {
   productId: string;
+  /** For the shop's own log (lib/pageview): what was clicked, as a person
+      would name it, and at what price. Optional; the id stands in. */
+  slug?: string;
+  price?: number;
   qty?: number;
   disabled?: boolean;
   size?: "default" | "sm" | "lg" | "icon";
@@ -42,7 +48,7 @@ export function AddToCartButton({
         e.stopPropagation();
         startTransition(async () => {
           try {
-            const summary = await addToCartReported(productId, qty);
+            const summary = await addToCartReported(productId, qty, { slug, price });
             setCart(summary);
             // Only inside the 3D mall's frame — see lib/mall.ts.
             reportAddedToMall(summary, productId);

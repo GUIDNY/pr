@@ -140,6 +140,8 @@ export function ProductCard({
         <div className="mt-auto pt-2.5 sm:pt-3">
           <AddToCartButton
             productId={product.id}
+            slug={product.slug}
+            price={product.price}
             disabled={product.stockStatus === "OUT_OF_STOCK"}
             size="sm"
             className="h-9 w-full rounded-lg text-sm"
