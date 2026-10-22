@@ -5,7 +5,7 @@ import { getAdminProducts, getStockSummary } from "@/lib/queries/admin-products"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 import { StockBadge } from "@/components/product/stock-badge";
 import { formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -56,7 +56,8 @@ export default async function AdminProductsPage({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      {/* Wraps: the title and three buttons ran 411px on a 390px phone. */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">מוצרים</h1>
         {/* The whole catalogue as one JSON file — every published product
             with its description, spec values and images — for whoever is
@@ -191,19 +192,7 @@ export default async function AdminProductsPage({
         </Table>
       </div>
 
-      {totalPages > 1 && (
-        <Pagination className="mt-6">
-          <PaginationContent>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <PaginationItem key={p}>
-                <PaginationLink href={buildHref(sp, { page: String(p) })} isActive={p === page}>
-                  {p}
-                </PaginationLink>
-              </PaginationItem>
-            ))}
-          </PaginationContent>
-        </Pagination>
-      )}
+      <AdminPagination page={page} totalPages={totalPages} href={(p) => buildHref(sp, { page: String(p) })} />
     </div>
   );
 }

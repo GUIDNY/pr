@@ -23,6 +23,7 @@ import { isPelecardSandbox } from "@/lib/pelecard/config";
 import { isBackOffice, canManageCatalog, isSiteAdmin } from "@/lib/permissions";
 import { canSeePriceList } from "@/lib/price-list-access";
 import { db } from "@/lib/db";
+import { AdminMenuSheet, AdminTabBar } from "@/components/admin/admin-mobile-shell";
 
 /**
  * `catalog: true` means the link belongs to running the shop rather than to
@@ -60,6 +61,17 @@ const NAV = [
   // checks the role itself; this only decides who sees the link.
   { href: "/admin/banners", label: "באנרים - דף הבית", icon: GalleryHorizontal, catalog: true, ownerOnly: true },
 ];
+
+/* The phone's tab bar: the four screens a thumb reaches for, when the role
+   has them — the dashboard, the orders, the products, the stock — and for a
+   role that has not (a seller sees orders and little else) the first of
+   what it does have. */
+const TAB_BAR_PREFERRED = ["/admin", "/admin/orders", "/admin/products", "/admin/inventory"];
+function tabBar(nav: { href: string; label: string; exact?: boolean }[]) {
+  const preferred = TAB_BAR_PREFERRED.map((href) => nav.find((n) => n.href === href)).filter((n) => n !== undefined);
+  const picked = preferred.length >= 3 ? preferred : nav.slice(0, 4);
+  return picked.map(({ href, label, exact }) => ({ href, label, exact }));
+}
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -131,13 +143,48 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="bg-background flex items-center justify-between border-b px-4 py-3 lg:hidden">
-          <span className="flex flex-col items-center text-lg leading-none font-black">
+        {/* The phone's chrome: the drawer with every screen, the mark, and
+            the way back to the shop — in the same tab, because a phone's
+            new tab is the one nobody finds again. The sidebar's links are
+            rendered once more here, by the same list, so what a role sees
+            is decided in one place. */}
+        <header className="bg-background sticky top-0 z-30 flex items-center gap-2 border-b px-3 py-2 lg:hidden">
+          <AdminMenuSheet>
+            <nav className="flex flex-col gap-1 p-3">
+              {nav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="hover:bg-muted flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium"
+                >
+                  <item.icon className="text-brand size-5" />
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            <div className="border-t p-3">
+              <Link href="/" className="hover:bg-muted flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium">
+                <ExternalLink className="text-brand size-5" /> חזרה לאתר
+              </Link>
+              <LogoutButton className="hover:bg-muted flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium disabled:opacity-60" />
+            </div>
+          </AdminMenuSheet>
+          <span className="flex flex-1 items-center gap-1.5 text-base leading-none font-black">
             <span className="text-brand">Buy</span>
-            <span>Today Admin</span>
+            <span>Today</span>
+            <span className="bg-muted text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase">
+              {full ? "Admin" : "מכירות"}
+            </span>
           </span>
+          <Link
+            href="/"
+            className="bg-brand/10 text-brand hover:bg-brand/20 flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-bold whitespace-nowrap"
+          >
+            <ExternalLink className="size-3.5" /> לאתר
+          </Link>
         </header>
-        <main id="main-content" className="flex-1 p-4 sm:p-6">{children}</main>
+        <main id="main-content" className="flex-1 p-4 pb-24 sm:p-6 lg:pb-6">{children}</main>
+        <AdminTabBar tabs={tabBar(nav)} />
       </div>
     </div>
   );

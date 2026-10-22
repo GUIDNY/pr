@@ -40,7 +40,6 @@ export const revalidate = 300;
 export default async function HomePage() {
   const [
     hero,
-    whyPrec,
     deals,
     bestSellers,
     featured,
@@ -53,7 +52,6 @@ export default async function HomePage() {
     banners,
   ] = await Promise.all([
       getHomepageSection("hero"),
-      getHomepageSection("why-prec"),
       getDeals(8),
       getBestSellers(8),
       getFeaturedProducts(4),
@@ -177,12 +175,9 @@ export default async function HomePage() {
 
       {featured.length > 0 && <ProductRail title="מומלצים במיוחד" products={featured} />}
 
-      {whyPrec && (
-        <WhyPrec
-          title={whyPrec.title ?? ""}
-          items={whyPrec.payload as { title: string; body: string }[]}
-        />
-      )}
+      {/* The shop's address and phone; the CMS section's promise cards are
+          no longer rendered (see WhyPrec). */}
+      <WhyPrec />
     </>
   );
 }

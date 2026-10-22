@@ -94,8 +94,23 @@ async function route(request: NextRequest): Promise<NextResponse> {
   // sent to the home page. See lib/mall-access.ts.
   if (pathname === "/mall" || pathname.startsWith("/mall/")) {
     const pass = request.cookies.get(MALL_PASS_COOKIE)?.value;
-    if (!pass || !(await verifyMallPass(pass)))
+    if (!pass || !(await verifyMallPass(pass))) {
+      // Inside the app the mall is opened here directly, never by way of
+      // /api/game/pass, so a first visit holds no pass. Fetch one (that route
+      // checks the signed-in account) and come back, once: `passed` stops a
+      // WebView that will not keep the cookie from going round for ever.
+      const sp = request.nextUrl.searchParams;
+      if (sp.get("passed") !== "1") {
+        const to = new URL("/api/game/pass", request.url);
+        to.searchParams.set("inapp", "1");
+        for (const k of ["signedin", "checkout"]) {
+          const v = sp.get(k);
+          if (v) to.searchParams.set(k, v);
+        }
+        return NextResponse.redirect(to, 303);
+      }
       return NextResponse.redirect(new URL("/", request.url), 303);
+    }
     const target = new URL(
       pathname.replace(/^\/mall\/?/, "/") + request.nextUrl.search,
       "https://play.buytoday.co.il",

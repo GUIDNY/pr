@@ -4,7 +4,7 @@ import { getAdminOrders, getAdminOrderStatusCounts, getStaffUsers } from "@/lib/
 import { OrdersFilterBar } from "@/components/admin/orders-filter-bar";
 import { OrdersStatusTabs } from "@/components/admin/orders-status-tabs";
 import { AdminOrdersTable } from "@/components/admin/admin-orders-table";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 import { type OrderStatus } from "@/lib/enums";
 import { requireBackOffice } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
@@ -125,19 +125,7 @@ export default async function AdminOrdersPage({
 
       <AdminOrdersTable orders={orders} bin={bin} />
 
-      {totalPages > 1 && (
-        <Pagination className="mt-6">
-          <PaginationContent>
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-              <PaginationItem key={p}>
-                <PaginationLink href={pageHref(p)} isActive={p === page}>
-                  {p}
-                </PaginationLink>
-              </PaginationItem>
-            ))}
-          </PaginationContent>
-        </Pagination>
-      )}
+      <AdminPagination page={page} totalPages={totalPages} href={pageHref} />
 
       {!bin && binned > 0 && (
         <Link

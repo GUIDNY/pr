@@ -24,9 +24,25 @@ import { useBackOfficeHome } from "@/components/layout/session-summary-provider"
  * itself, and a customer who forged this into their DOM would get the login
  * page like anyone else.
  */
-export function BackOfficeLink({ compact = false }: { compact?: boolean }) {
+export function BackOfficeLink({ compact = false, icon = false }: { compact?: boolean; icon?: boolean }) {
   const href = useBackOfficeHome();
   if (!href) return null;
+
+  // The phone header is one 56px row with no room for words; a round
+  // brand-tinted button at its end is the door, and the drawer still
+  // carries the labelled one.
+  if (icon) {
+    return (
+      <Link
+        href={href}
+        aria-label="לממשק הניהול"
+        title="לממשק הניהול"
+        className="bg-brand/10 text-brand hover:bg-brand/20 flex size-10 shrink-0 items-center justify-center rounded-full transition-colors"
+      >
+        <ClipboardList className="size-5" />
+      </Link>
+    );
+  }
 
   return (
     <Link

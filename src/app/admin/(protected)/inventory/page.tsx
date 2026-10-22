@@ -13,7 +13,7 @@ import { InventorySummaryBar } from "@/components/admin/inventory-summary-bar";
 import { InventorySheetTabs } from "@/components/admin/inventory-sheet-tabs";
 import { InventoryTable } from "@/components/admin/inventory-table";
 import { InventoryProductDrawer } from "@/components/admin/inventory-product-drawer";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 import { formatDateTime } from "@/lib/format";
 import { checkSyncFreshness } from "@/lib/inventory/sync-watchdog";
 import type { StockStatus } from "@/lib/enums";
@@ -160,22 +160,7 @@ export default async function AdminInventoryPage({
 
       <InventoryTable products={products} />
 
-      {totalPages > 1 && (
-        <Pagination className="mt-6">
-          <PaginationContent>
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
-              .map((p, idx, arr) => (
-                <PaginationItem key={p}>
-                  {idx > 0 && arr[idx - 1] !== p - 1 && <span className="text-muted-foreground px-1">…</span>}
-                  <PaginationLink href={pageHref(p)} isActive={p === page}>
-                    {p}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
-          </PaginationContent>
-        </Pagination>
-      )}
+      <AdminPagination page={page} totalPages={totalPages} href={pageHref} />
 
       <InventoryProductDrawer />
     </div>

@@ -70,8 +70,13 @@ export async function Header() {
             <a href={BUSINESS.mobileHref} className="hover:text-primary-foreground hidden items-center gap-1 font-medium whitespace-nowrap sm:flex">
               <Phone className="size-3.5" /> {BUSINESS.mobile}
             </a>
-            {/* Staff only, and empty for everyone else — see BackOfficeLink. */}
-            <BackOfficeLink />
+            {/* Staff only, and empty for everyone else — see BackOfficeLink.
+                Not on a phone: with the pill the strip ran 423px wide on a
+                390px screen (measured 22 October), and the phone row below
+                carries the round door instead. */}
+            <div className="hidden sm:block">
+              <BackOfficeLink />
+            </div>
           </div>
         </div>
       </div>
@@ -91,6 +96,8 @@ export async function Header() {
           <div className="min-w-0 flex-1">
             <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-10 border-2" />
           </div>
+          {/* Staff only, and nothing for everyone else — see BackOfficeLink. */}
+          <BackOfficeLink icon />
           {/* Only where the bottom tab bar is not already the cart. */}
           <CartTrigger unlessTabBar />
         </div>

@@ -33,7 +33,7 @@ export async function Footer() {
             <ShieldCheck className="text-brand size-8 shrink-0" />
             <div>
               <p className="font-semibold">אחריות יבואן רשמי</p>
-              <p className="text-primary-foreground/60 text-sm">על כל המוצרים באתר</p>
+              <p className="text-primary-foreground/60 text-sm">על רוב המוצרים באתר</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
