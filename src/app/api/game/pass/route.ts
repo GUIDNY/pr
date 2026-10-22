@@ -37,13 +37,17 @@ export async function GET(request: Request) {
   if (url.searchParams.get("signedin") === "1") flags.set("signedin", "1");
   if (url.searchParams.get("checkout") === "1") flags.set("checkout", "1");
   const ua = request.headers.get("user-agent") ?? "";
-  const inApp = ua.includes(APP_UA_MARKER) || ANDROID_WEBVIEW.test(ua);
+  // ?inapp=1: sent here by /mall itself (proxy.ts), which only the app opens
+  const inApp =
+    url.searchParams.get("inapp") === "1" ||
+    ua.includes(APP_UA_MARKER) ||
+    ANDROID_WEBVIEW.test(ua);
 
   // Inside the app the mall is /mall on this host; elsewhere its own address,
   // which takes the pass once and keeps it as its own cookie.
   const q = flags.toString();
   const destination = inApp
-    ? `${url.origin}/mall${q ? `?${q}` : ""}`
+    ? `${url.origin}/mall?passed=1${q ? `&${q}` : ""}`
     : `${GAME_ORIGIN}/__pass?t=${encodeURIComponent(pass)}${q ? `&${q}` : ""}`;
   const res = NextResponse.redirect(destination, {
     status: 303,
