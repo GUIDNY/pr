@@ -20,6 +20,7 @@ import { pelecardConfig, callbackSecret } from "@/lib/pelecard/config";
 import { customerHasPaid } from "@/lib/order-signal";
 import { notifyOrder } from "@/lib/notify";
 import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
+import { declineText, notifyPaymentFailed } from "@/lib/notify/payment-alert";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -231,7 +232,16 @@ export async function POST(req: Request) {
         },
       }),
     ]);
-    if (movesToFailed) await noteDeclinedCart(order.visitSid, order.orderNumber, feedback.PelecardStatusCode);
+    if (movesToFailed) {
+      await noteDeclinedCart(order.visitSid, order.orderNumber, feedback.PelecardStatusCode);
+      /* And tell a person. Until now a refusal produced a row and nothing
+         else: PR-462763 was declined at 19:07 on 20 October and was found
+         two days later by somebody searching for it by hand, with the
+         customer's phone number on the order the whole time. Immediate
+         rather than queued, and it cannot throw — the customer already has
+         their answer by this point. */
+      await notifyPaymentFailed(order.id);
+    }
     // 200 on purpose: the payment failed, but the notification was received and
     // recorded. A 500 here only makes Pelecard redeliver something we already
     // understand.
@@ -478,12 +488,6 @@ function readsAsRefusal(validation: unknown): boolean {
    is found through the visit that placed the order; without one there is
    nothing to annotate, and nothing is guessed. Only a cart nobody has
    touched yet: a note already written by a person stays theirs. */
-const DECLINE_SHORT: Record<string, string> = {
-  "004": "הבנק המנפיק סירב",
-  "033": "כרטיס לא תקין",
-  "036": "תוקף הכרטיס פג",
-  "650": "אימות מול הבנק לא הושלם",
-};
 async function noteDeclinedCart(visitSid: string | null, orderNumber: string, statusCode: string | undefined) {
   if (!visitSid) return;
   try {
@@ -493,7 +497,9 @@ async function noteDeclinedCart(visitSid: string | null, orderNumber: string, st
       select: { id: true },
     });
     if (!cart) return;
-    const why = statusCode ? `קוד ${statusCode}${DECLINE_SHORT[statusCode] ? ` · ${DECLINE_SHORT[statusCode]}` : ""}` : "ללא קוד";
+    /* The same words the alert mail uses — one map, in payment-alert.ts,
+       so the note on the cart and the mail to the team cannot drift. */
+    const why = statusCode ? declineText(statusCode) : "ללא קוד";
     await db.cart.update({
       where: { id: cart.id },
       data: { followUpNote: `הגיע לתשלום ונדחה (${why}) · הזמנה ${orderNumber}` },

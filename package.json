@@ -63,7 +63,8 @@
     "check:leaf-categories": "tsx scripts/check-leaf-categories.ts",
     "check:sheets": "tsx scripts/check-sheet-map.ts",
     "purge:non-price-list": "tsx scripts/purge-non-price-list-products.ts",
-    "check:prisma": "tsx scripts/check-prisma-generate.ts"
+    "check:prisma": "tsx scripts/check-prisma-generate.ts",
+    "check:payment-alert": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-payment-alert.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
