@@ -9,6 +9,7 @@ import { searchProductsAction, type SearchResult } from "@/actions/search";
 import { formatPrice } from "@/lib/format";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { StockBadge } from "@/components/product/stock-badge";
+import { splitOnMatches } from "@/lib/search-highlight";
 import { cn } from "@/lib/utils";
 
 export const HERO_PLACEHOLDERS = [
@@ -30,6 +31,18 @@ export function useRotatingPlaceholder(active: boolean) {
     return () => clearInterval(id);
   }, [active]);
   return HERO_PLACEHOLDERS[index];
+}
+
+function highlightMatch(title: string, query: string) {
+  return splitOnMatches(title, query).map((part, index) =>
+    part.match ? (
+      <mark key={index} className="bg-transparent font-bold text-inherit">
+        {part.text}
+      </mark>
+    ) : (
+      part.text
+    ),
+  );
 }
 
 export function SearchBar({
@@ -281,31 +294,54 @@ export function SearchBar({
                     </Link>
                   );
                 })()}
-              <ul className="max-h-96 overflow-y-auto">
+              {/* Half the viewport at most. A fixed 24rem is taller than
+                  what is left above an open phone keyboard, so the last
+                  rows rendered underneath it and the list looked cut off
+                  rather than scrollable. overscroll-contain keeps a flick
+                  at the end of the list from scrolling the page behind. */}
+              <ul className="max-h-[min(24rem,50vh)] overflow-y-auto overscroll-contain">
                 {results.map((r) => (
                   <li key={r.id}>
                     <Link
                       href={`/product/${r.slug}`}
                       onClick={() => setIsOpen(false)}
-                      className="hover:bg-muted flex items-center gap-3 px-4 py-2.5"
+                      className="hover:bg-muted active:bg-muted flex items-center gap-3 px-3 py-3 sm:px-4"
                     >
-                      <div className="bg-muted relative size-12 shrink-0 overflow-hidden rounded-md">
+                      <div className="bg-muted relative size-14 shrink-0 overflow-hidden rounded-lg sm:size-12">
                         {r.imageUrl ? (
-                          <Image src={r.imageUrl} alt={r.title} fill className="bg-white object-contain" sizes="48px" />
+                          <Image src={r.imageUrl} alt={r.title} fill className="bg-white object-contain" sizes="56px" />
                         ) : (
                           <ProductImagePlaceholder title={r.title} icon={r.categoryIcon} />
                         )}
                       </div>
-                      <div className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-sm font-medium">{r.title}</span>
-                        <span className="text-muted-foreground text-xs">
-                          {r.brandName} · {r.categoryName}
+                      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        {/* Two lines on a phone, one from sm up.
+                          
+                            This was `truncate`, and on a narrow screen the
+                            name is the first thing it spent: four results
+                            for "מקרר" all read "מקרר ..." and the only
+                            column that distinguished them was the one
+                            that got cut. A product name is the answer to
+                            the question being asked, so it is the last
+                            thing that should lose room, not the first. */}
+                        <span className="line-clamp-2 text-sm leading-snug font-medium sm:line-clamp-1">
+                          {highlightMatch(r.title, query)}
+                        </span>
+                        {/* One line, and the stock badge rides here rather
+                            than beside the price. It carries labels as
+                            long as "מלאי אחרון", and in the price column —
+                            which is shrink-0 — that length came straight
+                            out of the title's width on every row. */}
+                        <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                          <span className="truncate">
+                            {r.brandName} · {r.categoryName}
+                          </span>
+                          <StockBadge status={r.stockStatus as never} className="shrink-0" />
                         </span>
                       </div>
-                      <div className="flex shrink-0 flex-col items-end gap-0.5">
-                        <span className="text-sm font-bold tabular-nums">{formatPrice(r.price)}</span>
-                        <StockBadge status={r.stockStatus as never} />
-                      </div>
+                      <span className="shrink-0 text-sm font-bold tabular-nums whitespace-nowrap">
+                        {formatPrice(r.price)}
+                      </span>
                     </Link>
                   </li>
                 ))}
