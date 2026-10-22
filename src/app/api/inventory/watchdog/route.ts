@@ -6,6 +6,7 @@ import {
   reconcileCatalogSizeAlert,
   reconcileForeignRowBindingAlerts,
   reconcileTitleModelAlerts,
+  reconcileUnderpricedAlerts,
 } from "@/lib/inventory/sync-watchdog";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
@@ -65,17 +66,22 @@ export async function GET(request: Request) {
      disagree, which is how a page titled "Samsung Crystal UHD 65U8000H"
      came to be an LG OLED evo 77" at 10,500 ₪. Its price was correct
      throughout; the name on it was not, and no price check can see that. */
-  const [freshness, sheets, replaced, size, foreign, titles] = await Promise.all([
+  /* And a seventh: a price no appliance can carry — under the storefront's
+     floor, or at or below the product's own cost. A 1 ₪ attachment, frozen
+     there by a manual flag, was live for nine days before the owner saw it. */
+  const [freshness, sheets, replaced, size, foreign, titles, underpriced] = await Promise.all([
     reconcileSyncStaleAlert(),
     reconcileStaleSheetAlerts(),
     reconcileReplacedProductAlert(),
     reconcileCatalogSizeAlert(),
     reconcileForeignRowBindingAlerts(),
     reconcileTitleModelAlerts(),
+    reconcileUnderpricedAlerts(),
   ]);
   const staleSheets = sheets.filter((s) => s.stale);
   return NextResponse.json({
     stale: freshness.stale,
+    underpriced: underpriced.map((u) => ({ sku: u.sku, price: u.price, supplierCost: u.supplierCost, reason: u.reason })),
     catalog: {
       shrank: size.dropped,
       liveNow: size.liveNow,

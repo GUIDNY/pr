@@ -381,6 +381,14 @@ not shown at all, not even with a badge — and neither is a product with no pho
 of itself. Both are query-time gates, so a product returns to the site the moment it
 has stock and a photo, with no sync run in between.
 
+`price > 0` became `price >= MIN_PUBLIC_PRICE` (10 ₪, `inventory/underpriced.ts`) on
+22 October, after the owner found the Sauter attachment live at **1 ₪** nine days after
+the paragraph above was written: its `priceManualAt` froze the 1 the sync had adopted
+before the strict floor existed, so no later sync could fix it, and 1 passed `> 0`.
+The watchdog now sweeps every published product for a price under the floor or at or
+below its own cost (`reconcileUnderpricedAlerts`, `PRICE_BELOW_COST`), because a
+frozen price is exactly the one the sync's own floor never re-examines.
+
 Every customer-facing query must spread that constant rather than re-deriving the
 conditions. Search, the Finder, Alfred's pinned picks, compare, the cart's add
 handler, the category counts and the product page each used to hand-roll

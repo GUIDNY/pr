@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { underpricedReason, UNDERPRICED_LABELS, type UnderpricedReason } from "@/lib/inventory/underpriced";
 import {
   openHoursBetween,
   missedReportsBetween,
@@ -802,6 +803,84 @@ export async function reconcileForeignRowBindingAlerts(): Promise<ForeignBinding
     });
   }
   return fresh;
+}
+
+// ---------------------------------------------------------------------------
+// A price no appliance can carry
+// ---------------------------------------------------------------------------
+
+export type UnderpricedProduct = {
+  id: string;
+  sku: string;
+  title: string;
+  price: number;
+  supplierCost: number | null;
+  reason: UnderpricedReason;
+};
+
+/**
+ * Every published, sellable product whose price is under the storefront's
+ * floor or at or below its own cost. The floor is also a where-clause in
+ * PUBLIC_PRODUCT_WHERE, so such a product is already off the site; this is
+ * what tells a person it is sitting there with no real price. The cost rule
+ * cannot be a where-clause at all (Prisma compares a column to a value, not
+ * to another column), and a product at its own cost IS on the site — the
+ * sync's strict floor stops an adoption, never a price a flag has frozen.
+ */
+export async function checkUnderpricedProducts(): Promise<UnderpricedProduct[]> {
+  const rows = await db.product.findMany({
+    where: { ...PUBLIC_PRODUCT_WHERE, price: { gt: 0 } },
+    select: { id: true, sku: true, title: true, price: true, supplierCost: true },
+  });
+  const found: UnderpricedProduct[] = [];
+  for (const r of rows) {
+    const reason = underpricedReason(r.price, r.supplierCost);
+    if (reason) found.push({ ...r, reason });
+  }
+  return found.sort((a, b) => a.price - b.price);
+}
+
+/** One open PRICE_BELOW_COST alert per product while it is underpriced,
+    resolved by this sweep once it is not. Only the alerts this sweep raised
+    are resolved by it: one a person wrote by hand stays until a person
+    closes it. */
+export async function reconcileUnderpricedAlerts(): Promise<UnderpricedProduct[]> {
+  const found = await checkUnderpricedProducts();
+  const open = await db.inventoryAlert.findMany({
+    where: { type: "PRICE_BELOW_COST", isResolved: false },
+    select: { id: true, productId: true, metadata: true },
+  });
+  const foundIds = new Set(found.map((f) => f.id));
+  const stale = open.filter(
+    (a) => a.productId && !foundIds.has(a.productId) && (a.metadata ?? "").includes('"raisedBy":"watchdog"'),
+  );
+  if (stale.length > 0) {
+    await db.inventoryAlert.updateMany({
+      where: { id: { in: stale.map((a) => a.id) } },
+      data: { isResolved: true, resolvedAt: new Date() },
+    });
+  }
+  const covered = new Set(open.map((a) => a.productId));
+  for (const f of found) {
+    if (covered.has(f.id)) continue;
+    await db.inventoryAlert.create({
+      data: {
+        type: "PRICE_BELOW_COST",
+        severity: "CRITICAL",
+        productId: f.id,
+        sourceSku: f.sku,
+        message:
+          `${f.title}: מוצג ב-${f.price.toLocaleString("he-IL")} ₪` +
+          (f.supplierCost ? ` (עלות ${f.supplierCost.toLocaleString("he-IL")} ₪)` : "") +
+          ` — ${UNDERPRICED_LABELS[f.reason]}. ` +
+          (f.reason === "below_floor"
+            ? "האתר לא מציג אותו עד שייקבע מחיר אמיתי."
+            : "הוא מוצג באתר במחיר הזה עכשיו. צריך לבדוק את השורה במחירון ולתקן."),
+        metadata: JSON.stringify({ price: f.price, supplierCost: f.supplierCost, reason: f.reason, raisedBy: "watchdog" }),
+      },
+    });
+  }
+  return found;
 }
 
 // ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ import {
   STALE_AFTER_MISSED_REPORTS,
 } from "../src/lib/inventory/office-hours";
 import { pairReplacements } from "../src/lib/inventory/replaced-products";
+import { MIN_PUBLIC_PRICE, underpricedReason } from "../src/lib/inventory/underpriced";
 
 let failures = 0;
 
@@ -211,6 +212,19 @@ is(
   0,
 );
 is("a quiet morning raises nothing", pairReplacements([], []).length, 0);
+
+/* A price no appliance can carry — the 1 ₪ attachment of 22 October, and
+   the rule the storefront and the sweep now share (inventory/underpriced.ts). */
+console.log("\nunderpriced");
+is("1 ₪ with a cost of 1 ₪ is below the floor (the founding case)", underpricedReason(1, 1), "below_floor");
+is("9.99 ₪ is below the floor", underpricedReason(9.99, null), "below_floor");
+is("the floor itself passes", underpricedReason(MIN_PUBLIC_PRICE, null), null);
+is("30 ₪ with no cost known is fine (the cheapest live product)", underpricedReason(30, null), null);
+is("a price equal to its cost is the cost, not a price", underpricedReason(2400, 2400), "at_or_below_cost");
+is("a price under its cost", underpricedReason(6900, 8100), "at_or_below_cost");
+is("a price above its cost", underpricedReason(2400, 1900), null);
+is("a zero cost is no cost", underpricedReason(500, 0), null);
+is("NaN is not a price", underpricedReason(Number.NaN, null), "below_floor");
 
 console.log(
   failures === 0

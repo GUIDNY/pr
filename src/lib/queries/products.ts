@@ -1,4 +1,5 @@
 import "server-only";
+import { MIN_PUBLIC_PRICE } from "@/lib/inventory/underpriced";
 import { cache } from "react";
 import { normalizeFacetValue } from "@/lib/facet-value";
 import { db } from "@/lib/db";
@@ -176,8 +177,13 @@ export const PUBLIC_PRODUCT_WHERE = {
      page told the customer so.
      Asking about the price here says the same thing in the field that means
      it, and in the layer that cannot go stale — the same argument as the
-     four conditions above. Nothing is for sale without a number on it. */
-  price: { gt: 0 },
+     four conditions above. Nothing is for sale without a number on it.
+     A floor, not just a number, since 22 October: a Sauter attachment was
+     live at 1 ₪ off a row whose only cell is "1", frozen there by a manual
+     flag the sync's own floor cannot reach. See inventory/underpriced.ts;
+     the watchdog sweeps for the same thing and for a price at or below
+     cost, which no where-clause can ask. */
+  price: { gte: MIN_PUBLIC_PRICE },
   /* And it came from a price list that is switched on.
      missingFromSourceSince above answers "has the sheet stopped carrying
      it", which is not the same question as "is it in a price list at all":
