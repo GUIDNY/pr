@@ -62,6 +62,17 @@ const NAV = [
   { href: "/admin/banners", label: "באנרים - דף הבית", icon: GalleryHorizontal, catalog: true, ownerOnly: true },
 ];
 
+/* The phone's tab bar: the four screens a thumb reaches for, when the role
+   has them — the dashboard, the orders, the products, the stock — and for a
+   role that has not (a seller sees orders and little else) the first of
+   what it does have. */
+const TAB_BAR_PREFERRED = ["/admin", "/admin/orders", "/admin/products", "/admin/inventory"];
+function tabBar(nav: { href: string; label: string; exact?: boolean }[]) {
+  const preferred = TAB_BAR_PREFERRED.map((href) => nav.find((n) => n.href === href)).filter((n) => n !== undefined);
+  const picked = preferred.length >= 3 ? preferred : nav.slice(0, 4);
+  return picked.map(({ href, label, exact }) => ({ href, label, exact }));
+}
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session || !isBackOffice(session.role)) {
@@ -173,7 +184,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </Link>
         </header>
         <main id="main-content" className="flex-1 p-4 pb-24 sm:p-6 lg:pb-6">{children}</main>
-        <AdminTabBar tabs={nav.slice(0, 4).map(({ href, label, exact }) => ({ href, label, exact }))} />
+        <AdminTabBar tabs={tabBar(nav)} />
       </div>
     </div>
   );

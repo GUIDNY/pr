@@ -56,7 +56,8 @@ export default async function AdminProductsPage({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      {/* Wraps: the title and three buttons ran 411px on a 390px phone. */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold">מוצרים</h1>
         {/* The whole catalogue as one JSON file — every published product
             with its description, spec values and images — for whoever is
