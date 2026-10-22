@@ -66,6 +66,14 @@ const rows: FeedProduct[] = [
   product({ sku: "GTINONLY", gtin13: "7290012345678", model: null }),
   product({ sku: "GTINBAD", gtin13: "729001234567", model: null }),
   product({ sku: "GTINSPACED", gtin13: "7290-0123-45678" }),
+  // Thirteen digits, right shape, one digit wrong. Google matches an offer
+  // to a product cluster by this number, so a mistyped barcode points our
+  // listing at somebody else's product — which is why the check digit
+  // exists and why the shape test alone was not enough.
+  product({ sku: "GTINCHECKSUM", gtin13: "7290012345677", model: null }),
+  // Date.now(), which several manufacturer sites inject into the page as a
+  // cache-buster and a barcode scraper happily collects.
+  product({ sku: "GTINSTAMP", gtin13: "1761130000000", model: null }),
   // Delivery is free above the threshold, so the shipping cost a feed item
   // quotes genuinely differs per item.
   product({ sku: "FREESHIP", price: 9900 }),
@@ -205,6 +213,10 @@ check("barcode without a model still has an identifier", !(items.get("GTINONLY")
 check("a 12-digit code is not sent as a gtin", !(items.get("GTINBAD") ?? "").includes("<g:gtin>"));
 check("a rejected code falls back to identifier_exists", (items.get("GTINBAD") ?? "").includes("<g:identifier_exists>no</g:identifier_exists>"));
 check("separators are stripped rather than sent", (items.get("GTINSPACED") ?? "").includes("<g:gtin>7290012345678</g:gtin>"));
+// One wrong digit is a different product, not a near miss.
+check("a bad check digit is not sent as a gtin", !(items.get("GTINCHECKSUM") ?? "").includes("<g:gtin>"));
+check("a bad check digit falls back to identifier_exists", (items.get("GTINCHECKSUM") ?? "").includes("<g:identifier_exists>no</g:identifier_exists>"));
+check("a Date.now() timestamp is not a barcode", !(items.get("GTINSTAMP") ?? "").includes("<g:gtin>"));
 
 /* Shipping. Without it the rate shown in a listing is whatever the account
    is configured with, which is not necessarily what this checkout charges. */

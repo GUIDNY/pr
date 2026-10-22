@@ -134,17 +134,45 @@ function tag(name: string, value: string, indent = "    "): string {
   return `${indent}<${name}>${xmlEscape(value)}</${name}>`;
 }
 
+/* Thirteen digits that start with 17 and run to the right length are not a
+   barcode; they are `Date.now()`. Several manufacturer sites inject one
+   into the page as a cache-buster, and through 2025–2026 it is exactly the
+   shape a barcode scraper is looking for — it even passes a check digit
+   now and then, which is worse than failing one. Rejected before the
+   arithmetic, because no real EAN-13 begins 17 in a prefix range any of
+   our brands use: GS1 hands 17x out to nobody we stock. */
+const TIMESTAMP_LIKE = /^17\d{11}$/;
+
+/** The EAN-13 check digit: alternating 1/3 weights, complement to ten. */
+function checkDigitOk(digits: string): boolean {
+  let sum = 0;
+  for (let i = 0; i < 12; i++) sum += Number(digits[i]) * (i % 2 === 0 ? 1 : 3);
+  return (10 - (sum % 10)) % 10 === Number(digits[12]);
+}
+
 /* An EAN-13 and nothing else.
    Google accepts several GTIN lengths, but this column is declared as
    EAN-13 and mixing UPC-A into it is the error an ERP import actually
    makes. Digits only, exactly thirteen: separators and check-digit-free
    14-digit codes are dropped rather than sent and rejected per item.
    Returns null for anything it will not vouch for, so the caller falls
-   back to mpn instead of advertising a broken identifier. */
+   back to mpn instead of advertising a broken identifier.
+
+   The shape test was the whole check until 22/10/2026, which let a
+   mistyped digit through: Google matches an offer to a product cluster by
+   this number, so a barcode that is thirteen digits but somebody else's
+   points our listing at somebody else's product. The check digit exists
+   precisely to catch a single wrong or transposed digit and costs one pass
+   over the string.
+
+   Safe to tighten: all 66 values in the catalogue when this was added pass
+   both tests, so nothing already in the feed leaves it. */
 export function validGtin(value: string | null | undefined): string | null {
   if (!value) return null;
   const digits = value.replace(/[\s-]/g, "");
-  return /^\d{13}$/.test(digits) ? digits : null;
+  if (!/^\d{13}$/.test(digits)) return null;
+  if (TIMESTAMP_LIKE.test(digits)) return null;
+  return checkDigitOk(digits) ? digits : null;
 }
 
 function money(amount: number): string {
