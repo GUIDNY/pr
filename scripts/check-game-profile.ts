@@ -102,15 +102,13 @@ console.log("\nThe wiring the game depends on");
 is("the game's origin is exact", GAME_ORIGIN, "https://play.buytoday.co.il");
 
 const returnRoute = readFileSync("src/app/api/game/return/route.ts", "utf8");
-is(
-  "/api/game/return sends the web back to the game's own address",
-  returnRoute.includes("`${GAME_ORIGIN}/?signedin=1`"),
-  true,
-);
-is("/api/game/return sends the app back to /mall on this host", returnRoute.includes("`${new URL(request.url).origin}/mall?signedin=1`"), true);
-// Only the user agent picks between the two fixed destinations: nothing from
-// the query string or body may reach the redirect, or it becomes aimable.
-is("/api/game/return reads no query string", /searchParams|request\.json|request\.text|formData/.test(returnRoute), false);
+// Since the mall went private (lib/mall-access.ts) the way back is through
+// /api/game/pass on this host, which is what decides between the game's own
+// address and /mall and lets only an allowed account through. The destination
+// is still fixed in code: the only thing read from the request is the
+// one-value checkout flag, never a path or a URL, so nothing can aim it.
+is("/api/game/return goes back through /api/game/pass with signedin=1", returnRoute.includes("`${url.origin}/api/game/pass?${flags}`") && returnRoute.includes('"signedin=1"'), true);
+is("…and the only thing it reads from the request is the one-value checkout flag", (returnRoute.match(/searchParams\.get\("checkout"\) === "1"/g) ?? []).length === 1 && !/searchParams\.get\((?!"checkout")/.test(returnRoute) && !/request\.json|request\.text|formData/.test(returnRoute), true);
 
 /* The same-site rule every web sign-in path applies to `redirect`. If one of
    them changes it — to an allow-list of pages, say — the game's sign-in
@@ -128,7 +126,9 @@ is(
 
 const profileRoute = readFileSync("src/app/api/game/profile/route.ts", "utf8");
 is("GET, PUT and OPTIONS are all exported", ["GET", "PUT", "OPTIONS"].every((m) => profileRoute.includes(`export async function ${m}(`)), true);
-is("what is stored is the parsed profile", /create: \{ userId: session\.sub, profile \}/.test(profileRoute), true);
+// The progress rides along when the game sends one; what is stored is still
+// what parseGameProfile rebuilt, never the body.
+is("what is stored is the parsed profile", /create: \{ userId: session\.sub, profile, \.\.\.\(progress \? \{ progress \} : \{\}\) \}/.test(profileRoute) && /const profile = parseGameProfile\(/.test(profileRoute), true);
 
 console.log(failures ? `\n${failures} check(s) failed.\n` : "\nAll checks passed.\n");
 process.exit(failures ? 1 : 0);

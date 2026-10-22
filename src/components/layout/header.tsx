@@ -91,6 +91,8 @@ export async function Header() {
           <div className="min-w-0 flex-1">
             <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-10 border-2" />
           </div>
+          {/* Staff only, and nothing for everyone else — see BackOfficeLink. */}
+          <BackOfficeLink icon />
           {/* Only where the bottom tab bar is not already the cart. */}
           <CartTrigger unlessTabBar />
         </div>

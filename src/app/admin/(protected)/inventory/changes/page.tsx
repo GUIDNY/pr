@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getRecentChanges } from "@/lib/queries/admin-inventory";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination";
+import { AdminPagination } from "@/components/admin/admin-pagination";
 import { formatDateTime } from "@/lib/format";
 import { INVENTORY_CHANGE_TYPE_LABELS, type InventoryChangeType } from "@/lib/enums";
 
@@ -93,19 +93,7 @@ export default async function InventoryChangesPage({
         </Table>
       </div>
 
-      {totalPages > 1 && (
-        <Pagination className="mt-6">
-          <PaginationContent>
-            {Array.from({ length: Math.min(totalPages, 10) }, (_, i) => i + 1).map((p) => (
-              <PaginationItem key={p}>
-                <PaginationLink href={`/admin/inventory/changes?page=${p}`} isActive={p === page}>
-                  {p}
-                </PaginationLink>
-              </PaginationItem>
-            ))}
-          </PaginationContent>
-        </Pagination>
-      )}
+      <AdminPagination page={page} totalPages={totalPages} href={(p) => `/admin/inventory/changes?page=${p}`} />
     </div>
   );
 }
