@@ -18,7 +18,7 @@ export function BrandStrip({ brands }: { brands: FeaturedBrand[] }) {
     <section className="border-border border-b py-5">
       <div className="mx-auto max-w-7xl px-4">
         <h2 className="text-muted-foreground mb-3 text-center text-xs font-semibold tracking-wide">
-          המותגים שאנחנו מוכרים, באחריות יבואן רשמי
+          המותגים שאנחנו מוכרים, רובם באחריות יבואן רשמי
         </h2>
         <ul className="flex items-center gap-x-8 gap-y-3 overflow-x-auto [scrollbar-width:none] sm:flex-wrap sm:justify-center [&::-webkit-scrollbar]:hidden">
           {shown.map((b) => (

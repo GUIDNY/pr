@@ -26,7 +26,9 @@ const FACTS: { lead: string; rest: string }[] = [
     lead: `עד ${DELIVERY_ZONES.local.max} ימי עסקים`,
     rest: `${DELIVERY_ZONES.local.label}, ${DELIVERY_ZONES.national.min}–${DELIVERY_ZONES.national.max} בשאר הארץ`,
   },
-  { lead: "אחריות יבואן רשמי", rest: "על כל מוצר באתר" },
+  // "רוב", not "כל": 45 live products are parallel imports, each saying so
+  // on its page, with the importer's warranty rather than the official one.
+  { lead: "אחריות יבואן רשמי", rest: "על רוב המוצרים באתר" },
   { lead: "תשלום מאובטח", rest: "גם בפריסה לתשלומים" },
 ];
 
