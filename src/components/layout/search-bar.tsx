@@ -73,9 +73,33 @@ export function SearchBar({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
+  /* Where the header row ends, so the suggestions can hang off it while
+     being as wide as the page rather than as wide as the field. 56px is
+     the phone header's own height and is correct whenever it is stuck to
+     the top, which it is the moment anybody has scrolled — so the first
+     paint lands in the right place and the measurement below only
+     corrects the case where the page is still at the very top. */
+  const [rowBottom, setRowBottom] = useState(56);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isHero = size === "hero";
   const rotatingPlaceholder = useRotatingPlaceholder(isHero && !query);
+
+  /* Re-measured while the list is open, because until the header sticks
+     the row moves with the page. */
+  useEffect(() => {
+    if (!isOpen) return;
+    const measure = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) setRowBottom(rect.bottom);
+    };
+    measure();
+    window.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -252,15 +276,30 @@ export function SearchBar({
 
       {isOpen && query.trim().length >= 2 && (
         <div
+          style={{ "--suggestions-top": `${rowBottom}px` } as React.CSSProperties}
           className={cn(
-            "bg-popover text-popover-foreground mt-2 w-full overflow-hidden rounded-xl border text-start shadow-lg",
+            "bg-popover text-popover-foreground mt-2 overflow-hidden rounded-xl border text-start shadow-lg",
             // Everywhere else this floats on top of whatever's below it —
             // standard search-dropdown behavior. Only the mobile Alfred
             // search (showTopResultPreview) wants it to instead push the
             // "קטגוריות מובילות" section underneath it further down the
             // page, which just means letting it take up real space in
             // normal flow instead of being pulled out of it.
-            showTopResultPreview ? "relative" : "absolute top-full z-50"
+            /* On a phone the field is about 190px of a 374px screen — it
+               shares the row with the menu, the logo, the back-office link
+               and the cart — and `w-full` handed the suggestions that same
+               190px. Four results then read "מקרר ...", "מקרר קובייה...",
+               "מקרר משרדי...": the one column that had to stay whole was
+               the one with no room left.
+
+               So the list stops inheriting the field's width. Fixed to the
+               viewport, inset to the header's own gutter, hanging off the
+               measured bottom of the row — which also takes it out of any
+               ancestor that clips. From sm up there is room and it goes
+               back to being an ordinary dropdown under a wide field. */
+            showTopResultPreview
+              ? "relative"
+              : "fixed inset-x-3 top-[var(--suggestions-top)] z-50 sm:absolute sm:inset-x-auto sm:top-full sm:w-full"
           )}
         >
           {isPending && results.length === 0 ? (
