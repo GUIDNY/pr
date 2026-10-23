@@ -7,6 +7,7 @@ import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
 import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
 import { WARRANTY_POLICY_UPDATED } from "@/lib/warranty-policy";
 import { TERMS_UPDATED } from "@/lib/content/terms";
+import { EXTENSION_PRIVACY_UPDATED } from "@/lib/content/privacy-extension";
 import { isSellableNow } from "@/lib/inventory/availability";
 
 /* Same hourly refresh as the article list, for the same reason: an article
@@ -270,6 +271,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: RETURNS_POLICY_UPDATED,
       changeFrequency: "yearly",
       priority: 0.4,
+    },
+    {
+      /* The browser extension's own policy. Listed because the Chrome Web
+         Store review fetches the URL the listing names and a URL an engine
+         has never been offered is one more thing that can quietly 404; it
+         carries its own date rather than the shared policy one, since this
+         is the page that changes when the extension does. */
+      url: `${BASE_URL}/privacy-extension`,
+      lastModified: EXTENSION_PRIVACY_UPDATED,
+      changeFrequency: "yearly",
+      priority: 0.3,
     },
     {
       url: `${BASE_URL}/accessibility`,
