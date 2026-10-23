@@ -797,6 +797,40 @@ export async function getProductsByBrandSlug(
  * machines after /search had stopped. One ranker means a third copy cannot
  * quietly disagree with these two.
  */
+/**
+ * `PUBLIC_PRODUCT_WHERE` again, in SQL, because two queries here are raw and
+ * a Prisma object cannot be spread into a string.
+ *
+ * It is the same predicate written twice, which is a thing worth being
+ * uncomfortable about, and the discomfort has been earned twice now. The
+ * `NEEDS_REVIEW` condition went missing from search this way once. Then on
+ * 19 October the constant learned that a product with no stock is sellable
+ * when the price list has not marked it gone — and the two raw copies were
+ * not told. They went on asking for `stockQty > 0`, so **1,130 of the 2,495
+ * products live on the site could not be found by typing their name into
+ * the shop's own search box**, or by asking Alfred: 45% of the catalogue,
+ * every one of them on a page Google was being shown.
+ *
+ * The later Prisma filter in `searchProducts` could not save it. That gate
+ * narrows the ranker's output and nothing can add a row the ranker never
+ * returned — which is why a predicate that is too strict here is invisible
+ * and a predicate that is too loose is harmless.
+ *
+ * So: one string, both call sites, and if the constant above changes this
+ * changes with it. `check:search` asserts the two name the same columns.
+ */
+const PUBLIC_PRODUCT_SQL = `
+        p."isPublished"
+        AND (p."stockQty" > 0 OR p."sourceAvailability" = 'ORDERABLE')
+        AND p."stockStatus" <> 'NEEDS_REVIEW'
+        AND p.price >= ${MIN_PUBLIC_PRICE}
+        AND p."missingFromSourceSince" IS NULL
+        AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
+        AND EXISTS (
+          SELECT 1 FROM "InventorySource" src
+          WHERE src.id = p."sourceId" AND src."isActive" AND src."sourceType" = 'EXCEL'
+        )`;
+
 export async function rankedSearchIds(query: string, take: number): Promise<string[]> {
   if (!query.trim()) return [];
   const { text, maxPrice } = parseShoppingQuery(query);
@@ -854,14 +888,9 @@ export async function rankedSearchIds(query: string, take: number): Promise<stri
       JOIN "Category" c ON c.id = p."categoryId"
       LEFT JOIN "Category" pc ON pc.id = c."parentId"
       LEFT JOIN "Brand" b ON b.id = p."brandId"
-      -- PUBLIC_PRODUCT_WHERE, by hand. This is raw SQL, so the constant
-      -- cannot be spread here, and that is exactly how the NEEDS_REVIEW
-      -- condition went missing from search while every Prisma query picked
-      -- it up for free. Any change to that constant has to be copied into
-      -- all three of these blocks; there is no compiler to notice.
-      WHERE p."isPublished" AND p."stockQty" > 0
-        AND p."stockStatus" <> 'NEEDS_REVIEW'
-        AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
+      -- PUBLIC_PRODUCT_WHERE, in SQL. One copy, shared by both raw
+      -- queries -- see the note on the constant.
+      WHERE ${PUBLIC_PRODUCT_SQL}
         ${priceClause}
     )
     SELECT id FROM scored
@@ -881,6 +910,52 @@ export function inRankedOrder<T extends { id: string }>(ids: string[], rows: T[]
     const row = byId.get(id);
     return row ? [row] : [];
   });
+}
+
+/**
+ * The product a SKU or a model number names, however it was punctuated.
+ *
+ * `rankedSearchIds` scores substrings word by word, which is right for
+ * "מקרר 4 דלתות" and wrong for an identifier: the shop's own search finds
+ * `HRF-40-B` and misses `hrf40b`, because with the hyphens gone it is one
+ * word that appears in no field. A price-comparison caller holding a model
+ * number off somebody else's page has whatever punctuation that page used,
+ * and that is the one query where an exact answer exists and a fuzzy one is
+ * worse than nothing.
+ *
+ * So the separators come out of both sides and the comparison is equality,
+ * not a substring: `HRF-40-B`, `hrf40b`, `hrf 40 b` and `HRF.40.B` all name
+ * the same product, while `40` on its own names none. Gated by the same
+ * predicate as everything else, so it can only ever return a product that
+ * has a page to link to.
+ */
+export async function findByIdentifier(query: string, take: number): Promise<ProductCardData[]> {
+  const needle = query.replace(/[\s\-/._]/g, "").toLowerCase();
+  /* Two characters is a prefix, not an identifier, and would equal any
+     model short enough to be unlucky. */
+  if (needle.length < 3) return [];
+
+  const rows = await db.$queryRawUnsafe<{ id: string }[]>(
+    `
+    SELECT p.id
+    FROM "Product" p
+    WHERE (
+        lower(regexp_replace(p.sku,        '[[:space:]\\-/._]', '', 'g')) = $1
+     OR lower(regexp_replace(COALESCE(p.model,''), '[[:space:]\\-/._]', '', 'g')) = $1
+    )
+      AND ${PUBLIC_PRODUCT_SQL}
+    ORDER BY p.price ASC, p.id ASC
+    LIMIT $2
+    `,
+    needle,
+    take,
+  );
+  if (rows.length === 0) return [];
+  const products = await db.product.findMany({
+    where: { id: { in: rows.map((r) => r.id) }, ...PUBLIC_PRODUCT_WHERE },
+    select: cardSelect,
+  });
+  return inRankedOrder(rows.map((r) => r.id), products).map(mapProductToCard);
 }
 
 /** The /search results page. */
@@ -1207,14 +1282,9 @@ export async function searchForChat(
       JOIN "Category" c ON c.id = p."categoryId"
       LEFT JOIN "Category" pc ON pc.id = c."parentId"
       LEFT JOIN "Brand" b ON b.id = p."brandId"
-      -- PUBLIC_PRODUCT_WHERE, by hand. This is raw SQL, so the constant
-      -- cannot be spread here, and that is exactly how the NEEDS_REVIEW
-      -- condition went missing from search while every Prisma query picked
-      -- it up for free. Any change to that constant has to be copied into
-      -- all three of these blocks; there is no compiler to notice.
-      WHERE p."isPublished" AND p."stockQty" > 0
-        AND p."stockStatus" <> 'NEEDS_REVIEW'
-        AND EXISTS (SELECT 1 FROM "ProductImage" i WHERE i."productId" = p.id)
+      -- PUBLIC_PRODUCT_WHERE, in SQL. One copy, shared by both raw
+      -- queries -- see the note on the constant.
+      WHERE ${PUBLIC_PRODUCT_SQL}
         ${extraWhere}
     )`;
 
