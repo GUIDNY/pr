@@ -67,7 +67,8 @@
     "check:payment-alert": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-payment-alert.ts",
     "check:search": "tsx scripts/check-search-suggestions.ts",
     "check:gate": "tsx scripts/check-public-gate.ts",
-    "check:extension-privacy": "tsx scripts/check-extension-privacy.ts"
+    "check:extension-privacy": "tsx scripts/check-extension-privacy.ts",
+    "check:clarity": "tsx scripts/check-clarity.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
