@@ -1,6 +1,7 @@
 "use client";
 
 import Script from "next/script";
+import { installClarity } from "@/lib/analytics/clarity";
 import { useConsent } from "@/lib/consent";
 import { useIsNativeApp } from "@/lib/native-app";
 
@@ -39,17 +40,32 @@ export function Clarity() {
   const inApp = useIsNativeApp();
   if (!id || consent !== "granted" || inApp) return null;
 
-  /* Clarity's published snippet is an inline script whose entire job is to
-     create a queue stub and then append <script src="clarity.ms/tag/{id}">.
-     It used to be inlined here, which worked while this component was part of
-     the server's HTML — but consent mounts it later now, and a script element
-     React inserts after hydration does not reliably execute. The Meta pixel
-     failed exactly that way in production (see meta-pixel.tsx).
+  /* The queue stub, during render, before the tag element below exists.
+     Not from an effect, and not from an inline <script>.
 
-     Loading the tag directly is both the fix and simpler: the tag file defines
-     window.clarity itself, so the stub was only ever there to catch calls made
-     in the milliseconds before it arrived, and nothing in this codebase calls
-     clarity at all. */
+     This file used to say the stub was unnecessary — "the tag file defines
+     window.clarity itself, so the stub was only ever there to catch calls".
+     It does not, and the consequence was total: clarity.ms/tag/{id} is a
+     726-byte bootstrap whose third statement reads `a[c].v||a[c].t`, where
+     `a[c]` is window.clarity. With nothing there it threw
+     `Cannot read properties of undefined (reading 'v')` on every page load
+     and stopped before the statement that appends the recorder. No
+     clarity.js, no cookie, no upload, and a dashboard that recorded zero
+     sessions for as long as this has been installed — the failure looked
+     exactly like a quiet month, because a tag that 200s and then throws
+     reports nothing and complains to nobody.
+
+     From script rather than from an inline <script> for the reason
+     meta-pixel.tsx records at length: this component does not exist at parse
+     time. It mounts when consent is granted, and a script element React
+     creates at that point does not reliably execute. The pixel lost its
+     events to exactly that.
+
+     lib/analytics/clarity.ts has the shape and why; npm run check:clarity
+     runs Microsoft's real tag source against this stub, and against its
+     absence. */
+  installClarity(window);
+
   return (
     <Script
       id="clarity-tag"
