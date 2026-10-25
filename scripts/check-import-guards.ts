@@ -17,6 +17,7 @@ import {
   modelsAreTheSame,
   modelsAreTheSameAllowingTypedZero,
   rowBindingLooksForeign,
+  alertEvidenceStillStands,
   rowModelWasReassigned,
   titleNamesAnotherModel,
   rowStillNamesThisProduct,
@@ -766,6 +767,56 @@ for (const sku of NOT_SKUS) {
   if (looksLikeSupplierSku(sku)) fail(`looksLikeSupplierSku("${sku.slice(0, 40)}") should be false`);
 }
 
+// --------------------------------------------- closing a question properly --
+//
+// SKU 270064 sold as an "Audio Line AL-55" for twelve days off a row that
+// reads AL45, because the CRITICAL alert saying so was cleared in a batch of
+// 36 the evening after it was raised — 34 of which genuinely were false
+// alarms. Resolving it released the quarantine, and the sweep that found it
+// asks once per product and never again.
+//
+// So an alert whose evidence is still readable cannot be marked resolved
+// while it still reads. The two halves below are the whole rule: the types
+// whose evidence IS checkable must refuse, and every other type must go on
+// resolving exactly as before, because most alerts here record a judgement
+// no column holds.
+const MUST_REFUSE: [string, string, { sku: string; model: string | null; lastRowModel: string }][] = [
+  ["the Audio Line stand that started this", "ROW_NAMES_ANOTHER_MODEL",
+    { sku: "270064", model: "AL-55", lastRowModel: "AL45" }],
+  ["a ₪10,900 Lenco oven on a Smeg row", "ROW_NAMES_ANOTHER_MODEL",
+    { sku: "160913", model: "LFS-9021SBL", lastRowModel: "SSA91MABL2" }],
+  ["the founding fridge", "ROW_NAMES_ANOTHER_MODEL",
+    { sku: "107012", model: "RT53DG7A14WW", lastRowModel: "RF60C7012SL" }],
+];
+const MUST_ALLOW: [string, string, { sku: string; model: string | null; lastRowModel: string } | null][] = [
+  // The contradiction is gone — somebody did the work.
+  ["the same alert once the model is corrected", "ROW_NAMES_ANOTHER_MODEL",
+    { sku: "270064", model: "AL45", lastRowModel: "AL45" }],
+  // Enrichment's ordinary corrections, which share the manufacturer's stem.
+  ["an enrichment correction", "ROW_NAMES_ANOTHER_MODEL",
+    { sku: "0883", model: "CTAC8780AFSNE", lastRowModel: "8780IN" }],
+  // Everything else resolves on a person's say-so, as it always did.
+  /* The same contradicting pair under a different alert type. A missing
+     photograph is a person's errand, not a claim about identity, and must
+     resolve on their say-so even while the identity question is open
+     elsewhere — which is also what keeps this rule from spreading to every
+     type the moment somebody simplifies it. */
+  ["a missing image on a product whose row does disagree", "MISSING_IMAGE",
+    { sku: "160913", model: "LFS-9021SBL", lastRowModel: "SSA91MABL2" }],
+  ["a stale sync", "SYNC_STALE", null],
+  ["an alert with no product behind it", "ROW_NAMES_ANOTHER_MODEL", null],
+];
+for (const [label, type, product] of MUST_REFUSE) {
+  if (!alertEvidenceStillStands(type, product)) {
+    fail(`closing is still allowed while the evidence stands: ${label}`);
+  }
+}
+for (const [label, type, product] of MUST_ALLOW) {
+  if (alertEvidenceStillStands(type, product)) {
+    fail(`closing is blocked when it should not be: ${label}`);
+  }
+}
+
 const total =
   NOT_ASSERTABLY_SAME.length + FOOTER_GRID.length + SAME_MODEL.length + DIFFERENT_MODEL.length + REFUSED_BUT_HARMLESS.length + PRICE_ROWS.length + SHIFTED.length + STRAIGHT.length +
   HTML_CASES.length + LABEL_URLS.length + PRODUCT_URLS.length + MARKETING_TITLES.length + REAL_TITLES.length +
@@ -777,7 +828,9 @@ const total =
   /* The price guard, over the same fourteen corrections plus its own cases. */
   ROW_MODEL_UNCHANGED.length + ROW_MODEL_REASSIGNED.length + ROW_MODEL_NOT_REASSIGNED.length +
   FOREIGN_BINDING.length + FAMILIAR_BINDING.length +
-  TITLE_NAMES_ANOTHER.length + TITLE_AGREES.length + REAL_SKUS.length + NOT_SKUS.length;
+  TITLE_NAMES_ANOTHER.length + TITLE_AGREES.length + REAL_SKUS.length + NOT_SKUS.length +
+  MUST_REFUSE.length + MUST_ALLOW.length;
+
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${LABEL_URLS.length} label urls, ${PRODUCT_URLS.length} photo urls, ` +
@@ -795,6 +848,7 @@ console.log(
     `${TITLE_NAMES_ANOTHER.length} titles naming another model, ${TITLE_AGREES.length} titles agreeing, ` +
     `${ROW_MODEL_SILENT.length} silent rows, ` +
     `${HTML_CASES.length} html descriptions, ` +
-    `${REAL_SKUS.length} real skus, ${NOT_SKUS.length} contact lines and placeholders)`,
+    `${REAL_SKUS.length} real skus, ${NOT_SKUS.length} contact lines and placeholders, ` +
+    `${MUST_REFUSE.length} alerts that cannot be closed, ${MUST_ALLOW.length} that can)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;

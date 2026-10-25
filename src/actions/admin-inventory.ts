@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { runFullSync } from "@/lib/inventory/sync";
 import { ingestSourceFile } from "@/lib/inventory/ingest-source";
+import { alertEvidenceStillStands } from "@/lib/inventory/import-guards";
 import { extractSpreadsheetId, extractGid, fetchSheetWorkbook } from "@/lib/inventory/google-sheets-source";
 
 export async function runManualSyncAction() {
@@ -180,6 +181,33 @@ export async function toggleSourceActiveAction(id: string, isActive: boolean) {
 
 export async function resolveAlertAction(id: string) {
   const session = await requireAdmin();
+
+  /* Some questions cannot be closed by saying they are closed. See
+     alertEvidenceStillStands: a ROW_NAMES_ANOTHER_MODEL whose two codes
+     still contradict each other is still true, and resolving it releases
+     the quarantine and puts a wrongly named product back on sale. That is
+     not hypothetical — it is how SKU 270064 sold as an Audio Line AL-55
+     for twelve days after the alert that said it was an AL45 was cleared
+     in a batch. */
+  const alert = await db.inventoryAlert.findUnique({
+    where: { id },
+    select: {
+      type: true,
+      product: { select: { sku: true, model: true, lastRowModel: true, sourceSheet: true, sourceRowRef: true } },
+    },
+  });
+  if (alert && alertEvidenceStillStands(alert.type, alert.product)) {
+    const p = alert.product!;
+    return {
+      success: false,
+      error:
+        `אי אפשר לסגור: השורה במחירון (${p.sourceSheet ?? "?"} שורה ${p.sourceRowRef ?? "?"}) עדיין ` +
+        `מדפיסה ${p.lastRowModel ?? "?"} והדגם אצלנו הוא ${p.model ?? "?"}. צריך לתקן את הדגם של ` +
+        `המוצר לפי השורה, או שהספק יתקן את השורה — כל עוד השניים לא מסכימים, המוצר מתומחר משורה ` +
+        `שמתארת מוצר אחר.`,
+    };
+  }
+
   await db.inventoryAlert.update({
     where: { id },
     data: { isResolved: true, resolvedAt: new Date(), resolvedById: session.sub },

@@ -513,6 +513,42 @@ export function rowModelWasReassigned(
  *     shorthand** — SKU 106356 against a row that says 6356, SKU 157131
  *     against BKS7131LX. 13 of the 61, and all of them correctly bound.
  */
+/**
+ * May this alert be closed?
+ *
+ * One click on 13 October put a mis-named product back on sale for twelve
+ * days. SKU 270064 is a row that reads `AL45` with "עד 55 אינץ'" in its
+ * description; enrichment read the 55 and wrote a model of `AL-55`, which
+ * is a real and different Audio Line stand. The watchdog caught it exactly
+ * as designed — a CRITICAL ROW_NAMES_ANOTHER_MODEL on 12 October at 14:57,
+ * naming the sheet, the row and both codes, with the product quarantined
+ * off the site — and then it was resolved in the batch of 36 that was
+ * cleared the next evening, of which 34 genuinely were false alarms. This
+ * one was not, and resolving it released the quarantine, put the page back
+ * up under the wrong name, and, because that sweep asks once per product
+ * and never again, guaranteed nothing would ever ask a second time.
+ *
+ * So the gap was never detection. It was that closing the question did not
+ * require an answer to it. This is that requirement: an alert whose
+ * evidence is still readable from the database cannot be marked resolved
+ * while it still reads. Correct the model, or the row has to change; a
+ * product whose name disagrees with the row it is priced from is not one
+ * the shop can sell either way, which is what the quarantine already says.
+ *
+ * Only the types whose evidence IS checkable are listed. Everything else
+ * resolves as before — most alerts here are a person's judgement about
+ * something no column records, and demanding evidence for those would be
+ * demanding it of nobody.
+ */
+export function alertEvidenceStillStands(
+  type: string,
+  product: { sku: string; model: string | null; lastRowModel?: string | null } | null,
+): boolean {
+  if (!product) return false;
+  if (type === "ROW_NAMES_ANOTHER_MODEL") return rowBindingLooksForeign(product);
+  return false;
+}
+
 export function rowBindingLooksForeign(product: {
   sku: string;
   model: string | null;
