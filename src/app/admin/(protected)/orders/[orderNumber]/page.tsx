@@ -24,21 +24,40 @@ import { requireBackOffice } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { getSellerOrderDetail } from "@/lib/queries/seller-orders";
 import { SellerOrderPage } from "@/components/admin/seller-order-page";
+import { OrdersViewSwitch, ordersViewFor } from "@/components/admin/orders-view-switch";
 
-export default async function AdminOrderDetailPage({ params }: { params: Promise<{ orderNumber: string }> }) {
+export default async function AdminOrderDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orderNumber: string }>;
+  searchParams: Promise<{ view?: string }>;
+}) {
   /* Same address, two pages — see the orders list for why the URL is shared.
-     A seller gets the page built around the single next action; a manager
-     gets the one with the assignee, the supplier and the full status
-     vocabulary. */
+     The handling page is built around the single next action — approve the
+     payment, "שולם ידנית", ship, close — and is what a seller gets and what a
+     manager opens on; the full page, with the assignee, the supplier and the
+     whole status vocabulary, is the manager's second view (OrdersViewSwitch). */
   const viewer = await requireBackOffice();
-  if (!canManageCatalog(viewer.role)) {
-    const { orderNumber } = await params;
+  const manager = canManageCatalog(viewer.role);
+  const { orderNumber } = await params;
+  const view = ordersViewFor(manager, (await searchParams).view);
+  const viewHref = (v: "handle" | "full") => `/admin/orders/${orderNumber}${v === "full" ? "?view=full" : ""}`;
+  if (view === "handle") {
     const detail = await getSellerOrderDetail(orderNumber);
     if (!detail) notFound();
-    return <SellerOrderPage order={detail} />;
+    return (
+      <div className="flex flex-col gap-4">
+        {manager && (
+          <div className="flex justify-end">
+            <OrdersViewSwitch view="handle" href={viewHref} />
+          </div>
+        )}
+        <SellerOrderPage order={detail} />
+      </div>
+    );
   }
 
-  const { orderNumber } = await params;
   const [order, staff] = await Promise.all([getAdminOrderDetail(orderNumber), getStaffUsers()]);
   if (!order) notFound();
 
@@ -50,9 +69,12 @@ export default async function AdminOrderDetailPage({ params }: { params: Promise
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href="/admin/orders" className="text-muted-foreground hover:text-foreground mb-2 flex items-center gap-1 text-sm">
-          <ArrowRight className="size-4 rtl:rotate-180" /> חזרה להזמנות
-        </Link>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <Link href="/admin/orders?view=full" className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm">
+            <ArrowRight className="size-4 rtl:rotate-180" /> חזרה להזמנות
+          </Link>
+          <OrdersViewSwitch view="full" href={viewHref} />
+        </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-2xl font-bold">הזמנה {order.orderNumber}</h1>
           <span className={`rounded-full px-3 py-1 text-sm font-medium ${ORDER_STATUS_COLORS[order.status as OrderStatus]}`}>

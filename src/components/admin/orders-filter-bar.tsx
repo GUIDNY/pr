@@ -97,7 +97,7 @@ export function OrdersFilterBar({ staff }: { staff: { id: string; name: string }
       </label>
 
       {searchParams.toString() && (
-        <Button variant="ghost" size="sm" onClick={() => router.push(pathname)}>
+        <Button variant="ghost" size="sm" onClick={() => router.push(searchParams.get("view") ? `${pathname}?view=${searchParams.get("view")}` : pathname)}>
           נקה סינון
         </Button>
       )}

@@ -12,6 +12,7 @@ import { getSellerOrdersByStage, getSellerStageCounts } from "@/lib/queries/sell
 import { OrdersBulkList } from "@/components/admin/orders-bulk-list";
 import { OrderStageTabs } from "@/components/admin/order-stage-tabs";
 import { isStage, STAGE_HINTS, TRASH_STAGE } from "@/lib/order-stage";
+import { OrdersViewSwitch, ordersViewFor } from "@/components/admin/orders-view-switch";
 
 export const metadata = { title: "הזמנות | Buy Today Admin" };
 
@@ -28,8 +29,12 @@ export default async function AdminOrdersPage({
      same thing into every link, bookmark and revalidatePath in the app. What
      differs is what each of them needs to see, so that is what branches. */
   const session = await requireBackOffice();
-  if (!canManageCatalog(session.role)) {
-    const sp = await searchParams;
+  /* A manager has both views and opens on the handling one; a seller has
+     only that one — see OrdersViewSwitch. */
+  const manager = canManageCatalog(session.role);
+  const sp = await searchParams;
+  const view = ordersViewFor(manager, sp.view);
+  if (view === "handle") {
     const stage = isStage(sp.stage) ? sp.stage : "open";
     const [orders, counts] = await Promise.all([
       getSellerOrdersByStage(stage),
@@ -37,6 +42,12 @@ export default async function AdminOrdersPage({
     ]);
     return (
       <div className="flex flex-col gap-4">
+        {manager && (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold">הזמנות</h1>
+            <OrdersViewSwitch view="handle" href={(v) => (v === "full" ? "/admin/orders?view=full" : "/admin/orders")} />
+          </div>
+        )}
         <OrderStageTabs active={stage} counts={counts} />
         <p className="text-muted-foreground text-sm">{STAGE_HINTS[stage]}</p>
         {orders.length === 0 ? (
@@ -50,7 +61,6 @@ export default async function AdminOrdersPage({
     );
   }
 
-  const sp = await searchParams;
   const page = Number(sp.page) || 1;
   const status = (sp.status as OrderStatus) ?? "ALL";
   /* The bin is its own view rather than a thirteenth status chip: it cuts
@@ -94,15 +104,18 @@ export default async function AdminOrdersPage({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold">{bin ? "פח ההזמנות" : "הזמנות"}</h1>
-        <span className="text-muted-foreground text-sm">{total} הזמנות בתצוגה</span>
+        <div className="flex items-center gap-3">
+          <span className="text-muted-foreground text-sm">{total} הזמנות בתצוגה</span>
+          <OrdersViewSwitch view="full" href={(v) => (v === "full" ? "/admin/orders?view=full" : "/admin/orders")} />
+        </div>
       </div>
 
       {bin ? (
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <Link
-            href="/admin/orders"
+            href={hrefWith({ bin: undefined })}
             className="border-border hover:bg-muted rounded-full border px-3 py-1.5 text-sm font-medium"
           >
             ← חזרה להזמנות
@@ -129,7 +142,7 @@ export default async function AdminOrdersPage({
 
       {!bin && binned > 0 && (
         <Link
-          href="/admin/orders?bin=1"
+          href={hrefWith({ bin: "1", status: undefined })}
           className="text-muted-foreground hover:text-foreground mt-6 flex w-fit items-center gap-1.5 text-sm font-semibold"
         >
           <Trash2 className="size-4" />
