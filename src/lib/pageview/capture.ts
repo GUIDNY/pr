@@ -12,20 +12,34 @@
  *          host and path; the country Vercel derived; a coarse device class;
  *          whether the agent is a known crawler; whether the request was an
  *          in-app navigation.
- *   never: the IP, the raw user-agent, any other query parameter (an address
- *          can carry an email or a token, and "all of them except…" is how
- *          that gets stored), any cookie other than the visit id.
+ *          And, since 25 October, the crawler's NAME when the agent is one we
+ *          recognise — "Googlebot", not the agent string. A name is what
+ *          separates "Googlebot never came" from "Googlebot came and
+ *          declined", which is the question 1,147 pages in Search Console
+ *          turn on, and it says nothing about a person because there is no
+ *          person. The raw agent of a crawler is kept in CrawlerHit, which
+ *          holds crawlers and nothing else.
+ *   never: the IP, the raw user-agent of a visitor, any other query
+ *          parameter (an address can carry an email or a token, and "all of
+ *          them except…" is how that gets stored), any cookie other than
+ *          the visit id. The privacy page promises exactly this — "הרישום
+ *          אינו כולל כתובת IP, מחרוזת דפדפן" — so a human's agent string
+ *          must not start being stored here, whatever a spec asks for.
  *
  * Crawlers are KEPT and flagged, not dropped: Search Console says 1,278
  * pages are "crawled, not indexed" and nothing here could say whether
  * Googlebot ever arrived. This is that record.
  */
 
+import { matchCrawler } from "./crawlers";
+
 export type PageViewInput = {
   path: string;
   query: string | null;
   referrer: string | null;
   isBot: boolean;
+  /** The crawler's name when we know it; null for a person. */
+  bot: string | null;
   isRsc: boolean;
   country: string | null;
   device: "mobile" | "tablet" | "desktop" | null;
@@ -43,8 +57,14 @@ const SKIP_EXTENSIONS =
 /** Only these survive from the query string. */
 const KEPT_PARAMS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "srsltid", "gclid"];
 
+/* Kept in step with lib/pageview/crawlers.ts, and check:crawlers fails if a
+   crawler it can name is not also flagged here. Six were missing and the
+   worst of them was Storebot-Google: Google's shopping crawler walks the
+   whole purchase flow and creates real Order rows — check-payment-alert
+   lists five of them — and because no pattern here matched it, every page
+   it opened was counted as a person. */
 const BOT_AGENTS =
-  /googlebot|bingbot|applebot|gptbot|oai-searchbot|chatgpt-user|perplexitybot|claudebot|anthropic-ai|ahrefsbot|semrushbot|yandex|baiduspider|facebookexternalhit|bytespider|duckduckbot|petalbot|mj12bot|dotbot|slurp|google-inspectiontool|adsbot-google|mediapartners-google|headlesschrome|lighthouse|vercel-screenshot|uptimerobot|pingdom/i;
+  /googlebot|storebot-google|bingbot|bingpreview|applebot|gptbot|oai-searchbot|chatgpt-user|perplexitybot|perplexity-user|claudebot|claude-searchbot|claude-user|anthropic-ai|amazonbot|meta-externalagent|ccbot|ahrefsbot|semrushbot|yandex|baiduspider|facebookexternalhit|bytespider|duckduckbot|petalbot|mj12bot|dotbot|slurp|google-inspectiontool|google-extended|adsbot-google|mediapartners-google|headlesschrome|lighthouse|vercel-screenshot|uptimerobot|pingdom/i;
 
 const MAX_PATH = 300;
 const MAX_QUERY = 500;
@@ -126,6 +146,7 @@ export function pageViewFromRequest(req: { pathname: string; search: string; hea
     query: keptQuery(search),
     referrer: trimReferrer(headers.get("referer")),
     isBot: isBotAgent(ua),
+    bot: matchCrawler(ua),
     isRsc: false,
     country: countryFrom(headers),
     device: deviceClass(ua),
@@ -162,6 +183,7 @@ export function pageViewFromNavigation(
     query: keptQuery(search),
     referrer: from ? `${host}${from}`.slice(0, MAX_REFERRER) : null,
     isBot: isBotAgent(ua),
+    bot: matchCrawler(ua),
     isRsc: true,
     country: countryFrom(headers),
     device: deviceClass(ua),

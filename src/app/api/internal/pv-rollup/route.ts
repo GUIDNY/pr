@@ -51,6 +51,20 @@ export async function GET(request: Request) {
   const deletedEvents = await db.$executeRawUnsafe(
     `DELETE FROM "VisitEvent" WHERE "createdAt" < now() - interval '${RETENTION_DAYS} days'`,
   );
+  /* And the crawler log, on the same clock. It is the one table here that
+     grows with somebody else's appetite rather than with the shop's
+     traffic — Search Console counted 30,645 Google requests in 90 days —
+     so leaving it unpruned is how it stops being queryable. */
+  const deletedCrawlers = await db.$executeRawUnsafe(
+    `DELETE FROM "CrawlerHit" WHERE "createdAt" < now() - interval '${RETENTION_DAYS} days'`,
+  );
 
-  return NextResponse.json({ ok: true, aggregatedRows: aggregated, deletedRaw: deleted, deletedEvents, retentionDays: RETENTION_DAYS });
+  return NextResponse.json({
+    ok: true,
+    aggregatedRows: aggregated,
+    deletedRaw: deleted,
+    deletedEvents,
+    deletedCrawlers,
+    retentionDays: RETENTION_DAYS,
+  });
 }
