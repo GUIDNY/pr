@@ -71,7 +71,8 @@
     "check:clarity": "tsx scripts/check-clarity.ts",
     "check:wallet": "tsx scripts/check-wallet-row.ts",
     "check:swipe": "tsx scripts/check-swipe.ts",
-    "check:crawlers": "tsx scripts/check-crawlers.ts"
+    "check:crawlers": "tsx scripts/check-crawlers.ts",
+    "check:crawler-verify": "tsx scripts/check-crawler-verify.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
