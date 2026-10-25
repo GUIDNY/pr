@@ -35,7 +35,10 @@ const seller = readFileSync("src/actions/seller-orders.ts", "utf8");
 
 /* Every call, with whatever it was given. A call with no force argument is an
    order that messages a customer because its status moved. */
-const calls = [...seller.matchAll(/notifyOrder\(([^;]*?)\);/gs)].map((m) => m[1].replace(/\s+/g, " ").trim());
+/* [^;] rather than a dot with the s flag: tsconfig targets ES2017, dotAll
+   needs ES2018, and tsc refuses it rather than warning — which is how a file
+   that ran perfectly under tsx shipped and failed the build. */
+const calls = [...seller.matchAll(/notifyOrder\(([^;]*?)\);/g)].map((m) => m[1].replace(/\s+/g, " ").trim());
 
 console.log("\nNothing in the back office notifies on its own");
 console.log(`        ${calls.length} notifyOrder call(s) in seller-orders.ts`);
@@ -48,7 +51,7 @@ is("and there is at least one, so the panel can still send", calls.length >= 1, 
    has to be deliberate rather than a copy-paste. */
 console.log("\nThe three events a person now chooses to send");
 for (const event of ["PAYMENT_APPROVED", "SHIPPED", "DELIVERED"]) {
-  const automatic = new RegExp(`notifyOrder\\([^;]*?"${event}"\\s*\\)`, "s").test(seller);
+  const automatic = new RegExp(`notifyOrder\\([^;]*?"${event}"\\s*\\)`).test(seller);
   is(`${event} is not sent as a side effect of moving the order`, automatic, false);
 }
 
