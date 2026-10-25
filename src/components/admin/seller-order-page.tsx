@@ -304,7 +304,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
                 }
                 className="bg-brand text-brand-foreground rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50"
               >
-                {pending ? "שולח…" : "אשר יציאה ושלח עדכון ללקוח"}
+                {pending ? "שומר…" : "אשר יציאה למשלוח"}
               </button>
               <button type="button" onClick={() => setShipOpen(false)} className="border-border rounded-lg border px-4 py-2 text-sm">
                 ביטול
@@ -486,9 +486,16 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               </span>
             ))}
             <span className="text-muted-foreground w-full">
+              {/* What the shop promises a customer, in the one place a
+                  salesperson reads before pressing. Nothing below the order
+                  confirmation goes out on its own any more — see the note on
+                  approveOrderAction — so the panel has to say so, or someone
+                  marks an order shipped and assumes the customer was told. */}
+              <strong className="text-foreground">שום עדכון לא נשלח מעצמו.</strong>{" "}
+              מלבד אישור ההזמנה, שנשלח ללקוח ברגע שהזמין, כל הודעה כאן יוצאת רק כשלוחצים עליה.{" "}
               {order.readiness.find((c) => c.id === "WHATSAPP")?.configured
-                ? "וואטסאפ נשלח לבד עם כל עדכון, דרך ה-API של Meta. \"וואטסאפ ידני\" פותח את ההודעה אצלך, לגיבוי בלבד."
-                : "וואטסאפ נפתח אצלך מוכן לשליחה עד שמטא מאשרים את התבניות, ואז יישלח לבד גם הוא."}
+                ? 'לחיצה על "שלח" מוציאה מייל ווואטסאפ יחד, דרך ה-API של Meta. "וואטסאפ ידני" פותח את ההודעה אצלך, לגיבוי בלבד.'
+                : "וואטסאפ נפתח אצלך מוכן לשליחה עד שמטא מאשרים את התבניות."}
             </span>
           </div>
           <ul className="flex flex-col gap-2">
@@ -534,7 +541,11 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
                         }`}
                       >
                         {whatsappAuto ? <Send className="size-3.5" /> : <Mail className="size-3.5" />}
-                        {whatsappAuto ? "שלח שוב (מייל + וואטסאפ)" : "שלח מייל"}
+                        {/* "שוב" only when it really is again: nothing is sent
+                            automatically any more, so the first press on most
+                            of these is the first time the customer hears. */}
+                        {update.channels.some((c) => c.status === "SENT") ? "שלח שוב" : "שלח"}
+                        {whatsappAuto ? " (מייל + וואטסאפ)" : " מייל"}
                       </button>
                       {update.whatsappHref && (
                         <a

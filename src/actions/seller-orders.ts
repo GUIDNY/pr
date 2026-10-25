@@ -124,10 +124,18 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
     metadata: { from: order.status, paymentStatus: order.paymentStatus },
   });
 
-  // After the order has moved, never before, and never inside a transaction
-  // with it. A customer told their payment was approved when the update then
-  // failed is worse than a customer told a minute late.
-  await notifyOrder(order.id, "PAYMENT_APPROVED");
+  /* NOT NOTIFIED HERE. The shop's owner asked, on 26 October, that nothing
+     reach a customer because he pressed a button in the back office — only
+     because he pressed SEND. Every one of these four actions used to message
+     the customer as a side effect of moving the order, which meant a status
+     corrected a minute later had already been announced, and a mistake could
+     not be taken back. The panel on the order page sends each update on
+     demand (resendNotificationAction), and that is now the only path from the
+     back office to a customer's phone.
+
+     ORDER_RECEIVED is deliberately NOT part of this: nobody presses anything
+     to place an order, and a customer who has just paid and hears nothing has
+     been left to wonder whether it went through. */
 
   revalidateSellerViews(orderNumber);
   return { success: true, error: null, note };
@@ -214,8 +222,18 @@ export async function markPaidManuallyAction(
   await awardPurchase(order.id);
   await sendPurchaseToGa4(order.id);
 
-  // After the order has moved, never before — same reasoning as approve.
-  await notifyOrder(order.id, "PAYMENT_APPROVED");
+  /* NOT NOTIFIED HERE. The shop's owner asked, on 26 October, that nothing
+     reach a customer because he pressed a button in the back office — only
+     because he pressed SEND. Every one of these four actions used to message
+     the customer as a side effect of moving the order, which meant a status
+     corrected a minute later had already been announced, and a mistake could
+     not be taken back. The panel on the order page sends each update on
+     demand (resendNotificationAction), and that is now the only path from the
+     back office to a customer's phone.
+
+     ORDER_RECEIVED is deliberately NOT part of this: nobody presses anything
+     to place an order, and a customer who has just paid and hears nothing has
+     been left to wonder whether it went through. */
 
   revalidateSellerViews(orderNumber);
   return { success: true, error: null, note };
@@ -294,7 +312,18 @@ export async function markShippedAction(
     metadata: { courier: name, internal },
   });
 
-  await notifyOrder(order.id, "SHIPPED");
+  /* NOT NOTIFIED HERE. The shop's owner asked, on 26 October, that nothing
+     reach a customer because he pressed a button in the back office — only
+     because he pressed SEND. Every one of these four actions used to message
+     the customer as a side effect of moving the order, which meant a status
+     corrected a minute later had already been announced, and a mistake could
+     not be taken back. The panel on the order page sends each update on
+     demand (resendNotificationAction), and that is now the only path from the
+     back office to a customer's phone.
+
+     ORDER_RECEIVED is deliberately NOT part of this: nobody presses anything
+     to place an order, and a customer who has just paid and hears nothing has
+     been left to wonder whether it went through. */
   revalidateSellerViews(orderNumber);
   return { success: true, error: null };
 }
@@ -340,7 +369,18 @@ export async function closeOrderAction(orderNumber: string): Promise<Result> {
     metadata: { from: order.status },
   });
 
-  await notifyOrder(order.id, "DELIVERED");
+  /* NOT NOTIFIED HERE. The shop's owner asked, on 26 October, that nothing
+     reach a customer because he pressed a button in the back office — only
+     because he pressed SEND. Every one of these four actions used to message
+     the customer as a side effect of moving the order, which meant a status
+     corrected a minute later had already been announced, and a mistake could
+     not be taken back. The panel on the order page sends each update on
+     demand (resendNotificationAction), and that is now the only path from the
+     back office to a customer's phone.
+
+     ORDER_RECEIVED is deliberately NOT part of this: nobody presses anything
+     to place an order, and a customer who has just paid and hears nothing has
+     been left to wonder whether it went through. */
   revalidateSellerViews(orderNumber);
   return { success: true, error: null };
 }
