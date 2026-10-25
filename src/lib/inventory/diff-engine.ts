@@ -151,7 +151,7 @@ export function deriveStockStatus(row: NormalizedProductRow, stock: number, hasC
   if (stock > 0) return "IN_STOCK"; // LOW_STOCK is applied by the caller against the configured threshold
 
   /* Nothing on hand, or nothing said about what is on hand. */
-  if (sellableWithoutStock(row.availability)) return "IN_STOCK";
+  if (sellableWithoutStock(row.availability, row.sourceKey)) return "IN_STOCK";
 
   const hasSupplierOrBonded = row.stockLines.some(
     (l) => (l.field === "SUPPLIER_STOCK" || l.field === "BONDED_STOCK") && l.quantity > 0

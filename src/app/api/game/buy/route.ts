@@ -57,13 +57,13 @@ export async function GET(request: Request) {
   if (wanted.size) {
     const products = await db.product.findMany({
       where: { slug: { in: [...wanted.keys()] }, ...PUBLIC_PRODUCT_WHERE },
-      select: { id: true, slug: true, stockQty: true, stockStatus: true },
+      select: { id: true, slug: true, stockQty: true, stockStatus: true, sourceAvailability: true, source: { select: { key: true } } },
     });
     const sellable = products.filter((p) => p.stockStatus !== "OUT_OF_STOCK");
     if (sellable.length) {
       const cart = await getOrCreateCart();
       for (const p of sellable) {
-        await ensureCartLine(cart, p, wanted.get(p.slug) ?? 1);
+        await ensureCartLine(cart, { ...p, sourceKey: p.source?.key ?? null }, wanted.get(p.slug) ?? 1);
         added++;
       }
     }

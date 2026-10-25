@@ -71,15 +71,65 @@ export function sourceAvailability(values: Record<string, string | number | null
 }
 
 /**
+ * The price lists that sell only what is actually on a shelf.
+ *
+ * The owner, 25 October, about מחירון מלאי אלקטרוניקה and that workbook
+ * alone: "מעכשיו מעלים רק מה שבמלאי — זה אומר שנמצא במחסנים, שיש מספר."
+ * It narrows his own rule of 19 October, and only for this one sheet: the
+ * other two go on being sold without stock, because for those there is a
+ * supplier to ring. For electronics there is not.
+ *
+ * What it costs, measured the day it was asked for: 245 of these products
+ * were live, 65 of them with a number in a stock column and 180 without.
+ * So 180 products — ₪459,892 of listed price — come off the site, and that
+ * is the whole point rather than a side effect.
+ *
+ * Nothing is deleted, unpublished or re-imported. This is a query-time gate
+ * like the four beside it in PUBLIC_PRODUCT_WHERE, so the day a unit arrives
+ * in a warehouse the product is back on the site at the next page load, with
+ * nobody having to remember it.
+ *
+ * A key here rather than a flag on InventorySource, deliberately: it is a
+ * policy about a supplier, it belongs beside the rule it bends, and it
+ * cannot silently fail to write. If it ever has to be switchable per sheet
+ * without a deploy, that is when it becomes a column.
+ *
+ * `stockQty` is what "has a number" means, and it is the sum of every stock
+ * column on the row — מלאי, מלאי חדרה and תצוגה. A display unit therefore
+ * counts: 10 of the 65 survivors are display-only, and the sheets themselves
+ * say "למכור מלאי ותצוגה". If the owner means warehouses and not the
+ * showroom, this is the sentence to come back to.
+ */
+const STOCK_ONLY_SOURCES = new Set(["electronics"]);
+
+/**
  * May this product be sold when no warehouse holds a unit?
  *
  * The single place that encodes the owner's rule. `PUBLIC_PRODUCT_WHERE` and
  * the cart's add handler both ask it, so there is one answer rather than two
  * that drift.
+ *
+ * Two inputs, because there are now two ways to be stock-only: the price
+ * list marked this row as gone, or the whole price list is one we do not
+ * order from. `sourceKey` is required rather than optional on purpose — an
+ * optional one would read as ORDERABLE wherever somebody forgot it, which is
+ * the permissive direction and the silent one.
  */
-export function sellableWithoutStock(availability: SourceAvailability): boolean {
+export function sellableWithoutStock(
+  availability: SourceAvailability,
+  sourceKey: string | null | undefined,
+): boolean {
+  if (sourceKey && STOCK_ONLY_SOURCES.has(sourceKey)) return false;
   return availability === "ORDERABLE";
 }
+
+/** For the back office and the guards: is this sheet sold from stock only? */
+export function sourceSellsFromStockOnly(sourceKey: string | null | undefined): boolean {
+  return !!sourceKey && STOCK_ONLY_SOURCES.has(sourceKey);
+}
+
+/** The keys, for the one guard that asserts both copies of the gate agree. */
+export const STOCK_ONLY_SOURCE_KEYS: readonly string[] = [...STOCK_ONLY_SOURCES];
 
 /**
  * Can this product be sold right now?
@@ -101,9 +151,15 @@ export function sellableWithoutStock(availability: SourceAvailability): boolean 
  * product created by the admin form has never been near a price list and
  * nothing has said it cannot be got.
  */
-export function isSellableNow(p: { stockQty: number; sourceAvailability?: string | null }): boolean {
+export function isSellableNow(p: {
+  stockQty: number;
+  sourceAvailability?: string | null;
+  /* Required, not optional — see sellableWithoutStock. Null is right for a
+     product that came from no price list at all. */
+  sourceKey: string | null | undefined;
+}): boolean {
   if (p.stockQty > 0) return true;
-  return sellableWithoutStock((p.sourceAvailability ?? "ORDERABLE") as SourceAvailability);
+  return sellableWithoutStock((p.sourceAvailability ?? "ORDERABLE") as SourceAvailability, p.sourceKey);
 }
 
 /* For the back office only. The customer is told nothing about where the unit

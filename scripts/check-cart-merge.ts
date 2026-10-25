@@ -120,11 +120,18 @@ is(
   planCartMerge([{ productId: "none-left", quantity: 4 }], [], stock),
   { updates: [], creates: [{ productId: "none-left", quantity: 1 }] },
 );
-is("the cap of an empty shelf is one, not zero", maxCartQuantity(0), 1);
-is("the cap of a deep shelf is ten", maxCartQuantity(999), 10);
+is("the cap of an empty shelf is one, not zero", maxCartQuantity(0, null, null), 1);
+is("the cap of a deep shelf is ten", maxCartQuantity(999, null, null), 10);
 
-is("a supplier-drawn line may reach the full cap", maxCartQuantity(0, "ORDERABLE"), 10);
-is("a line the price list has dropped is still capped by its stock", maxCartQuantity(0, "END_OF_LINE"), 1);
+is("a supplier-drawn line may reach the full cap", maxCartQuantity(0, "ORDERABLE", "white-goods-screens"), 10);
+is("a line the price list has dropped is still capped by its stock", maxCartQuantity(0, "END_OF_LINE", "white-goods-screens"), 1);
+
+/* The electronics workbook, from 25 October: sold from the shelf, so the
+   units on hand are the cap even though the row says nothing is wrong with
+   it. The only difference between these two lines is which price list. */
+is("an electronics line is capped by its stock", maxCartQuantity(2, "ORDERABLE", "electronics"), 2);
+is("an empty electronics shelf still caps at one", maxCartQuantity(0, "ORDERABLE", "electronics"), 1);
+is("the same row in another workbook reaches the cap", maxCartQuantity(2, "ORDERABLE", "small-appliances"), 10);
 is(
   "a supplier-drawn guest line is carried across in full",
   planCartMerge([{ productId: "from-supplier", quantity: 4 }], [], stock),

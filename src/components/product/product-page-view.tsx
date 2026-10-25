@@ -122,7 +122,9 @@ export async function ProductPageView({
      clause. `stockQty <= 0` alone would have shown every one of the 1,163
      products the 19 October rule admits as sold out, with no buy button, on
      pages the listings had just started linking to. */
-  const isSoldOut = !isSellableNow(product) || product.missingFromSourceSince !== null;
+  const isSoldOut =
+    !isSellableNow({ ...product, sourceKey: product.source?.key ?? null }) ||
+    product.missingFromSourceSince !== null;
 
   // A regular visitor still gets a 404 for anything unpublished, and for
   // anything with no photograph — the two conditions PUBLIC_PRODUCT_WHERE
@@ -165,7 +167,7 @@ export async function ProductPageView({
   const highlightFacts = pickHighlights(specRows);
 
   const categoryIcon = product.category.parent?.icon ?? product.category.icon;
-  const maxQuantity = maxCartQuantity(product.stockQty, product.sourceAvailability);
+  const maxQuantity = maxCartQuantity(product.stockQty, product.sourceAvailability, product.source?.key ?? null);
   // For one unit of this product on its own — the same rule the cart
   // applies, stated before anything is in the cart.
   const deliveryFee = computeDeliveryFee(product.price);

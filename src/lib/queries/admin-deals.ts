@@ -39,6 +39,7 @@ export async function getDealRows(): Promise<DealRow[]> {
       isPublished: true,
       stockQty: true,
       sourceAvailability: true,
+      source: { select: { key: true } },
       brand: { select: { name: true } },
       images: { take: 1, orderBy: { sortOrder: "asc" }, select: { url: true } },
       _count: { select: { images: true } },
@@ -53,7 +54,7 @@ export async function getDealRows(): Promise<DealRow[]> {
     // being told so one round at a time is how that turns into three trips.
     const reasons: string[] = [];
     if (!p.isPublished) reasons.push("לא מפורסם");
-    if (!isSellableNow(p)) reasons.push("אזל מהמלאי");
+    if (!isSellableNow({ ...p, sourceKey: p.source?.key ?? null })) reasons.push("אזל מהמלאי");
     if (p._count.images === 0) reasons.push("אין תמונה");
 
     return {

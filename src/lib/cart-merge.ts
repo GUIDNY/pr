@@ -1,3 +1,5 @@
+import { sourceSellsFromStockOnly } from "@/lib/inventory/availability";
+
 /**
  * What a merge would do, worked out without touching the database.
  *
@@ -40,15 +42,29 @@ export const CART_LINE_CAP = 10;
  * special handling: there stock on hand is the real limit, which is what the
  * original formula already says.
  */
-export function maxCartQuantity(stockQty: number, sourceAvailability?: string | null) {
-  if (sourceAvailability === "ORDERABLE") return CART_LINE_CAP;
+/* And a third input since 25 October, for the same reason the gate grew one:
+   the electronics workbook is sold from the shelf, so there "drawn from the
+   supplier" does not apply and the units on hand are the cap again. Required
+   rather than optional, so a call site that does not know which price list a
+   product came from cannot quietly get the generous answer. */
+export function maxCartQuantity(
+  stockQty: number,
+  sourceAvailability: string | null | undefined,
+  sourceKey: string | null | undefined,
+) {
+  /* Only an explicit ORDERABLE lifts the cap, which is this function's own
+     reading and deliberately not isSellableNow's: there a missing value means
+     "never came from a price list" and is treated as orderable, while a cart
+     line with nothing known about it is the case where the cautious answer is
+     the right one. check:cart holds both. */
+  if (sourceAvailability === "ORDERABLE" && !sourceSellsFromStockOnly(sourceKey)) return CART_LINE_CAP;
   return Math.max(1, Math.min(stockQty, CART_LINE_CAP));
 }
 
 export function planCartMerge(
   guestItems: { productId: string; quantity: number }[],
   userItems: { id: string; productId: string; quantity: number }[],
-  stock: Map<string, { qty: number; availability?: string | null }>,
+  stock: Map<string, { qty: number; availability?: string | null; sourceKey?: string | null }>,
 ): CartMergePlan {
   const plan: CartMergePlan = { updates: [], creates: [] };
 
@@ -59,7 +75,7 @@ export function planCartMerge(
     // the guest's own view of the cart.
     if (entry === undefined) continue;
 
-    const maxQty = maxCartQuantity(entry.qty, entry.availability);
+    const maxQty = maxCartQuantity(entry.qty, entry.availability, entry.sourceKey);
     const mine = userItems.find((i) => i.productId === item.productId);
 
     if (!mine) {

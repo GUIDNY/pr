@@ -91,10 +91,10 @@ export async function POST(request: Request) {
   if (action === "add") {
     const product = await db.product.findFirst({
       where: { slug, ...PUBLIC_PRODUCT_WHERE },
-      select: { id: true, stockQty: true, stockStatus: true },
+      select: { id: true, stockQty: true, stockStatus: true, sourceAvailability: true, source: { select: { key: true } } },
     });
     if (!product || product.stockStatus === "OUT_OF_STOCK") return json({ error: "unavailable", ...(await cartForGame()) }, 409);
-    await addLineToCart(cart, product, 1);
+    await addLineToCart(cart, { ...product, sourceKey: product.source?.key ?? null }, 1);
   } else if (line) {
     const qty = action === "remove" ? 0 : Number.isInteger(body.qty) ? (body.qty as number) : -1;
     if (qty < 0) return json({ error: "bad_request" }, 400);

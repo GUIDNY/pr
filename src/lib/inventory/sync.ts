@@ -781,7 +781,11 @@ async function applyOneRow(
   // not that the product cannot be got: someone rings the supplier and the
   // supplier delivers to the customer. So only a row the price list has
   // actually marked gone is skipped here, and the other 1,163 become products.
-  if (rawStock <= 0 && !existing && !sellableWithoutStock(row.availability)) return null;
+  /* And since 25 October a row from a stock-only workbook is skipped the
+     same way: electronics is sold from the shelf, so a row with nothing on
+     the shelf is not a product yet. It becomes one on the first sync that
+     finds a number in its stock column. */
+  if (rawStock <= 0 && !existing && !sellableWithoutStock(row.availability, row.sourceKey)) return null;
 
   /* A subtotal line, not a product. The sheets carry running totals among
      the rows — a brand name in the description cell, the sum of its
