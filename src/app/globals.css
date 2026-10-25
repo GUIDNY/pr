@@ -394,21 +394,43 @@ html[data-cookie-notice="open"] body {
 
 /* The Pelecard payment frame in checkout step 3.
 
-   The number is measured, not guessed: the live form is ~645px, taken by
-   differencing a landmark between two screenshots of the real page rather than
-   estimating from one. The rest is room for a validation line under every
-   field at once, which is the tallest that form gets.
+   Their page never reports its height. Payment.js posts exactly four messages
+   to the parent, all of them Apple Pay, and nothing anywhere reads
+   scrollHeight — so a frame that fits cannot be arranged between the two
+   windows and the number here has to be a floor. Too short and the customer
+   gets a scrollbar inside a scrollbar with the pay button below both.
 
-   Below 520px the payment stylesheet stops pairing its columns — two 195px
-   columns with a caption wrapping inside one of them is not a layout — so a
-   phone gets one field per line and about 170px more form. */
+   MEASURED, in a local replica of the real form: their HTML fetched from the
+   gateway, their stylesheets, their images, this stylesheet over the top. The
+   document's own height, not a landmark differenced between screenshots:
+
+                         with the instalment fields   with only the select
+       520px and up              769px                      745px
+       below 520px              1059px                      956px
+
+   The replica still shows תעודת זהות, which CustomerIdField: "Hide" takes off
+   the live page, so the live form is about 72px shorter than each of those.
+   That difference is left in as the margin for a validation line under every
+   field at once, which is the tallest the form ever gets.
+
+   The two breakpoints are far apart because below 520px this stylesheet stops
+   pairing their columns — two 195px columns with a caption wrapping inside one
+   of them is not a layout — so a phone gets one field per line and a great
+   deal more form.
+
+   The instalments row is what moved these numbers. It appears only when
+   MaxPayments differs from MinPayments, so it did not exist while the shop
+   offered a single payment; three of its four fields appear only once a
+   customer picks more than one. On a phone that row is paired rather than
+   stacked (see #NumOfPaymentRow in public/pelecard/ai-orange.css), which is
+   144px that would otherwise be here. */
 .pelecard-frame {
-  min-height: 42rem;
+  min-height: 49rem; /* 784px */
 }
 
 @media (max-width: 519px) {
   .pelecard-frame {
-    min-height: 52rem;
+    min-height: 68rem; /* 1088px */
   }
 }
 

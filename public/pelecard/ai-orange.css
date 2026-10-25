@@ -1474,3 +1474,58 @@ body:has(#googlePayTabBtn.tab-button-selected):has(#cvv_star_id[style*="display:
 #googlePayButton > * {
   max-width: 100% !important;
 }
+
+/* =====================  THE INSTALMENTS ROW  ================================
+
+   Read from the gateway's own HTML, fetched the way the wallet section above
+   describes. The field arrived the day MaxPayments stopped being 1:
+
+     #NumOfPaymentRow.row
+       div.col-sm-4 > #paymentsNoRow.form-group
+         label.control-label            "מספר תשלומים"
+         div.control-value
+           fieldset > fieldset
+             "מספר תשלומים"             <- a bare text node, no element
+             select#num_of_payments
+       div.col-sm-4#lbl_intrest_payments  "(תשלומי קרדיט)"
+       div.col-sm-4#first_payment         תשלום ראשון
+       div.col-sm-4#each_payment          כל תשלום
+
+   THE CAPTION IS PRINTED TWICE. Once as the label, where it belongs, and once
+   as a loose text node inside the fieldset that holds the select — so the form
+   read "מספר תשלומים" above the box and "מספר תשלומים" again beside it,
+   wrapping onto two lines in the space left over. It is not an element, so it
+   cannot be hidden by selecting it; font-size: 0 on the box that contains it
+   collapses it to nothing, and the select is given its size back. Everything
+   else in there is an element and keeps its own.
+
+   The three fields beside it — the credit caption, the first instalment and
+   the amount of each — are shown by their script only once a customer picks
+   more than one payment. Four full-width fields is what the narrow-width rule
+   would make of them, which is 293px of form for four short values, so they
+   are paired below the breakpoint instead. That is 150px the customer does not
+   have to scroll past, and it is why .pelecard-frame could stay a sane height
+   after this row appeared. */
+
+/* The duplicated caption, and the select at a size a select should be. */
+#paymentsNoRow .control-value fieldset {
+  font-size: 0 !important;
+}
+#paymentsNoRow .control-value select {
+  font-size: 14px !important;
+  max-width: 11rem !important;
+}
+
+/* Two to a line on a phone rather than four stacked. The id outranks the
+   narrow-width column rule, which is right for a card number and wrong for
+   four boxes holding "3", "(תשלומי קרדיט)" and two amounts. */
+@media (max-width: 519px) {
+  #NumOfPaymentRow > [class*="col-"][class*="col-"] {
+    flex: 1 1 calc(50% - 8px) !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+  #paymentsNoRow .control-value select {
+    max-width: none !important;
+  }
+}
