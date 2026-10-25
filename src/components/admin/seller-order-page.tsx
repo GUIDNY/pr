@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Truck, Store, Phone, Mail, AlertTriangle, Check, Loader2,
-  Package, Clock, MessageSquare, CreditCard, Send, Undo2, Trash2, ExternalLink, Eye,
+  Package, Clock, MessageSquare, CreditCard, Send, Undo2, Trash2, ExternalLink, Eye, TrendingUp,
 } from "lucide-react";
 import type { SellerOrderDetail } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
@@ -20,9 +20,11 @@ import {
 import { NOTIFY_CHANNEL_LABELS, NOTIFY_EVENT_LABELS } from "@/lib/notify/types";
 import { stageOf } from "@/lib/order-stage";
 import { formatPrice, formatDateTime } from "@/lib/format";
+import { orderProfit } from "@/lib/order-profit";
 import {
   approveOrderAction, closeOrderAction, markShippedAction, logManualWhatsappAction,
   undoLastStatusAction, deleteOrderAction, resendNotificationAction, markPaidManuallyAction, trashOrdersAction,
+  setDeliveryCostAction,
 } from "@/actions/seller-orders";
 import { COURIERS } from "@/lib/couriers";
 import { describeTouch } from "@/lib/attribution";
@@ -444,6 +446,8 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
           )}
         </Panel>
 
+        <ProfitPanel order={order} />
+
         {/* ---- the goods ---- */}
         <Panel title="פריטים" icon={Package}>
           <ul className="flex flex-col gap-2">
@@ -684,6 +688,108 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * What this order made, and the one number only a person can supply.
+ *
+ * The arithmetic is lib/order-profit.ts, which keeps the rule the dashboard
+ * already used: the goods' price less the discount less what those goods cost
+ * us on the day, from the snapshots on the line and never from today's price
+ * list. Delivery is the part the dashboard leaves out and this cannot — a
+ * customer who paid nothing for delivery on an order the courier charged ₪120
+ * for is a different order from one collected at the branch, and that is
+ * exactly the difference a shopkeeper is looking for here.
+ *
+ * It says what it does not know. A product with no cost on record makes the
+ * profit an upper bound rather than a figure, and so does a delivery cost
+ * nobody has typed in; in either case the number is labelled "לכל היותר"
+ * rather than presented as the answer. Treating a missing cost as zero would
+ * read as a 100% margin, and nothing on the screen would correct it.
+ */
+function ProfitPanel({ order }: { order: SellerOrderDetail }) {
+  const [pending, startTransition] = useTransition();
+  const [draft, setDraft] = useState(order.deliveryCost === null ? "" : String(order.deliveryCost));
+  const [saved, setSaved] = useState(false);
+  const router = useRouter();
+
+  const p = orderProfit({
+    lines: order.items.map((i) => ({ priceSnap: i.price, costSnap: i.cost, quantity: i.quantity })),
+    discount: order.discountTotal,
+    deliveryIncome: order.delivery.fee,
+    deliveryCost: order.deliveryCost,
+  });
+
+  const save = () =>
+    startTransition(async () => {
+      const result = await setDeliveryCostAction(order.orderNumber, draft);
+      if (result.success) {
+        setSaved(true);
+        router.refresh();
+      }
+    });
+
+  return (
+    <Panel title="רווח" icon={TrendingUp}>
+      <Field label="נמכר ב">{formatPrice(p.revenue)}</Field>
+      {p.discount > 0 && <Field label="הנחה">−{formatPrice(p.discount)}</Field>}
+      {p.deliveryIncome > 0 && <Field label="משלוח שהלקוח שילם">{formatPrice(p.deliveryIncome)}</Field>}
+      <Field label="עלות הסחורה">−{formatPrice(p.goodsCost)}</Field>
+
+      <div className="flex items-baseline gap-2 text-sm">
+        <span className="text-muted-foreground w-28 shrink-0">עלות משלוח</span>
+        <span className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min="0"
+            step="1"
+            inputMode="decimal"
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setSaved(false);
+            }}
+            placeholder="לא הוזן"
+            aria-label="עלות המשלוח בפועל"
+            className="border-border w-24 rounded-md border px-2 py-1 text-sm"
+          />
+          <span className="text-muted-foreground">₪</span>
+          <button
+            type="button"
+            onClick={save}
+            disabled={pending || draft === (order.deliveryCost === null ? "" : String(order.deliveryCost))}
+            className="border-border rounded-md border px-2 py-1 text-xs font-bold disabled:opacity-40"
+          >
+            {pending ? "שומר…" : saved ? "נשמר" : "שמור"}
+          </button>
+        </span>
+      </div>
+
+      <div className="border-border mt-1 border-t pt-2">
+        <Field label={p.certain ? "רווח" : "רווח — לכל היותר"}>
+          <span className={`font-black ${p.profit >= 0 ? "text-success" : "text-destructive"}`}>
+            {formatPrice(p.profit)}
+          </span>
+          {p.margin !== null && (
+            <span className="text-muted-foreground"> · {Math.round(p.margin * 100)}%</span>
+          )}
+        </Field>
+      </div>
+
+      {/* Everything the number leaves out, where the number is. A margin that
+          quietly omits the clearing fee is one somebody prices against. */}
+      <p className="text-muted-foreground mt-1 text-xs">
+        {p.linesMissingCost > 0 && (
+          <span className="text-warning-foreground block font-semibold">
+            {p.linesMissingCost === 1 ? "לפריט אחד אין עלות רשומה" : `ל־${p.linesMissingCost} פריטים אין עלות רשומה`} — הרווח
+            האמיתי נמוך יותר.
+          </span>
+        )}
+        {order.deliveryCost === null && <span className="block">עלות המשלוח עוד לא הוזנה.</span>}
+        לפני עמלת סליקה ולפני מע״מ על הרווח.
+      </p>
+    </Panel>
   );
 }
 

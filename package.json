@@ -33,6 +33,7 @@
     "check:game": "tsx scripts/check-game-profile.ts",
     "check:mall": "tsx scripts/check-mall-access.ts",
     "db:game-profile": "tsx scripts/create-game-profile-table.ts",
+    "check:profit": "tsx scripts/check-order-profit.ts",
     "check:notify": "tsx scripts/check-notifications.ts",
     "check:instalments": "tsx scripts/check-instalments.ts",
     "check:payments": "tsx scripts/check-payments-table.tsx",

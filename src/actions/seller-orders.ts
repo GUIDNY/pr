@@ -726,6 +726,47 @@ function revalidateOrderLists() {
  * channel that was not configured at the time, a customer on the phone
  * saying they got nothing.
  */
+/**
+ * What the delivery actually cost the shop, typed in by hand.
+ *
+ * There is no carrier integration to read it from and it differs per order —
+ * a courier to Eilat and a pickup from the branch are not the same number — so
+ * it is entered rather than derived. Null is a real value here and means
+ * "nobody has said yet", which is why an empty box clears it rather than
+ * writing a zero: a zero is a claim that delivery was free, and the profit
+ * panel reads the two differently.
+ *
+ * Audited like any other money field. It changes what the shop believes it
+ * earned, so who set it and when is worth keeping.
+ */
+export async function setDeliveryCostAction(orderNumber: string, value: string): Promise<Result> {
+  const session = await requireBackOffice();
+  const order = await db.order.findUnique({ where: { orderNumber }, select: { id: true, deliveryCost: true } });
+  if (!order) return { success: false, error: "הזמנה לא נמצאה" };
+
+  const trimmed = value.trim();
+  let cost: number | null = null;
+  if (trimmed !== "") {
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed < 0) return { success: false, error: "עלות משלוח חייבת להיות מספר אי-שלילי" };
+    /* Agorot, not fractions of one. A pasted figure with four decimals is a
+       paste, not a price. */
+    cost = Math.round(parsed * 100) / 100;
+  }
+
+  await db.order.update({ where: { id: order.id }, data: { deliveryCost: cost } });
+  await logAudit({
+    actorId: session.sub,
+    action: "ORDER_DELIVERY_COST_SET",
+    entityType: "Order",
+    entityId: order.id,
+    metadata: { from: order.deliveryCost, to: cost },
+  });
+
+  revalidateSellerViews(orderNumber);
+  return { success: true, error: null };
+}
+
 export async function resendNotificationAction(
   orderNumber: string,
   event: NotifyEvent,

@@ -66,7 +66,11 @@ export type SellerOrderDetail = SellerOrderSummary & {
   courier: { name: string | null; trackingNumber: string | null; trackingUrl: string | null };
   shippedAt: Date | null;
   deliveredAt: Date | null;
-  items: { title: string; sku: string; quantity: number; price: number; inStock: number | null }[];
+  items: { title: string; sku: string; quantity: number; price: number; cost: number | null; inStock: number | null }[];
+  /** What the delivery cost the shop, typed in by hand. Null means nobody
+      has entered it, which is not the same as zero — the profit panel says
+      which of the two it is looking at. */
+  deliveryCost: number | null;
   history: { at: Date; from: string | null; to: string; note: string | null; by: string | null }[];
   notifications: { channel: string; event: string; status: string; error: string | null; at: Date }[];
   /** One row per message the shop sends, whether or not it has gone yet. */
@@ -156,6 +160,20 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
     where: { orderNumber },
     select: {
       ...LIST_SELECT,
+      /* Only on the detail. The list loads 200 of these and the cost of a
+         wide select on a list is what exhausted this project's database
+         egress once already. */
+      deliveryCost: true,
+      items: {
+        select: {
+          titleSnap: true,
+          skuSnap: true,
+          quantity: true,
+          priceSnap: true,
+          costSnap: true,
+          product: { select: { stockQty: true } },
+        },
+      },
       guestEmail: true,
       attribution: true,
       customerNote: true,
@@ -194,6 +212,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
     attribution: attributionFromJson(row.attribution),
     customerNote: row.customerNote,
     subtotal: row.subtotal,
+    deliveryCost: row.deliveryCost,
     discountTotal: row.discountTotal,
     couponCode: row.couponCode,
     paymentMethod: row.paymentMethod,
@@ -231,6 +250,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
       sku: item.skuSnap,
       quantity: item.quantity,
       price: item.priceSnap,
+      cost: item.costSnap,
       inStock: item.product ? item.product.stockQty : null,
     })),
     history: row.statusHistory.map((h) => ({

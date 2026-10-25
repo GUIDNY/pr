@@ -760,7 +760,14 @@ model Order {
   // CANCELLED | REFUND_PENDING | REFUNDED
   subtotal           Float
   discountTotal      Float     @default(0)
+  // What the CUSTOMER paid for delivery. Income.
   deliveryFee        Float     @default(0)
+  // What the delivery actually COST the shop, typed into the order page by
+  // hand. There is no carrier integration to read it from and the figure
+  // differs per order, so it is entered rather than derived. Null means
+  // nobody has entered it yet, which is not the same as zero — the profit
+  // panel says "before delivery" until it is filled in.
+  deliveryCost       Float?
   total              Float
   couponCode         String?
   paymentStatus      String    @default("PENDING") // PENDING | AUTHORIZED | CAPTURED | FAILED | REFUNDED
