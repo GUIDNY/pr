@@ -26,10 +26,16 @@ import {
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { pushEcommerce, toAnalyticsItem, itemsValue } from "@/lib/analytics/ga";
 import { trackVisit } from "@/lib/pageview/track";
+import { useSwipeDismiss } from "@/lib/swipe-dismiss";
 
 export function CartDrawer() {
   const { cart, isDrawerOpen, closeDrawer, setCart, setPending, isPending } = useCartStore();
   const [couponInput, setCouponInput] = useState("");
+  /* The same gesture as the menu drawer beside it. Both come in from
+     the same edge on the same phone, and a shopper who learns it on one
+     will try it on the other. Not on the filters sheet: its price range
+     is a slider, and a horizontal drag there means something. */
+  const swipe = useSwipeDismiss(closeDrawer);
   const [, startTransition] = useTransition();
 
   /* view_cart each time the drawer opens with something in it — the
@@ -61,7 +67,7 @@ export function CartDrawer() {
 
   return (
     <Sheet open={isDrawerOpen} onOpenChange={(open) => (open ? undefined : closeDrawer())}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md" {...swipe}>
         <SheetHeader className="border-b px-5 py-4">
           <SheetTitle className="flex items-center gap-2 text-lg">
             <ShoppingCart className="size-5" />

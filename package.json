@@ -69,7 +69,8 @@
     "check:gate": "tsx scripts/check-public-gate.ts",
     "check:extension-privacy": "tsx scripts/check-extension-privacy.ts",
     "check:clarity": "tsx scripts/check-clarity.ts",
-    "check:wallet": "tsx scripts/check-wallet-row.ts"
+    "check:wallet": "tsx scripts/check-wallet-row.ts",
+    "check:swipe": "tsx scripts/check-swipe.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
