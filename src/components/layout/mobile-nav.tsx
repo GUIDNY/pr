@@ -14,6 +14,7 @@ import {
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import type { NavigableDepartment } from "@/lib/queries/categories";
 import { BackOfficeLink } from "@/components/layout/back-office-link";
+import { useSwipeDismiss } from "@/lib/swipe-dismiss";
 import { BUSINESS } from "@/lib/business";
 
 export function MobileNav({
@@ -26,6 +27,9 @@ export function MobileNav({
   variant?: "icon" | "tab";
 }) {
   const [open, setOpen] = useState(false);
+  /* Push it back and it goes. The X is in the far top corner, which on a
+     phone held in one hand is the one place the thumb cannot reach. */
+  const swipe = useSwipeDismiss(() => setOpen(false));
 
   // Only the tab-bar instance answers the event: the header's hamburger is
   // a second instance on the same phone screen, and one drawer is enough.
@@ -57,7 +61,7 @@ export function MobileNav({
           </button>
         )}
       </SheetTrigger>
-      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-sm">
+      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-sm" {...swipe}>
         <SheetHeader className="border-b px-5 py-4">
           <SheetTitle>תפריט</SheetTitle>
         </SheetHeader>

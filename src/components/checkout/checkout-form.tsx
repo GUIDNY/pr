@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -603,14 +604,30 @@ export function CheckoutForm({
         <section className="border-border rounded-xl border p-5">
           <h2 className="mb-4 font-semibold">1. פרטי התקשרות</h2>
           {quickSignIn && (
-            /* Optional, and it says so: a guest who would rather type three
-               fields types three fields. One tap fills them from an account,
-               or makes an account, and the customer comes back to this page
+            /* Optional, and it has to SAY so where the eye lands.
+               
+               It always was optional and the page always said it — in the
+               last line, in text-xs, in muted grey, after a link: "או פשוט
+               ממלאים למטה וממשיכים כאורח". Nobody read it. What was read was
+               a box of sign-in buttons at the top of step 1 and the sentence
+               "אין? נפתח לכם אחד", which is a promise to create an account
+               and sounds like part of checking out rather than an
+               alternative to it. The owner's words, after watching it on a
+               phone: it reads as compulsory, and this is the step where the
+               cart gets abandoned.
+               
+               So the chip says it beside the question, the guest sentence is
+               the same size as everything else rather than a footnote, and
+               the offer to open an account is gone. One tap still fills the
+               three fields from an account and the customer comes back here
                signed in — the cart is in the browser, not on the trip. */
             <div className="bg-muted/50 mb-4 rounded-xl p-3">
-              <p className="mb-2 text-sm">
-                <span className="font-semibold">יש לכם חשבון?</span>{" "}
-                <span className="text-muted-foreground">התחברו בלחיצה ונמלא את הפרטים. אין? נפתח לכם אחד, ובפעם הבאה זה שתי לחיצות.</span>
+              <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                <span className="font-semibold">יש לכם חשבון?</span>
+                <Badge variant="outline" className="bg-background">לא חובה</Badge>
+                <span className="text-muted-foreground basis-full">
+                  התחברו בלחיצה ונמלא את הפרטים במקומכם.
+                </span>
               </p>
               <Suspense>
                 <div className={`grid gap-2 ${twoUp ? "grid-cols-2" : "grid-cols-1"}`}>
@@ -620,11 +637,16 @@ export function CheckoutForm({
                   {showAppleNative && <AppleNativeButton compact={showGoogleNative} redirectTo="/checkout" />}
                 </div>
               </Suspense>
-              <p className="text-muted-foreground mt-2 text-xs">
+              <p className="mt-2.5 text-sm">
+                <span className="font-semibold">אפשר גם בלי חשבון:</span>{" "}
+                <span className="text-muted-foreground">
+                  ממלאים את הפרטים למטה וממשיכים כאורח — בלי הרשמה ובלי סיסמה.
+                </span>
+              </p>
+              <p className="text-muted-foreground mt-1.5 text-xs">
                 <Link href="/login?redirect=/checkout" className="hover:text-foreground underline underline-offset-2">
-                  התחברות עם מייל וסיסמה
+                  יש לכם סיסמה? התחברות עם מייל וסיסמה
                 </Link>
-                {" · "}או פשוט ממלאים למטה וממשיכים כאורח
               </p>
             </div>
           )}
