@@ -129,13 +129,17 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
           <p className="bg-destructive/10 text-destructive mt-3 rounded-lg px-3 py-2 text-sm font-medium">{error}</p>
         )}
 
-        <div className="mt-3 flex flex-wrap gap-2">
+        {/* Full width on a phone. These are the buttons the whole page exists
+            for and they were thumb-sized targets floating in a row, two to a
+            line, with the one that cancels the order beside the one that
+            approves it. Side by side again from sm up, where there is room. */}
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           {needsApproval && (
             <button
               type="button"
               disabled={pending}
               onClick={() => run(() => approveOrderAction(order.orderNumber))}
-              className="bg-brand text-brand-foreground hover:bg-brand-hover flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-sm font-bold disabled:opacity-60"
+              className="bg-brand text-brand-foreground hover:bg-brand-hover flex w-full items-center justify-center gap-1.5 rounded-lg px-5 py-3 text-sm font-bold disabled:opacity-60 sm:w-auto sm:py-2.5"
             >
               {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
               {order.paymentStatus === "AUTHORIZED" ? "אשר תשלום וגבה" : "אשר הזמנה"}
@@ -146,7 +150,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               type="button"
               disabled={pending}
               onClick={() => setManualOpen(true)}
-              className="bg-brand text-brand-foreground hover:bg-brand-hover flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-sm font-bold disabled:opacity-60"
+              className="bg-brand text-brand-foreground hover:bg-brand-hover flex w-full items-center justify-center gap-1.5 rounded-lg px-5 py-3 text-sm font-bold disabled:opacity-60 sm:w-auto sm:py-2.5"
             >
               <CreditCard className="size-4" /> שולם ידנית
             </button>
@@ -155,7 +159,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
             <button
               type="button"
               onClick={() => setShipOpen(true)}
-              className="bg-brand text-brand-foreground hover:bg-brand-hover flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-sm font-bold"
+              className="bg-brand text-brand-foreground hover:bg-brand-hover flex w-full items-center justify-center gap-1.5 rounded-lg px-5 py-3 text-sm font-bold sm:w-auto sm:py-2.5"
             >
               <Truck className="size-4" /> יצא למשלוח
             </button>
@@ -166,7 +170,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               disabled={pending || blocked}
               onClick={() => run(() => closeOrderAction(order.orderNumber))}
               title={blocked ? "יש בעיה פתוחה בהזמנה" : undefined}
-              className="border-border hover:bg-muted rounded-lg border px-5 py-2.5 text-sm font-bold disabled:opacity-50"
+              className="border-border hover:bg-muted w-full rounded-lg border px-5 py-3 text-sm font-bold disabled:opacity-50 sm:w-auto sm:py-2.5"
             >
               נמסר ללקוח — סגור
             </button>
@@ -832,11 +836,20 @@ function Panel({
   );
 }
 
+/**
+ * A label and its value.
+ *
+ * Narrower label on a phone, because 112px of the 328px a 360px screen has
+ * left is a third of the line spent on the word "כתובת" — the address then
+ * wrapped to three lines and customer@example.com broke across two, mid-word.
+ * `break-words` is what stops the mid-word break; `min-w-0` is what lets it,
+ * since a flex child will not shrink below its content without it.
+ */
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-baseline gap-2 text-sm">
-      <span className="text-muted-foreground w-28 shrink-0">{label}</span>
-      <span className="flex-1">{children}</span>
+      <span className="text-muted-foreground w-24 shrink-0 sm:w-28">{label}</span>
+      <span className="min-w-0 flex-1 break-words">{children}</span>
     </div>
   );
 }
