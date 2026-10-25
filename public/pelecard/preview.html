@@ -198,13 +198,22 @@
          appended, and it stays empty wherever Google Pay is unavailable —
          which is the condition the stylesheet reads to decide whether the
          Google Pay tile is offered at all. Left empty here on purpose: this is
-         the iPhone case, and it is the one that was broken. -->
+         the iPhone case, and it is the one that was broken.
+
+         THE ORDER OF THESE FOUR IS LOAD-BEARING and it was wrong here until
+         24 October: cancel was last, where the gateway puts it second. That
+         single difference put #googlePayButton at the RIGHT end of the row
+         instead of the left, and in RTL that is the difference between an
+         overflowing wallet button landing inside the page and landing outside
+         the document — which is exactly the bug the harness was supposed to
+         show and did not. Re-fetch the form before changing this block; the
+         recipe is in the wallet section of ai-orange.css. -->
     <div id="submitRow" class="form-group form-group-submit">
       <div class="form-group-submit-in">
-        <button class="btn btn-submit" id="submitBtn" type="button">בצע תשלום</button>
+        <button type="button" id="submitBtn" class="btn btn-submit" title="אחרי לחיצה תועבר חזרה לאתר בית העסק">בצע תשלום </button>
+        <button type="button" id="cancelBtn" class="btn btn-default">ביטול</button>
         <button lang="he" id="applePayButton" class="btn apple-pay-button apple-pay-button-black" style="display:none"></button>
         <div id="googlePayButton" style="display:none"></div>
-        <button class="btn" id="cancelBtn" type="button">ביטול</button>
       </div>
     </div>
 

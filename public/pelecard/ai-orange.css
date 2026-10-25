@@ -1411,3 +1411,66 @@ body:has(#googlePayButton:empty) #googlePayTab {
 body:has(#googlePayTabBtn.tab-button-selected):has(#cvv_star_id[style*="display: none"]) #CvvContainer {
   display: none !important;
 }
+
+/* THE GOOGLE PAY BUTTON TOOK THE PAGE SIDEWAYS.
+
+   On a phone, choosing Google Pay slid the whole payment sheet out from under
+   the viewport: the amount disappeared off the edge, the Google Pay tile
+   scrolled out of the row that had just been tapped, and the button itself
+   was a black sliver about 45px wide. The page could be dragged back and
+   forth, which is how it was caught — on a video, not in any test.
+
+   Reproduced exactly, against the real thing rather than the harness: the
+   gateway's own form HTML for a live transaction, their nine scripts and
+   their stylesheet mirrored locally, and Google's button built by Google's
+   own `createButton` out of the copy of pay.js that Pelecard serve. At 390px
+   the document came out 452px wide — 62px of sideways scroll — and at 320px
+   it was 97px, which is the number measured off the video.
+
+   The chain, every link measured:
+
+     1. #googlePayButton is the LAST child of .form-group-submit-in, so in
+        RTL it is the leftmost item in the row.
+     2. The row's children are flex: 1 1 0 with min-width: 0 (above), so the
+        holder shrinks to its share — 164px of a 362px row.
+     3. Google's button is `.gpay-card-info-container { min-width: 240px }`,
+        from their own stylesheet. PeleGpay.js calls createButton({onClick})
+        with no buttonSizeMode, so it is the static button and 240px is not
+        negotiable from here.
+     4. 240 into 164 overflows by 76px, and because the holder is at the left
+        END of the row that overflow lands outside the document instead of in
+        the gap beside it.
+
+   So the button is given a line of its own. At every width from 320 up the
+   240px fits in it with room to spare, which means nothing of Google's is
+   scaled, clipped or restyled — the rule that matters here is the same one
+   the submit-row colours obey, that a wallet's button is the wallet's.
+
+   `order: -1` puts it above the cancel button rather than below it, which is
+   where the primary action belongs once the two are on separate lines.
+   max-width on the child is the backstop and nothing more: it binds only if
+   Google ever ship a button wider than the row, and it is deliberately not
+   paired with a min-width override, because `min-width: 0` lets their button
+   collapse to the width of its own label.
+
+   The wrap is inert on the other three tabs. Nothing there exceeds its share,
+   and #googlePayButton is display:none on all of them, so it is not a flex
+   item at all — card, bit and Apple Pay were measured before and after at
+   320, 360, 375 and 390 and did not move by a pixel.
+
+   WHY preview.html DID NOT CATCH THIS, which is the part worth keeping: its
+   submit row had the four children in the wrong order — cancel last instead
+   of second — so the Google holder sat at the right end of the row, where the
+   same 76px of overflow lands harmlessly inside the page. The bug was invisible
+   in the harness and only in the harness. The order there is now the gateway's.
+   npm run check:wallet asserts it. */
+.form-group-submit-in { flex-wrap: wrap !important; }
+
+#googlePayButton {
+  flex: 1 1 100% !important;
+  order: -1 !important;
+}
+
+#googlePayButton > * {
+  max-width: 100% !important;
+}
