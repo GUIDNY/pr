@@ -58,6 +58,14 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
  *
  * Redirects are kept here too, for the same reason: a 308 chain is a
  * crawler's time, and 2,044 legacy slugs redirect from this file.
+ *
+ * WHAT THIS STILL CANNOT SEE, measured rather than assumed: an RSC request
+ * for a page the CDN already holds never reaches middleware at all. Probed
+ * on 25 October — `/search?q=…&_rsc=` was logged, the same request against
+ * a cached product page produced no row. So "is RSC eating the crawl
+ * budget" is only half answerable from here, and the other half has to come
+ * from Search Console's own crawl stats. Worth knowing before anyone reads
+ * a low isRsc count as an answer.
  */
 function logCrawlerHit(request: NextRequest, response: NextResponse, event: NextFetchEvent) {
   const ua = request.headers.get("user-agent");
@@ -76,7 +84,18 @@ function logCrawlerHit(request: NextRequest, response: NextResponse, event: Next
         userAgent: ua.slice(0, 512),
         path: request.nextUrl.pathname.slice(0, 300),
         query: request.nextUrl.search.slice(0, 500) || null,
-        isRsc: request.headers.get("rsc") === "1" || request.nextUrl.searchParams.has("_rsc"),
+        /* Three signals, because the first two were measured and neither
+           survives the trip. Probed against the live site: `?_rsc=` is
+           stripped from nextUrl before middleware sees it, and an `RSC: 1`
+           header sent by hand does not arrive under that name either. The
+           Accept header does — an RSC fetch asks for text/x-component and
+           nothing else does. Kept all three anyway: they cost a string
+           compare and the normalisation is Next's, not ours, so it can
+           move back. */
+        isRsc:
+          request.headers.get("rsc") === "1" ||
+          request.nextUrl.searchParams.has("_rsc") ||
+          (request.headers.get("accept") ?? "").includes("text/x-component"),
         accept: request.headers.get("accept")?.slice(0, 120) ?? null,
         status: response.status,
         /* The crawler's own address, which is what part 3 of the plan
