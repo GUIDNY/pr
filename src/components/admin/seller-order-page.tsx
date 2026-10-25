@@ -332,7 +332,13 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
         </ul>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      {/* items-start, which is most of what was wrong with this page. A grid
+          cell stretches its child by default, so every panel was as tall as
+          whatever happened to sit beside it: four courier links in a box the
+          height of the whole updates panel, and a one-line order showing a
+          "פריטים" box with 200px of white under it. Each panel is its own
+          height now and the page stops looking half-empty. */}
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         {/* ---- customer and destination ---- */}
         <Panel title="הלקוח והיעד" icon={order.delivery.toCustomer ? Truck : Store}>
           <Field label="שם">{order.customerName}</Field>
@@ -468,6 +474,65 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
         </Panel>
 
         {/* ---- what the customer was told ---- */}
+        {/* Couriers and history finish the grid as a pair: both are short,
+           both are reference rather than action, and an odd number of panels
+           in two columns always leaves one of them beside a hole. */}
+        <Panel title="חברות שליחויות" icon={Truck}>
+          {order.courier.trackingUrl && (
+            <a
+              href={order.courier.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-brand/10 text-brand hover:bg-brand/20 mb-2 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold"
+            >
+              <ExternalLink className="size-4" />
+              מעקב אחרי המשלוח של ההזמנה הזאת
+            </a>
+          )}
+          <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+            {COURIERS.map((courier) => (
+              <li key={courier.id} className="flex items-center gap-2 text-sm">
+                <a
+                  href={courier.site}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-brand flex flex-1 items-center gap-1.5"
+                >
+                  <ExternalLink className="size-3.5 shrink-0" />
+                  {courier.name}
+                </a>
+                {courier.phone && (
+                  <a href={`tel:${courier.phone}`} className="text-muted-foreground shrink-0 text-xs">
+                    {courier.phone}
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+        <Panel title="היסטוריה" icon={Clock}>
+          <ul className="flex flex-col gap-2 text-sm">
+            {/* One line per step, with the time in a column of its own. The
+                three-line block per entry made a short history look like a long
+                one, and the dates could not be compared down the page because
+                they each started at a different place. */}
+            {order.history.map((h, i) => (
+              <li key={i} className="border-border flex flex-wrap items-baseline gap-x-2 border-s-2 ps-3">
+                <span className="font-semibold">{ORDER_STATUS_LABELS[h.to as OrderStatus] ?? h.to}</span>
+                {h.by && <span className="text-muted-foreground text-xs">{h.by}</span>}
+                <span className="text-muted-foreground ms-auto text-xs tabular-nums">{formatDateTime(h.at)}</span>
+                {h.note && <span className="text-muted-foreground w-full text-xs">{h.note}</span>}
+              </li>
+            ))}
+          </ul>
+        </Panel>
+
+      </div>
+
+      {/* ---- the one panel worth the full width ----
+           It holds the only buttons on the page that reach a customer, and
+           every row in it is a label, three channel chips and two actions —
+           which wrapped onto three lines inside half a page. */}
         <Panel title="עדכונים ללקוח" icon={MessageSquare}>
           {/* What can send right now. The rows below are a log — each one
               records what was true at the moment it was sent, and a message
@@ -591,57 +656,6 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
         </Panel>
 
         {/* ---- the couriers themselves ---- */}
-        <Panel title="חברות שליחויות" icon={Truck}>
-          {order.courier.trackingUrl && (
-            <a
-              href={order.courier.trackingUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-brand/10 text-brand hover:bg-brand/20 mb-2 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold"
-            >
-              <ExternalLink className="size-4" />
-              מעקב אחרי המשלוח של ההזמנה הזאת
-            </a>
-          )}
-          <ul className="flex flex-col gap-1">
-            {COURIERS.map((courier) => (
-              <li key={courier.id} className="flex items-center gap-2 text-sm">
-                <a
-                  href={courier.site}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-brand flex flex-1 items-center gap-1.5"
-                >
-                  <ExternalLink className="size-3.5 shrink-0" />
-                  {courier.name}
-                </a>
-                {courier.phone && (
-                  <a href={`tel:${courier.phone}`} className="text-muted-foreground shrink-0 text-xs">
-                    {courier.phone}
-                  </a>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Panel>
-      </div>
-
-      {/* ---- history ---- */}
-      <Panel title="היסטוריה" icon={Clock}>
-        <ul className="flex flex-col gap-2 text-sm">
-          {order.history.map((h, i) => (
-            <li key={i} className="border-border flex flex-col border-s-2 ps-3">
-              <span className="font-semibold">
-                {ORDER_STATUS_LABELS[h.to as OrderStatus] ?? h.to}
-                {h.by && <span className="text-muted-foreground font-normal"> · {h.by}</span>}
-              </span>
-              {h.note && <span className="text-muted-foreground text-xs">{h.note}</span>}
-              <span className="text-muted-foreground text-xs">{formatDateTime(h.at)}</span>
-            </li>
-          ))}
-        </ul>
-      </Panel>
-
       {/* ---- the exit for something that should not exist ---- */}
       <div className="border-border mt-2 rounded-2xl border border-dashed p-4">
         <p className="text-muted-foreground text-xs">
@@ -767,14 +781,19 @@ function ProfitPanel({ order }: { order: SellerOrderDetail }) {
       </div>
 
       <div className="border-border mt-1 border-t pt-2">
-        <Field label={p.certain ? "רווח" : "רווח — לכל היותר"}>
-          <span className={`font-black ${p.profit >= 0 ? "text-success" : "text-destructive"}`}>
-            {formatPrice(p.profit)}
+        {/* The one number the panel exists for, at the size of the one number
+            the panel exists for. Everything above it is the working. */}
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-muted-foreground text-sm">{p.certain ? "רווח" : "רווח — לכל היותר"}</span>
+          <span className="flex items-baseline gap-2">
+            <span className={`text-2xl font-black ${p.profit >= 0 ? "text-success" : "text-destructive"}`}>
+              {formatPrice(p.profit)}
+            </span>
+            {p.margin !== null && (
+              <span className="text-muted-foreground text-sm tabular-nums">{Math.round(p.margin * 100)}%</span>
+            )}
           </span>
-          {p.margin !== null && (
-            <span className="text-muted-foreground"> · {Math.round(p.margin * 100)}%</span>
-          )}
-        </Field>
+        </div>
       </div>
 
       {/* Everything the number leaves out, where the number is. A margin that
