@@ -22,6 +22,7 @@ const body = z.object({
   query: z.string().max(500).nullable(),
   referrer: z.string().max(200).nullable(),
   isBot: z.boolean(),
+  bot: z.string().max(60).nullable(),
   isRsc: z.boolean(),
   country: z.string().max(2).nullable(),
   device: z.enum(["mobile", "tablet", "desktop"]).nullable(),

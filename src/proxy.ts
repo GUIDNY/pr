@@ -8,6 +8,7 @@ import {
 import { MALL_PASS_COOKIE, verifyMallPass } from "@/lib/mall-access";
 import { pageViewFromRequest } from "@/lib/pageview/capture";
 import { resolveSid, serializeSid, SID_COOKIE, SID_IDLE_SECONDS } from "@/lib/pageview/sid";
+import { matchCrawler, crawlerPathWorthLogging } from "@/lib/pageview/crawlers";
 
 // The one thing that runs before the cache.
 //
@@ -39,7 +40,54 @@ const SESSION_COOKIE = "prec_session";
 export async function proxy(request: NextRequest, event: NextFetchEvent) {
   const response = await route(request);
   logPageView(request, response, event);
+  logCrawlerHit(request, response, event);
   return response;
+}
+
+/**
+ * The crawler log — see lib/pageview/crawlers.ts for why a name and not a
+ * boolean, and api/internal/crawler for where it lands.
+ *
+ * Deliberately NOT inside logPageView, because the two disagree about what
+ * is worth a row and both are right. A page view is a full document load:
+ * it drops prefetches, RSC fetches and anything that did not ask for HTML,
+ * because those are not somebody reading a page. A crawler's RSC fetch is
+ * the opposite — it is budget spent, on an address Search Console will
+ * never show, and the question of whether `?_rsc=` is eating the crawl
+ * budget cannot be answered by a log that refuses to record it.
+ *
+ * Redirects are kept here too, for the same reason: a 308 chain is a
+ * crawler's time, and 2,044 legacy slugs redirect from this file.
+ */
+function logCrawlerHit(request: NextRequest, response: NextResponse, event: NextFetchEvent) {
+  const ua = request.headers.get("user-agent");
+  const bot = matchCrawler(ua);
+  if (!bot || !ua) return;
+  if (!crawlerPathWorthLogging(request.nextUrl.pathname)) return;
+
+  const secret = process.env.PV_SECRET || process.env.INTERNAL_API_KEY;
+  if (!secret) return;
+  event.waitUntil(
+    fetch(new URL("/api/internal/crawler", request.url), {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-pv-secret": secret },
+      body: JSON.stringify({
+        bot,
+        userAgent: ua.slice(0, 512),
+        path: request.nextUrl.pathname.slice(0, 300),
+        query: request.nextUrl.search.slice(0, 500) || null,
+        isRsc: request.headers.get("rsc") === "1" || request.nextUrl.searchParams.has("_rsc"),
+        accept: request.headers.get("accept")?.slice(0, 120) ?? null,
+        status: response.status,
+        /* The crawler's own address, which is what part 3 of the plan
+           verifies against the ranges each vendor publishes. A crawler is
+           not a person and the privacy page's promise about IP addresses is
+           about visitors; this table holds nobody else. */
+        ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim().slice(0, 64) ?? null,
+        country: (request.headers.get("x-vercel-ip-country") ?? "").toUpperCase().slice(0, 2) || null,
+      }),
+    }).catch(() => {}),
+  );
 }
 
 /**

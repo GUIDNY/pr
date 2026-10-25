@@ -1297,6 +1297,10 @@ model PageView {
   query     String?
   referrer  String?
   isBot     Boolean  @default(false)
+  /// The crawler's name when the agent is one we recognise — "Googlebot",
+  /// never the agent string, which for a person is promised unstored. See
+  /// lib/pageview/crawlers.ts.
+  bot       String?
   isRsc     Boolean  @default(false)
   country   String?
   device    String?
@@ -1334,10 +1338,51 @@ model VisitEvent {
   path      String
   meta      Json?
   isBot     Boolean  @default(false)
+  /// As on PageView.
+  bot       String?
   isRsc     Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([sid, createdAt])
   @@index([type, createdAt])
+  @@index([createdAt])
+}
+
+/// Every request a crawler makes to a page, with the agent string it sent.
+///
+/// Separate from PageView on purpose, and the reason is the three things
+/// PageView refuses by design: an RSC fetch, a request that is not asking
+/// for HTML, and the raw user-agent. The first two are most of what a
+/// crawler spends its budget on, and the third is the only way to tell
+/// OAI-SearchBot from GPTBot — two OpenAI agents with completely different
+/// meanings for this shop, since one feeds the search that already sends
+/// more traffic here than Google organic does.
+///
+/// `verified` is for a second pass that checks the agent's claim against
+/// the IP ranges each vendor publishes. Null until then: the question
+/// today is whether they arrive at all, not whether somebody is pretending.
+///
+/// Pruned at 90 days by the pv-rollup cron, beside PageView.
+model CrawlerHit {
+  id        String   @id @default(cuid())
+  /// Normalised, from lib/pageview/crawlers.ts.
+  bot       String
+  userAgent String
+  path      String
+  query     String?
+  isRsc     Boolean  @default(false)
+  /// What it asked for. An HTML request and an RSC payload are different
+  /// visits to the same address and only this tells them apart in hindsight.
+  accept    String?
+  /// What it got back. A crawler spending its visit on 308s is the shape
+  /// 2,044 legacy slugs can make, and only this shows it.
+  status    Int?
+  ip        String?
+  country   String?
+  verified  Boolean?
+  createdAt DateTime @default(now())
+
+  @@index([bot, createdAt])
+  @@index([path])
   @@index([createdAt])
 }

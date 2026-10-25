@@ -57,7 +57,19 @@ is("a tablet is tablet", deviceClass(IPAD), "tablet");
 is("a desktop is desktop", deviceClass(CHROME), "desktop");
 is("no query means null", keptQuery(""), null);
 is("a junk referrer is null", trimReferrer("javascript:void(0)"), null);
-is("nothing in the record names the person", Object.keys(view).sort(), ["country", "device", "isBot", "isRsc", "path", "query", "referrer"]);
+/* The key set, asserted rather than trusted, because the privacy page
+   promises what is in it: "הרישום אינו כולל כתובת IP, מחרוזת דפדפן". A
+   field added here has to be argued for, and this line is where the
+   argument happens.
+
+   `bot` was added on 25 October and is the crawler's NAME — "Googlebot" —
+   and null for everybody else. It names no person because when it is set
+   there is no person: the question it answers is whether Googlebot ever
+   reached the 1,147 pages Search Console calls discovered-and-not-indexed,
+   which a boolean cannot answer. The agent string itself is still never
+   stored here; a crawler's goes to CrawlerHit, which holds crawlers only. */
+is("nothing in the record names the person", Object.keys(view).sort(), ["bot", "country", "device", "isBot", "isRsc", "path", "query", "referrer"]);
+is("and a person's row carries no crawler name", view.bot, null);
 
 console.log("\nin-app navigations, as the page reports them");
 const nav = pageViewFromNavigation(
