@@ -1,5 +1,6 @@
 import "server-only";
 import { MIN_PUBLIC_PRICE } from "@/lib/inventory/underpriced";
+import { STOCK_ONLY_SOURCE_KEYS } from "@/lib/inventory/availability";
 import { cache } from "react";
 import { normalizeFacetValue } from "@/lib/facet-value";
 import { db } from "@/lib/db";
@@ -124,7 +125,25 @@ export const CATEGORY_PAGE_SIZE = 30;
 /* Declared out here, and typed rather than `as const`, because the enclosing
    object is `as const` and Prisma will not take a readonly array for AND. */
 const SELLABLE_CLAUSE: Prisma.ProductWhereInput[] = [
-  { OR: [{ stockQty: { gt: 0 } }, { sourceAvailability: "ORDERABLE" }] },
+  {
+    OR: [
+      { stockQty: { gt: 0 } },
+      {
+        /* Sold without stock only if the price list it came from is one we
+           order from. The owner narrowed his own rule on 25 October for
+           מחירון מלאי אלקטרוניקה and that workbook alone — see
+           STOCK_ONLY_SOURCES in inventory/availability.ts, which is where
+           the reasoning and the 180 products this hides are written down.
+           A product with no source at all cannot reach here: the `source`
+           condition at the bottom of this constant already requires an
+           active EXCEL price list. */
+        AND: [
+          { sourceAvailability: "ORDERABLE" },
+          { source: { is: { key: { notIn: [...STOCK_ONLY_SOURCE_KEYS] } } } },
+        ],
+      },
+    ],
+  },
 ];
 
 export const PUBLIC_PRODUCT_WHERE = {
@@ -514,7 +533,10 @@ export const getProductBySlug = cache(async (slug: string) => {
          PUBLIC_PRODUCT_WHERE answers for every list: is this product in a
          price list at all. The page is reached by its own address, so no
          listing gate protects it — see isOffCatalogue below. */
-      source: { select: { sourceType: true, isActive: true } },
+      /* `key` as well, since 25 October: whether a product with nothing in
+         a warehouse is still sellable now depends on which workbook it came
+         from — see inventory/availability.ts. */
+      source: { select: { key: true, sourceType: true, isActive: true } },
     },
   });
 });
@@ -821,7 +843,17 @@ export async function getProductsByBrandSlug(
  */
 const PUBLIC_PRODUCT_SQL = `
         p."isPublished"
-        AND (p."stockQty" > 0 OR p."sourceAvailability" = 'ORDERABLE')
+        AND (
+          p."stockQty" > 0
+          OR (
+            p."sourceAvailability" = 'ORDERABLE'
+            AND NOT EXISTS (
+              SELECT 1 FROM "InventorySource" so
+              WHERE so.id = p."sourceId"
+                AND so.key IN (${STOCK_ONLY_SOURCE_KEYS.map((k) => `'${k}'`).join(", ")})
+            )
+          )
+        )
         AND p."stockStatus" <> 'NEEDS_REVIEW'
         AND p.price >= ${MIN_PUBLIC_PRICE}
         AND p."missingFromSourceSince" IS NULL

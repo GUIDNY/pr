@@ -23,6 +23,7 @@ type CartWithItems = {
       stockStatus: string;
       stockQty: number;
       sourceAvailability?: string | null;
+      source?: { key: string | null } | null;
       categoryId: string;
       brandId: string;
       brand: { name: string };
@@ -97,7 +98,7 @@ export async function buildCartSummary(
     maxQuantity:
       i.product.stockStatus === "OUT_OF_STOCK"
         ? 0
-        : maxCartQuantity(i.product.stockQty, i.product.sourceAvailability),
+        : maxCartQuantity(i.product.stockQty, i.product.sourceAvailability, i.product.source?.key ?? null),
     isBulky: isBulkyCategory(i.product.category.slug, i.product.category.parent?.slug ?? null),
   }));
 

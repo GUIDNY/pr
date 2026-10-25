@@ -139,6 +139,7 @@ export async function GET() {
       supplierCost: true,
       stockQty: true,
       sourceAvailability: true,
+      source: { select: { key: true } },
       stockStatus: true,
       isPublished: true,
       priceManualAt: true,
@@ -189,7 +190,7 @@ export async function GET() {
     /* "No stock" stopped being a reason on 19 October: a product the price
        list still offers is sellable with nothing in a warehouse. Only a row
        marked gone, with nothing left, is held back for it. */
-    if (!isSellableNow(p)) reasons.push("אין מלאי ואזל אצל הספק");
+    if (!isSellableNow({ ...p, sourceKey: p.source?.key ?? null })) reasons.push("אין מלאי ואזל אצל הספק");
     if (p._count.images === 0) reasons.push("אין תמונה");
     if (p.stockStatus === "NEEDS_REVIEW") reasons.push("נתוני מלאי לא עקביים");
     if (p.missingFromSourceSince !== null) reasons.push("לא במחירון יותר");

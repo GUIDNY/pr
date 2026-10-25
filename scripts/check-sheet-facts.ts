@@ -218,7 +218,7 @@ const AVAILABILITY: [Record<string, string>, string][] = [
 for (const [row, want] of AVAILABILITY) {
   const got = sourceAvailability(row);
   if (got !== want) bad(`availability ${JSON.stringify(row)}`, got, want);
-  if (sellableWithoutStock(got)) bad(`${JSON.stringify(row)} must need stock on hand`, true, false);
+  if (sellableWithoutStock(got, "white-goods-screens")) bad(`${JSON.stringify(row)} must need stock on hand`, true, false);
 }
 
 // Rows with nothing said. These are the ones the owner's new rule turns into
@@ -241,7 +241,7 @@ const ORDERABLE: Record<string, string | number | null>[] = [
 for (const row of ORDERABLE) {
   const got = sourceAvailability(row);
   if (got !== "ORDERABLE") bad(`${JSON.stringify(row)} must stay ORDERABLE`, got, "ORDERABLE");
-  if (!sellableWithoutStock(got)) bad(`${JSON.stringify(row)} must sell without stock`, false, true);
+  if (!sellableWithoutStock(got, "white-goods-screens")) bad(`${JSON.stringify(row)} must sell without stock`, false, true);
 }
 
 // ----------------------------------------------------------- import channel --
@@ -302,18 +302,31 @@ for (const row of ROW_OFFICIAL) {
 // lists get their answer. A Prisma where-object cannot call a function, so
 // the rule is written twice on purpose — and the two drifting apart is the
 // whole failure mode, so the last block below reads both files back.
-const SELLABILITY: [{ stockQty: number; sourceAvailability?: string | null }, boolean][] = [
-  [{ stockQty: 4, sourceAvailability: "ORDERABLE" }, true],
-  [{ stockQty: 0, sourceAvailability: "ORDERABLE" }, true], //  drawn from the supplier
-  [{ stockQty: 2, sourceAvailability: "STOCK_ONLY" }, true], // sell what we hold
-  [{ stockQty: 0, sourceAvailability: "STOCK_ONLY" }, false],
-  [{ stockQty: 1, sourceAvailability: "END_OF_LINE" }, true],
-  [{ stockQty: 0, sourceAvailability: "END_OF_LINE" }, false],
-  [{ stockQty: 0, sourceAvailability: "TEMPORARILY_OUT" }, false],
+const SELLABILITY: [
+  { stockQty: number; sourceAvailability?: string | null; sourceKey: string | null },
+  boolean,
+][] = [
+  [{ stockQty: 4, sourceAvailability: "ORDERABLE" , sourceKey: "white-goods-screens" }, true],
+  [{ stockQty: 0, sourceAvailability: "ORDERABLE" , sourceKey: "white-goods-screens" }, true], //  drawn from the supplier
+  [{ stockQty: 2, sourceAvailability: "STOCK_ONLY" , sourceKey: "white-goods-screens" }, true], // sell what we hold
+  [{ stockQty: 0, sourceAvailability: "STOCK_ONLY" , sourceKey: "white-goods-screens" }, false],
+  [{ stockQty: 1, sourceAvailability: "END_OF_LINE" , sourceKey: "white-goods-screens" }, true],
+  [{ stockQty: 0, sourceAvailability: "END_OF_LINE" , sourceKey: "white-goods-screens" }, false],
+  [{ stockQty: 0, sourceAvailability: "TEMPORARILY_OUT" , sourceKey: "white-goods-screens" }, false],
   // A record never near a price list — the admin form, the integrations API.
   // Null reads as ORDERABLE, which is the column's own default.
-  [{ stockQty: 0, sourceAvailability: null }, true],
-  [{ stockQty: 0 }, true],
+  [{ stockQty: 0, sourceAvailability: null , sourceKey: "white-goods-screens" }, true],
+  [{ stockQty: 0 , sourceKey: "white-goods-screens" }, true],
+  // A price list we sell only from stock — the electronics workbook, from
+  // 25 October. Same availability, opposite answer, and nothing but the
+  // source key says so.
+  [{ stockQty: 3, sourceAvailability: "ORDERABLE", sourceKey: "electronics" }, true],
+  [{ stockQty: 0, sourceAvailability: "ORDERABLE", sourceKey: "electronics" }, false],
+  [{ stockQty: 0, sourceAvailability: null, sourceKey: "electronics" }, false],
+  [{ stockQty: 1, sourceAvailability: "STOCK_ONLY", sourceKey: "electronics" }, true],
+  // And the other two keep the 19 October rule, named rather than assumed.
+  [{ stockQty: 0, sourceAvailability: "ORDERABLE", sourceKey: "small-appliances" }, true],
+  [{ stockQty: 0, sourceAvailability: "ORDERABLE", sourceKey: null }, true],
 ];
 for (const [product, want] of SELLABILITY) {
   const got = isSellableNow(product);

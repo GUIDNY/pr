@@ -18,11 +18,12 @@ export async function addToCartAction(productId: string, quantity: number = 1) {
   // otherwise a stale product page left open in a tab is a way around it.
   const product = await db.product.findFirst({
     where: { id: productId, ...PUBLIC_PRODUCT_WHERE },
+    include: { source: { select: { key: true } } },
   });
   if (!product) throw new Error("מוצר לא נמצא");
   if (product.stockStatus === "OUT_OF_STOCK") throw new Error("המוצר אזל מהמלאי");
 
-  await addLineToCart(cart, product, quantity);
+  await addLineToCart(cart, { ...product, sourceKey: product.source?.key ?? null }, quantity);
 
   return currentSummary();
 }
@@ -35,7 +36,11 @@ export async function updateCartItemAction(itemId: string, quantity: number) {
   if (quantity <= 0) {
     await db.cartItem.delete({ where: { id: itemId } });
   } else {
-    const maxQty = maxCartQuantity(item.product.stockQty, item.product.sourceAvailability);
+    const maxQty = maxCartQuantity(
+      item.product.stockQty,
+      item.product.sourceAvailability,
+      item.product.source?.key ?? null,
+    );
     await db.cartItem.update({ where: { id: itemId }, data: { quantity: Math.min(quantity, maxQty) } });
   }
 

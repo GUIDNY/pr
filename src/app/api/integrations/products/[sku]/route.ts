@@ -37,6 +37,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ sku:
       price: true,
       stockQty: true,
       sourceAvailability: true,
+      source: { select: { key: true } },
       stockStatus: true,
       isPublished: true,
       enrichmentStatus: true,
@@ -110,6 +111,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ sku:
     lastModifiedAt: p.updatedAt,
     // Exactly the rule the storefront applies (PUBLIC_PRODUCT_WHERE), so a
     // caller can tell "saved" from "actually on the site" without guessing.
-    liveOnSite: p.isPublished && isSellableNow(p) && p.images.length > 0,
+    liveOnSite:
+      p.isPublished && isSellableNow({ ...p, sourceKey: p.source?.key ?? null }) && p.images.length > 0,
   });
 }

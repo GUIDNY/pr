@@ -57,6 +57,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         brandId: true,
         stockQty: true,
         sourceAvailability: true,
+        source: { select: { key: true } },
         missingFromSourceSince: true,
       },
     }),
@@ -112,7 +113,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
        with nothing in a warehouse, and counting only the stocked ones would
        keep a shelf out of the sitemap that the shelf itself is happy to
        show — the drift between the two this rollup exists to prevent. */
-    if (!isSellableNow(p)) continue;
+    if (!isSellableNow({ ...p, sourceKey: p.source?.key ?? null })) continue;
     sellableCount.set(p.categoryId, (sellableCount.get(p.categoryId) ?? 0) + 1);
   }
 
@@ -215,7 +216,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const brandNewest = new Map<string, Date>();
   const brandSellableCount = new Map<string, number>();
   for (const p of products) {
-    if (!isSellableNow(p)) continue;
+    if (!isSellableNow({ ...p, sourceKey: p.source?.key ?? null })) continue;
     const current = brandNewest.get(p.brandId);
     if (!current || p.updatedAt > current) brandNewest.set(p.brandId, p.updatedAt);
     brandSellableCount.set(p.brandId, (brandSellableCount.get(p.brandId) ?? 0) + 1);

@@ -25,6 +25,9 @@ const cartInclude = {
              one lookup rather than three. */
           category: { include: { parent: true } },
           images: { orderBy: { sortOrder: "asc" as const }, take: 1 },
+          /* Which price list it came from, because that decides whether a
+             line can exceed the units on hand — see maxCartQuantity. */
+          source: { select: { key: true } },
         },
       },
     },
@@ -125,9 +128,14 @@ export async function claimGuestCart(userId: string) {
        pressing "add" twice. */
     const products = await db.product.findMany({
       where: { id: { in: guestCart.items.map((i) => i.productId) } },
-      select: { id: true, stockQty: true, sourceAvailability: true },
+      select: { id: true, stockQty: true, sourceAvailability: true, source: { select: { key: true } } },
     });
-    const stock = new Map(products.map((p) => [p.id, { qty: p.stockQty, availability: p.sourceAvailability }]));
+    const stock = new Map(
+      products.map((p) => [
+        p.id,
+        { qty: p.stockQty, availability: p.sourceAvailability, sourceKey: p.source?.key ?? null },
+      ]),
+    );
     const plan = planCartMerge(guestCart.items, userCart.items, stock);
 
     const writes: Prisma.PrismaPromise<unknown>[] = [];
@@ -237,11 +245,11 @@ async function currentAttribution() {
  */
 export async function addLineToCart(
   cart: { id: string; items: { id: string; productId: string; quantity: number }[] },
-  product: { id: string; stockQty: number; sourceAvailability?: string | null },
+  product: { id: string; stockQty: number; sourceAvailability?: string | null; sourceKey: string | null },
   quantity: number,
 ) {
   const existing = cart.items.find((i) => i.productId === product.id);
-  const maxQty = maxCartQuantity(product.stockQty, product.sourceAvailability);
+  const maxQty = maxCartQuantity(product.stockQty, product.sourceAvailability, product.sourceKey);
 
   if (existing) {
     const nextQty = Math.min(existing.quantity + quantity, maxQty);
@@ -261,11 +269,14 @@ export async function addLineToCart(
  */
 export async function ensureCartLine(
   cart: { id: string; items: { id: string; productId: string; quantity: number }[] },
-  product: { id: string; stockQty: number; sourceAvailability?: string | null },
+  product: { id: string; stockQty: number; sourceAvailability?: string | null; sourceKey: string | null },
   quantity: number,
 ) {
   const existing = cart.items.find((i) => i.productId === product.id);
-  const wanted = Math.min(quantity, maxCartQuantity(product.stockQty, product.sourceAvailability));
+  const wanted = Math.min(
+    quantity,
+    maxCartQuantity(product.stockQty, product.sourceAvailability, product.sourceKey),
+  );
   if (!existing) {
     await db.cartItem.create({ data: { cartId: cart.id, productId: product.id, quantity: wanted } });
   } else if (existing.quantity < wanted) {

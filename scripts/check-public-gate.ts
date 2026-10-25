@@ -44,6 +44,11 @@ const CONDITIONS: [string, { prisma: RegExp; sql: RegExp }][] = [
   ["missingFromSourceSince", { prisma: /missingFromSourceSince/, sql: /"missingFromSourceSince"/ }],
   ["images", { prisma: /images/, sql: /"ProductImage"/ }],
   ["source is an active price list", { prisma: /source/, sql: /"InventorySource"/ }],
+  /* Added 25 October with the stock-only rule. Both copies have to know that
+     "orderable" is not enough on its own any more — the workbook it came from
+     decides too — and a copy that forgets puts 180 electronics products with
+     an empty shelf back on the site. */
+  ["the stock-only workbooks", { prisma: /STOCK_ONLY_SOURCE_KEYS/, sql: /STOCK_ONLY_SOURCE_KEYS/ }],
 ];
 
 let failed = 0;
@@ -67,6 +72,14 @@ if (/"stockQty" > 0(?!\s*OR)/.test(sqlGate)) {
   console.log('FAIL  the SQL gate asks for `"stockQty" > 0` with no OR beside it — an orderable product has no stock and is still for sale');
 }
 
+/* The narrowing itself, named. An OR of the bare column — "orderable, so it
+   is for sale" — is what the SQL said before 25 October and what somebody
+   writes again from memory. */
+if (/"sourceAvailability" = 'ORDERABLE'\s*\)/.test(sqlGate)) {
+  failed++;
+  console.log("FAIL  the SQL gate sells anything marked ORDERABLE — the electronics workbook is sold from stock only");
+}
+
 /* And there must be exactly one SQL copy. A third would be a third thing to
    forget. */
 const rawBlocks = source.match(/WHERE \$\{PUBLIC_PRODUCT_SQL\}/g)?.length ?? 0;
@@ -76,7 +89,7 @@ if (handRolled > 0) {
   console.log(`FAIL  ${handRolled} raw quer(y|ies) still spell the gate out by hand instead of using PUBLIC_PRODUCT_SQL`);
 }
 
-const total = CONDITIONS.length + 2;
+const total = CONDITIONS.length + 3;
 console.log(
   `${total - failed}/${total} passed  (${CONDITIONS.length} conditions on both sides, ` +
     `${rawBlocks} raw queries sharing one predicate, 0 hand-rolled)`,
