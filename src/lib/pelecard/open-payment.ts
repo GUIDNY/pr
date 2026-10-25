@@ -3,7 +3,19 @@ import { db } from "@/lib/db";
 import { initPayment, SUPPORTED_CARDS, paymentPageStyle, holdThenCapture } from "./client";
 import { pelecardConfig, pelecardConfigured, paymentLaneFor, toAgorot, siteUrl, callbackSecret } from "./config";
 import type { CheckoutViewer } from "./config";
+import { maxPaymentsFor } from "./instalments";
 import { customerHasPaid } from "@/lib/order-signal";
+
+type InitResult = Awaited<ReturnType<typeof initPayment>>;
+
+/** Pelecard said yes: a form to send the customer to, and no error with it.
+    A type guard rather than a boolean, so that the two fields it just proved
+    are present stay proven to the compiler afterwards. */
+function initAccepted(result: InitResult | undefined): result is InitResult & { URL: string; ConfirmationKey: string } {
+  if (!result?.URL || !result.ConfirmationKey) return false;
+  const errCode = result.Error?.ErrCode;
+  return errCode === 0 || errCode === "0" || errCode === undefined;
+}
 
 /**
  * Opens a Pelecard payment for an order that already exists, and hands back the
@@ -81,9 +93,13 @@ export async function openPelecardPayment(
   const returnTo = (to: string) =>
     `${site}/checkout/frame-return?to=${to}&order=${encodeURIComponent(order.orderNumber)}`;
 
-  let result;
-  try {
-    result = await initPayment({
+  /* How many payments this basket may be split into — the table is in
+     lib/pelecard/instalments.ts and is meant to be edited. Their form shows
+     the field only when the maximum differs from the minimum, which is why
+     there was no instalments control at all while this was 1. */
+  const wantedPayments = maxPaymentsFor(order.total);
+
+  const initParams = (maxPayments: number) => ({
       // J4 charges now; J5 holds the amount on the card and leaves the
       // charge to a person pressing "אשר תשלום" in the back office. The
       // switch is off until the terminal and the capture call both exist —
@@ -156,22 +172,56 @@ export async function openPelecardPayment(
       CardHolderName: order.guestName || "Hide",
       EmailField: order.guestEmail || "Hide",
       TelField: order.guestPhone || "Hide",
-      MaxPayments: 1, // until there is an instalments agreement with Pelecard
+      MaxPayments: maxPayments,
+      /* Always 1, so that "one payment" stays on the list. Their rule is that
+         a minimum equal to the maximum hides the field; a minimum of two would
+         force everyone to split. */
       MinPayments: 1,
+      /* They compute the first instalment and the customer cannot edit it.
+         "Manual" opens that box for editing, which is a field to get wrong on
+         a page we are trying to shorten. */
       FirstPayment: "auto",
       ShopNo: "001",
       UseLuhnAlgorithm: "True",
       SupportedCards: SUPPORTED_CARDS,
       TakeIshurPopUp: "False",
-      ...paymentPageStyle(),
-    });
-  } catch (error) {
-    console.error("[pelecard] init threw", { orderId: order.id, error });
-    return { ok: false, status: 502, error: "payment init failed" };
+    ...paymentPageStyle(),
+  });
+
+  /* THE INSTALMENT ATTEMPT IS ALLOWED TO FAIL.
+     A terminal that is not cleared for instalments refuses the init outright,
+     and a refusal here is not a missing dropdown — it is a checkout that never
+     opens, for every customer, with "payment init failed" where the card form
+     should be. Nobody in this repo can read the terminal's permissions, and
+     finding out by shipping it is how a live shop stops taking money.
+
+     So the same order is opened a second time as a single payment and the
+     customer pays. The shop loses the option, never the sale, and the reason
+     is in the log rather than in a phone call. It costs one extra round trip
+     only on the deployment where it is going to fail anyway, and it stops
+     costing anything the day Pelecard switch instalments on — the first
+     attempt simply starts succeeding. */
+  let result: InitResult | undefined;
+  for (const maxPayments of wantedPayments > 1 ? [wantedPayments, 1] : [1]) {
+    try {
+      result = await initPayment(initParams(maxPayments));
+    } catch (error) {
+      console.error("[pelecard] init threw", { orderId: order.id, maxPayments, error });
+      result = undefined;
+    }
+    if (initAccepted(result)) break;
+    if (maxPayments > 1) {
+      console.error("[pelecard] init refused with instalments — retrying as a single payment", {
+        orderId: order.id,
+        maxPayments,
+        error: result?.Error,
+      });
+    }
   }
 
-  const errCode = result.Error?.ErrCode;
-  if (!result.URL || !result.ConfirmationKey || (errCode !== 0 && errCode !== "0" && errCode !== undefined)) {
+  if (!result) return { ok: false, status: 502, error: "payment init failed" };
+
+  if (!initAccepted(result)) {
     console.error("[pelecard] init failed", { orderId: order.id, error: result.Error });
     return { ok: false, status: 502, error: result.Error?.ErrMsg ?? "payment init failed" };
   }
