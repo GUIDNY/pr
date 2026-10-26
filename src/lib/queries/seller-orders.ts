@@ -9,6 +9,7 @@ import { NOTIFY_EVENTS, type NotifyEvent, type NotifyChannel } from "@/lib/notif
 import { courierTrackingUrl } from "@/lib/couriers";
 import { channelReadiness } from "@/lib/notify";
 import { attributionFromJson, type Attribution } from "@/lib/attribution";
+import { undoTargetStatus } from "@/lib/order-undo";
 
 /**
  * The orders queue as a salesperson needs it.
@@ -197,6 +198,9 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
           createdAt: true,
           fromStatus: true,
           toStatus: true,
+          /* Read by undoTargetStatus below, so the button disappears once
+             the last thing that happened was an undo. */
+          isUndo: true,
           note: true,
           changedBy: { select: { name: true } },
         },
@@ -271,7 +275,9 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
       at: n.createdAt,
     })),
     updates: buildUpdates(row, summary),
-    previousStatus: row.statusHistory[0]?.fromStatus ?? null,
+    /* Null once the last thing that happened was itself an undo, which is
+       what hides the button rather than offering to undo the undo. */
+    previousStatus: undoTargetStatus(row.statusHistory),
     readiness: channelReadiness(),
     canDelete: removalRule(row).canPurge,
     removal: removalRule(row),
