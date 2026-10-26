@@ -8,7 +8,7 @@ import { logAudit } from "@/lib/audit";
 import { completeDebitByUid } from "@/lib/pelecard/client";
 import { notifyOrder } from "@/lib/notify";
 import type { NotifyEvent } from "@/lib/notify/types";
-import { removalRule } from "@/lib/queries/seller-orders";
+import { removalRule, binActionAllowed, type BinDirection } from "@/lib/queries/seller-orders";
 import { INTERNAL_DELIVERY_NAME } from "@/lib/couriers";
 import { MANUAL_PAYMENT_METHOD_LABELS, manualPaymentMethodSchema, type ManualPaymentMethod } from "@/lib/enums";
 import { sendPurchaseToGa4 } from "@/lib/analytics/ga4-purchase";
@@ -583,7 +583,7 @@ type BulkResult = Result & { count?: number };
 
 const LIMIT = 200;
 
-async function loadSelection(orderNumbers: string[], wantBinned: boolean, mode: "bin" | "purge" = "bin") {
+async function loadSelection(orderNumbers: string[], wantBinned: boolean, mode: BinDirection) {
   const unique = [...new Set(orderNumbers.filter(Boolean))];
   if (unique.length === 0) return { error: "לא נבחרו הזמנות" as const, orders: [] };
   if (unique.length > LIMIT) return { error: `אפשר עד ${LIMIT} הזמנות בפעולה אחת`, orders: [] };
@@ -604,21 +604,19 @@ async function loadSelection(orderNumbers: string[], wantBinned: boolean, mode: 
     return { error: "חלק מההזמנות כבר לא קיימות — רענן את הדף", orders: [] };
   }
 
-  /* Checked even on restore. The rule is about what the row is, not about
-     which direction it is moving, and an order that took real money should
-     never have been in the bin to begin with. Destroying asks the stricter
-     question: a cancelled order with a hold still on the card may sit in
-     the bin, and may not be purged until the hold lapses. */
-  const refused = orders.filter((o) => {
-    const rule = removalRule(o);
-    return mode === "purge" ? !rule.canPurge : !rule.canBin;
-  });
+  /* Asked per direction, and restore is always allowed — see
+     binActionAllowed for the order that spent a day trapped in the bin
+     because this was asked on the way out as well as on the way in.
+     Destroying asks the stricter question: a cancelled order with a hold
+     still on the card may sit in the bin, and may not be purged until the
+     hold lapses. */
+  const refused = orders.filter((o) => !binActionAllowed(o, mode).allowed);
   if (refused.length > 0) {
     return {
       error: `${refused.length} מההזמנות שנבחרו הן רישום כספי (${refused
         .slice(0, 3)
         .map((o) => o.orderNumber)
-        .join(", ")}${refused.length > 3 ? "…" : ""}). ${removalRule(refused[0]).reason ?? ""}`,
+        .join(", ")}${refused.length > 3 ? "…" : ""}). ${binActionAllowed(refused[0], mode).reason ?? ""}`,
       orders: [],
     };
   }
@@ -633,7 +631,7 @@ async function loadSelection(orderNumbers: string[], wantBinned: boolean, mode: 
 /** "העבר לפח" — out of every queue and count, still here. */
 export async function trashOrdersAction(orderNumbers: string[]): Promise<BulkResult> {
   const session = await requireBackOffice();
-  const { error, orders } = await loadSelection(orderNumbers, false);
+  const { error, orders } = await loadSelection(orderNumbers, false, "bin");
   if (error) return { success: false, error };
 
   await db.order.updateMany({
@@ -657,7 +655,7 @@ export async function trashOrdersAction(orderNumbers: string[]): Promise<BulkRes
 /** "שחזר" — back to whichever tab its status puts it in. */
 export async function restoreOrdersAction(orderNumbers: string[]): Promise<BulkResult> {
   const session = await requireBackOffice();
-  const { error, orders } = await loadSelection(orderNumbers, true);
+  const { error, orders } = await loadSelection(orderNumbers, true, "restore");
   if (error) return { success: false, error };
 
   await db.order.updateMany({

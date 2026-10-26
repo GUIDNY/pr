@@ -17,11 +17,16 @@ import { purgeOrdersAction, restoreOrdersAction, trashOrdersAction } from "@/act
 export function OrdersBulkBar({
   selected,
   inTrash,
+  blockedFromPurge = [],
   onClear,
   onDone,
 }: {
   selected: string[];
   inTrash: boolean;
+  /** Selected orders that may not be destroyed yet — a live hold on the
+      card. They may still be restored, which is why they are selectable at
+      all, so the refusal belongs on this one button and not on the row. */
+  blockedFromPurge?: string[];
   onClear: () => void;
   onDone: () => void;
 }) {
@@ -34,6 +39,7 @@ export function OrdersBulkBar({
 
   const count = selected.length;
   if (count === 0) return null;
+  const purgeBlocked = blockedFromPurge.length > 0;
 
   function run(action: (numbers: string[]) => Promise<{ success: boolean; error: string | null }>) {
     setError(null);
@@ -84,12 +90,23 @@ export function OrdersBulkBar({
             </button>
             <button
               type="button"
-              disabled={pending}
+              disabled={pending || purgeBlocked}
               onClick={() => (armed ? run(purgeOrdersAction) : setArmed(true))}
+              title={
+                purgeBlocked
+                  ? `יש תפיסה פעילה בכרטיס ב-${blockedFromPurge.length} מההזמנות שנבחרו (${blockedFromPurge
+                      .slice(0, 3)
+                      .join(", ")}${blockedFromPurge.length > 3 ? "…" : ""}). אפשר לשחזר אותן; למחוק לצמיתות רק אחרי שהתפיסה פוקעת.`
+                  : undefined
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold disabled:opacity-40"
             >
               <Trash2 className="size-4" />
-              {armed ? `לחץ שוב — ${count} יימחקו ולא יחזרו` : `מחק ${count} לצמיתות`}
+              {purgeBlocked
+                ? `${blockedFromPurge.length} מהן עדיין עם תפיסה בכרטיס`
+                : armed
+                  ? `לחץ שוב — ${count} יימחקו ולא יחזרו`
+                  : `מחק ${count} לצמיתות`}
             </button>
           </>
         ) : (

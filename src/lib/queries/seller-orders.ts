@@ -37,7 +37,10 @@ export type SellerOrderSummary = {
   /** When it was moved to the bin, if it was. */
   deletedAt: Date | null;
   /** False for an order that took real money — it can be cancelled, never binned. */
-  canDelete: boolean;
+  canBin: boolean;
+  /** Stricter: a cancelled order may sit in the bin with a live hold on the
+      card, and may not be destroyed until that hold lapses. */
+  canPurge: boolean;
 };
 
 export type SellerOrderDetail = SellerOrderSummary & {
@@ -84,7 +87,7 @@ export type SellerOrderDetail = SellerOrderSummary & {
   previousStatus: string | null;
   /** Which channels can send right now — not what was true when a past message went. */
   readiness: { id: NotifyChannel; configured: boolean; missing: string[] }[];
-  /** Whether this order may be deleted outright, or only cancelled. */
+  /** Whether this order may be destroyed outright, or only cancelled. */
   canDelete: boolean;
   /** Bin, purge, and the sentence that says why not. */
   removal: RemovalRule;
@@ -406,7 +409,13 @@ function toSummary(row: ListRow): SellerOrderSummary {
     itemCount: row.items.reduce((sum, i) => sum + i.quantity, 0),
     problems,
     deletedAt: row.deletedAt,
-    canDelete: removalRule(row).canBin,
+    /* Both, rather than one flag meaning "selectable": what a row may have
+       done to it depends on which list it is being shown in, and the list
+       is the only thing that knows. A single flag is what let the bin
+       disable the checkbox of an order whose only remaining move was the
+       one that is always allowed. */
+    canBin: removalRule(row).canBin,
+    canPurge: removalRule(row).canPurge,
   };
 }
 
@@ -451,6 +460,48 @@ export function activeHold(payments: RemovablePayment[], now = new Date()): Remo
 }
 
 export type RemovalRule = { canBin: boolean; canPurge: boolean; reason: string | null };
+
+/** Which way an order is moving through the bin. */
+export type BinDirection = "bin" | "restore" | "purge";
+
+/**
+ * May this order make this move?
+ *
+ * `removalRule` answers what the row **is**; this answers what may be
+ * **done** with it, and the two are not the same question in one direction:
+ * restoring is always allowed.
+ *
+ * It was not, and the trap it made is worth writing down because the code
+ * that caused it looked careful. `loadSelection` ran the binning rule on
+ * restore too, reasoning that "the rule is about what the row is, not about
+ * which direction it is moving, and an order that took real money should
+ * never have been in the bin to begin with". The second half is the flaw:
+ * the row's answer can change **after** it is binned, and then the same
+ * rule that let it in refuses to let it out.
+ *
+ * PR-379226 did exactly that. Cancelled on 25 October with a ₪290 hold
+ * still live, which `removalRule` permits (`hold && status === CANCELLED`
+ * → canBin). Binned at 00:51 the next night, legally. Then at 14:35
+ * somebody pressed "ביטול הפעולה האחרונה" and the status went CANCELLED →
+ * NEW while the order sat in the bin — and `hold && status !== CANCELLED`
+ * is the one combination the rule refuses. The order was out of every
+ * queue, every count and every list, and could not be brought back.
+ *
+ * Restoring is the safe direction by construction: it puts the row back
+ * where people can see it. There is no state of the money for which the
+ * right answer is "leave it hidden", and the only thing a refusal here can
+ * protect is the bin's own tidiness.
+ */
+export function binActionAllowed(
+  order: { status: string; payments: RemovablePayment[] },
+  direction: BinDirection,
+  now = new Date(),
+): { allowed: boolean; reason: string | null } {
+  if (direction === "restore") return { allowed: true, reason: null };
+  const rule = removalRule(order, now);
+  const allowed = direction === "purge" ? rule.canPurge : rule.canBin;
+  return { allowed, reason: allowed ? null : rule.reason };
+}
 
 export function removalRule(order: { status: string; payments: RemovablePayment[] }, now = new Date()): RemovalRule {
   if (tookRealMoney(order.payments)) {

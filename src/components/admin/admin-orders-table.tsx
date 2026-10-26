@@ -47,7 +47,14 @@ export function AdminOrdersTable({
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const selectable = orders.filter((o) => o.canDelete);
+  /* In the bin everything is selectable: the action the bin leads with is
+     restore, and restore is always allowed. See orders-bulk-list for the
+     order that was trapped because this asked the binning question on both
+     sides of the door. */
+  const selectable = bin ? orders : orders.filter((o) => o.canBin);
+  const blockedFromPurge = bin
+    ? orders.filter((o) => selected.has(o.orderNumber) && !o.canPurge).map((o) => o.orderNumber)
+    : [];
   const allOn = selectable.length > 0 && selectable.every((o) => selected.has(o.orderNumber));
 
   function toggle(orderNumber: string) {
@@ -108,10 +115,10 @@ export function AdminOrdersTable({
                         type="checkbox"
                         checked={on}
                         onChange={() => toggle(order.orderNumber)}
-                        disabled={!order.canDelete}
+                        disabled={!bin && !order.canBin}
                         aria-label={`בחר הזמנה ${order.orderNumber}`}
                         title={
-                          order.canDelete
+                          bin || order.canBin
                             ? undefined
                             : "נגבה בהזמנה הזאת כסף אמיתי — אפשר לבטל אותה, לא למחוק"
                         }
@@ -194,6 +201,7 @@ export function AdminOrdersTable({
       </div>
 
       <OrdersBulkBar
+        blockedFromPurge={blockedFromPurge}
         selected={[...selected]}
         inTrash={bin}
         onClear={() => setSelected(new Set())}
