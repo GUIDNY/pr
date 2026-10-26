@@ -429,6 +429,64 @@ Two things that are easy to undo by accident:
 `npm run check:feed` guards the escaping, the exclusions and the price/identifier
 rules without needing a database.
 
+## The crawler log counts nothing until the address is checked
+
+`CrawlerHit` records which crawler reached which URL, written from
+`src/proxy.ts` on every request whose user agent `matchCrawler` recognises.
+It answers the two questions the shop has — does OAI-SearchBot arrive
+(**yes**, confirmed), and did Googlebot ever reach the 1,147 pages Search
+Console calls "Discovered — currently not indexed" — and neither is
+answerable from a boolean, which is why the column is a name.
+
+**The user agent is a free-text header, and the log's first report was
+wrong because of it.** It said Storebot-Google had visited ten times and
+Googlebot-Image ten times and OAI-SearchBot eleven. The true figures were
+nought, nought and one. The rest came from 160.79.106.x — a cloud container
+running the probe that proved the logging worked, with the agent string
+typed in by hand — and seventeen of the sixty-four Googlebot rows were the
+same thing. **Any count off this table that does not filter on `verified`
+is counting whoever last tested the site.**
+
+So `CRAWLER_VENDORS` maps each crawler to the vendor that publishes the
+addresses it crawls from, a daily cron (`/api/internal/crawler-verify`)
+reads those five files, and `verified` is the answer to one question: was
+this address in the list its claimed vendor publishes.
+
+- `true` — it was. 41 of the Googlebot rows, all 57 PerplexityBot rows, 16
+  of the 17 ChatGPT-User rows.
+- `false` — the vendor publishes a list and this address is not in it. Our
+  own probes, and **one real forgery on the first day**: a `ChatGPT-User`
+  from 88.223.223.251, an address in no OpenAI range.
+- `null` — nobody to ask. Amazonbot, facebookexternalhit, ClaudeBot and the
+  monitoring agents publish nothing fetchable; Amazon and Meta document
+  reverse DNS instead, which is a different lookup this does not do.
+
+`null` is load-bearing in the other direction too: **a vendor whose file
+could not be read is skipped, never disbelieved.** One bad morning at
+Google would otherwise rewrite every Googlebot row to `false`, and a false
+accusation against a real crawler is the expensive error here — it is the
+one that gets a genuine arrival ignored. A file that parses to nothing
+counts as unread for the same reason. Matching is per *vendor* and not per
+crawler, because Google splits its ranges over three files by product and
+the question is "is this really Google".
+
+There is no "checked, nothing to ask" marker and deliberately no column for
+one: whether a crawler is answerable is a static fact in `CRAWLER_VENDORS`,
+so a row for Amazonbot is never selected, and the day a vendor starts
+publishing, its old rows become pending again by themselves.
+
+`npm run check:crawler-verify` carries the founding rows — the four names
+our own probe wore, the one genuine forgery, the real arrivals — and
+`--live` additionally asks the five vendors, which is what catches a moved
+URL (Google's documented `/search/apis/ipranges/` path already 301s to
+`/crawling/ipranges/`).
+
+Two limits of the log itself, measured rather than assumed: `?_rsc=` is
+stripped from `nextUrl` and an `RSC: 1` header does not survive to
+middleware, so `Accept: text/x-component` is the working signal for an RSC
+fetch; and an RSC request for a page the CDN already holds never reaches
+middleware at all.
+
 ## Structured specs hang off leaf categories
 
 `CategoryAttribute` rows belong to leaf categories, not departments. `sheet-map.ts` maps

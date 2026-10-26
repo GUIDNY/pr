@@ -16,6 +16,10 @@
       "schedule": "20 1 * * *"
     },
     {
+      "path": "/api/internal/crawler-verify",
+      "schedule": "20 2 * * *"
+    },
+    {
       "path": "/api/internal/stuck-payments",
       "schedule": "*/15 * * * *"
     }
