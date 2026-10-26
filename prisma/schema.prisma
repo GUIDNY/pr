@@ -941,6 +941,11 @@ model OrderStatusHistory {
   changedById String?
   changedBy   User?    @relation("StatusChangedBy", fields: [changedById], references: [id])
   note        String?
+  /// Written by undoLastStatusAction and by nothing else. An undo is a step
+  /// of a different kind: it may not itself be undone, or the button
+  /// becomes a toggle with no stable end — see lib/order-undo.ts, and
+  /// PR-902319, which was flipped nine times in half an hour.
+  isUndo      Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   @@index([orderId])

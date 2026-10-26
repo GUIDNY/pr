@@ -11,6 +11,7 @@ import type { NotifyEvent } from "@/lib/notify/types";
 import { removalRule, binActionAllowed, type BinDirection } from "@/lib/queries/seller-orders";
 import { INTERNAL_DELIVERY_NAME } from "@/lib/couriers";
 import { MANUAL_PAYMENT_METHOD_LABELS, manualPaymentMethodSchema, type ManualPaymentMethod } from "@/lib/enums";
+import { undoableStep } from "@/lib/order-undo";
 import { sendPurchaseToGa4 } from "@/lib/analytics/ga4-purchase";
 
 /**
@@ -471,13 +472,20 @@ export async function undoLastStatusAction(orderNumber: string): Promise<Result>
     select: {
       id: true,
       status: true,
-      statusHistory: { orderBy: { createdAt: "desc" }, take: 1 },
+      statusHistory: {
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { fromStatus: true, toStatus: true, isUndo: true },
+      },
     },
   });
   if (!order) return { success: false, error: "הזמנה לא נמצאה" };
 
-  const last = order.statusHistory[0];
-  if (!last || !last.fromStatus) {
+  /* One step, and never an undo of an undo — see lib/order-undo.ts and
+     PR-902319, which was flipped between two statuses nine times in half
+     an hour because each undo became the thing the next one undid. */
+  const last = undoableStep(order.statusHistory);
+  if (!last) {
     return { success: false, error: "אין שלב קודם לחזור אליו." };
   }
   if (last.toStatus !== order.status) {
@@ -505,6 +513,9 @@ export async function undoLastStatusAction(orderNumber: string): Promise<Result>
       toStatus: last.fromStatus,
       changedById: session.sub,
       note: "ביטול הפעולה האחרונה",
+      /* The flag, not the note, is what the next press reads. A rule that
+         lives in free text is one a translation or a typo switches off. */
+      isUndo: true,
     },
   });
   await logAudit({

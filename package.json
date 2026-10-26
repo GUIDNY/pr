@@ -78,7 +78,8 @@
     "check:crawlers": "tsx scripts/check-crawlers.ts",
     "check:crawler-verify": "tsx scripts/check-crawler-verify.ts",
     "check:order-bin": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-order-bin.ts",
-    "check:manual-order": "tsx scripts/check-manual-order.ts"
+    "check:manual-order": "tsx scripts/check-manual-order.ts",
+    "check:order-undo": "tsx scripts/check-order-undo.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
