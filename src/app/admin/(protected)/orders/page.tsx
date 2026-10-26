@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { getAdminOrders, getAdminOrderStatusCounts, getStaffUsers } from "@/lib/queries/admin-orders";
 import { OrdersFilterBar } from "@/components/admin/orders-filter-bar";
 import { OrdersStatusTabs } from "@/components/admin/orders-status-tabs";
@@ -17,6 +17,20 @@ import { OrdersViewSwitch, ordersViewFor } from "@/components/admin/orders-view-
 export const metadata = { title: "הזמנות | Buy Today Admin" };
 
 const PAGE_SIZE = 20;
+
+/* The way in for a sale that happened on the phone. On both views, because
+   the salesperson taking the call is the one on the handling view and an
+   order they cannot record is an order the shop does not have. */
+function NewOrderButton() {
+  return (
+    <Link
+      href="/admin/orders/new"
+      className="bg-brand text-brand-foreground hover:bg-brand/90 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold"
+    >
+      <Plus className="size-4" /> הזמנה ידנית
+    </Link>
+  );
+}
 
 export default async function AdminOrdersPage({
   searchParams,
@@ -42,12 +56,18 @@ export default async function AdminOrdersPage({
     ]);
     return (
       <div className="flex flex-col gap-4">
-        {manager && (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h1 className="text-2xl font-bold">הזמנות</h1>
-            <OrdersViewSwitch view="handle" href={(v) => (v === "full" ? "/admin/orders?view=full" : "/admin/orders")} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold">הזמנות</h1>
+          <div className="flex items-center gap-3">
+            <NewOrderButton />
+            {manager && (
+              <OrdersViewSwitch
+                view="handle"
+                href={(v) => (v === "full" ? "/admin/orders?view=full" : "/admin/orders")}
+              />
+            )}
           </div>
-        )}
+        </div>
         <OrderStageTabs active={stage} counts={counts} />
         <p className="text-muted-foreground text-sm">{STAGE_HINTS[stage]}</p>
         {orders.length === 0 ? (
@@ -108,6 +128,7 @@ export default async function AdminOrdersPage({
         <h1 className="text-2xl font-bold">{bin ? "פח ההזמנות" : "הזמנות"}</h1>
         <div className="flex items-center gap-3">
           <span className="text-muted-foreground text-sm">{total} הזמנות בתצוגה</span>
+          {!bin && <NewOrderButton />}
           <OrdersViewSwitch view="full" href={(v) => (v === "full" ? "/admin/orders?view=full" : "/admin/orders")} />
         </div>
       </div>
