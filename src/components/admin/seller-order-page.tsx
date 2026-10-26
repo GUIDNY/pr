@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight, Truck, Store, Phone, Mail, AlertTriangle, Check, Loader2,
-  Package, Clock, MessageSquare, CreditCard, Send, Undo2, Trash2, ExternalLink, Eye, TrendingUp,
+  Package, Clock, MessageSquare, CreditCard, Send, Undo2, Trash2, ExternalLink, Eye, TrendingUp, RotateCcw,
 } from "lucide-react";
 import type { SellerOrderDetail } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
@@ -24,6 +24,7 @@ import { orderProfit } from "@/lib/order-profit";
 import {
   approveOrderAction, closeOrderAction, markShippedAction, logManualWhatsappAction,
   undoLastStatusAction, deleteOrderAction, resendNotificationAction, markPaidManuallyAction, trashOrdersAction,
+  restoreOrdersAction,
   setDeliveryCostAction,
 } from "@/actions/seller-orders";
 import { COURIERS } from "@/lib/couriers";
@@ -663,9 +664,33 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
       {/* ---- the exit for something that should not exist ---- */}
       <div className="border-border mt-2 rounded-2xl border border-dashed p-4">
         <p className="text-muted-foreground text-xs">
-          {order.removal.reason ??
-            "העברה לפח מוציאה את ההזמנה מכל הרשימות ואפשר לשחזר אותה. מחיקה לצמיתות מוחקת אותה לגמרי ומיועדת להזמנות בדיקה ולטעויות שלא נגבה בהן כסף."}
+          {order.deletedAt
+            ? `ההזמנה בפח מאז ${formatDateTime(order.deletedAt)}. היא לא מופיעה באף רשימה, בתור או ספירה — אבל היא כאן, שלמה.`
+            : (order.removal.reason ??
+              "העברה לפח מוציאה את ההזמנה מכל הרשימות ואפשר לשחזר אותה. מחיקה לצמיתות מוחקת אותה לגמרי ומיועדת להזמנות בדיקה ולטעויות שלא נגבה בהן כסף.")}
         </p>
+        {/* The way back, from the page itself.
+            The trip out was built here and the return trip was not: on a
+            binned order the only button in this box was "מחק לצמיתות", so
+            the one path off this page led away from the order rather than
+            back to it. Restoring is always allowed — see binActionAllowed —
+            so this never has a condition beyond being in the bin. */}
+        {order.deletedAt && (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() =>
+              run(async () => {
+                const result = await restoreOrdersAction([order.orderNumber]);
+                if (result.success) router.refresh();
+                return result;
+              })
+            }
+            className="bg-brand text-brand-foreground hover:bg-brand-hover mt-2 flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-bold disabled:opacity-40"
+          >
+            <RotateCcw className="size-4" /> שחזר מהפח
+          </button>
+        )}
         {/* The bin, from the page itself: it used to be reachable only by
             ticking a row in the list, and a person standing on a cancelled
             order who wants it gone should not have to go and find it. */}
