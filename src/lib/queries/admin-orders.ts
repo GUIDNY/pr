@@ -78,7 +78,11 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
       ...order,
       hoursInStatus,
       isStale: staleAfter !== null && hoursInStatus > staleAfter,
-      canDelete: removalRule(order).canBin,
+      /* Both, for the same reason as the seller list: the bin view of this
+         same table offers restore, which is always allowed, and purge,
+         which is stricter than binning. One flag cannot say both. */
+      canBin: removalRule(order).canBin,
+      canPurge: removalRule(order).canPurge,
     };
   });
 

@@ -29,11 +29,24 @@ export function OrdersBulkList({
   const inTrash = stage === TRASH_STAGE;
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  /* An order that took real money is not selectable at all, rather than
-     selectable and refused on submit. The server checks it again — this is
-     the half that stops somebody selecting fifteen, pressing delete and
-     being told no because of one of them. */
-  const selectable = orders.filter((o) => o.canDelete);
+  /* On the way in, an order that took real money is not selectable at all,
+     rather than selectable and refused on submit — the half that stops
+     somebody selecting fifteen, pressing delete and being told no because
+     of one of them. The server checks it again.
+
+     **In the bin every row is selectable**, because the action the bin
+     leads with is restore and restore is always allowed. Asking the
+     binning question here is what trapped PR-379226: its status changed
+     while it sat in the bin, the rule that had let it in now refused it,
+     and the checkbox in front of the only button that could have saved it
+     was greyed out. The purge button is where the stricter rule belongs,
+     and that is where it now is. */
+  const selectable = inTrash ? orders : orders.filter((o) => o.canBin);
+  /* What the bar must refuse rather than the list: a selection holding one
+     order that cannot be destroyed yet. */
+  const blockedFromPurge = inTrash
+    ? orders.filter((o) => selected.has(o.orderNumber) && !o.canPurge)
+    : [];
   const allOn = selectable.length > 0 && selectable.every((o) => selected.has(o.orderNumber));
 
   function toggle(orderNumber: string) {
@@ -69,10 +82,10 @@ export function OrdersBulkList({
             type="checkbox"
             checked={selected.has(order.orderNumber)}
             onChange={() => toggle(order.orderNumber)}
-            disabled={!order.canDelete}
+            disabled={!inTrash && !order.canBin}
             aria-label={`בחר הזמנה ${order.orderNumber}`}
             title={
-              order.canDelete
+              inTrash || order.canBin
                 ? undefined
                 : "נגבה בהזמנה הזאת כסף אמיתי — אפשר לבטל אותה, לא למחוק"
             }
@@ -87,6 +100,7 @@ export function OrdersBulkList({
       <OrdersBulkBar
         selected={[...selected]}
         inTrash={inTrash}
+        blockedFromPurge={blockedFromPurge.map((o) => o.orderNumber)}
         onClear={() => setSelected(new Set())}
         onDone={() => setSelected(new Set())}
       />
