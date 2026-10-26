@@ -659,7 +659,7 @@ export async function trashOrdersAction(orderNumbers: string[]): Promise<BulkRes
     });
   }
 
-  revalidateOrderLists();
+  revalidateOrderLists(orders.map((o) => o.orderNumber));
   return { success: true, error: null, count: orders.length };
 }
 
@@ -683,7 +683,7 @@ export async function restoreOrdersAction(orderNumbers: string[]): Promise<BulkR
     });
   }
 
-  revalidateOrderLists();
+  revalidateOrderLists(orders.map((o) => o.orderNumber));
   return { success: true, error: null, count: orders.length };
 }
 
@@ -717,13 +717,20 @@ export async function purgeOrdersAction(orderNumbers: string[]): Promise<BulkRes
   }
   const { count } = await db.order.deleteMany({ where: { id: { in: orders.map((o) => o.id) } } });
 
-  revalidateOrderLists();
+  /* Their own pages too, so a cached one answers "not found" rather than
+     showing an order that no longer exists. */
+  revalidateOrderLists(orders.map((o) => o.orderNumber));
   return { success: true, error: null, count };
 }
 
-function revalidateOrderLists() {
+function revalidateOrderLists(orderNumbers: string[] = []) {
   revalidatePath("/admin/orders");
   revalidatePath("/admin");
+  /* And each order's own page. The bin actions are reachable from there
+     too — the restore button lives on it — and a page that is not
+     revalidated shows the order still binned after it has been brought
+     back, which reads as the button having done nothing. */
+  for (const orderNumber of orderNumbers) revalidatePath(`/admin/orders/${orderNumber}`);
 }
 
 /**
