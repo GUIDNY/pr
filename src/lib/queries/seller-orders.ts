@@ -9,6 +9,7 @@ import { NOTIFY_EVENTS, type NotifyEvent, type NotifyChannel } from "@/lib/notif
 import { courierTrackingUrl } from "@/lib/couriers";
 import { channelReadiness } from "@/lib/notify";
 import { attributionFromJson, type Attribution } from "@/lib/attribution";
+import { orderProblems, type OrderProblem } from "@/lib/order-problems";
 import { undoTargetStatus } from "@/lib/order-undo";
 
 /**
@@ -21,7 +22,7 @@ import { undoTargetStatus } from "@/lib/order-undo";
  * field below exists to make one thing on a card or a page true.
  */
 
-export type OrderProblem = { severity: "block" | "warn"; text: string };
+export type { OrderProblem };
 
 export type SellerOrderSummary = {
   id: string;
@@ -109,6 +110,9 @@ const LIST_SELECT = {
   shipApartment: true,
   guestName: true,
   guestPhone: true,
+  /* Whether the goods have gone, which is what decides if the shelf still
+     has anything to say about this order — see lib/order-problems.ts. */
+  shippedAt: true,
   deletedAt: true,
   /* Only to answer "may this one be binned". Two columns rather than the
      whole payment row, on a list that loads 200 of them. */
@@ -359,6 +363,9 @@ type ListRow = {
   shipApartment: string | null;
   guestName: string | null;
   guestPhone: string | null;
+  /* Read by orderProblems: the fact that the goods have gone, which a
+     status can lose and this cannot. */
+  shippedAt: Date | null;
   deletedAt: Date | null;
   payments: { provider: string; status: string }[];
   user: { name: string; phone: string | null } | null;
@@ -376,31 +383,19 @@ function toSummary(row: ListRow): SellerOrderSummary {
     .filter(Boolean)
     .join(" ");
 
-  const problems: OrderProblem[] = [];
-
-  // A delivery order with nowhere to deliver it. This used to reach the back
-  // office silently — see the shipCity comment in schema.prisma — which is
-  // why the address is on the front of the card and not below the fold.
-  if (toCustomer && !address) {
-    problems.push({ severity: "block", text: "הזמנת משלוח בלי כתובת — צריך להתקשר ללקוח" });
-  }
-  if (!row.guestPhone && !row.user?.phone) {
-    problems.push({ severity: "block", text: "אין טלפון ליצירת קשר" });
-  }
-
-  // Stock is read now, not from the order. What matters to whoever is picking
-  // it is what is on the shelf today.
-  for (const item of row.items) {
-    const inStock = item.product ? item.product.stockQty : null;
-    if (inStock === null) {
-      problems.push({ severity: "warn", text: `${item.titleSnap} — המוצר לא קיים יותר בקטלוג` });
-    } else if (inStock < item.quantity) {
-      problems.push({
-        severity: "block",
-        text: `${item.titleSnap} — הוזמנו ${item.quantity}, במלאי ${inStock}`,
-      });
-    }
-  }
+  /* Moved to lib/order-problems.ts so it can be tested without a database
+     — and because the stock rule needed a condition it never had: it is a
+     picking concern, and it stops at the warehouse door. See the header
+     there, and PR-430724, which shipped in August and could never be
+     closed because the shelf was empty of the very dryer it had sent. */
+  const problems = orderProblems({
+    status: row.status,
+    deliveryMethod: row.deliveryMethod,
+    shippedAt: row.shippedAt,
+    address,
+    phone: row.guestPhone ?? row.user?.phone ?? null,
+    items: row.items,
+  });
 
   return {
     id: row.id,
