@@ -61,7 +61,15 @@ Three runs were lost to exactly that between 28 and 29 September, and on
 both missed, the shop selling against Wednesday afternoon's stock, and the
 owner was the one who noticed. The log on that Mac
 (`~/Library/Logs/buytoday-sync.log`) is the only place the reason is written;
-`ERROR folder not reachable` is the usual line. Nothing in this repository or
+`ERROR folder not reachable` is the usual line. Since 30 October the remount
+retries — eight attempts ninety seconds apart, about a quarter of an hour —
+and probes port 445 first, so the log now says which it was: "does not answer
+on port 445" is the office line or the server, "answers, but the share is
+still not there" is the Mac's own keychain or Finder. Five runs between 27
+and 30 October were lost to the first kind, each to a line that was back
+within the hour. The script runs from `/Users/guindybot/buytoday/`, a copy
+of `scripts/agent/`, and is updated by copying the file there — nothing
+pulls it. Nothing in this repository or
 this database can tell you which of the causes it was, and no amount of
 checking from here substitutes for reading that file.
 

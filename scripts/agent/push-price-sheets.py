@@ -28,12 +28,14 @@ import json
 import mimetypes
 import os
 import shutil
+import socket
 import ssl
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from datetime import datetime, timezone
@@ -60,7 +62,18 @@ SHEETS_SMB_URL = os.environ.get("BUYTODAY_SHEETS_SMB_URL", "")
 # and returns immediately, so the only way to know is to look. Twenty seconds
 # is generous for a share on the far side of an ADSL line and still far
 # inside the launchd window.
-MOUNT_WAIT_SECONDS = 20
+# One attempt waits this long for macOS to finish mounting; between attempts
+# the script pauses, and gives up after MOUNT_ATTEMPTS. The old version tried
+# once and waited 20 seconds, which is long enough when the server answers
+# and never when the office line is down for a minute: five runs were lost
+# that way between 27 and 30 October, every one of them to a share that was
+# back by the time anybody looked. Eight attempts ninety seconds apart is a
+# quarter of an hour, which is what an ADSL blip takes to clear and still
+# well inside the gap before the next scheduled run.
+MOUNT_WAIT_SECONDS = 30
+MOUNT_ATTEMPTS = 8
+MOUNT_RETRY_PAUSE_SECONDS = 90
+SMB_PORT = 445
 
 SITE = os.environ.get("BUYTODAY_SITE", "https://buytoday.co.il")
 
@@ -242,6 +255,26 @@ def heartbeat(keys: list[str]) -> None:
         log(f"       heartbeat failed, not fatal: {err}")
 
 
+def server_reachable(smb_url: str) -> "bool | None":
+    """Whether the file server answers on the SMB port at all.
+
+    Asked before every mount attempt because the log used to say "still not
+    there after 20s" for two different failures — the server unreachable
+    (the ADSL line, the server off) and the mount itself refused (a keychain
+    item gone, Finder wanting a dialog) — and only the second one is
+    anything a person at this Mac can fix. None when the URL has no host to
+    ask, in which case the mount is tried anyway.
+    """
+    host = urllib.parse.urlsplit(smb_url).hostname
+    if not host:
+        return None
+    try:
+        with socket.create_connection((host, SMB_PORT), timeout=5):
+            return True
+    except OSError:
+        return False
+
+
 def remount() -> bool:
     """Ask macOS to mount the share again, and wait to see whether it did.
 
@@ -262,27 +295,43 @@ def remount() -> bool:
         log("       BUYTODAY_SHEETS_SMB_URL is not set, so not attempting a remount")
         return False
 
+    host = urllib.parse.urlsplit(SHEETS_SMB_URL).hostname or "the file server"
     log(f"WARN   {SHEETS_DIR} is not there — asking macOS to mount it")
-    try:
-        subprocess.run(
-            ["/usr/bin/open", SHEETS_SMB_URL],
-            check=False,
-            capture_output=True,
-            timeout=MOUNT_WAIT_SECONDS,
-        )
-    except (OSError, subprocess.SubprocessError) as err:
-        log(f"       could not start the mount: {err}")
-        return False
+    unreachable = 0
+    for attempt in range(1, MOUNT_ATTEMPTS + 1):
+        reachable = server_reachable(SHEETS_SMB_URL)
+        if reachable is False:
+            unreachable += 1
+            log(f"       attempt {attempt}/{MOUNT_ATTEMPTS}: {host} does not answer on port {SMB_PORT} — "
+                "the line or the server, not this Mac")
+        else:
+            try:
+                subprocess.run(
+                    ["/usr/bin/open", SHEETS_SMB_URL],
+                    check=False,
+                    capture_output=True,
+                    timeout=MOUNT_WAIT_SECONDS,
+                )
+            except (OSError, subprocess.SubprocessError) as err:
+                log(f"       attempt {attempt}/{MOUNT_ATTEMPTS}: could not start the mount: {err}")
+            else:
+                for _ in range(MOUNT_WAIT_SECONDS):
+                    if SHEETS_DIR.is_dir():
+                        log(f"       mounted (attempt {attempt})")
+                        return True
+                    time.sleep(1)
+                log(f"       attempt {attempt}/{MOUNT_ATTEMPTS}: {host} answers, but the share is still not "
+                    f"there after {MOUNT_WAIT_SECONDS}s")
+        if attempt < MOUNT_ATTEMPTS:
+            time.sleep(MOUNT_RETRY_PAUSE_SECONDS)
 
-    for _ in range(MOUNT_WAIT_SECONDS):
-        if SHEETS_DIR.is_dir():
-            log("       mounted")
-            return True
-        time.sleep(1)
-
-    log(f"       still not there after {MOUNT_WAIT_SECONDS}s")
-    log("       The share needs a person: check the server is reachable and that")
-    log("       the saved credentials still work (Finder → Go → Connect to Server).")
+    minutes = round(MOUNT_ATTEMPTS * (MOUNT_WAIT_SECONDS + MOUNT_RETRY_PAUSE_SECONDS) / 60)
+    log(f"       gave up after {MOUNT_ATTEMPTS} attempts over about {minutes} minutes")
+    if unreachable == MOUNT_ATTEMPTS:
+        log(f"       {host} never answered: the office line or the file server is down.")
+    else:
+        log("       The share needs a person: the server answers, so check that the saved")
+        log("       credentials still work (Finder → Go → Connect to Server).")
     return False
 
 
