@@ -726,7 +726,25 @@ export type ForeignBinding = {
 export async function checkForeignRowBindings(): Promise<ForeignBinding[]> {
   const candidates = await db.product.findMany({
     where: {
-      stockQty: { gt: 0 },
+      /* NO STOCK FILTER, and that is the correction rather than the
+         original design. This asked only about products with something on
+         the shelf, carried over from the by-hand sweep that found "twenty
+         LIVE products" — and an empty shelf is not safety, it is dormancy.
+         A product with a drifted binding and no stock is one sync away
+         from the site at a price that came off another machine's row, and
+         reconcileAutoPublish will put it there without anybody pressing
+         anything.
+
+         140201 is the proof: a Bosch SMS4ECW28E bound to a row that had
+         become an SMV 2HTX06E, wearing the SMV's 2,790 ₪ and the SMV's
+         2,350 ₪ cost. Zero stock, so this sweep never asked about it — and
+         a customer still ordered it, at a price that read as a 440 ₪
+         profit and was really an 890 ₪ loss.
+
+         Measured when the filter came out: 83 products have a foreign
+         binding, 29 in stock and already asked about, 54 with none — 52 of
+         those published, 74,550 ₪ of listed price waiting for a stock
+         figure. */
       missingFromSourceSince: null,
       model: { not: null },
       lastRowModel: { not: null },
@@ -750,7 +768,10 @@ export async function checkForeignRowBindings(): Promise<ForeignBinding[]> {
   return candidates
     .filter((p) => rowBindingLooksForeign(p))
     .map((p) => ({ ...p, rowModel: p.lastRowModel, sheet: p.sourceSheet, rowRef: p.sourceRowRef }))
-    .sort((a, b) => b.price * b.stockQty - a.price * a.stockQty);
+    /* Stocked first, because those are selling today; then by price, so
+       the dormant ones are ordered by what they would cost if they woke
+       up rather than arbitrarily. */
+    .sort((a, b) => b.price * b.stockQty - a.price * a.stockQty || b.price - a.price);
 }
 
 /**
