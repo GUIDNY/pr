@@ -18,6 +18,12 @@ import {
   type RunArrival,
 } from "@/lib/inventory/replaced-products";
 
+import {
+  findDuplicateListings,
+  duplicateMessage,
+  type DuplicateGroup,
+} from "./duplicate-listings";
+
 export type { ReplacedProduct };
 
 /**
@@ -959,6 +965,107 @@ export async function reconcileTitleModelAlerts(): Promise<TitleMismatch[]> {
           modelField: f.model,
           price: f.price,
           stockQty: f.stockQty,
+          raisedBy: "watchdog",
+        }),
+      },
+    });
+  }
+  return fresh;
+}
+
+// ---------------------------------------------------------------------------
+// The same machine on the site twice, at two prices
+// ---------------------------------------------------------------------------
+
+export type { DuplicateGroup };
+
+/**
+ * Two published products wearing one model code.
+ *
+ * The third thing a sync run cannot see about itself, after a drifted row
+ * binding and a swapped product: a second record for something the
+ * catalogue already had. Each run is right — a row with no SKU matched
+ * nothing, so a new product is the only honest answer — and the catalogue
+ * is wrong, because the thing already exists under a binding that drifted
+ * months ago. Only a sweep from outside can hold both halves at once.
+ *
+ * See lib/inventory/duplicate-listings.ts for why the severity is decided
+ * by money rather than by difference, and why a different colour does not
+ * clear it.
+ */
+export async function checkDuplicateListings(): Promise<DuplicateGroup[]> {
+  /* Published, not PUBLIC_PRODUCT_WHERE. A twin with no stock or no photo
+     is invisible today and one sync away from being on the shelf beside
+     its double, and it is the pair that is wrong, not the visible half. */
+  const rows = await db.product.findMany({
+    where: { isPublished: true, model: { not: null } },
+    select: {
+      id: true,
+      sku: true,
+      title: true,
+      model: true,
+      price: true,
+      supplierCost: true,
+      stockQty: true,
+      colorName: true,
+      isPublished: true,
+    },
+  });
+  return findDuplicateListings(rows);
+}
+
+/**
+ * One DUPLICATE_MODEL alert per model code, once, ever.
+ *
+ * Same manners as the other two sweeps that cannot settle their own
+ * question: deciding which of two records is the real one means opening
+ * the price list, and re-asking every three hours is how people learn to
+ * close these unread. Keyed on the model code in the metadata rather than
+ * on a productId, because the finding is about the pair — pinning it to
+ * one of them would raise it again from the other side.
+ */
+export async function reconcileDuplicateListingAlerts(): Promise<DuplicateGroup[]> {
+  const found = await checkDuplicateListings();
+  if (found.length === 0) return found;
+
+  const asked = await db.inventoryAlert
+    .findMany({ where: { type: "DUPLICATE_MODEL" }, select: { metadata: true } })
+    .then((rows) => {
+      const keys = new Set<string>();
+      for (const r of rows) {
+        try {
+          const key = JSON.parse(r.metadata ?? "{}").modelKey;
+          if (typeof key === "string") keys.add(key);
+        } catch {
+          /* A hand-written alert with no metadata tells us nothing about
+             which code it covered; it simply does not suppress one. */
+        }
+      }
+      return keys;
+    });
+
+  const fresh = found.filter((g) => !asked.has(g.key));
+  for (const group of fresh) {
+    await db.inventoryAlert.create({
+      data: {
+        type: "DUPLICATE_MODEL",
+        severity: group.severity,
+        /* The cheapest listing, which is the one a customer would take
+           and the one somebody has to look at first. */
+        productId: group.listings[0].id,
+        sourceSku: group.listings[0].sku,
+        message: duplicateMessage(group),
+        metadata: JSON.stringify({
+          modelKey: group.key,
+          lossPerUnit: group.lossPerUnit,
+          buyableNow: group.buyableNow,
+          listings: group.listings.map((l) => ({
+            sku: l.sku,
+            price: l.price,
+            supplierCost: l.supplierCost,
+            stockQty: l.stockQty,
+            colorName: l.colorName,
+          })),
           raisedBy: "watchdog",
         }),
       },

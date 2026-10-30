@@ -7,6 +7,7 @@ import {
   reconcileForeignRowBindingAlerts,
   reconcileTitleModelAlerts,
   reconcileUnderpricedAlerts,
+  reconcileDuplicateListingAlerts,
 } from "@/lib/inventory/sync-watchdog";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
@@ -69,7 +70,14 @@ export async function GET(request: Request) {
   /* And a seventh: a price no appliance can carry — under the storefront's
      floor, or at or below the product's own cost. A 1 ₪ attachment, frozen
      there by a manual flag, was live for nine days before the owner saw it. */
-  const [freshness, sheets, replaced, size, foreign, titles, underpriced] = await Promise.all([
+  /* And an eighth: the same machine on the site twice, at two prices. A
+     Bosch SMS4ECW28E was live at 3,990 and at 2,790 on the same morning —
+     one record bound to a row that had drifted onto another model, the
+     other created when the real row matched nothing. Neither sync run was
+     wrong on its own, which is why only a sweep from outside can see it,
+     and a customer choosing the cheap one would have been sold a 3,680 ₪
+     machine for 2,790 with nothing anywhere saying a word. */
+  const [freshness, sheets, replaced, size, foreign, titles, underpriced, duplicates] = await Promise.all([
     reconcileSyncStaleAlert(),
     reconcileStaleSheetAlerts(),
     reconcileReplacedProductAlert(),
@@ -77,6 +85,7 @@ export async function GET(request: Request) {
     reconcileForeignRowBindingAlerts(),
     reconcileTitleModelAlerts(),
     reconcileUnderpricedAlerts(),
+    reconcileDuplicateListingAlerts(),
   ]);
   const staleSheets = sheets.filter((s) => s.stale);
   return NextResponse.json({
@@ -110,6 +119,16 @@ export async function GET(request: Request) {
       rowRef: f.rowRef,
       price: f.price,
       isPublished: f.isPublished,
+    })),
+    /* Same manners as foreignRowBindings: newly asked, not the standing
+       total. The money figure is the one to read — it is what a customer
+       taking the cheap listing would cost the shop. */
+    duplicateListings: duplicates.map((d) => ({
+      modelKey: d.key,
+      severity: d.severity,
+      lossPerUnit: d.lossPerUnit,
+      buyableNow: d.buyableNow,
+      skus: d.listings.map((l) => ({ sku: l.sku, price: l.price, stockQty: l.stockQty })),
     })),
     titleModelMismatches: titles.map((t) => ({
       sku: t.sku,
