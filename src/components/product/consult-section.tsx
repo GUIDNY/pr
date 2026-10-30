@@ -6,7 +6,7 @@ import { MessageCircle, Phone, PhoneCall } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { submitSupportRequestAction } from "@/actions/support";
+import { submitSupportRequestReported } from "@/lib/support-client";
 import { BUSINESS } from "@/lib/business";
 
 export function ConsultSection({ productTitle }: { productTitle: string }) {
@@ -38,7 +38,7 @@ export function ConsultSection({ productTitle }: { productTitle: string }) {
           onSubmit={(e) => {
             e.preventDefault();
             startTransition(async () => {
-              const result = await submitSupportRequestAction({
+              const result = await submitSupportRequestReported({
                 name,
                 phone,
                 channel: "CALLBACK",

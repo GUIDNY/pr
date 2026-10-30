@@ -8,6 +8,7 @@ import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { AttributionCapture } from "@/components/analytics/attribution-capture";
 import { GoogleTagManager } from "@/components/analytics/google-tag-manager";
 import { PathLog } from "@/components/analytics/path-log";
+import { ContactClicks } from "@/components/analytics/contact-clicks";
 import { NativeViewport } from "@/components/layout/native-viewport";
 import { Clarity } from "@/components/analytics/clarity";
 import { MetaPixel } from "@/components/analytics/meta-pixel";
@@ -169,6 +170,7 @@ export default function RootLayout({
             <MetaPixel />
             <AttributionCapture />
             <PathLog />
+            <ContactClicks />
             <NativeViewport />
           </TooltipProvider>
         </DirectionProvider>

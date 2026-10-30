@@ -106,6 +106,20 @@ export function pushEcommerce(event: string, ecommerce: EcommercePayload): boole
 }
 
 /**
+ * A plain event — a lead, not a sale: phone_click, whatsapp_click,
+ * form_submit. Same gate as the ecommerce push, no ecommerce object, so
+ * GTM forwards it to GA4 as-is and the ad platforms can import it as a
+ * conversion by name.
+ */
+export function pushEvent(event: string, params: Record<string, string | number | boolean> = {}): boolean {
+  if (typeof window === "undefined") return false;
+  if (!consentGranted() || isNativeApp()) return false;
+  window.dataLayer = window.dataLayer || [];
+  window.dataLayer.push({ event, ...params });
+  return true;
+}
+
+/**
  * GA4's own identity for this browser, read from its cookies, so a purchase
  * reported from the server (lib/analytics/ga4-purchase.ts) carries the
  * same client_id as the browser's and GA4 deduplicates the two by

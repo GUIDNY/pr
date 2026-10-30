@@ -206,6 +206,16 @@ export type FeedProduct = {
 // Split from the query on purpose: every rule Google can reject an item over
 // lives in here, taking plain rows, so it can be run and its output parsed
 // without a database.
+/* custom_label_0, by category slug. Merchant Center campaigns are built on
+   these labels, and the first paid test (30 October: Google Shopping against
+   chat ads, on dryers) needs its products marked "test" so the campaign can
+   be limited to them and read apart afterwards. A map here rather than a
+   column: a label is about a campaign, not about a product, and the next
+   test changes this line. */
+export const CUSTOM_LABEL_0_BY_CATEGORY: Record<string, string> = {
+  dryers: "test",
+};
+
 export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
   const items: string[] = [];
 
@@ -359,6 +369,8 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
        from. */
     const googleCategory = googleProductCategoryFor(p.category.slug);
     if (googleCategory !== null) lines.push(tag("g:google_product_category", String(googleCategory)));
+    const customLabel = CUSTOM_LABEL_0_BY_CATEGORY[p.category.slug];
+    if (customLabel) lines.push(tag("g:custom_label_0", customLabel));
 
     items.push(`  <item>\n${lines.join("\n")}\n  </item>`);
   }

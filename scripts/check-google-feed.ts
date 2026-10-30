@@ -58,6 +58,7 @@ const rows: FeedProduct[] = [
       "<h3>נפח</h3>\n<ul>\n<li>נפח שימושי: 326 ליטר</li>\n</ul>\n<p>צוות A&I ישמח לעזור.&nbsp;5 &gt; 3.</p>",
   }),
   product({ sku: "ONSALE", price: 7200, compareAtPrice: 8400 }),
+  product({ sku: "DRYER", category: { name: "מייבשי כביסה", slug: "dryers", parent: { name: "כביסה" } } }),
   product({ sku: "NOMODEL", model: null }),
   // The barcodes are empty today and will arrive from the ERP, which is
   // exactly the import that writes a UPC-A into an EAN-13 column. These
@@ -153,7 +154,7 @@ check("no control characters", !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/
 for (const excluded of ["GONE", "REVIEW", "SHOWROOM"]) {
   check(`${excluded} is kept out of the feed`, !items.has(excluded));
 }
-for (const included of ["PLAIN", "HTMLDESC", "ONSALE", "NOMODEL", "BACKORDER", "GTIN", "GTINONLY", "GTINBAD", "GTINSPACED", "FREESHIP", "VARBLACK", "VARWHITE", "VARNOCOLOR"]) {
+for (const included of ["PLAIN", "HTMLDESC", "ONSALE", "DRYER", "NOMODEL", "BACKORDER", "GTIN", "GTINONLY", "GTINBAD", "GTINSPACED", "FREESHIP", "VARBLACK", "VARWHITE", "VARNOCOLOR"]) {
   check(`${included} is in the feed`, items.has(included));
 }
 
@@ -175,6 +176,11 @@ const onSale = items.get("ONSALE") ?? "";
 check("a sale shows the old price as g:price", onSale.includes("<g:price>8400.00 ILS</g:price>"));
 check("a sale shows the live price as g:sale_price", onSale.includes("<g:sale_price>7200.00 ILS</g:sale_price>"));
 check("a full-price item has no g:sale_price", !(items.get("PLAIN") ?? "").includes("g:sale_price"));
+
+// custom_label_0 marks the products of the running paid test, by category,
+// and nothing else carries one.
+check("a dryer is labelled for the test", (items.get("DRYER") ?? "").includes("<g:custom_label_0>test</g:custom_label_0>"));
+check("a product outside the test carries no label", !(items.get("PLAIN") ?? "").includes("g:custom_label_0"));
 
 /* Identifiers. A GTIN is the strongest signal Google takes; brand + mpn is
    the accepted substitute; identifier_exists=no is the admission that there

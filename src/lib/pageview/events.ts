@@ -19,6 +19,9 @@ export const VISIT_EVENT_TYPES = [
   "payment_submit",
   "payment_result",
   "checkout_abandon",
+  // a lead: a tap on the number or on WhatsApp, or a form that went through
+  "contact_click",
+  "form_submit",
 ] as const;
 export type VisitEventType = (typeof VISIT_EVENT_TYPES)[number];
 
@@ -33,6 +36,8 @@ const META_KEYS: Record<VisitEventType, Record<string, "string" | "number" | "bo
   payment_submit: { orderNumber: "string", total: "number" },
   payment_result: { orderNumber: "string", statusCode: "string" },
   checkout_abandon: { itemCount: "number", total: "number", secondsOnPage: "number" },
+  contact_click: { channel: "string", target: "string" },
+  form_submit: { form: "string", channel: "string" },
 };
 
 const MAX_STRING = 120;

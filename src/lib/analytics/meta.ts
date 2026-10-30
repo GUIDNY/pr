@@ -52,7 +52,11 @@ export type MetaEventName =
   | "Search"
   | "AddToCart"
   | "InitiateCheckout"
-  | "Purchase";
+  | "Purchase"
+  // leads, since the paid test of 30 October: a tap on the number or
+  // WhatsApp, and a form that went through
+  | "Contact"
+  | "Lead";
 
 export type MetaEventParams = {
   value?: number;

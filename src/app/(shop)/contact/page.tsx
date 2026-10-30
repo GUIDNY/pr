@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { submitSupportRequestAction } from "@/actions/support";
+import { submitSupportRequestReported } from "@/lib/support-client";
 import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 
 export default function ContactPage() {
@@ -19,7 +19,7 @@ export default function ContactPage() {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const result = await submitSupportRequestAction({
+      const result = await submitSupportRequestReported({
         name: form.name,
         phone: form.phone,
         channel: "FORM",

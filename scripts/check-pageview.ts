@@ -107,7 +107,8 @@ is("the idle window is 30 minutes", SID_IDLE_SECONDS, 1800);
 is("the hard cap is 24 hours", SID_MAX_SECONDS, 86400);
 
 console.log("\nvisit events: a closed list of types, a closed list of keys");
-is("eight event types", VISIT_EVENT_TYPES.length, 8);
+is("ten event types", VISIT_EVENT_TYPES.length, 10);
+is("a lead carries only a channel and a path", sanitizeEventMeta("contact_click", { channel: "phone", target: "/product/x", href: "tel:04" }), { channel: "phone", target: "/product/x" });
 is("a listed type is accepted", isVisitEventType("cart_open"), true);
 is("an unlisted type is refused, not stored", isVisitEventType("page_scroll"), false);
 is("a non-string is refused", isVisitEventType(42), false);

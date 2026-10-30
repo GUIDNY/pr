@@ -25,7 +25,7 @@ Object.defineProperty(g, "navigator", { value: { userAgent: "Mozilla/5.0 test" }
    is no page. */
 g.location = { reload() {} };
 
-const { pushEcommerce, toAnalyticsItem, itemsValue, readGaIds } = await import("../src/lib/analytics/ga");
+const { pushEcommerce, pushEvent, toAnalyticsItem, itemsValue, readGaIds } = await import("../src/lib/analytics/ga");
 
 console.log("\nthe item");
 const item = toAnalyticsItem({ sku: "107012", title: "מקרר", price: 1629, compareAtPrice: 1790, brandName: "Samsung", category: "מקררים וקירור", category2: "מקררים" }, { index: 3, item_list_name: "מקררים" });
@@ -50,7 +50,10 @@ const consent = await import("../src/lib/consent");
 consent.setConsent("denied");
 is("no push without consent", pushEcommerce("purchase", { items: [item] }), false);
 is("…and nothing landed in the dataLayer", dl.length, 2);
+is("a lead event is gated the same way", pushEvent("phone_click", { page_path: "/x" }), false);
 consent.setConsent("granted");
+is("a lead event goes through with consent", pushEvent("phone_click", { page_path: "/x" }), true);
+is("…as the event with its params and no ecommerce object", dl[dl.length - 1], { event: "phone_click", page_path: "/x" });
 
 console.log("\nGA4's cookies");
 is("client id from _ga", readGaIds("G-Y2TT301GB2").clientId, "1234567890.1700000000");
