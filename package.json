@@ -80,7 +80,8 @@
     "check:order-bin": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-order-bin.ts",
     "check:manual-order": "tsx scripts/check-manual-order.ts",
     "check:order-undo": "tsx scripts/check-order-undo.ts",
-    "check:order-problems": "tsx scripts/check-order-problems.ts"
+    "check:order-problems": "tsx scripts/check-order-problems.ts",
+    "check:duplicates": "tsx scripts/check-duplicate-listings.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

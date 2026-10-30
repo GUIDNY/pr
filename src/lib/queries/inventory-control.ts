@@ -760,7 +760,15 @@ const QUARANTINE_REASONS: Record<string, string> = {
  * and the objection lives in an alert, where the page was already reading
  * the detail from anyway.
  */
-export const QUARANTINE_ALERT_TYPES = ["MANUAL_URGENT", "ROW_NAMES_ANOTHER_MODEL"] as const;
+export const QUARANTINE_ALERT_TYPES = [
+  "MANUAL_URGENT",
+  "ROW_NAMES_ANOTHER_MODEL",
+  /* The cheap half of a pair. Same shape of objection as a reassigned
+     row — a price nobody has vouched for, on a record somebody has to
+     decide about — and it belongs in the same queue, where the back
+     office already shows the reason beside the product. */
+  "DUPLICATE_MODEL",
+] as const;
 
 /**
  * The same product in two records, one selling and one not.

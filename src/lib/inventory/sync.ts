@@ -1986,6 +1986,15 @@ export async function reconcileAutoPublish(): Promise<number> {
                  must not happen while the alert is open — see
                  rowModelWasReassigned. */
               "ROW_NAMES_ANOTHER_MODEL",
+              /* And a product that is the cheap half of a pair. The Bosch
+                 SMS4ECW28E was live twice, at 3,990 and at 2,790, and the
+                 owner hid the cheap one by hand — but a hide leaves
+                 stockQty alone, and the moment that row carried stock
+                 again this function would have put it straight back on
+                 the site at the wrong price, silently, with nobody
+                 pressing anything. An unanswered duplicate is exactly as
+                 unvouched-for as a reassigned row. */
+              "DUPLICATE_MODEL",
             ],
           },
           isResolved: false,
