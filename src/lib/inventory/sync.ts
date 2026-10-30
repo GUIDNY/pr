@@ -25,6 +25,7 @@ import {
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
+import { aliasEntriesFor, aliasValue, MIN_ALIAS_MODEL_LENGTH } from "./row-aliases";
 import { resolveBrandId, findBrandId } from "./brand-resolver";
 import {
   modelsAreTheSame,
@@ -169,33 +170,42 @@ export type MatchPath =
  * for the same reason: identifiers get renamed, and the rename is the
  * moment you lose the thread.
  *
- * Only for SKU-less rows. A row with a SKU has a real identity and does
- * not need a remembered one.
+ * REMEMBERED FOR EVERY ROW, INCLUDING ONE THAT HAS A SKU — and that is a
+ * correction, not the original design. This used to begin "only for
+ * SKU-less rows: a row with a SKU has a real identity and does not need a
+ * remembered one", and the assumption inside that sentence is that a row
+ * which has a SKU today will have one tomorrow.
+ *
+ * It will not. The Bosch SMS4ECW28E arrived in August on a row carrying
+ * SKU 140201, so nothing about it was ever written down here. By October
+ * the supplier had re-sorted מדיחים *and* dropped the SKU from that row:
+ * the Bosch was now a SKU-less row at position 64, its old position 72 had
+ * become an SMV 2HTX06E, and the only three things that could have
+ * recognised it — the SKU, the position, and a remembered name — were a
+ * blank, a different machine, and nothing at all. So the sync created a
+ * second product, and the shop sold a 3,680 ₪ dishwasher for 2,790 with
+ * the order page reporting a 440 ₪ profit.
+ *
+ * A product that has a SKU today therefore keeps its name on file for the
+ * day the sheet stops carrying one. Writing costs a row; not writing costs
+ * a duplicate nobody sees until a customer picks the cheap half.
+ *
+ * Only ever READ for a SKU-less row — findByRowAlias returns early
+ * otherwise — so this widens what can be recognised and nothing else. A
+ * row with a SKU is still found by its SKU.
  */
-const aliasValue = (v: string | null | undefined) =>
-  (v ?? "").replace(/[^A-Za-z0-9\u0590-\u05FF]/g, "").toUpperCase();
-
 export async function rememberRowAliases(
   productId: string,
   sourceId: string,
   row: NormalizedProductRow,
 ): Promise<void> {
-  if (!row.skuIsSynthetic) return;
-  const entries: { kind: string; value: string }[] = [];
+  /* Does anything else in this tab already answer to this model? Only
+     asked when there is a model worth asking about — see aliasEntriesFor
+     for why an ambiguous name is dropped rather than contested. */
   const model = aliasValue(row.model);
-  /* Four characters, the floor every model comparison in this file uses: a
-     bare "750" names half the catalogue. */
-  if (model.length >= 4) {
-    /* And nobody else in this tab answers to it. A model string is one
-       column and a supplier repeats it freely — ten of them are shared by
-       two SKU-less products each in this catalogue, among them a Bosch
-       PUE611BB5Y held by two records and a Gorenje GW951MB that is two
-       real colours. The unique index already stops the second product
-       taking the name, which is the danger: the first would then keep it
-       and answer for the second's row forever.
-       So an ambiguous name is not written at all. The row hash below is
-       unaffected — it is the whole row and does not repeat. */
-    const alsoNamed = await db.product.count({
+  const modelIsAmbiguous =
+    model.length >= MIN_ALIAS_MODEL_LENGTH &&
+    (await db.product.count({
       where: {
         sourceId,
         sourceSheet: row.sheetName,
@@ -203,11 +213,12 @@ export async function rememberRowAliases(
         id: { not: productId },
         OR: [{ model: { equals: row.model, mode: "insensitive" } }, { lastRowModel: row.model }],
       },
-    });
-    if (alsoNamed === 0) entries.push({ kind: "MODEL", value: model });
-  }
-  const key = sourceRowKeyFor(row);
-  if (key) entries.push({ kind: "ROWKEY", value: key });
+    })) > 0;
+
+  const entries = aliasEntriesFor(
+    { model: row.model, rowKey: sourceRowKeyFor(row) },
+    { modelIsAmbiguous },
+  );
   if (entries.length === 0) return;
 
   for (const e of entries) {
