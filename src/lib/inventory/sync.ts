@@ -25,6 +25,7 @@ import {
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
+import { lossIsReachable } from "./underpriced";
 import {
   aliasEntriesFor,
   aliasValue,
@@ -1518,7 +1519,32 @@ async function applyOneRow(
      the raw numbers only ever under-reports — never invents a problem. */
   const chargedPrice = existing?.price ?? resolved;
   const supplierCost = row.internalCost;
-  if (chargedPrice !== null && supplierCost !== null && supplierCost > 0 && chargedPrice < supplierCost) {
+  /* Only for a product somebody can actually be sold at a loss.
+     This alert is about money leaving the till, and that cannot happen on
+     a record no customer can reach. Raised unconditionally it reported 83
+     open alerts, of which 69 were on a price of 0, 75 on an unpublished
+     record and 12 on a product the price list had dropped — leaving 7
+     that were real, buried under 76 that were not. One of the 7 was the
+     DAVO meat grinder at 290 against a cost of 390, with six on the
+     shelf: caught correctly on 30 October, sitting in the list for two
+     days, and invisible because nobody reads a list that is 92% noise.
+     A price of 0 is the clearest of the three. It is not a loss, it is a
+     missing price — underpriced.ts calls that `below_floor` and it is a
+     different problem with a different answer, so letting it in here only
+     costs this alert its meaning. MIN_PUBLIC_PRICE is the same floor the
+     storefront uses, so the two agree about what counts as a price.
+     Narrowing what is reported is not narrowing what is checked: a
+     product that becomes sellable while still underpriced is published,
+     and the next run raises it then. */
+  const couldBeSoldAtALoss = lossIsReachable({
+    price: chargedPrice,
+    /* A row with no product yet is judged on its price alone: there is
+       nothing published to ask about, and a new row that already prices
+       below cost is worth saying so before it becomes a product. */
+    isPublished: existing ? existing.isPublished : true,
+    missingFromSourceSince: existing ? existing.missingFromSourceSince : null,
+  });
+  if (couldBeSoldAtALoss && chargedPrice !== null && supplierCost !== null && supplierCost > 0 && chargedPrice < supplierCost) {
     currentRowTypes.add("PRICE_BELOW_COST");
     await upsertAlert({
       type: "PRICE_BELOW_COST",
