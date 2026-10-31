@@ -550,6 +550,61 @@ still in the source files. The sync fills an image only when a product has none,
 replaces one (a photo the enrichment agent found outranks the sheet), and skips the
 hosts in `blocked-image-hosts.ts` outright. `npm run check:images` guards both rules.
 
+### One photograph for a whole product line, and the watermark
+
+Two questions asked on 31 October, both answered here so they are not
+re-argued: may a product line share one photograph when the models differ
+only by size, and may an image carrying an importer's watermark be
+published.
+
+**A photograph may be shared when the difference between the models is one
+the photograph cannot show.** Size in BTU, or litres inside the same body,
+is invisible in the picture, so a wall split at 12,000 and at 24,000 BTU
+are honestly the same photograph. Aspect ratio, mounting, mechanism,
+colour and finish are all visible, and a photograph that shows the wrong
+one is a wrong spec with a picture around it — the paragraph above, applied
+to the part of the page a customer actually looks at.
+
+The SinoScreen projection screens are what settles the wording, because the
+tempting rule — one photo for manual, one for electric — gets it wrong.
+prec.co.il already serves exactly that: **16 per-model URLs that resolve to
+3 distinct files** (sha256 `4b08127…` on nine, `eb430f5…` on six, the
+tripod's own on one). The nine sharing the manual photo are four square
+models (SI-M152, M244, M274, M305) and two slow-rise squares alongside
+three 16:9 models — and the photograph is of a widescreen screen, so
+SI-M152, a 152×152 square, is live wearing a picture of a shape it is not.
+The electric file is fine: all six electric models are square. So the
+honest grouping is four photographs, not two, and the two groups prec has
+no file for stay without one.
+
+**An importer's watermark is not publishable.** Google Merchant Center's
+image requirements refuse watermarks and promotional overlays, and
+`/feeds/google-merchant.xml` is built from `PUBLIC_PRODUCT_WHERE` — so a
+watermarked image does not quietly fail, it puts the product on the site
+and gets the item disapproved in the feed, against the account the feed
+section names. It also prints another company's mark on our product page.
+prec.co.il itself stays allowed: `blocked-image-hosts.ts` has always said
+those images are ours to use, and the files checked carry no watermark.
+The rule is about what is burned into the picture, not about the host.
+
+**Neither answer releases the products people expect**, and the reason is
+worth keeping. Counted by *first* failing gate across the catalogue:
+2,404 live · 1,173 held by `isPublished: false` · 209 with no stock from
+the electronics workbook · 27 with no stock and marked gone · **55 held by
+the image and nothing else** · 22 on `stockStatus NEEDS_REVIEW` · 12
+dropped from the sheet. All 16 screens sit in the 209 — they are in
+מחירון מלאי אלקטרוניקה, the one workbook `STOCK_ONLY_SOURCES` sells from
+stock only, so an image changes nothing for the fifteen with none. Of 38
+imageless split air conditioners, 35 have no description at all and 31
+still wear the raw `{brand} {model}` title the sheet produced; the picture
+is their second problem. And the 55 that the image really does block are a
+long tail — 46 brand-and-category groups, the largest holding two — so
+there is almost no line for them to share a photograph from.
+
+Before quoting a number of products that one policy would release, ask
+which gate stops each of them first. Every count in this section came from
+that query and none of them from the gate that was being argued about.
+
 ## Environment traps, all confirmed the hard way
 
 - **Vercel's Redeploy button republishes the commit that is already live**, not the
