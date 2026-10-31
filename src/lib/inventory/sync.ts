@@ -25,7 +25,12 @@ import {
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
-import { aliasEntriesFor, aliasValue, MIN_ALIAS_MODEL_LENGTH } from "./row-aliases";
+import {
+  aliasEntriesFor,
+  aliasValue,
+  MIN_ALIAS_MODEL_LENGTH,
+  MIN_ALIAS_TITLE_LENGTH,
+} from "./row-aliases";
 import { resolveBrandId, findBrandId } from "./brand-resolver";
 import {
   modelsAreTheSame,
@@ -216,7 +221,7 @@ export async function rememberRowAliases(
     })) > 0;
 
   const entries = aliasEntriesFor(
-    { model: row.model, rowKey: sourceRowKeyFor(row) },
+    { model: row.model, rowKey: sourceRowKeyFor(row), title: row.title },
     { modelIsAmbiguous },
   );
   if (entries.length === 0) return;
@@ -258,7 +263,18 @@ export async function findByRowAlias(
      repeat it. */
   if (key) candidates.push({ kind: "ROWKEY", value: key });
   const model = aliasValue(row.model);
-  if (model.length >= 4) candidates.push({ kind: "MODEL", value: model });
+  if (model.length >= MIN_ALIAS_MODEL_LENGTH) candidates.push({ kind: "MODEL", value: model });
+  /* And last, the row's own description — only for a row that prints no
+     model, matching what aliasEntriesFor was willing to write. A title is
+     the weakest of the three claims and is asked only once the other two
+     have found nothing, so it can never take a row away from a model or a
+     hash. For the 116 rows that carry neither a SKU nor a model it is the
+     only identifier in the sheet, and those are exactly the rows whose
+     position match has no guard behind it. */
+  if (model.length < MIN_ALIAS_MODEL_LENGTH) {
+    const title = aliasValue(row.title);
+    if (title.length >= MIN_ALIAS_TITLE_LENGTH) candidates.push({ kind: "TITLE", value: title });
+  }
 
   for (const c of candidates) {
     const hit = await db.productRowAlias.findUnique({
