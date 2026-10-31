@@ -25,13 +25,26 @@ for (const f of files) {
       const row = normalizeRow(key, sheet.sheetName, pr, sheet.columns, categoryForSheet(key, sheet.sheetName));
       const rp = resolvedPrice(row);
       out.push({
-        src: key, sheet: row.sheetName, rowRef: row.rowRef ?? null,
+        /* rowIndex, not rowRef. The first version of this file wrote
+           `row.rowRef`, which does not exist on a normalised row — so every
+           one of the 3,423 rows came back with a null position and the only
+           products that could be compared against a sheet row were the 1,086
+           bound by SKU. The 1,603 bound by position, which are the majority
+           and the ones the position guards are about, were silently skipped
+           and the scan still printed a tidy total. `sourceRowRef` on Product
+           is written from this field (sync.ts), so this is the name that
+           joins the two. */
+        src: key, sheet: row.sheetName, rowRef: row.rowIndex,
         sku: row.sku, synth: row.skuIsSynthetic, model: row.model,
         title: (row.title || "").slice(0, 90),
         cost: row.internalCost ?? null, price: rp.price,
         avail: row.availability, channel: row.importChannel ?? null,
         importer: row.importerName ?? null,
-        stock: row.totalStock ?? null,
+        /* The sum of every stock column on the row — מלאי, מלאי חדרה and
+           תצוגה — which is what stockQty means. There is no totalStock
+           field; an earlier version read one and so reported every row as
+           having no stock at all. */
+        stock: row.stockLines.reduce((t, l) => t + l.quantity, 0),
       });
     }
   }
@@ -41,4 +54,5 @@ const n = (p: (r: Record<string, unknown>) => boolean) => out.filter(p).length;
 console.log("rows:", out.length,
   "| real sku:", n((r) => !r.synth), "| synthetic:", n((r) => !!r.synth),
   "| priced:", n((r) => r.price != null), "| parallel:", n((r) => r.channel === "PARALLEL"),
-  "| not orderable:", n((r) => r.avail && r.avail !== "ORDERABLE"));
+  "| not orderable:", n((r) => !!r.avail && r.avail !== "ORDERABLE"),
+  "| with stock:", n((r) => Number(r.stock) > 0));
