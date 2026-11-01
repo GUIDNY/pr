@@ -4,6 +4,10 @@ import type { OrderStatus, PaymentStatus } from "@/lib/enums";
 import { ORDER_STAGES, statusesInStage, TRASH_STAGE, type OrderStage } from "@/lib/order-stage";
 import { messageFor } from "@/lib/notify/messages";
 import { waHref } from "@/lib/notify/whatsapp-link";
+import {
+  cancellationMessage,
+  type CancellationMoney,
+} from "@/lib/notify/cancellation";
 import { SITE_URL } from "@/lib/site-url";
 import { NOTIFY_EVENTS, type NotifyEvent, type NotifyChannel } from "@/lib/notify/types";
 import { courierTrackingUrl } from "@/lib/couriers";
@@ -86,6 +90,22 @@ export type SellerOrderDetail = SellerOrderSummary & {
     /** True once this message is one the order has actually reached. */
     due: boolean;
   }[];
+  /**
+   * The cancellation note, ready to read before it is sent.
+   *
+   * Not an entry in `updates`: those are the four moments an order reaches
+   * on its own, each with a resend button, and a cancellation is a
+   * decision somebody makes once. It is prepared here and sent by hand.
+   * `money` says which sentence about the customer's money it carries,
+   * so the page can show which one it picked rather than leaving the
+   * salesperson to notice.
+   */
+  cancellation: {
+    subject: string;
+    body: string;
+    money: CancellationMoney;
+    whatsappHref: string | null;
+  };
   previousStatus: string | null;
   /** Which channels can send right now — not what was true when a past message went. */
   readiness: { id: NotifyChannel; configured: boolean; missing: string[] }[];
@@ -279,6 +299,14 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
       at: n.createdAt,
     })),
     updates: buildUpdates(row, summary),
+    cancellation: (() => {
+      const note = cancellationMessage({
+        orderNumber: row.orderNumber,
+        customerName: summary.customerName,
+        paymentStatus: row.paymentStatus,
+      });
+      return { ...note, whatsappHref: waHref(summary.customerPhone, note.body) };
+    })(),
     /* Null once the last thing that happened was itself an undo, which is
        what hides the button rather than offering to undo the undo. */
     previousStatus: undoTargetStatus(row.statusHistory),
