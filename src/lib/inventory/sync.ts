@@ -16,7 +16,7 @@ import {
   type InventoryAlertType,
 } from "@/lib/enums";
 import type { SourceKey } from "./sheet-map";
-import { sellableWithoutStock } from "./availability";
+import { sellableWithoutStock, sellableStockColumnsFor } from "./availability";
 import { warrantySentence } from "./warranty-parser";
 import {
   parallelImportWarrantySentence,
@@ -789,7 +789,11 @@ async function applyOneRow(
     lastMatchPath: existing ? matched.path : "created",
     lastRowModel: row.model,
   };
-  const rawStock = totalStock(row);
+  /* Only the columns this workbook actually sells from. ליין קטן counts
+     "מלאי חדרה" alone — see sellableStockColumnsFor, and note it is paired
+     with that source being stock-only, since counting fewer columns
+     changes nothing by itself. */
+  const rawStock = totalStock(row, sellableStockColumnsFor(row.sourceKey));
 
   // Zero stock, never seen before, **and the price list says it is gone**:
   // don't pull it into the system at all — not a product record, not a temp
