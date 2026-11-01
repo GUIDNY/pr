@@ -15,6 +15,7 @@ import { MetaPixel } from "@/components/analytics/meta-pixel";
 import { CartDrawer } from "@/components/cart/cart-drawer";
 import { CompareTray } from "@/components/product/compare-tray";
 import { AlfredChatWidget } from "@/components/alfred-chat/alfred-chat-widget";
+import { WhatsAppButton } from "@/components/layout/whatsapp-button";
 import { AccessibilityWidget } from "@/components/layout/accessibility-widget";
 import { CookieNotice } from "@/components/layout/cookie-notice";
 import { ShoppingOnly } from "@/components/layout/shopping-only";
@@ -158,6 +159,7 @@ export default function RootLayout({
               <ShoppingOnly>
                 <CompareTray />
                 <AlfredChatWidget />
+                <WhatsAppButton />
               </ShoppingOnly>
               <AccessibilityWidget />
               <CookieNotice />
