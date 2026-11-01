@@ -100,7 +100,65 @@ export function sourceAvailability(values: Record<string, string | number | null
  * say "למכור מלאי ותצוגה". If the owner means warehouses and not the
  * showroom, this is the sentence to come back to.
  */
-const STOCK_ONLY_SOURCES = new Set(["electronics"]);
+const STOCK_ONLY_SOURCES = new Set(["electronics", "small-appliances"]);
+
+/**
+ * Which stock columns count as stock we can actually sell.
+ *
+ * מחירון ליין קטן carries nine of them. Four are warehouses — "מלאי חדרה",
+ * "טובים חדרה", "מלאי LUXRY", "טובים" — and five are display units
+ * ("תצוגה חדרה", "תצוגות LUXERY", "תצוגת לקצ'ורי", …), plus a "יתרה"
+ * running total over the lot. Summing them, which is what totalStock does
+ * everywhere else, answers "does this exist somewhere in the company" —
+ * a different question from "can this shop sell it".
+ *
+ * The owner's instruction on 1 November was the narrow one, twice over:
+ * "רק מה שיש לו מספר במלאי חדרה". Not the Hedera branch broadly — that
+ * column. A display unit in Hedera does not count and neither does a
+ * LUXERY warehouse, which is a location this shop does not ship from.
+ *
+ * Measured before it was written: of the 653 live products in that
+ * workbook, 298 have a number in that column and 355 do not, ₪374,598 of
+ * listed value, 130 of them holding stock that is real but somewhere
+ * else.
+ *
+ * Listed per source and not globally, because the other two workbooks
+ * were never asked about and their columns are not the same ones. A
+ * source absent from here keeps summing every column, which is the
+ * behaviour everything else in this file was built against.
+ *
+ * This pairs with STOCK_ONLY_SOURCES above and only works paired: counting
+ * fewer columns changes nothing on its own, because a product at zero is
+ * still sold to order unless its workbook is also stock-only. That is why
+ * small-appliances joins electronics in the same change.
+ */
+const SELLABLE_STOCK_COLUMNS: Record<string, readonly string[]> = {
+  "small-appliances": ["מלאי חדרה"],
+};
+
+/**
+ * The stock columns that count for this source, or null to count them all.
+ *
+ * Labels are compared trimmed: the sheets carry "מלאי חדרה " with a
+ * trailing space in some tabs and not others, and a rule that depended on
+ * which would be a rule nobody could keep.
+ */
+export function sellableStockColumnsFor(
+  sourceKey: string | null | undefined,
+): readonly string[] | null {
+  if (!sourceKey) return null;
+  return SELLABLE_STOCK_COLUMNS[sourceKey] ?? null;
+}
+
+/** Does this stock line count towards what we can sell? */
+export function stockLineCounts(
+  label: string,
+  columns: readonly string[] | null,
+): boolean {
+  if (!columns) return true;
+  const want = label.trim();
+  return columns.some((c) => c.trim() === want);
+}
 
 /**
  * May this product be sold when no warehouse holds a unit?

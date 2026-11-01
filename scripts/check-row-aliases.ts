@@ -27,6 +27,7 @@
 // Run: npx tsx scripts/check-row-aliases.ts
 import {
   MIN_ALIAS_MODEL_LENGTH,
+  MIN_ALIAS_TITLE_LENGTH,
   aliasEntriesFor,
   aliasValue,
 } from "../src/lib/inventory/row-aliases";
@@ -125,6 +126,80 @@ expect(
   0,
 );
 
+/* ── the row that prints no model at all ───────────────────────────── */
+/* 116 rows in the three workbooks carry neither a SKU nor a model, and
+   those are the rows the position guard cannot protect: with nothing to
+   compare, a row that moves matches whatever now sits at its index. 271
+   live products are bound through exactly that door. Their descriptions
+   are the only identifier the sheet gives them, and 97 of the 99 that
+   clear the floor are unique in their own tab. */
+const titleOf = (entries: { kind: string; value: string }[]) =>
+  entries.find((e) => e.kind === "TITLE")?.value ?? null;
+
+const REAL_BLIND_ROWS = [
+  "אלקטרה רילקס אינורטר 340",
+  "מגירת חימום אקטיבית",
+  "ISKA עילי שחור",
+  "ISKA עילי  לבן",
+  "גורנייה קריסטל לייזר",
+  "עגלה למסכים",
+  "פילטר פחם רב פעמי ניתן לשטיפה",
+];
+for (const title of REAL_BLIND_ROWS) {
+  const got = titleOf(aliasEntriesFor({ model: null, rowKey: "h", title }, { modelIsAmbiguous: false }));
+  checked++;
+  if (got === null) fail(`a row whose only name is its text must be remembered: ${JSON.stringify(title)}`);
+}
+/* The double space in "ISKA עילי  לבן" must not make it a different name
+   from the single-spaced form a later sheet may carry. */
+expect(
+  "spacing in a title does not change the name",
+  titleOf(aliasEntriesFor({ model: null, rowKey: "h", title: "ISKA עילי  לבן" }, { modelIsAmbiguous: false })),
+  titleOf(aliasEntriesFor({ model: null, rowKey: "h", title: "ISKA עילי לבן" }, { modelIsAmbiguous: false })),
+);
+
+/* What must fall below the line, and it is the same junk the model floor
+   keeps out: a bare brand name is not an identity. All four are real rows. */
+for (const junk of ["ASKO", "גורנייה", "היטאצי", "אחי דיגיטל", "מדיח צר לבן"]) {
+  checked++;
+  if (titleOf(aliasEntriesFor({ model: null, rowKey: "h", title: junk }, { modelIsAmbiguous: false })) !== null) {
+    fail(`a bare brand name is not a name to remember: ${JSON.stringify(junk)}`);
+  }
+}
+expect(
+  `a title of exactly ${MIN_ALIAS_TITLE_LENGTH} is kept`,
+  titleOf(aliasEntriesFor({ model: null, rowKey: "h", title: "עגלה למסכים" }, { modelIsAmbiguous: false })),
+  "עגלהלמסכים",
+);
+
+/* THE RULE THAT KEEPS THE TITLE HARMLESS: it is written only for a row
+   with no usable model. A description is weaker evidence than a model
+   code, so it must never be in a position to outrank one — and the Bosch
+   row, which has a perfectly good model, must not grow a second name off
+   its free text. */
+const boschWithText = aliasEntriesFor(
+  { model: "SMS4ECW28E", rowKey: "hash", title: "מדיח כלים בוש אינטגרלי מלא 60 ס\"מ" },
+  { modelIsAmbiguous: false },
+);
+expect("a row WITH a model gets no title alias", titleOf(boschWithText), null);
+expect("…only its model and its hash", kinds(boschWithText), "MODEL,ROWKEY");
+/* And a model too short to be one does not block the title: that row is
+   blind either way, which is the whole case this exists for. */
+const shortModel = aliasEntriesFor(
+  { model: "750", rowKey: "h", title: "אלקטרה רילקס אינורטר 340" },
+  { modelIsAmbiguous: false },
+);
+expect("a sub-floor model still leaves the row blind, so the title is used", kinds(shortModel), "ROWKEY,TITLE");
+/* An ambiguous model is dropped, but the row is NOT blind — the supplier
+   did print a model, it is just contested. Falling back to the title there
+   would hand the row to whichever product grabbed the description first. */
+const ambiguousWithText = aliasEntriesFor(
+  { model: "PUE611BB5Y", rowKey: "h", title: "כיריים אינדוקציה בוש 60 ס\"מ" },
+  { modelIsAmbiguous: true },
+);
+expect("a contested model does not fall back to the title", titleOf(ambiguousWithText), null);
+expect("…it keeps only the hash", kinds(ambiguousWithText), "ROWKEY");
+
 /* The hash comes second, always: it is the narrower claim and the lookup
    tries it first, so the order here is the order it is read in. */
 const both = aliasEntriesFor({ model: "SMS4ECW28E", rowKey: "hash" }, { modelIsAmbiguous: false });
@@ -132,6 +207,8 @@ expect("model then rowkey", kinds(both), "MODEL,ROWKEY");
 
 console.log(
   `${checked - failed}/${checked} passed  (a row with a SKU is remembered; ` +
-    `the same machine re-sorted and un-SKU'd still asks for its own name)`,
+    `the same machine re-sorted and un-SKU'd still asks for its own name; ` +
+    `a row with no model at all answers to its description, and a row that ` +
+    `has one never does)`,
 );
 process.exit(failed === 0 ? 0 : 1);

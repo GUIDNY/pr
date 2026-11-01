@@ -18,6 +18,8 @@ export type FieldChange = { changeType: InventoryChangeType; previousValue: unkn
 
 const MAJOR_STOCK_SWING = 20; // absolute unit delta considered "unexpected" for a MAJOR_STOCK_CHANGE alert
 
+import { stockLineCounts } from "./availability";
+
 type StockLineRow = { stockLines: StockLine[] };
 
 // A blank cell and a confirmed zero look identical in a spreadsheet — this
@@ -32,7 +34,26 @@ export function hasAnyStockData(row: StockLineRow): boolean {
 // already provides its own running total (a "יתרה" column, classified
 // SELLABLE_STOCK), trust that instead of summing everything else on top of
 // it — otherwise the same units would be counted twice.
-export function totalStock(row: StockLineRow): number {
+export function totalStock(
+  row: StockLineRow,
+  /* The columns this source sells from, or null for all of them — see
+     sellableStockColumnsFor. ליין קטן counts only "מלאי חדרה": the
+     workbook has nine stock columns and the rest are other locations and
+     display units, which answer "does it exist somewhere" rather than
+     "can this shop sell it". */
+  onlyColumns?: readonly string[] | null,
+): number {
+  if (onlyColumns) {
+    /* The "יתרה" short-circuit is deliberately skipped here. That column
+       is a running total over every warehouse and display unit on the
+       row, so trusting it would quietly re-admit every location the
+       allow-list just excluded — the one mistake this parameter exists
+       to prevent, and the one that would look like it was working. */
+    const sum = row.stockLines
+      .filter((l) => stockLineCounts(l.label, onlyColumns))
+      .reduce((acc, l) => acc + l.quantity, 0);
+    return Math.max(0, sum);
+  }
   const totalColumn = row.stockLines.find((l) => l.field === "SELLABLE_STOCK");
   if (totalColumn) return Math.max(0, totalColumn.quantity);
   const sum = row.stockLines.reduce((acc, l) => acc + l.quantity, 0);

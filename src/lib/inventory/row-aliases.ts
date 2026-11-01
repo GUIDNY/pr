@@ -34,7 +34,25 @@
     names half the catalogue. */
 export const MIN_ALIAS_MODEL_LENGTH = 4;
 
-export type AliasKind = "MODEL" | "ROWKEY";
+/**
+ * The floor for a row's free text, measured rather than picked.
+ *
+ * 116 rows in the three workbooks carry neither a SKU nor a model long
+ * enough to be one, and those are the rows the position guard cannot
+ * protect: with nothing to compare, a moved row matches whatever now sits
+ * at its index. Their descriptions, though, are distinctive — "אלקטרה
+ * רילקס אינורטר 340", "מגירת חימום אקטיבית", "ISKA עילי שחור".
+ *
+ * At 10 characters after `aliasValue` strips the punctuation, 99 of the
+ * 116 qualify and 97 of those are unique in their own tab. What falls
+ * below the line is exactly what should: "ASKO", "גורנייה", "היטאצי" —
+ * bare brand names, the same thing MIN_ALIAS_MODEL_LENGTH keeps out. 8
+ * admits three more rows and two more collisions; 16 costs fifteen rows
+ * and prevents nothing.
+ */
+export const MIN_ALIAS_TITLE_LENGTH = 10;
+
+export type AliasKind = "MODEL" | "ROWKEY" | "TITLE";
 export type AliasEntry = { kind: AliasKind; value: string };
 
 /** Punctuation out, case levelled; Hebrew kept, because a row's text is
@@ -56,16 +74,36 @@ export function aliasValue(value: string | null | undefined): string {
  *
  * The row hash is unaffected by that: it is the whole row, and a whole row
  * does not repeat.
+ *
+ * TITLE is the last resort and is written **only for a row with no usable
+ * model**, which is the point of it: a description is weaker evidence than
+ * a model code, so it must never be in a position to outrank one. The 271
+ * products matched by position whose row prints no model are the ones with
+ * no guard at all behind that match, and this is the only identifier those
+ * rows have.
+ *
+ * It gets no ambiguity check of its own, unlike MODEL, and that is a real
+ * difference rather than an oversight: the model check reads `lastRowModel`,
+ * the model *the row* carried last run, and there is no column holding the
+ * row's previous title to ask the same question of. The unique index is
+ * what protects it instead — a title a second product reaches for is simply
+ * not written, and that product falls through to the ordinary guesses. Two
+ * of the 99 qualifying rows are in that state.
  */
 export function aliasEntriesFor(
-  row: { model: string | null; rowKey: string | null },
+  row: { model: string | null; rowKey: string | null; title?: string | null },
   options: { modelIsAmbiguous: boolean },
 ): AliasEntry[] {
   const entries: AliasEntry[] = [];
   const model = aliasValue(row.model);
-  if (model.length >= MIN_ALIAS_MODEL_LENGTH && !options.modelIsAmbiguous) {
+  const modelIsUsable = model.length >= MIN_ALIAS_MODEL_LENGTH;
+  if (modelIsUsable && !options.modelIsAmbiguous) {
     entries.push({ kind: "MODEL", value: model });
   }
   if (row.rowKey) entries.push({ kind: "ROWKEY", value: row.rowKey });
+  if (!modelIsUsable) {
+    const title = aliasValue(row.title);
+    if (title.length >= MIN_ALIAS_TITLE_LENGTH) entries.push({ kind: "TITLE", value: title });
+  }
   return entries;
 }

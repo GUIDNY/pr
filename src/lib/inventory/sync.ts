@@ -16,7 +16,7 @@ import {
   type InventoryAlertType,
 } from "@/lib/enums";
 import type { SourceKey } from "./sheet-map";
-import { sellableWithoutStock } from "./availability";
+import { sellableWithoutStock, sellableStockColumnsFor } from "./availability";
 import { warrantySentence } from "./warranty-parser";
 import {
   parallelImportWarrantySentence,
@@ -25,7 +25,13 @@ import {
 import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
-import { aliasEntriesFor, aliasValue, MIN_ALIAS_MODEL_LENGTH } from "./row-aliases";
+import { lossIsReachable } from "./underpriced";
+import {
+  aliasEntriesFor,
+  aliasValue,
+  MIN_ALIAS_MODEL_LENGTH,
+  MIN_ALIAS_TITLE_LENGTH,
+} from "./row-aliases";
 import { resolveBrandId, findBrandId } from "./brand-resolver";
 import {
   modelsAreTheSame,
@@ -216,7 +222,7 @@ export async function rememberRowAliases(
     })) > 0;
 
   const entries = aliasEntriesFor(
-    { model: row.model, rowKey: sourceRowKeyFor(row) },
+    { model: row.model, rowKey: sourceRowKeyFor(row), title: row.title },
     { modelIsAmbiguous },
   );
   if (entries.length === 0) return;
@@ -258,7 +264,18 @@ export async function findByRowAlias(
      repeat it. */
   if (key) candidates.push({ kind: "ROWKEY", value: key });
   const model = aliasValue(row.model);
-  if (model.length >= 4) candidates.push({ kind: "MODEL", value: model });
+  if (model.length >= MIN_ALIAS_MODEL_LENGTH) candidates.push({ kind: "MODEL", value: model });
+  /* And last, the row's own description — only for a row that prints no
+     model, matching what aliasEntriesFor was willing to write. A title is
+     the weakest of the three claims and is asked only once the other two
+     have found nothing, so it can never take a row away from a model or a
+     hash. For the 116 rows that carry neither a SKU nor a model it is the
+     only identifier in the sheet, and those are exactly the rows whose
+     position match has no guard behind it. */
+  if (model.length < MIN_ALIAS_MODEL_LENGTH) {
+    const title = aliasValue(row.title);
+    if (title.length >= MIN_ALIAS_TITLE_LENGTH) candidates.push({ kind: "TITLE", value: title });
+  }
 
   for (const c of candidates) {
     const hit = await db.productRowAlias.findUnique({
@@ -772,7 +789,11 @@ async function applyOneRow(
     lastMatchPath: existing ? matched.path : "created",
     lastRowModel: row.model,
   };
-  const rawStock = totalStock(row);
+  /* Only the columns this workbook actually sells from. ליין קטן counts
+     "מלאי חדרה" alone — see sellableStockColumnsFor, and note it is paired
+     with that source being stock-only, since counting fewer columns
+     changes nothing by itself. */
+  const rawStock = totalStock(row, sellableStockColumnsFor(row.sourceKey));
 
   // Zero stock, never seen before, **and the price list says it is gone**:
   // don't pull it into the system at all — not a product record, not a temp
@@ -1502,7 +1523,32 @@ async function applyOneRow(
      the raw numbers only ever under-reports — never invents a problem. */
   const chargedPrice = existing?.price ?? resolved;
   const supplierCost = row.internalCost;
-  if (chargedPrice !== null && supplierCost !== null && supplierCost > 0 && chargedPrice < supplierCost) {
+  /* Only for a product somebody can actually be sold at a loss.
+     This alert is about money leaving the till, and that cannot happen on
+     a record no customer can reach. Raised unconditionally it reported 83
+     open alerts, of which 69 were on a price of 0, 75 on an unpublished
+     record and 12 on a product the price list had dropped — leaving 7
+     that were real, buried under 76 that were not. One of the 7 was the
+     DAVO meat grinder at 290 against a cost of 390, with six on the
+     shelf: caught correctly on 30 October, sitting in the list for two
+     days, and invisible because nobody reads a list that is 92% noise.
+     A price of 0 is the clearest of the three. It is not a loss, it is a
+     missing price — underpriced.ts calls that `below_floor` and it is a
+     different problem with a different answer, so letting it in here only
+     costs this alert its meaning. MIN_PUBLIC_PRICE is the same floor the
+     storefront uses, so the two agree about what counts as a price.
+     Narrowing what is reported is not narrowing what is checked: a
+     product that becomes sellable while still underpriced is published,
+     and the next run raises it then. */
+  const couldBeSoldAtALoss = lossIsReachable({
+    price: chargedPrice,
+    /* A row with no product yet is judged on its price alone: there is
+       nothing published to ask about, and a new row that already prices
+       below cost is worth saying so before it becomes a product. */
+    isPublished: existing ? existing.isPublished : true,
+    missingFromSourceSince: existing ? existing.missingFromSourceSince : null,
+  });
+  if (couldBeSoldAtALoss && chargedPrice !== null && supplierCost !== null && supplierCost > 0 && chargedPrice < supplierCost) {
     currentRowTypes.add("PRICE_BELOW_COST");
     await upsertAlert({
       type: "PRICE_BELOW_COST",

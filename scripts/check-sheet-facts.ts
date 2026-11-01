@@ -324,8 +324,19 @@ const SELLABILITY: [
   [{ stockQty: 0, sourceAvailability: "ORDERABLE", sourceKey: "electronics" }, false],
   [{ stockQty: 0, sourceAvailability: null, sourceKey: "electronics" }, false],
   [{ stockQty: 1, sourceAvailability: "STOCK_ONLY", sourceKey: "electronics" }, true],
-  // And the other two keep the 19 October rule, named rather than assumed.
-  [{ stockQty: 0, sourceAvailability: "ORDERABLE", sourceKey: "small-appliances" }, true],
+  // ליין קטן joined it on 1 November, on the owner's instruction: "רק מה
+  // שיש לו מספר במלאי חדרה". That sentence is two rules at once, and this
+  // is the half that makes the other half mean anything — counting only
+  // the Hedera column changes nothing while a product at zero is still
+  // sold to order. 355 of the workbook's 653 live products came off,
+  // ₪374,598 of listed value, 130 of them holding stock that is real but
+  // in LUXERY or on a display stand.
+  [{ stockQty: 2, sourceAvailability: "ORDERABLE", sourceKey: "small-appliances" }, true],
+  [{ stockQty: 0, sourceAvailability: "ORDERABLE", sourceKey: "small-appliances" }, false],
+  [{ stockQty: 0, sourceAvailability: null, sourceKey: "small-appliances" }, false],
+  // The white-goods workbook was not asked about and keeps the 19 October
+  // rule, named here rather than assumed — the decision was about one
+  // price list, not about the idea.
   [{ stockQty: 0, sourceAvailability: "ORDERABLE", sourceKey: null }, true],
 ];
 for (const [product, want] of SELLABILITY) {
