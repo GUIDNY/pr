@@ -26,6 +26,7 @@ import { brandLikeDividers } from "./brand-extractor";
 import { isBlockedImageHost } from "./blocked-image-hosts";
 import { sourceRowKeyFor } from "./source-row-key";
 import { lossIsReachable } from "./underpriced";
+import { WATCHDOG_MARK, wouldDuplicateALiveListing } from "./duplicate-listings";
 import {
   aliasEntriesFor,
   aliasValue,
@@ -695,12 +696,13 @@ type AlertInput = {
 // reflects the current state, not sync history.
 async function upsertAlert(input: AlertInput) {
   const where = input.productId
-    ? { type: input.type, productId: input.productId, isResolved: false }
+    ? { type: input.type, productId: input.productId, isResolved: false, ...RAISED_BY_THE_SYNC }
     : {
         type: input.type,
         sourceId: input.sourceId ?? undefined,
         productId: null,
         isResolved: false,
+        ...RAISED_BY_THE_SYNC,
       };
   await db.inventoryAlert.updateMany({
     where,
@@ -744,6 +746,32 @@ const ROW_STATE_ALERT_TYPES = new Set([
   "DUPLICATE_MODEL",
   "SOURCE_CONFLICT",
 ]);
+
+/**
+ * Alerts this sync may close: its own, never the watchdog's.
+ *
+ * DUPLICATE_MODEL is raised by two different things that happen to share a
+ * name. The sync raises it per row — "this model appears twice in the
+ * price list", a WARNING about the sheet. The watchdog raises it from
+ * outside — "this model is live twice on the site at two prices", a
+ * CRITICAL about money, stamped `raisedBy: "watchdog"`.
+ *
+ * Both of the sync's closing passes matched on type alone, so every run
+ * closed the watchdog's alert as a row state "no longer current", and
+ * upsertAlert went further and replaced the CRITICAL with its own WARNING.
+ * By 1 November 23 of the watchdog's 26 duplicate alerts had been closed
+ * that way, 12 of them CRITICAL — and the watchdog raises once per model,
+ * so each was silenced for good. The Bosch SMS4ECW28E was live twice
+ * again that afternoon, at 3,990 and 2,790, with no open alert anywhere:
+ * its alert had been closed by the 13:30 run two minutes earlier.
+ *
+ * A null metadata is a sync alert, so it stays closable — `NOT contains`
+ * alone would drop every null row out of the match, in SQL as in Prisma,
+ * and quietly stop the sync closing anything at all.
+ */
+const RAISED_BY_THE_SYNC = {
+  OR: [{ metadata: null }, { NOT: { metadata: { contains: WATCHDOG_MARK } } }],
+};
 
 // One row's worth of work: find/create/update its Product row, replace its
 // stock-line breakdown, and emit whatever alerts its current data implies.
@@ -1694,6 +1722,7 @@ export async function applyRowsForSource(
         productId,
         isResolved: false,
         type: { in: [...ROW_STATE_ALERT_TYPES] },
+        ...RAISED_BY_THE_SYNC,
       },
     });
     for (const alert of staleAlerts) {
@@ -2058,18 +2087,36 @@ export async function reconcileAutoPublish(): Promise<number> {
         },
       },
     },
-    select: { id: true, sku: true, title: true },
+    select: { id: true, sku: true, title: true, model: true, price: true },
   });
   if (ready.length === 0) return 0;
+
+  /* And never into a duplicate, alert or no alert. The DUPLICATE_MODEL
+     condition above is only as good as the alert, and the alert was being
+     closed by the sync itself every run — see wouldDuplicateALiveListing.
+     Checked against what is live now and against what this same pass is
+     about to publish, so two hidden twins cannot go up together. */
+  const live = await db.product.findMany({
+    where: { isPublished: true, model: { not: null } },
+    select: { id: true, model: true, price: true },
+  });
+  const publishing: typeof live = [];
+  const safe = ready.filter((p) => {
+    if (wouldDuplicateALiveListing(p, [...live, ...publishing])) return false;
+    publishing.push(p);
+    return true;
+  });
+  if (safe.length === 0) return 0;
+
   await db.product.updateMany({
-    where: { id: { in: ready.map((p) => p.id) } },
+    where: { id: { in: safe.map((p) => p.id) } },
     data: { isPublished: true },
   });
   await db.inventoryAlert.updateMany({
-    where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { in: ready.map((p) => p.id) } },
+    where: { type: "NEW_FROM_SOURCE", isResolved: false, productId: { in: safe.map((p) => p.id) } },
     data: { isResolved: true, resolvedAt: new Date() },
   });
-  return ready.length;
+  return safe.length;
 }
 
 export async function reconcileResolvedUrgentFindings(): Promise<number> {

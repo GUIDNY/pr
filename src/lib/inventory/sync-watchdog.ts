@@ -21,6 +21,8 @@ import {
 import {
   findDuplicateListings,
   duplicateMessage,
+  duplicateAlertPlan,
+  WATCHDOG_MARK,
   type DuplicateGroup,
 } from "./duplicate-listings";
 
@@ -1046,26 +1048,23 @@ export async function checkDuplicateListings(): Promise<DuplicateGroup[]> {
  * one of them would raise it again from the other side.
  */
 export async function reconcileDuplicateListingAlerts(): Promise<DuplicateGroup[]> {
+  /* Not returning early on an empty sweep any more: an empty sweep is
+     exactly when every open alert has to be closed. See duplicateAlertPlan
+     for why the watchdog now owns both ends of its alert's life. */
   const found = await checkDuplicateListings();
-  if (found.length === 0) return found;
+  const existing = await db.inventoryAlert.findMany({
+    where: { type: "DUPLICATE_MODEL", metadata: { contains: WATCHDOG_MARK } },
+    select: { id: true, isResolved: true, metadata: true },
+  });
+  const { toClose, toRaise: fresh } = duplicateAlertPlan(found, existing);
 
-  const asked = await db.inventoryAlert
-    .findMany({ where: { type: "DUPLICATE_MODEL" }, select: { metadata: true } })
-    .then((rows) => {
-      const keys = new Set<string>();
-      for (const r of rows) {
-        try {
-          const key = JSON.parse(r.metadata ?? "{}").modelKey;
-          if (typeof key === "string") keys.add(key);
-        } catch {
-          /* A hand-written alert with no metadata tells us nothing about
-             which code it covered; it simply does not suppress one. */
-        }
-      }
-      return keys;
+  if (toClose.length > 0) {
+    await db.inventoryAlert.updateMany({
+      where: { id: { in: toClose } },
+      data: { isResolved: true, resolvedAt: new Date() },
     });
+  }
 
-  const fresh = found.filter((g) => !asked.has(g.key));
   for (const group of fresh) {
     await db.inventoryAlert.create({
       data: {

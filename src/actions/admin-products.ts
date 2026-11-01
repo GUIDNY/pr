@@ -85,7 +85,19 @@ export async function updateProductAction(id: string, input: ProductInput) {
 
 export async function togglePublishAction(id: string, isPublished: boolean) {
   const session = await requireAdmin();
-  await db.product.update({ where: { id }, data: { isPublished } });
+  /* unpublishedAt moves with isPublished, exactly as the inventory screen's
+     toggle does (admin-inventory.ts). This one wrote isPublished alone,
+     which was wrong in both directions: a product hidden from this page
+     kept a null unpublishedAt, and reconcileAutoPublish — which republishes
+     anything hidden with a null unpublishedAt — put it back on the site at
+     the next sync, with nobody pressing anything. And a product published
+     from here kept whatever unpublishedAt an earlier hide had left — live,
+     yet marked as deliberately hidden, which 15 products were on 1
+     November. */
+  await db.product.update({
+    where: { id },
+    data: { isPublished, unpublishedAt: isPublished ? null : new Date() },
+  });
   await logAudit({
     actorId: session.sub,
     action: isPublished ? "PRODUCT_PUBLISHED" : "PRODUCT_UNPUBLISHED",

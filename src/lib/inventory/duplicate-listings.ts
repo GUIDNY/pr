@@ -165,3 +165,93 @@ export function duplicateMessage(group: DuplicateGroup): string {
     `${group.buyableNow ? ", והיא ניתנת לקנייה עכשיו" : ""}. צריך להחליט איזו רשומה נכונה ולהסתיר את השאר.`
   );
 }
+
+/**
+ * How a watchdog alert is recognised in `metadata`. Exactly the substring
+ * `JSON.stringify` writes for `{ raisedBy: "watchdog" }`, no spaces.
+ * The sync reads it to leave these alerts alone — see RAISED_BY_THE_SYNC.
+ */
+export const WATCHDOG_MARK = '"raisedBy":"watchdog"';
+
+export type ExistingDuplicateAlert = { id: string; isResolved: boolean; metadata: string | null };
+
+/**
+ * What the watchdog should do about its duplicate alerts on this sweep.
+ *
+ * It used to raise once per model code, ever, and close nothing. That
+ * rested on nothing else closing them either, and something did: the sync
+ * closed them every run (see RAISED_BY_THE_SYNC). Once closed, a code was
+ * in the "already asked" set for good, so 12 money-losing duplicates went
+ * silent permanently, the Bosch SMS4ECW28E among them — live twice on 1
+ * November with no open alert.
+ *
+ * So the watchdog now owns the whole life of its alert:
+ *
+ *   - **open while the duplicate exists, closed when it does not.** A
+ *     group that has gone (one twin hidden, the prices brought level)
+ *     closes its own alert, so an open alert always means a live problem.
+ *   - **a CRITICAL comes back whenever nothing is open.** A listing priced
+ *     under its twin's cost is money leaving on every sale; that is never
+ *     a thing to stay quiet about because somebody, or something, closed
+ *     the alert once.
+ *   - **a WARNING is still asked once.** Two prices with no loss is a
+ *     tidiness question, and re-asking every three hours after a person
+ *     has dismissed it teaches people to dismiss without looking — the
+ *     same reasoning rowBindingLooksForeign keeps.
+ */
+export function duplicateAlertPlan(
+  found: DuplicateGroup[],
+  existing: ExistingDuplicateAlert[],
+): { toClose: string[]; toRaise: DuplicateGroup[] } {
+  const keyOf = (metadata: string | null): string | null => {
+    try {
+      const key = JSON.parse(metadata ?? "{}").modelKey;
+      return typeof key === "string" ? key : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const openByKey = new Map<string, string[]>();
+  const everAsked = new Set<string>();
+  for (const alert of existing) {
+    if (!(alert.metadata ?? "").includes(WATCHDOG_MARK)) continue;
+    const key = keyOf(alert.metadata);
+    if (!key) continue;
+    everAsked.add(key);
+    if (!alert.isResolved) openByKey.set(key, [...(openByKey.get(key) ?? []), alert.id]);
+  }
+
+  const live = new Set(found.map((g) => g.key));
+  const toClose = [...openByKey].filter(([key]) => !live.has(key)).flatMap(([, ids]) => ids);
+  const toRaise = found.filter(
+    (g) => !openByKey.has(g.key) && (g.severity === "CRITICAL" || !everAsked.has(g.key)),
+  );
+  return { toClose, toRaise };
+}
+
+/**
+ * Would publishing this product put a second listing of a live model on
+ * the site, at a different price?
+ *
+ * reconcileAutoPublish used to ask this only through an alert: it refused a
+ * product carrying an open DUPLICATE_MODEL. That made the guard exactly as
+ * reliable as the alert, which was not reliable at all — the sync was
+ * closing those alerts every run — and it only ever covered the one twin
+ * the alert was attached to, the cheapest. This asks the question itself,
+ * from what is live, every time.
+ *
+ * Same definition as findDuplicateListings, so the two cannot disagree:
+ * the model code normalised by modelKey, and prices that differ. Equal
+ * prices are left alone on purpose — that is what a colour variant looks
+ * like (a Midea TC034B2U in white and in black, both 1,290), and refusing
+ * those would hide real products.
+ */
+export function wouldDuplicateALiveListing(
+  candidate: { id: string; model: string | null; price: number },
+  live: { id: string; model: string | null; price: number }[],
+): boolean {
+  const key = modelKey(candidate.model);
+  if (!key) return false;
+  return live.some((l) => l.id !== candidate.id && modelKey(l.model) === key && l.price !== candidate.price);
+}
