@@ -84,6 +84,7 @@
     "check:cancellation-note": "tsx scripts/check-cancellation-note.ts",
     "check:hedera-stock": "tsx scripts/check-hedera-stock.ts",
     "check:underpriced-noise": "tsx scripts/check-underpriced-noise.ts",
+    "check:openai-ads": "tsx scripts/check-openai-ads.ts",
     "check:duplicate-alerts": "tsx scripts/check-duplicate-alerts.ts",
     "check:duplicates": "tsx scripts/check-duplicate-listings.ts",
     "check:row-aliases": "tsx scripts/check-row-aliases.ts"

@@ -127,3 +127,52 @@ more of them.
 
 `whatsapp_click` and `phone_click` must be marked as **key events in
 GA4** before they can be imported as conversions at all.
+
+## OpenAI Ads pixel — what the container holds and what it lacks
+
+Read out of the published container on 4 November (`gtm.js?id=GTM-5Z82SD4Z`
+is public): the pixel is **not in the site's code at all**. It is three
+Custom HTML tags in the container:
+
+| tag | sends |
+|---|---|
+| 30 · init | `oaiq("init", { pixelId: "PGkCeaYHDZgnLK43G8Q4Mq" })`, once per load |
+| 33 · lead | `oaiq("measure", "lead_created", { type: "customer_action" })` on `whatsapp_click` |
+| 38 · purchase | `oaiq("measure", "order_created", { type: "contents", amount: round(ecommerce.value × 100), currency, contents[{id: SKU, name, quantity}] }, { event_id: transaction_id })` on `purchase` |
+
+The purchase tag is already right, and the spec handed over that day was
+wrong about it — it was measured on a WhatsApp click only. Per the official
+reference (developers.openai.com/ads/conversion-tracking) the fourth
+argument is an **options object** carrying `event_id`, which is exactly
+where this tag puts it, and amounts are in **minor units** (agorot), which
+is the `× 100`. That same reference describes **no user-data argument for
+the browser pixel at all**: identifiers belong to the Conversions API only.
+So "identifier coverage 0%" is not fixed in the container. It is fixed by
+`lib/analytics/openai-ads-purchase.ts`, which reports the same purchase from
+the server with hashed email, phone and customer id, the same `id` (the
+order number = `transaction_id`) and the same type, so OpenAI keeps one.
+
+### To add — three tags, on triggers the container already has
+
+The container already fires GA4 tags on `view_item`, `add_to_cart` and
+`begin_checkout`, so the triggers exist. Add one Custom HTML tag each,
+firing on those triggers, with tag 31 (init) as setup tag — copy tag 38's
+shape. **OpenAI's names are not GA4's:**
+
+| dataLayer event | OpenAI event | data |
+|---|---|---|
+| `view_item` | `contents_viewed` | `{ type: "contents", amount, currency, contents }` |
+| `add_to_cart` | `items_added` | `{ type: "contents", amount, currency, contents }` |
+| `begin_checkout` | `checkout_started` | `{ type: "contents", amount, currency, contents }` |
+
+`amount = Math.round(Number({{ecommerce.value}}) × 100)` — agorot, as tag 38.
+No `event_id` is needed on these: nothing reports them from the server.
+
+### Do not
+
+- put email or phone into the dataLayer to feed the pixel. Every tag in
+  the container would read it, GA4 forbids it, and the pixel has no field
+  for it anyway.
+- switch the campaign's objective from Clicks to Conversions on the
+  strength of this. Ten purchases are on the pixel in its whole life; an
+  optimiser wants 30–50 a month.
