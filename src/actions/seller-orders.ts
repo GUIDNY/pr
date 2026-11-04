@@ -13,6 +13,7 @@ import { INTERNAL_DELIVERY_NAME } from "@/lib/couriers";
 import { MANUAL_PAYMENT_METHOD_LABELS, manualPaymentMethodSchema, type ManualPaymentMethod } from "@/lib/enums";
 import { undoableStep } from "@/lib/order-undo";
 import { sendPurchaseToGa4 } from "@/lib/analytics/ga4-purchase";
+import { sendPurchaseToOpenAiAds } from "@/lib/analytics/openai-ads-purchase";
 
 /**
  * The two buttons on a salesperson's order card.
@@ -102,6 +103,7 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
     note = "הדפוזיט נגבה ואושר לטיפול";
     await awardPurchase(order.id);
     await sendPurchaseToGa4(order.id);
+    await sendPurchaseToOpenAiAds(order.id);
   }
 
   // PROCESSING and not PAID: PAID is what the gateway says, and overwriting it
@@ -222,6 +224,7 @@ export async function markPaidManuallyAction(
   });
   await awardPurchase(order.id);
   await sendPurchaseToGa4(order.id);
+  await sendPurchaseToOpenAiAds(order.id);
 
   /* NOT NOTIFIED HERE. The shop's owner asked, on 26 October, that nothing
      reach a customer because he pressed a button in the back office — only
