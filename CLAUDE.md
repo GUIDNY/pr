@@ -363,6 +363,26 @@ the price list has dropped; that was a decision the sync made deliberately.
 It narrows the window, it does not close it. A SKU in the sheet is still the
 only thing that removes the guessing — see `docs/supplier-sheet-issues-*.md`.
 
+## A product a person hid stays hidden — the database refuses otherwise
+
+`Product_hidden_stays_hidden_check`, added 4 November:
+`NOT ("isPublished" AND "unpublishedAt" IS NOT NULL)`.
+
+`unpublishedAt` is the record that somebody took a product off the site on
+purpose, and `reconcileAutoPublish` treats it as final. On 1–4 November that
+record was ignored by writes that never went near the code: SKU 1392, a
+duplicate of 158078, was hidden by hand and found live again three times,
+with its `unpublishedAt` still set and no sync and no admin action in the
+audit log in between. Sixteen products were in that state — live, and
+marked as deliberately hidden — before it was cleaned up.
+
+No code change can stop a raw `UPDATE … SET "isPublished" = true`. A
+constraint can, so that write now fails. **To publish a hidden product,
+clear `unpublishedAt` in the same statement** — which is what both admin
+toggles do (`toggleProductPublishAction` and `togglePublishAction`), and
+what makes the decision to overturn a hide a visible one. If you hit this
+error, the product was hidden by a person; read its `internalNotes` first.
+
 ## `enrichmentStatus` is load-bearing
 
 `NOT_ENRICHED` → `ENRICHED` (or `NEEDS_REVIEW`). Two paths set it: the enrich endpoint
