@@ -15,10 +15,10 @@ function parts(ms: number) {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export function SinglesDayCountdown({ initialNow }: { initialNow: number }) {
-  // Starts from the server's clock so the first paint already has numbers in
-  // it, then takes over from the browser's.
-  const [now, setNow] = useState(initialNow);
+export function SinglesDayCountdown({ initialNow, compact = false }: { initialNow?: number; compact?: boolean }) {
+  // Starts from the server's clock when there is one, so the first paint
+  // already has numbers in it, then takes over from the browser's.
+  const [now, setNow] = useState(() => initialNow ?? Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
@@ -41,7 +41,7 @@ export function SinglesDayCountdown({ initialNow }: { initialNow: number }) {
 
   return (
     <div>
-      <p className="mb-2 text-sm font-semibold text-neutral-500">
+      <p className={`${compact ? "mb-1 text-xs" : "mb-2 text-sm"} font-semibold text-neutral-500`}>
         {live ? "המבצע נגמר בעוד" : "המבצע מתחיל בעוד"}
       </p>
       {/* dir=ltr: a clock reads days→seconds left to right in Hebrew too */}
@@ -50,13 +50,13 @@ export function SinglesDayCountdown({ initialNow }: { initialNow: number }) {
           <div key={label} className="flex items-start gap-1.5 sm:gap-2">
             <div className="text-center">
               <div
-                className={`${live ? "bg-brand" : "bg-neutral-950"} min-w-[3.25rem] rounded-lg px-2 py-2 text-3xl font-black tabular-nums text-white shadow-[inset_0_-2px_0_rgb(255_255_255/0.08)] sm:min-w-16 sm:text-4xl`}
+                className={`${live ? "bg-brand" : "bg-neutral-950"} ${compact ? "min-w-10 rounded-md px-1.5 py-1 text-xl sm:min-w-11 sm:text-2xl" : "min-w-[3.25rem] rounded-lg px-2 py-2 text-3xl sm:min-w-16 sm:text-4xl"} font-black tabular-nums text-white shadow-[inset_0_-2px_0_rgb(255_255_255/0.08)]`}
               >
                 {v}
               </div>
-              <div className="mt-1 text-[11px] font-medium text-neutral-500">{label}</div>
+              <div className={`${compact ? "mt-0.5 text-[10px]" : "mt-1 text-[11px]"} font-medium text-neutral-500`}>{label}</div>
             </div>
-            {i < cells.length - 1 && <span className="pt-2 text-2xl font-black text-neutral-300 sm:text-3xl">:</span>}
+            {i < cells.length - 1 && <span className={`${compact ? "pt-0.5 text-lg" : "pt-2 text-2xl sm:text-3xl"} font-black text-neutral-300`}>:</span>}
           </div>
         ))}
       </div>
