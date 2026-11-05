@@ -11,6 +11,7 @@ import { SINGLES_DAY_ITEMS, type SinglesDayItem } from "@/lib/campaigns/singles-
 import {
   SinglesDayHero,
   SinglesDaySectionHeading,
+  SinglesDayStickyNav,
   SinglesDayTicker,
   type Spotlight,
 } from "@/components/campaign/singles-day-poster";
@@ -88,7 +89,8 @@ export default async function SinglesDayPreviewPage() {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs font-medium sm:text-sm">
           <span className="flex items-center gap-1.5">
             <Eye className="size-4" />
-            תצוגה מקדימה למנהלים — לקוחות לא רואים את הדף, והמחירים באתר לא שונו
+            <span className="sm:hidden">תצוגה למנהלים · לא גלוי ללקוחות</span>
+            <span className="hidden sm:inline">תצוגה מקדימה למנהלים — לקוחות לא רואים את הדף, והמחירים באתר לא שונו</span>
             {missing > 0 && ` · ${missing} מוצרים מהרשימה לא נמצאו בקטלוג`}
           </span>
           <Link href="/admin/singles-day" className="flex items-center gap-1 font-bold underline underline-offset-4">
@@ -117,11 +119,13 @@ export default async function SinglesDayPreviewPage() {
         ]}
       />
 
-      <div id="deals" className="mx-auto max-w-7xl space-y-14 px-4 pt-12">
+      <SinglesDayStickyNav groups={groups.map((g) => ({ id: g.id, label: g.label, count: g.deals.length }))} />
+
+      <div id="deals" className="mx-auto max-w-7xl space-y-10 px-4 pt-8 sm:space-y-14 sm:pt-12">
         {groups.map((g, i) => (
           <section key={g.id}>
             <SinglesDaySectionHeading index={i + 1} id={g.id} label={g.label} count={g.deals.length} />
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
               {g.deals.map(({ item, card }) => (
                 <ProductCard key={item.sku} product={card} previewLabel="במבצע ב-11.11" />
               ))}
