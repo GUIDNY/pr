@@ -192,6 +192,9 @@ const WHATSAPP_TEMPLATE_DEFAULTS: Record<string, string> = {
   DELIVERED: "order_delivered",
   // Not a customer message: the shop telling itself a complaint came in.
   COMPLAINT_ALERT: "complaint_alert",
+  // Marketing category in WhatsApp Manager: one slot (first name), a static
+  // "complete the order" URL button and the "השיבו הסר" footer.
+  ABANDONED_CART: "buytoday_cart_reminder",
 };
 
 /** An Israeli number as the API wants it: digits only, country code first. */

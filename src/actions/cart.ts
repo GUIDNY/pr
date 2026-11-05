@@ -93,6 +93,8 @@ export async function saveCheckoutContactAction(input: {
   fullName?: string;
   phone?: string;
   email?: string;
+  /** The advertising-consent box as it is right now. Undefined leaves it alone. */
+  marketingOptIn?: boolean;
 }) {
   try {
     const phone = input.phone?.trim() ?? "";
@@ -108,6 +110,16 @@ export async function saveCheckoutContactAction(input: {
         contactPhone: phone.slice(0, 30),
         contactEmail: input.email?.trim().slice(0, 160) || null,
         contactAt: new Date(),
+        ...(typeof input.marketingOptIn === "boolean"
+          ? {
+              marketingOptIn: input.marketingOptIn,
+              // The moment it was ticked, kept as the record of consent.
+              // Unticking clears it; ticking again is a new consent.
+              marketingOptInAt: input.marketingOptIn
+                ? ("marketingOptInAt" in cart && cart.marketingOptInAt) || new Date()
+                : null,
+            }
+          : {}),
       },
     });
     return { success: true as const };

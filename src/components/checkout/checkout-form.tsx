@@ -381,11 +381,12 @@ export function CheckoutForm({
      sale. On blur and not on every keystroke — a half-typed phone number is
      not a lead — and deliberately not awaited: this is a side errand next to
      the order, and it must never be able to delay or break one. */
-  function rememberContact() {
+  function rememberContact(marketingOptIn: boolean = form.marketingOptIn) {
     void saveCheckoutContactAction({
       fullName: form.fullName,
       phone: form.phone,
       email: form.email,
+      marketingOptIn,
     }).catch(() => {});
   }
 
@@ -657,7 +658,7 @@ export function CheckoutForm({
                 id="fullName"
                 value={form.fullName}
                 onChange={(e) => update("fullName", e.target.value)}
-                onBlur={rememberContact}
+                onBlur={() => rememberContact()}
                 required
               />
             </div>
@@ -668,7 +669,7 @@ export function CheckoutForm({
                 type="email"
                 value={form.email}
                 onChange={(e) => update("email", e.target.value)}
-                onBlur={rememberContact}
+                onBlur={() => rememberContact()}
                 required
               />
             </div>
@@ -679,7 +680,7 @@ export function CheckoutForm({
                 type="tel"
                 value={form.phone}
                 onChange={(e) => update("phone", e.target.value)}
-                onBlur={rememberContact}
+                onBlur={() => rememberContact()}
                 required
               />
               {/* The customer's say on WhatsApp, next to the number it would
@@ -706,7 +707,13 @@ export function CheckoutForm({
                 <Checkbox
                   id="marketingOptIn"
                   checked={form.marketingOptIn}
-                  onCheckedChange={(v) => update("marketingOptIn", v === true)}
+                  onCheckedChange={(v) => {
+                    update("marketingOptIn", v === true);
+                    // Saved at once, not on the next blur: the abandoned-cart
+                    // reminder reads this box, and the box is often the last
+                    // thing touched before someone leaves.
+                    rememberContact(v === true);
+                  }}
                   className="mt-0.5 rounded-full"
                 />
                 <span className="leading-snug">
