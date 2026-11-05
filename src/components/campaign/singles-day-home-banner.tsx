@@ -1,30 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Eye } from "lucide-react";
-import { useBackOfficeHome } from "@/components/layout/session-summary-provider";
-import { SinglesDayCountdown } from "@/components/campaign/countdown";
+import { ArrowLeft } from "lucide-react";
+import { SinglesDayCountdown, useSinglesDayClock } from "@/components/campaign/countdown";
+import { singlesDayPhase } from "@/lib/campaigns/singles-day-window";
 import { cn } from "@/lib/utils";
 
 /**
- * The homepage's way in to /singles-day — for catalog managers only, until
- * the campaign is opened to everyone.
+ * The homepage's way in to /singles-day, for every visitor.
  *
- * Decided in the browser, not on the server, on purpose: the homepage is
- * built once and cached at the edge for every visitor (revalidate = 300),
- * and reading a session there would make it render per request for all of
- * them. The session summary already answers "is this a manager" after the
- * page is on screen — backOffice is "/admin" for exactly the roles
- * canManageCatalog admits, the same gate the page itself uses — so the
- * banner simply appears once that answer arrives.
- *
- * Nothing here may come from the server: anything passed as a prop would be
- * in the cached HTML every visitor downloads. The text is fixed and carries
- * no price, cost or product, and the page it links to 404s for anyone else.
+ * Until 00:00 on 11.11 it counts down to the opening and the page behind it
+ * shows only the same clock; on the day it counts down to the end and the
+ * page shows the deals; after 24:00 it is gone. All three are decided in the
+ * browser from the clock, because the homepage is cached at the edge for
+ * minutes at a time and a server-rendered phase could be stale by the time it
+ * arrives.
  */
-export function AdminSinglesDayBanner({ inset = false, className }: { inset?: boolean; className?: string }) {
-  const backOffice = useBackOfficeHome();
-  if (backOffice !== "/admin") return null;
+export function PublicSinglesDayBanner({ inset = false, className }: { inset?: boolean; className?: string }) {
+  const now = useSinglesDayClock();
+  if (now !== null && singlesDayPhase(now) === "over") return null;
   return <SinglesDayHomeBanner inset={inset} className={className} />;
 }
 
@@ -43,6 +37,8 @@ export function SinglesDayHomeBanner({
   inset?: boolean;
   className?: string;
 }) {
+  const now = useSinglesDayClock(initialNow);
+  const live = now !== null && singlesDayPhase(now) === "live";
   return (
     <div className={cn(inset ? "" : "mx-auto max-w-7xl px-4 pt-4", className)}>
       <Link
@@ -60,16 +56,12 @@ export function SinglesDayHomeBanner({
           11.11
         </span>
 
-        <span className="absolute top-0 end-0 z-10 flex items-center gap-1 rounded-es-xl bg-[#ffd25a] px-2.5 py-1 text-[11px] font-bold text-[#7d000c]">
-          <Eye className="size-3.5" /> מנהלים בלבד
-        </span>
-
         <div className="relative flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:gap-8 sm:p-6">
           <div className="min-w-0 flex-1">
             <div className="mb-1.5 flex items-center gap-2 text-xs font-semibold text-white/85">
               <span className="rounded-sm bg-[#ffd25a] px-1.5 py-0.5 font-mono tracking-[0.15em] text-[#7d000c]">11.11</span>
               <span lang="zh" className="text-[#ffd25a]">光棍节</span>
-              <span>· יום אחד · עד גמר המלאי</span>
+              <span>{live ? "· עכשיו! · עד גמר המלאי" : "· יום אחד · עד גמר המלאי"}</span>
             </div>
             <div className="text-[1.75rem] font-black leading-none tracking-tight sm:text-4xl">
               יום הרווקים <span className="text-[#ffd25a]">הסיני</span>
@@ -82,7 +74,7 @@ export function SinglesDayHomeBanner({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
             <SinglesDayCountdown compact tone="red" initialNow={initialNow} />
             <span className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-[#ffd25a] px-4 py-3 text-sm font-black text-[#7d000c] shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)] transition group-hover:bg-[#ffdf80]">
-              לכל המבצעים
+              {live ? "לכל המבצעים" : "לדף המבצע"}
               <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
             </span>
           </div>

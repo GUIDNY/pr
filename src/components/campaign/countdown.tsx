@@ -1,12 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SINGLES_DAY_END_MS as END, SINGLES_DAY_START_MS as START } from "@/lib/campaigns/singles-day-window";
 
-/* Israel is on winter time (UTC+2) by 11 November, so the day runs
-   00:00–24:00 at +02:00. Fixed instants rather than "midnight local", so a
-   visitor abroad counts down to the same moment the shop does. */
-const START = Date.parse("2026-11-11T00:00:00+02:00");
-const END = Date.parse("2026-11-12T00:00:00+02:00");
+/**
+ * The browser's clock, ticking once a second. Null until mounted when the
+ * server gave no time of its own — the homepage is cached for minutes at a
+ * time, so a number rendered there would be stale on arrival and would not
+ * match what the browser computes on hydration.
+ */
+export function useSinglesDayClock(initialNow?: number): number | null {
+  const [now, setNow] = useState<number | null>(initialNow ?? null);
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const first = setTimeout(tick, 0);
+    const id = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
+  }, []);
+  return now;
+}
 
 function parts(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -19,20 +34,28 @@ export function SinglesDayCountdown({
   initialNow,
   compact = false,
   tone = "paper",
+  reloadOnChange = false,
 }: {
   initialNow?: number;
   compact?: boolean;
   /* paper: ink tiles on cream. red: on a red ground, gold digits on deep red. */
   tone?: "paper" | "red";
+  /* Reload the page when the clock crosses 00:00 or 24:00, so a visitor
+     waiting on the countdown sees the deals open without pressing anything. */
+  reloadOnChange?: boolean;
 }) {
-  // Starts from the server's clock when there is one, so the first paint
-  // already has numbers in it, then takes over from the browser's.
-  const [now, setNow] = useState(() => initialNow ?? Date.now());
+  const clock = useSinglesDayClock(initialNow);
+  const phaseNow = clock === null ? null : clock < START ? 0 : clock < END ? 1 : 2;
+  const [phaseAtLoad] = useState(phaseNow);
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
+    if (!reloadOnChange || phaseNow === null || phaseAtLoad === null || phaseNow === phaseAtLoad) return;
+    // a few seconds' grace, so the database's own switch at the same minute has run
+    const id = setTimeout(() => window.location.reload(), 4000);
+    return () => clearTimeout(id);
+  }, [reloadOnChange, phaseNow, phaseAtLoad]);
 
+  const now = clock ?? START;
+  const pending = clock === null;
   const live = now >= START && now < END;
   const over = now >= END;
   const t = parts((live ? END : START) - now);
@@ -45,16 +68,16 @@ export function SinglesDayCountdown({
   }
 
   const cells: [string, string][] = [
-    [String(t.d), "ימים"],
-    [pad(t.h), "שעות"],
-    [pad(t.m), "דקות"],
-    [pad(t.s), "שניות"],
+    [pending ? "–" : String(t.d), "ימים"],
+    [pending ? "––" : pad(t.h), "שעות"],
+    [pending ? "––" : pad(t.m), "דקות"],
+    [pending ? "––" : pad(t.s), "שניות"],
   ];
 
   return (
     <div>
       <p className={`${compact ? "mb-1 text-xs" : "mb-2 text-sm"} font-semibold ${muted}`}>
-        {live ? "המבצע נגמר בעוד" : "המבצע מתחיל בעוד"}
+        {live ? "המבצע נגמר בעוד" : "המבצע נפתח בעוד"}
       </p>
       {/* dir=ltr: a clock reads days→seconds left to right in Hebrew too */}
       <div dir="ltr" className="flex items-start justify-end gap-1.5 sm:gap-2" role="timer" aria-live="off">
