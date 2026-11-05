@@ -106,8 +106,9 @@ export default async function HomePage() {
           brands — the brands after the first products, so a product is on
           the first screen of a laptop rather than a row of logos. */}
       <div className="flex flex-col lg:contents">
-        {/* Renders nothing for a visitor; see the component. */}
-        <div className="order-first">
+        {/* Renders nothing for a visitor; see the component. On a phone it
+            sits under the category circles instead, inside the hero band. */}
+        <div className="order-first hidden lg:block">
           <AdminSinglesDayBanner />
         </div>
         <div className="order-1">
@@ -120,6 +121,7 @@ export default async function HomePage() {
             categoryTiles={categoryTiles}
             deals={deals}
             banners={banners}
+            phoneSlot={<AdminSinglesDayBanner inset className="mb-3" />}
           />
         </div>
 
