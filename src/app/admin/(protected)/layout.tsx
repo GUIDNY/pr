@@ -16,6 +16,7 @@ import {
   GalleryHorizontal,
   TicketPercent,
   Coins,
+  PartyPopper,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
@@ -54,6 +55,9 @@ const NAV = [
      neither label is that word on its own any more. */
   { href: "/admin/deals", label: "מוצרים במבצע", icon: TagIcon, catalog: true },
   { href: "/admin/promotions", label: "קופונים והנחות עגלה", icon: TicketPercent, catalog: true },
+  /* A campaign being prepared, for looking at and showing — it changes no
+     price. See lib/campaigns/singles-day-2026.ts. */
+  { href: "/admin/singles-day", label: "יום הרווקים 11.11", icon: PartyPopper, catalog: true },
   { href: "/admin/suppliers", label: "ספקים", icon: Truck, catalog: true },
   { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle, catalog: true },
   { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles, catalog: true },
