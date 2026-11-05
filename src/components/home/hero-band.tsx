@@ -35,6 +35,7 @@ export function HeroBand({
   ctaHref,
   departments,
   categoryTiles,
+  phoneSlot,
   deals,
   banners,
 }: {
@@ -44,6 +45,8 @@ export function HeroBand({
   ctaHref?: string;
   departments: DepartmentCount[];
   categoryTiles: CategoryTile[];
+  /* Rendered on the phone just under the category circles. */
+  phoneSlot?: React.ReactNode;
   deals: ProductCardData[];
   // The owner's banners from /admin/banners, active ones in order. When
   // there are none, the slides are built from live data instead.
@@ -108,6 +111,7 @@ export function HeroBand({
         {/* ---------------- phone ---------------- */}
         <div className="lg:hidden">
           <CategoryCircles tiles={categoryTiles} className="mb-3" />
+          {phoneSlot}
 
           {/* One card: the shop's line and the importer chip ride at the
               top of every slide, and only the offer underneath rotates.
