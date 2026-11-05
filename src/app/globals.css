@@ -450,3 +450,17 @@ html[data-embed="mall"] [data-site-chrome] {
 html[data-embed="mall"] #main-content {
   padding-bottom: 0 !important;
 }
+
+/* Singles' Day ticker. The track holds the line twice; in RTL moving it
+   right by half its width brings the second copy to exactly where the first
+   started, so the loop has no seam. */
+@keyframes sd-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(50%); }
+}
+.sd-marquee {
+  animation: sd-marquee 40s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sd-marquee { animation: none; }
+}
