@@ -24,6 +24,7 @@ import { isPelecardSandbox } from "@/lib/pelecard/config";
 import { isBackOffice, canManageCatalog, isSiteAdmin } from "@/lib/permissions";
 import { canSeePriceList } from "@/lib/price-list-access";
 import { db } from "@/lib/db";
+import { SINGLES_DAY_ENDS_AT_MS } from "@/lib/campaigns/singles-day-2026";
 import { AdminMenuSheet, AdminTabBar } from "@/components/admin/admin-mobile-shell";
 
 /**
@@ -56,8 +57,9 @@ const NAV = [
   { href: "/admin/deals", label: "מוצרים במבצע", icon: TagIcon, catalog: true },
   { href: "/admin/promotions", label: "קופונים והנחות עגלה", icon: TicketPercent, catalog: true },
   /* A campaign being prepared, for looking at and showing — it changes no
-     price. See lib/campaigns/singles-day-2026.ts. */
-  { href: "/admin/singles-day", label: "יום הרווקים 11.11", icon: PartyPopper, catalog: true },
+     price. See lib/campaigns/singles-day-2026.ts. Sellers see it too
+     (`seller`), and it leaves the nav at `until`, midnight after 11.11. */
+  { href: "/admin/singles-day", label: "יום הרווקים 11.11", icon: PartyPopper, catalog: true, seller: true, until: SINGLES_DAY_ENDS_AT_MS },
   { href: "/admin/suppliers", label: "ספקים", icon: Truck, catalog: true },
   { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle, catalog: true },
   { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles, catalog: true },
@@ -77,6 +79,11 @@ function tabBar(nav: { href: string; label: string; exact?: boolean }[]) {
   return picked.map(({ href, label, exact }) => ({ href, label, exact }));
 }
 
+/* The clock for `until`, read outside render so render stays pure. */
+async function requestTime(): Promise<number> {
+  return Date.now();
+}
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   if (!session || !isBackOffice(session.role)) {
@@ -93,9 +100,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const owner = isSiteAdmin(session.role);
   const viewer = await db.user.findUnique({ where: { id: session.sub }, select: { email: true } });
   const prices = canSeePriceList(viewer?.email, session.role);
+  const now = await requestTime();
   const visible = NAV.filter(
     (item) =>
-      (full || !item.catalog) &&
+      (full || !item.catalog || ("seller" in item && item.seller && session.role === "SELLER")) &&
+      (!("until" in item) || item.until === undefined || now < item.until) &&
       (owner || !("ownerOnly" in item && item.ownerOnly)) &&
       (prices || !("priceList" in item && item.priceList)),
   );

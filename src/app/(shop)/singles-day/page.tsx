@@ -4,10 +4,9 @@ import { Eye, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductCard, type ProductCardData } from "@/components/product/product-card";
 import { getSession } from "@/lib/auth";
-import { canManageCatalog } from "@/lib/permissions";
 import { getCardsBySkuForPreview, getPublicSaleCardsByBrand } from "@/lib/queries/products";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
-import { SINGLES_DAY_ITEMS, type SinglesDayItem } from "@/lib/campaigns/singles-day-2026";
+import { SINGLES_DAY_ITEMS, canSeeSinglesDay, type SinglesDayItem } from "@/lib/campaigns/singles-day-2026";
 import { singlesDayPhase } from "@/lib/campaigns/singles-day-window";
 import {
   SinglesDayHero,
@@ -58,7 +57,10 @@ export default async function SinglesDayPage() {
   const now = await requestTime();
   const phase = singlesDayPhase(now);
   const session = await getSession();
-  const isManager = !!session && canManageCatalog(session.role);
+  /* "Manager" here is whoever sees the campaign before customers do: the
+     catalog roles and, since 5 November, every seller, so the sales team
+     sees the live page the admin sees. */
+  const isManager = !!session && canSeeSinglesDay(session.role);
 
   if (phase === "before" && !isManager) {
     return (
