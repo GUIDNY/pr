@@ -21,14 +21,13 @@ async function requestTime(): Promise<number> {
 const ils = (n: number) => `${n.toLocaleString("he-IL")} ₪`;
 
 /**
- * Singles' Day in the back office: the list of deals, a link to the live
- * page, a link to the mall, the social plan. Nothing else.
+ * Singles' Day in the back office: three headed blocks and nothing else.
+ * "המוצרים שבמבצע" holds the list. "דוגמאות" holds the live page and the
+ * mall. "התוכנית הממומנת" holds the social plan. The owner gave the headings
+ * on 5 November, after first asking for none.
  *
- * The owner asked for exactly that on 5 November: "פשוט רשימת מוצרים
- * שבמבצע ואז קישור לדף של יום הרווקים הפעיל, קישור לקניון ותכנון סושיאל
- * וזהו", with no headings and no other words. The earlier version had
- * a hero, stats, margin and live-catalogue checks, and he took them off.
- * Sellers and catalog roles see the same page. It shows no cost, so the
+ * The earlier version had a hero, stats, margin and live-catalogue checks,
+ * and he took them off. Sellers and catalog roles see the same page. It shows no cost, so the
  * page needs no per-role split.
  *
  * From 12.11 at midnight it is gone for everyone: the address sends a
@@ -43,6 +42,7 @@ export default async function SinglesDayPage() {
 
   return (
     <div className="max-w-3xl space-y-6">
+      <h2 className="-mb-3 text-lg font-bold">המוצרים שבמבצע</h2>
       <ol className="divide-y overflow-hidden rounded-2xl border bg-card text-sm">
         {SINGLES_DAY_ITEMS.map((item) => (
           <li key={item.sku} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2.5">
@@ -56,6 +56,7 @@ export default async function SinglesDayPage() {
         ))}
       </ol>
 
+      <h2 className="-mb-3 text-lg font-bold">דוגמאות</h2>
       <div className="flex flex-wrap gap-3">
         <a
           href="/singles-day"
@@ -76,6 +77,7 @@ export default async function SinglesDayPage() {
         </a>
       </div>
 
+      <h2 className="-mb-3 text-lg font-bold">התוכנית הממומנת</h2>
       <p className="rounded-2xl border bg-card px-4 py-3 text-sm font-medium">
         {plan.headline} {plan.creative} · {ils(plan.budgetIls)} ל{plan.days === 2 ? "יומיים" : `-${plan.days} ימים`}
       </p>
