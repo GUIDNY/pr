@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const session = await getSession();
   const isManager = !!session && canManageCatalog(session.role);
   return {
-    ...(isManager ? { title: "יום הרווקים 11.11" } : {}),
+    ...(isManager ? { title: "יום הרווקים הסיני 11.11" } : {}),
     robots: { index: false, follow: false, nocache: true },
   };
 }
@@ -84,7 +84,7 @@ export default async function SinglesDayPreviewPage() {
   return (
     <div className="pb-16">
       {/* ── manager strip ─────────────────────────────────────────── */}
-      <div className="bg-amber-300 text-neutral-950">
+      <div className="bg-[#ffd25a] text-[#7d000c]">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2 text-xs font-medium sm:text-sm">
           <span className="flex items-center gap-1.5">
             <Eye className="size-4" />
@@ -108,7 +108,7 @@ export default async function SinglesDayPreviewPage() {
 
       <SinglesDayTicker
         lines={[
-          "יום הרווקים · 11.11",
+          "יום הרווקים הסיני · 11.11",
           `עד ${maxDiscount}% הנחה`,
           `משלוח חינם מעל ${FREE_DELIVERY_THRESHOLD.toLocaleString("he-IL")} ₪`,
           "עד גמר המלאי",

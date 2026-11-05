@@ -145,7 +145,7 @@ export function ProductCard({
             whatever each card says above it. */}
         <div className="mt-auto pt-2.5 sm:pt-3">
           {previewLabel ? (
-            <div className="border-brand/40 text-brand flex h-9 w-full items-center justify-center rounded-lg border border-dashed text-sm font-semibold">
+            <div className="flex h-9 w-full items-center justify-center rounded-lg border border-dashed border-[#e3001b]/45 bg-[#fff4f2] text-sm font-bold text-[#c4001a]">
               {previewLabel}
             </div>
           ) : (
