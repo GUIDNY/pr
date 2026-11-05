@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ProductCard, type ProductCardData } from "@/components/product/product-card";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
-import { getCardsBySkuForPreview } from "@/lib/queries/products";
+import { getCardsBySkuForPreview, getPublicSaleCardsByBrand } from "@/lib/queries/products";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import { SINGLES_DAY_ITEMS, type SinglesDayItem } from "@/lib/campaigns/singles-day-2026";
 import { singlesDayPhase } from "@/lib/campaigns/singles-day-window";
@@ -64,7 +64,7 @@ export default async function SinglesDayPage() {
     return (
       <div className="pb-16">
         <SinglesDayHero spotlight={null} count={SINGLES_DAY_ITEMS.length} maxDiscount={MAX_DISCOUNT} groups={[]} initialNow={now} teaser />
-        <SinglesDayTicker lines={tickerLines(SINGLES_DAY_ITEMS.length)} />
+        <SinglesDayTicker lines={tickerLines()} />
       </div>
     );
   }
@@ -83,10 +83,17 @@ export default async function SinglesDayPage() {
   }
 
   const preview = phase === "before"; // a manager, before the opening
-  const cards = await getCardsBySkuForPreview(
-    SINGLES_DAY_ITEMS.map((i) => i.sku),
-    { publicOnly: !isManager }
-  );
+  const [cards, ninja] = await Promise.all([
+    getCardsBySkuForPreview(
+      SINGLES_DAY_ITEMS.map((i) => i.sku),
+      { publicOnly: !isManager }
+    ),
+    /* Ninja's standing sales, added at the owner's word ("what do we care").
+       Their prices are not touched: each is already on a sale of its own,
+       which is exactly why the 00:00 job would skip one — and read live, so
+       whatever Ninja is on sale on the day is what shows. */
+    getPublicSaleCardsByBrand("Ninja"),
+  ]);
   const deals = SINGLES_DAY_ITEMS.flatMap((item, i) => {
     const card = cards[i];
     if (!card) return [];
@@ -112,9 +119,15 @@ export default async function SinglesDayPage() {
       }
     : null;
 
-  const groups = GROUPS.map((g) => ({ ...g, deals: deals.filter((d) => groupOf(d.item.label) === g.id) })).filter(
-    (g) => g.deals.length > 0
-  );
+  const groups: { id: string; label: string; deals: { key: string; card: ProductCardData }[] }[] = [
+    ...GROUPS.map((g) => ({
+      id: g.id as string,
+      label: g.label as string,
+      deals: deals.filter((d) => groupOf(d.item.label) === g.id).map((d) => ({ key: d.item.sku, card: d.card })),
+    })),
+    { id: "ninja", label: "Ninja במבצע", deals: ninja.map((card) => ({ key: card.sku, card })) },
+  ].filter((g) => g.deals.length > 0);
+  const totalDeals = groups.reduce((t, g) => t + g.deals.length, 0);
   const groupLinks = groups.map((g) => ({ id: g.id, label: g.label, count: g.deals.length }));
 
   return (
@@ -144,9 +157,9 @@ export default async function SinglesDayPage() {
         </div>
       )}
 
-      <SinglesDayHero spotlight={spotlight} count={deals.length} maxDiscount={MAX_DISCOUNT} groups={groupLinks} initialNow={now} />
+      <SinglesDayHero spotlight={spotlight} count={totalDeals} maxDiscount={MAX_DISCOUNT} groups={groupLinks} initialNow={now} />
 
-      <SinglesDayTicker lines={tickerLines(deals.length)} />
+      <SinglesDayTicker lines={tickerLines(totalDeals)} />
 
       <SinglesDayStickyNav groups={groupLinks} />
 
@@ -155,8 +168,8 @@ export default async function SinglesDayPage() {
           <section key={g.id}>
             <SinglesDaySectionHeading index={i + 1} id={g.id} label={g.label} count={g.deals.length} />
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
-              {g.deals.map(({ item, card }) => (
-                <ProductCard key={item.sku} product={card} previewLabel={preview ? "במבצע ב-11.11" : undefined} />
+              {g.deals.map(({ key, card }) => (
+                <ProductCard key={key} product={card} previewLabel={preview ? "במבצע ב-11.11" : undefined} />
               ))}
             </div>
           </section>
@@ -166,13 +179,14 @@ export default async function SinglesDayPage() {
   );
 }
 
-function tickerLines(count: number) {
+/* Without a count before the opening: what is inside stays inside. */
+function tickerLines(count?: number) {
   return [
     "יום הרווקים הסיני · 11.11",
     `עד ${MAX_DISCOUNT}% הנחה`,
     `משלוח חינם מעל ${FREE_DELIVERY_THRESHOLD.toLocaleString("he-IL")} ₪`,
     "עד גמר המלאי",
-    `${count} מוצרים נבחרים`,
+    ...(count ? [`${count} מוצרים נבחרים`] : []),
     "יום אחד בלבד",
   ];
 }

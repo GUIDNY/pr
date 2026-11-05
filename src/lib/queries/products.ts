@@ -1434,3 +1434,20 @@ export async function getCardsBySkuForPreview(skus: string[], { publicOnly = fal
   const bySku = new Map(rows.map((r) => [r.sku, mapProductToCard(r)]));
   return skus.map((sku) => bySku.get(sku) ?? null);
 }
+
+// A brand's products that are on sale right now and on the site, biggest
+// price first. For a campaign page that adds a brand's standing offers
+// (Singles' Day shows Ninja's) without pinning SKUs that come and go.
+export async function getPublicSaleCardsByBrand(brandName: string, take = 24) {
+  const rows = await db.product.findMany({
+    where: {
+      ...PUBLIC_PRODUCT_WHERE,
+      compareAtPrice: { not: null },
+      brand: { name: { equals: brandName, mode: "insensitive" } },
+    },
+    select: cardSelect,
+    orderBy: { price: "desc" },
+    take,
+  });
+  return rows.map(mapProductToCard).filter((c) => c.compareAtPrice !== null && c.compareAtPrice > c.price);
+}
