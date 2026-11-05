@@ -18,7 +18,7 @@ import {
 
 export const metadata: Metadata = {
   title: "יום הרווקים הסיני 11.11",
-  description: "יום הרווקים הסיני ב-Buy Today: 20 מוצרים למטבח ולבית, עד 20% הנחה, ליום אחד בלבד.",
+  description: "יום הרווקים הסיני ב-Buy Today: מבצעים למטבח ולבית, עד 20% הנחה, ליום אחד בלבד.",
   alternates: { canonical: "/singles-day" },
 };
 /* The phase is read per request: the same address is a clock until 00:00,
