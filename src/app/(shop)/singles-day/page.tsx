@@ -9,11 +9,17 @@ import { getCardsBySkuForPreview } from "@/lib/queries/products";
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import { SINGLES_DAY_ITEMS, daysUntilSinglesDay } from "@/lib/campaigns/singles-day-2026";
 
-/* Never indexed, and the title says nothing until a manager is looking. */
-export const metadata: Metadata = {
-  title: "יום הרווקים 11.11",
-  robots: { index: false, follow: false, nocache: true },
-};
+/* Never indexed, and the title says nothing until a manager is looking: a
+   static title rides along in the 404's payload, so a visitor could read
+   the campaign's name off a page that is supposed to not exist. */
+export async function generateMetadata(): Promise<Metadata> {
+  const session = await getSession();
+  const isManager = !!session && canManageCatalog(session.role);
+  return {
+    ...(isManager ? { title: "יום הרווקים 11.11" } : {}),
+    robots: { index: false, follow: false, nocache: true },
+  };
+}
 export const dynamic = "force-dynamic";
 
 async function requestTime(): Promise<number> {
