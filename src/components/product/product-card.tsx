@@ -36,10 +36,16 @@ export function ProductCard({
   product,
   isFavorite = false,
   className,
+  previewLabel,
 }: {
   product: ProductCardData;
   isFavorite?: boolean;
   className?: string;
+  /* A campaign preview shows prices the site does not charge yet. The cart
+     reads the product's real price, so a working "הוספה לעגלה" there would
+     put a different number in the cart than the card shows. When set, the
+     button is replaced by this label. */
+  previewLabel?: string;
 }) {
   // "מלאי אחרון" is true of most of the catalogue — the sheet carries one to
   // three units of nearly everything, which is what the threshold flags —
@@ -138,6 +144,11 @@ export function ProductCard({
             are the same height, so the button sits level across the row
             whatever each card says above it. */}
         <div className="mt-auto pt-2.5 sm:pt-3">
+          {previewLabel ? (
+            <div className="border-brand/40 text-brand flex h-9 w-full items-center justify-center rounded-lg border border-dashed text-sm font-semibold">
+              {previewLabel}
+            </div>
+          ) : (
           <AddToCartButton
             productId={product.id}
             slug={product.slug}
@@ -147,6 +158,7 @@ export function ProductCard({
             className="h-9 w-full rounded-lg text-sm"
             label={product.stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : "הוספה לעגלה"}
           />
+          )}
         </div>
       </div>
     </div>

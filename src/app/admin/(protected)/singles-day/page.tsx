@@ -107,6 +107,13 @@ export default async function SinglesDayPage() {
               {rows.length} מבצעים נבחרים · עד {maxDiscount}% הנחה · משלוח עד הבית
             </p>
           </div>
+          <Link
+            href="/singles-day"
+            className="inline-flex items-center gap-1.5 self-start rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-red-600 shadow hover:bg-white/90 sm:self-auto"
+          >
+            <ExternalLink className="size-4" />
+            צפייה בדף באתר
+          </Link>
           <div className="flex items-center gap-3 self-start rounded-2xl bg-white/15 px-4 py-3 backdrop-blur sm:self-auto">
             <Timer className="size-6" />
             <div className="leading-tight">
