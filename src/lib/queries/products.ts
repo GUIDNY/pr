@@ -1420,3 +1420,14 @@ export async function hiddenProductFallback(product: {
   const category = await db.category.findUnique({ where: { id: product.categoryId }, select: { slug: true } });
   return { kind: "category", slug: category?.slug ?? "" };
 }
+
+// Cards for a fixed list of SKUs, in the list's order, *without* the public
+// gate. For a preview a manager looks at (the Singles' Day page): a product
+// that is hidden or sold out still has to appear there, so whoever is
+// checking the campaign sees the gap instead of a shorter grid. Never use
+// this for a page a customer can reach.
+export async function getCardsBySkuForPreview(skus: string[]) {
+  const rows = await db.product.findMany({ where: { sku: { in: skus } }, select: cardSelect });
+  const bySku = new Map(rows.map((r) => [r.sku, mapProductToCard(r)]));
+  return skus.map((sku) => bySku.get(sku) ?? null);
+}
