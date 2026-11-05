@@ -1,13 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Gift, OctagonX, PackageCheck, PartyPopper, Timer, TrendingUp, TriangleAlert } from "lucide-react";
-import { requireCatalogPage } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { ExternalLink, Eye, Gift, Megaphone, OctagonX, PackageCheck, PartyPopper, Timer, TrendingUp, TriangleAlert, Video } from "lucide-react";
+import { getSession } from "@/lib/auth";
+import { backOfficeHome, canManageCatalog, isBackOffice } from "@/lib/permissions";
 import { db } from "@/lib/db";
 import {
   SINGLES_DAY_ITEMS,
+  SINGLES_DAY_SOCIAL_PLAN,
+  canSeeSinglesDay,
   checkDeal,
+  singlesDayIsOver,
   daysUntilSinglesDay,
   liveProfit,
+  type DealCheck,
   type LiveProduct,
 } from "@/lib/campaigns/singles-day-2026";
 
@@ -32,12 +38,21 @@ const ils = (n: number) => `${n.toLocaleString("he-IL")} ₪`;
  * price the discount was worked out from that has since moved, stock that
  * has run down, a sale price that would now sit at or below cost.
  *
- * Cost and margin are on it, so it is catalog roles only, the same gate as
- * the rest of the shop-running pages; the nav entry hiding it from a seller
- * is presentation, this check is the lock.
+ * Sellers see it too since 5 November (asaf@buytoday.co.il makes the videos
+ * the paid social promotion runs on). They get the same list, the same
+ * link to the page and the same social plan, but no cost and no margin:
+ * the profit figures are left out, and a check that would print a cost
+ * says what is wrong without the number. Catalog roles see all of it.
+ *
+ * From 12.11 at midnight it is gone for everyone: anyone who opens the
+ * address is sent to their own back-office home.
  */
 export default async function SinglesDayPage() {
-  await requireCatalogPage();
+  const session = await getSession();
+  if (!session || !isBackOffice(session.role)) redirect("/admin/login");
+  const now = await requestTime();
+  if (!canSeeSinglesDay(session.role) || singlesDayIsOver(now)) redirect(backOfficeHome(session.role));
+  const full = canManageCatalog(session.role);
 
   const products = await db.product.findMany({
     where: { sku: { in: SINGLES_DAY_ITEMS.map((i) => i.sku) } },
@@ -73,7 +88,7 @@ export default async function SinglesDayPage() {
       rank: index + 1,
       item,
       product: p,
-      checks: checkDeal(item, live),
+      checks: full ? checkDeal(item, live) : checkDeal(item, live).flatMap(withoutCost),
       profit: liveProfit(item, live),
       stock: p?.stockQty ?? 0,
       saving: item.plannedPrice - item.salePrice,
@@ -87,7 +102,9 @@ export default async function SinglesDayPage() {
   const avgDiscount = Math.round(rows.reduce((t, r) => t + r.item.discountPct, 0) / rows.length);
   const maxDiscount = Math.max(...rows.map((r) => r.item.discountPct));
 
-  const daysLeft = daysUntilSinglesDay(await requestTime());
+  const daysLeft = daysUntilSinglesDay(now);
+  const biggestSaving = Math.max(...rows.map((r) => r.saving));
+  const plan = SINGLES_DAY_SOCIAL_PLAN;
 
   return (
     <div className="space-y-6">
@@ -128,8 +145,63 @@ export default async function SinglesDayPage() {
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat icon={<Gift className="size-5" />} label="מוצרים במבצע" value={String(rows.length)} />
         <Stat icon={<PackageCheck className="size-5" />} label="יחידות במלאי עכשיו" value={units.toLocaleString("he-IL")} />
-        <Stat icon={<TrendingUp className="size-5" />} label="רווח אם הכל נמכר" value={ils(potentialProfit)} />
+        {full ? (
+          <Stat icon={<TrendingUp className="size-5" />} label="רווח אם הכל נמכר" value={ils(potentialProfit)} />
+        ) : (
+          <Stat icon={<TrendingUp className="size-5" />} label="החיסכון הגדול ביותר" value={ils(biggestSaving)} />
+        )}
         <Stat icon={<PartyPopper className="size-5" />} label="הנחה ממוצעת" value={`${avgDiscount}%`} />
+      </section>
+
+      {/* ── the page customers will see, and how it gets promoted ──── */}
+      <section className="grid gap-3 lg:grid-cols-2">
+        <div className="flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-red-600/10 text-red-600 dark:text-rose-400">
+              <Eye className="size-5" />
+            </span>
+            <h2 className="text-lg font-bold">איך הדף ייראה ללקוחות</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            עד 11.11 בחצות לקוחות רואים בדף רק ספירה לאחור. ב-11.11 נפתחים בו המבצעים, וב-12.11 בחצות הוא יורד.
+          </p>
+          <Link
+            href="/singles-day"
+            target="_blank"
+            className="mt-auto inline-flex items-center justify-center gap-1.5 self-start rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow hover:bg-red-700"
+          >
+            <ExternalLink className="size-4" />
+            פתח את הדף באתר
+          </Link>
+        </div>
+
+        <div className="flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-red-600/10 text-red-600 dark:text-rose-400">
+              <Megaphone className="size-5" />
+            </span>
+            <h2 className="text-lg font-bold">תכנון סושיאל</h2>
+          </div>
+          <dl className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+            <div className="rounded-xl bg-muted/60 p-3">
+              <dt className="text-xs text-muted-foreground">מה</dt>
+              <dd className="font-bold">{plan.headline}</dd>
+            </div>
+            <div className="rounded-xl bg-muted/60 p-3">
+              <dt className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Video className="size-3.5" /> חומרים
+              </dt>
+              <dd className="font-bold">{plan.creative}</dd>
+            </div>
+            <div className="rounded-xl bg-muted/60 p-3">
+              <dt className="text-xs text-muted-foreground">תקציב</dt>
+              <dd className="font-bold">
+                {ils(plan.budgetIls)} ל-{plan.days === 2 ? "יומיים" : `${plan.days} ימים`}
+              </dd>
+            </div>
+          </dl>
+          <p className="text-xs text-muted-foreground">הקמפיין מוביל לדף המבצע. אחרי 11.11 הלשונית והדף יורדים.</p>
+        </div>
       </section>
 
       {/* ── what moved since the list was written ──────────────────── */}
@@ -151,7 +223,7 @@ export default async function SinglesDayPage() {
       ) : (
         <section className="flex items-center gap-3 rounded-2xl border border-success/40 bg-success/10 p-4 text-sm">
           <PackageCheck className="size-5 shrink-0 text-success" />
-          <span className="font-semibold">כל 20 המבצעים תקינים מול הקטלוג החי: מחיר, מלאי, עלות ותמונה.</span>
+          <span className="font-semibold">כל {rows.length} המבצעים תקינים מול הקטלוג החי: מחיר, מלאי{full ? ", עלות" : ""} ותמונה.</span>
         </section>
       )}
 
@@ -210,13 +282,15 @@ export default async function SinglesDayPage() {
                   </span>
                 </div>
 
-                <dl className="grid grid-cols-2 gap-2 rounded-xl bg-muted/60 p-2.5 text-center text-xs">
-                  <div>
-                    <dt className="text-muted-foreground">רווח ליחידה</dt>
-                    <dd className={`text-sm font-bold ${r.profit !== null && r.profit <= 0 ? "text-destructive" : ""}`}>
-                      {r.profit !== null ? ils(r.profit) : "—"}
-                    </dd>
-                  </div>
+                <dl className={`grid gap-2 rounded-xl bg-muted/60 p-2.5 text-center text-xs ${full ? "grid-cols-2" : "grid-cols-1"}`}>
+                  {full && (
+                    <div>
+                      <dt className="text-muted-foreground">רווח ליחידה</dt>
+                      <dd className={`text-sm font-bold ${r.profit !== null && r.profit <= 0 ? "text-destructive" : ""}`}>
+                        {r.profit !== null ? ils(r.profit) : "—"}
+                      </dd>
+                    </div>
+                  )}
                   <div>
                     <dt className="text-muted-foreground">במלאי</dt>
                     <dd className={`text-sm font-bold ${r.stock <= 0 ? "text-destructive" : ""}`}>{r.stock}</dd>
@@ -262,7 +336,7 @@ export default async function SinglesDayPage() {
           <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-muted/60 text-xs text-muted-foreground">
               <tr>
-                {["#", "מק\"ט", "מוצר", "מחיר היום", "הנחה", "מחיר מבצע", "רווח ליחידה", "מלאי"].map((h) => (
+                {["#", "מק\"ט", "מוצר", "מחיר היום", "הנחה", "מחיר מבצע", ...(full ? ["רווח ליחידה"] : []), "מלאי"].map((h) => (
                   <th key={h} className="px-3 py-2 text-right font-semibold">{h}</th>
                 ))}
               </tr>
@@ -276,15 +350,15 @@ export default async function SinglesDayPage() {
                   <td className="px-3 py-2">{ils(r.product?.price ?? r.item.plannedPrice)}</td>
                   <td className="px-3 py-2 font-semibold text-red-600 dark:text-rose-400">{r.item.discountPct}%</td>
                   <td className="px-3 py-2 font-bold">{ils(r.item.salePrice)}</td>
-                  <td className="px-3 py-2">{r.profit !== null ? ils(r.profit) : "—"}</td>
+                  {full && <td className="px-3 py-2">{r.profit !== null ? ils(r.profit) : "—"}</td>}
                   <td className="px-3 py-2">{r.stock}</td>
                 </tr>
               ))}
             </tbody>
             <tfoot className="border-t bg-muted/40 font-bold">
               <tr>
-                <td className="px-3 py-2" colSpan={6}>סה&quot;כ אם כל המלאי נמכר</td>
-                <td className="px-3 py-2">{ils(potentialProfit)}</td>
+                <td className="px-3 py-2" colSpan={6}>{full ? <>סה&quot;כ אם כל המלאי נמכר</> : <>סה&quot;כ במלאי</>}</td>
+                {full && <td className="px-3 py-2">{ils(potentialProfit)}</td>}
                 <td className="px-3 py-2">{units}</td>
               </tr>
             </tfoot>
@@ -293,6 +367,16 @@ export default async function SinglesDayPage() {
       </section>
     </div>
   );
+}
+
+/* A seller's view of the same checks: the problem stays, the cost goes.
+   "Sale price not above cost (3,900 ₪)" tells a seller the cost, so it is
+   reworded without the number; "no cost on record" is a catalog chore and
+   not theirs. */
+function withoutCost(c: DealCheck): DealCheck[] {
+  if (c.text.startsWith("אין עלות רשומה")) return [];
+  if (c.text.startsWith("מחיר המבצע לא מעל העלות")) return [{ level: c.level, text: "מחיר המבצע לא רווחי — בבדיקה מול ההנהלה" }];
+  return [c];
 }
 
 function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {

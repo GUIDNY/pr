@@ -1,3 +1,6 @@
+import { canManageCatalog } from "@/lib/permissions";
+import { SINGLES_DAY_END_MS } from "@/lib/campaigns/singles-day-window";
+
 /**
  * Singles' Day, 11.11.2026 — the owner's list, as he wrote it on 5 November.
  *
@@ -26,6 +29,44 @@ export const SINGLES_DAY_2026 = {
   slug: "singles-day-2026",
   title: "יום הרווקים 11.11",
   date: "2026-11-11",
+} as const;
+
+/**
+ * When the campaign leaves the back office: the same midnight the public
+ * page and the banner end at (singles-day-window.ts). Asked for in those
+ * words on 5 November: "ב-12.11 שזה ייעלם". The nav entry and the
+ * back-office page read it.
+ */
+export const SINGLES_DAY_ENDS_AT_MS = SINGLES_DAY_END_MS;
+
+export function singlesDayIsOver(nowMs: number): boolean {
+  return nowMs >= SINGLES_DAY_ENDS_AT_MS;
+}
+
+/**
+ * Who may see the campaign before it is public: the catalog roles, and
+ * the sellers. The sellers were added on 5 November, for asaf@buytoday.co.il
+ * in particular, because he makes the videos the paid social promotion runs
+ * on, so he has to see the list and the page they point at.
+ * A seller sees no cost and no margin. The page drops those for any role
+ * that cannot manage the catalog, exactly as everywhere else in the back
+ * office.
+ */
+export function canSeeSinglesDay(role: string | null | undefined): boolean {
+  return canManageCatalog(role) || role === "SELLER";
+}
+
+/**
+ * The marketing plan, as the owner gave it on 5 November: paid promotion on
+ * social media, built on Asaf's videos, 300 ₪ over two days. The text is
+ * his and the numbers are his. The two days are not dated here because he
+ * did not date them.
+ */
+export const SINGLES_DAY_SOCIAL_PLAN = {
+  headline: "קידום ממומן ברשתות החברתיות",
+  creative: "על בסיס הסרטונים של אסף",
+  budgetIls: 300,
+  days: 2,
 } as const;
 
 export type SinglesDayItem = {
