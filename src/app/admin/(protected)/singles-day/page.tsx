@@ -1,9 +1,17 @@
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { ArrowUpLeft, Gift, Megaphone, Sparkles, Store, Video, Wallet } from "lucide-react";
+import {
+  ArrowUpLeft,
+  Gift,
+  Megaphone,
+  Sparkles,
+  Store,
+  Video,
+  Wallet,
+} from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { backOfficeHome, canManageCatalog, isBackOffice } from "@/lib/permissions";
+import { backOfficeHome, isBackOffice } from "@/lib/permissions";
 import { mallHref } from "@/lib/mall";
 import {
   SINGLES_DAY_ITEMS,
@@ -31,8 +39,8 @@ const ils = (n: number) => `${n.toLocaleString("he-IL")} ₪`;
  * plan. He then asked for it to look like something he can show. The
  * earlier version had a hero, stats, margins and live-catalogue checks, and
  * he took them off. He then asked for each product's cost and its profit at
- * the sale price. Those are shown to the catalog roles only. A seller sees
- * the same page without them, as everywhere else in the back office.
+ * the sale price, and for the sellers to see them too. That exception is
+ * deliberate and covers this page only.
  *
  * From 12.11 at midnight it is gone for everyone: the address sends a
  * person to their own back-office home, and the nav drops the entry.
@@ -40,22 +48,28 @@ const ils = (n: number) => `${n.toLocaleString("he-IL")} ₪`;
 export default async function SinglesDayPage() {
   const session = await getSession();
   if (!session || !isBackOffice(session.role)) redirect("/admin/login");
-  if (!canSeeSinglesDay(session.role) || singlesDayIsOver(await requestTime())) redirect(backOfficeHome(session.role));
+  if (!canSeeSinglesDay(session.role) || singlesDayIsOver(await requestTime()))
+    redirect(backOfficeHome(session.role));
 
-  /* Cost is read only for the catalog roles, so it never reaches a
-     seller's page at all, not even as a hidden value. */
-  const full = canManageCatalog(session.role);
+  /* Cost and profit are shown to everyone who can open this page, sellers
+     included. The owner decided that on 5 November for this campaign only.
+     The rest of the back office still keeps supplier cost from a seller. */
   const products = await db.product.findMany({
     where: { sku: { in: SINGLES_DAY_ITEMS.map((i) => i.sku) } },
     select: {
       sku: true,
-      supplierCost: full,
+      supplierCost: true,
       images: { select: { url: true }, take: 1, orderBy: { sortOrder: "asc" } },
     },
   });
-  const photoBySku = new Map(products.map((p) => [p.sku, p.images[0]?.url ?? null]));
+  const photoBySku = new Map(
+    products.map((p) => [p.sku, p.images[0]?.url ?? null]),
+  );
   const costBySku = new Map(
-    products.map((p) => [p.sku, full && p.supplierCost != null && p.supplierCost > 0 ? p.supplierCost : null]),
+    products.map((p) => [
+      p.sku,
+      p.supplierCost != null && p.supplierCost > 0 ? p.supplierCost : null,
+    ]),
   );
   const plan = SINGLES_DAY_SOCIAL_PLAN;
 
@@ -63,7 +77,11 @@ export default async function SinglesDayPage() {
     <div className="space-y-8">
       {/* ── the deals ─────────────────────────────────────────────── */}
       <section>
-        <Heading icon={<Gift className="size-5" />} title="המוצרים שבמבצע" note={`${SINGLES_DAY_ITEMS.length} מוצרים`} />
+        <Heading
+          icon={<Gift className="size-5" />}
+          title="המוצרים שבמבצע"
+          note={`${SINGLES_DAY_ITEMS.length} מוצרים`}
+        />
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
           {SINGLES_DAY_ITEMS.map((item) => {
             const photo = photoBySku.get(item.sku) ?? null;
@@ -84,34 +102,42 @@ export default async function SinglesDayPage() {
                       className="object-contain p-4 transition group-hover:scale-[1.04]"
                     />
                   ) : (
-                    <div className="flex h-full items-center justify-center text-4xl font-black text-red-600/15">11.11</div>
+                    <div className="flex h-full items-center justify-center text-4xl font-black text-red-600/15">
+                      11.11
+                    </div>
                   )}
                   <span className="absolute top-2.5 right-2.5 rounded-full bg-gradient-to-l from-rose-600 to-red-600 px-2.5 py-0.5 text-xs font-black text-white shadow">
                     {item.discountPct}%-
                   </span>
                 </div>
                 <div className="flex flex-1 flex-col gap-2 border-t p-3">
-                  <h3 className="line-clamp-2 text-sm leading-snug font-semibold">{item.label}</h3>
+                  <h3 className="line-clamp-2 text-sm leading-snug font-semibold">
+                    {item.label}
+                  </h3>
                   <div className="mt-auto flex items-baseline gap-2">
-                    <span className="text-lg font-black text-red-600 dark:text-rose-400">{ils(item.salePrice)}</span>
-                    <span className="text-muted-foreground text-xs line-through">{ils(item.plannedPrice)}</span>
+                    <span className="text-lg font-black text-red-600 dark:text-rose-400">
+                      {ils(item.salePrice)}
+                    </span>
+                    <span className="text-muted-foreground text-xs line-through">
+                      {ils(item.plannedPrice)}
+                    </span>
                   </div>
-                  {full && (
-                    <dl className="grid grid-cols-2 gap-1.5 rounded-xl bg-muted/60 p-2 text-center text-xs">
-                      <div>
-                        <dt className="text-muted-foreground">עלות</dt>
-                        <dd className="font-bold">{cost !== null ? ils(cost) : "—"}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-muted-foreground">רווח במבצע</dt>
-                        <dd
-                          className={`font-bold ${profit === null ? "" : profit > 0 ? "text-success" : "text-destructive"}`}
-                        >
-                          {profit !== null ? ils(profit) : "—"}
-                        </dd>
-                      </div>
-                    </dl>
-                  )}
+                  <dl className="grid grid-cols-2 gap-1.5 rounded-xl bg-muted/60 p-2 text-center text-xs">
+                    <div>
+                      <dt className="text-muted-foreground">עלות</dt>
+                      <dd className="font-bold">
+                        {cost !== null ? ils(cost) : "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">רווח במבצע</dt>
+                      <dd
+                        className={`font-bold ${profit === null ? "" : profit > 0 ? "text-success" : "text-destructive"}`}
+                      >
+                        {profit !== null ? ils(profit) : "—"}
+                      </dd>
+                    </div>
+                  </dl>
                 </div>
               </article>
             );
@@ -147,7 +173,10 @@ export default async function SinglesDayPage() {
             rel="noopener noreferrer"
             className="group relative flex min-h-36 flex-col justify-end overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 via-indigo-900 to-slate-900 p-5 text-white shadow-md transition hover:shadow-lg"
           >
-            <Store aria-hidden className="pointer-events-none absolute top-4 left-4 size-20 text-white/10" />
+            <Store
+              aria-hidden
+              className="pointer-events-none absolute top-4 left-4 size-20 text-white/10"
+            />
             <span className="relative text-xl font-black">הקניון</span>
             <span className="relative mt-1 flex items-center gap-1 text-sm font-semibold text-white/75">
               הקניון התלת־ממדי של Buy Today
@@ -159,10 +188,21 @@ export default async function SinglesDayPage() {
 
       {/* ── the paid plan ─────────────────────────────────────────── */}
       <section>
-        <Heading icon={<Megaphone className="size-5" />} title="התוכנית הממומנת" />
+        <Heading
+          icon={<Megaphone className="size-5" />}
+          title="התוכנית הממומנת"
+        />
         <div className="grid gap-3 sm:grid-cols-3">
-          <PlanTile icon={<Megaphone className="size-5" />} label="ערוץ" value={plan.headline} />
-          <PlanTile icon={<Video className="size-5" />} label="חומרים" value={plan.creative} />
+          <PlanTile
+            icon={<Megaphone className="size-5" />}
+            label="ערוץ"
+            value={plan.headline}
+          />
+          <PlanTile
+            icon={<Video className="size-5" />}
+            label="חומרים"
+            value={plan.creative}
+          />
           <PlanTile
             icon={<Wallet className="size-5" />}
             label="תקציב"
@@ -174,24 +214,44 @@ export default async function SinglesDayPage() {
   );
 }
 
-function Heading({ icon, title, note }: { icon: React.ReactNode; title: string; note?: string }) {
+function Heading({
+  icon,
+  title,
+  note,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  note?: string;
+}) {
   return (
     <div className="mb-3 flex items-center gap-2.5">
-      <span className="flex size-9 items-center justify-center rounded-xl bg-red-600/10 text-red-600 dark:text-rose-400">{icon}</span>
+      <span className="flex size-9 items-center justify-center rounded-xl bg-red-600/10 text-red-600 dark:text-rose-400">
+        {icon}
+      </span>
       <h2 className="text-lg font-black">{title}</h2>
       {note && <span className="text-muted-foreground text-sm">{note}</span>}
     </div>
   );
 }
 
-function PlanTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function PlanTile({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
   return (
     <div className="flex items-start gap-3 rounded-2xl border bg-card p-4 shadow-sm">
       <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-red-600/10 text-red-600 dark:text-rose-400">
         {icon}
       </span>
       <div>
-        <div className="text-muted-foreground text-xs font-semibold">{label}</div>
+        <div className="text-muted-foreground text-xs font-semibold">
+          {label}
+        </div>
         <div className="mt-0.5 font-bold">{value}</div>
       </div>
     </div>
