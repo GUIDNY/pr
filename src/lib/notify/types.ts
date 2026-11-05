@@ -23,8 +23,12 @@ export type NotifyEvent = (typeof NOTIFY_EVENTS)[number];
  * NOTIFY_EVENTS deliberately: that list is what the order page's updates
  * panel renders with a resend button beside each row, and an internal alert
  * appearing there is a button somebody eventually presses at a customer.
+ *
+ * ABANDONED_CART is here for the same reason from the other side: it is a
+ * marketing message about a cart, not an order update, so it must never
+ * appear on an order's panel with a resend button beside it.
  */
-export const INTERNAL_TEMPLATE_EVENTS = ["COMPLAINT_ALERT"] as const;
+export const INTERNAL_TEMPLATE_EVENTS = ["COMPLAINT_ALERT", "ABANDONED_CART"] as const;
 export type TemplateEvent = NotifyEvent | (typeof INTERNAL_TEMPLATE_EVENTS)[number];
 
 export const NOTIFY_CHANNELS = ["EMAIL", "SMS", "WHATSAPP"] as const;

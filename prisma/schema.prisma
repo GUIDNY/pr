@@ -657,6 +657,18 @@ model Cart {
   contactPhone String?
   contactEmail String?
   contactAt    DateTime?
+  /// The advertising-consent box (section 30א) as the customer left it on
+  /// the checkout form, saved with the contact details. The abandoned-cart
+  /// WhatsApp reminder goes only to a cart where this is true: Meta counts
+  /// that reminder as marketing and so does the law, and the pre-ticked
+  /// "order updates on WhatsApp" box is not consent to it.
+  marketingOptIn   Boolean   @default(false)
+  marketingOptInAt DateTime?
+  /// When the one abandoned-cart WhatsApp reminder was claimed for this
+  /// cart. Set before the send and never cleared, so a cart is reminded at
+  /// most once even when the send fails (the reason is kept beside it).
+  waReminderSentAt  DateTime?
+  waReminderError   String?
 
   // The callback workflow behind /admin/abandoned, so two people don't ring
   // the same customer.
@@ -1397,4 +1409,12 @@ model CrawlerHit {
   @@index([bot, createdAt])
   @@index([path])
   @@index([createdAt])
+}
+
+/// A phone that answered "הסר" to a marketing WhatsApp. Checked before every
+/// marketing send, whatever any consent box says afterwards, because the
+/// opt-out is the customer's last word and the box may be a stale cart's.
+model WhatsappOptOut {
+  phone     String   @id // digits only, country code first (972...)
+  createdAt DateTime @default(now())
 }
