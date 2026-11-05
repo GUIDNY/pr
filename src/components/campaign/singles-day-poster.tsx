@@ -108,7 +108,7 @@ export function SinglesDayHero({
         </div>
 
         {/* ── the tag ── */}
-        {teaser ? <SealedEnvelope count={count} /> : spotlight && <PriceTagSpotlight s={spotlight} />}
+        {teaser ? <SealedEnvelope /> : spotlight && <PriceTagSpotlight s={spotlight} />}
       </div>
     </section>
   );
@@ -117,7 +117,7 @@ export function SinglesDayHero({
 /* Before the opening: a hongbao, sealed. What is inside is the point of
    waiting — so no product, no price and no photo leaves the server until
    00:00, and this is what stands in their place. */
-function SealedEnvelope({ count }: { count: number }) {
+function SealedEnvelope() {
   return (
     <div className="relative mx-auto w-full max-w-[16rem] sm:max-w-sm lg:max-w-md">
       <div className="relative aspect-[4/5] overflow-hidden sm:aspect-[3/4] rounded-[1.75rem] bg-[linear-gradient(160deg,#d10019_0%,#9e000e_100%)] shadow-[0_30px_60px_-24px_rgb(60_0_5/0.7)] ring-4 ring-[#ffd25a]/60">
@@ -133,9 +133,9 @@ function SealedEnvelope({ count }: { count: number }) {
           <span lang="zh" className="text-xs font-bold">光棍节</span>
         </div>
         <div className="absolute inset-x-0 bottom-0 p-5 text-center sm:p-9">
-          <div className="text-5xl font-black leading-none text-[#ffd25a] tabular-nums sm:text-7xl">{count}</div>
-          <div className="mt-2 text-lg font-bold">מבצעים בפנים</div>
-          <div className="mt-1 text-sm text-white/80">נפתח ב-11.11 בחצות בדיוק</div>
+          <div className="text-sm font-semibold text-white/80">נפתח ב-</div>
+          <div dir="ltr" className="text-5xl font-black leading-none text-[#ffd25a] tabular-nums sm:text-6xl">11.11</div>
+          <div className="mt-2 text-base font-bold sm:text-lg">בחצות בדיוק</div>
         </div>
       </div>
     </div>
