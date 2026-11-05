@@ -67,7 +67,7 @@ export function SinglesDayHomeBanner({
               יום הרווקים <span className="text-[#ffd25a]">הסיני</span>
             </div>
             <div className="mt-1.5 text-sm font-semibold text-white/90 sm:text-base">
-              לא צריך זוג בשביל לחסוך — 20 מוצרים, עד 20% הנחה.
+              לא צריך זוג בשביל לחסוך — עד 20% הנחה, יום אחד בלבד.
             </div>
           </div>
 

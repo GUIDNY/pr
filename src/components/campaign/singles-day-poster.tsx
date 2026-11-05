@@ -78,7 +78,7 @@ export function SinglesDayHero({
             לא צריך זוג בשביל לחסוך.
           </p>
           <p className="mt-2 hidden max-w-md text-base leading-relaxed text-white/85 sm:block">
-            {count} מוצרים למטבח ולבית שבחרנו אחד-אחד, עד {maxDiscount}% מתחת למחיר הרגיל שלנו. מחיר ליום אחד, וכשהמלאי נגמר — נגמר.
+            {teaser ? "מוצרים" : `${count} מוצרים`} למטבח ולבית שבחרנו אחד-אחד, עד {maxDiscount}% מתחת למחיר הרגיל שלנו. מחיר ליום אחד, וכשהמלאי נגמר — נגמר.
           </p>
 
           <div className="mt-5 sm:mt-7">
