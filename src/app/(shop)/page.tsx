@@ -23,6 +23,7 @@ import { organizationSchema, webSiteSchema } from "@/lib/schema";
 // canonical set once at the root would be handed to every page that does not
 // override it — each one announcing itself as the homepage, which is worse
 // than having none at all.
+import { AdminSinglesDayBanner } from "@/components/campaign/singles-day-home-banner";
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 // Nothing on this page differs between visitors any more — the greeting and
@@ -105,6 +106,10 @@ export default async function HomePage() {
           brands — the brands after the first products, so a product is on
           the first screen of a laptop rather than a row of logos. */}
       <div className="flex flex-col lg:contents">
+        {/* Renders nothing for a visitor; see the component. */}
+        <div className="order-first">
+          <AdminSinglesDayBanner />
+        </div>
         <div className="order-1">
           <HeroBand
             title={hero?.title || "מוצרי חשמל מיבואן רשמי, במחיר טוב"}
