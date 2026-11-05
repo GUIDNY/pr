@@ -32,12 +32,15 @@ export function SinglesDayHero({
   maxDiscount,
   groups,
   initialNow,
+  teaser = false,
 }: {
   spotlight: Spotlight | null;
   count: number;
   maxDiscount: number;
   groups: GroupLink[];
   initialNow: number;
+  /* Before 00:00, for customers: no products, a sealed envelope instead. */
+  teaser?: boolean;
 }) {
   return (
     <section className="relative overflow-hidden bg-[radial-gradient(120%_120%_at_90%_0%,#ff2a3d_0%,#e3001b_40%,#a8000f_100%)] text-white">
@@ -79,9 +82,10 @@ export function SinglesDayHero({
           </p>
 
           <div className="mt-5 sm:mt-7">
-            <SinglesDayCountdown tone="red" initialNow={initialNow} />
+            <SinglesDayCountdown tone="red" initialNow={initialNow} reloadOnChange />
           </div>
 
+          {groups.length > 0 && (
           <nav
             aria-label="קטגוריות במבצע"
             className="-mx-4 mt-6 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:mt-8 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
@@ -100,12 +104,41 @@ export function SinglesDayHero({
               <ArrowDown className="size-4" /> לכל המבצעים
             </a>
           </nav>
+          )}
         </div>
 
         {/* ── the tag ── */}
-        {spotlight && <PriceTagSpotlight s={spotlight} />}
+        {teaser ? <SealedEnvelope count={count} /> : spotlight && <PriceTagSpotlight s={spotlight} />}
       </div>
     </section>
+  );
+}
+
+/* Before the opening: a hongbao, sealed. What is inside is the point of
+   waiting — so no product, no price and no photo leaves the server until
+   00:00, and this is what stands in their place. */
+function SealedEnvelope({ count }: { count: number }) {
+  return (
+    <div className="relative mx-auto w-full max-w-[16rem] sm:max-w-sm lg:max-w-md">
+      <div className="relative aspect-[4/5] overflow-hidden sm:aspect-[3/4] rounded-[1.75rem] bg-[linear-gradient(160deg,#d10019_0%,#9e000e_100%)] shadow-[0_30px_60px_-24px_rgb(60_0_5/0.7)] ring-4 ring-[#ffd25a]/60">
+        <span aria-hidden className="pointer-events-none absolute inset-3 rounded-[1.3rem] border border-[#ffd25a]/50" />
+        {/* the flap */}
+        <svg aria-hidden viewBox="0 0 300 140" preserveAspectRatio="none" className="absolute inset-x-0 top-0 h-[34%] w-full">
+          <path d="M0 0 H300 V40 L150 140 L0 40 Z" fill="#b40012" />
+          <path d="M0 40 L150 140 L300 40" fill="none" stroke="#ffd25a" strokeOpacity="0.55" strokeWidth="2" />
+        </svg>
+        {/* the seal */}
+        <div className="absolute top-[34%] left-1/2 flex size-24 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-[#ffd25a] text-[#7d000c] shadow-lg ring-4 ring-[#b40012] sm:size-28">
+          <span dir="ltr" className="font-mono text-xl font-black tracking-tight sm:text-2xl">11.11</span>
+          <span lang="zh" className="text-xs font-bold">光棍节</span>
+        </div>
+        <div className="absolute inset-x-0 bottom-0 p-5 text-center sm:p-9">
+          <div className="text-5xl font-black leading-none text-[#ffd25a] tabular-nums sm:text-7xl">{count}</div>
+          <div className="mt-2 text-lg font-bold">מבצעים בפנים</div>
+          <div className="mt-1 text-sm text-white/80">נפתח ב-11.11 בחצות בדיוק</div>
+        </div>
+      </div>
+    </div>
   );
 }
 

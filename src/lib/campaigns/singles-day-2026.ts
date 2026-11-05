@@ -1,8 +1,11 @@
 /**
  * Singles' Day, 11.11.2026 — the owner's list, as he wrote it on 5 November.
  *
- * Back office only for now: a page to look at and to show, not a promotion.
- * Nothing here changes a price on the site. Marketing's lane is `Promotion`
+ * The sale prices are switched in the database, not here: two pg_cron jobs
+ * (campaign.singles_day_2026_start / _end) write them at 00:00 on 11.11 and
+ * restore each product's previous price at 24:00 — see
+ * lib/campaigns/singles-day-window.ts. This file is the plan they were
+ * loaded from and the page checks against. Marketing's lane is `Promotion`
  * rows (see the field-ownership table in CLAUDE.md), and the day these go
  * live they go in there — this file is the plan they will be checked
  * against, kept exactly as written so the page can say where the catalogue
@@ -92,7 +95,9 @@ export function checkDeal(item: SinglesDayItem, live: LiveProduct | null): DealC
   if (live.supplierCost === null || live.supplierCost <= 0) {
     out.push({ level: "warn", text: "אין עלות רשומה — אי אפשר לאמת רווח" });
   }
-  if (live.price !== item.plannedPrice) {
+  // On the day the database holds the sale price itself (pg_cron, 00:00–24:00),
+  // which is the plan working, not the plan drifting.
+  if (live.price !== item.plannedPrice && live.price !== item.salePrice) {
     out.push({
       level: "warn",
       text: `המחיר באתר השתנה: ${live.price.toLocaleString("he-IL")} ₪ במקום ${item.plannedPrice.toLocaleString("he-IL")} ₪`,

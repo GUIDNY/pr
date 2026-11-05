@@ -100,7 +100,7 @@ export default async function SinglesDayPage() {
           <div>
             <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold backdrop-blur">
               <PartyPopper className="size-3.5" />
-              תצוגה פנימית · המחירים באתר לא שונו
+              המחירים מתחלפים אוטומטית ב-11.11 בחצות וחוזרים ב-24:00
             </div>
             <h1 className="text-3xl font-black tracking-tight sm:text-4xl">יום הרווקים 11.11</h1>
             <p className="mt-1 text-sm text-white/85 sm:text-base">
