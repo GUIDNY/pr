@@ -22,6 +22,10 @@ export const VISIT_EVENT_TYPES = [
   // a lead: a tap on the number or on WhatsApp, or a form that went through
   "contact_click",
   "form_submit",
+  // the cookie banner: shown, and what was chosen — the approval rate is
+  // consent_choice(granted) over consent_shown
+  "consent_shown",
+  "consent_choice",
 ] as const;
 export type VisitEventType = (typeof VISIT_EVENT_TYPES)[number];
 
@@ -38,6 +42,8 @@ const META_KEYS: Record<VisitEventType, Record<string, "string" | "number" | "bo
   checkout_abandon: { itemCount: "number", total: "number", secondsOnPage: "number" },
   contact_click: { channel: "string", target: "string" },
   form_submit: { form: "string", channel: "string" },
+  consent_shown: { variant: "string" },
+  consent_choice: { choice: "string", variant: "string" },
 };
 
 const MAX_STRING = 120;
