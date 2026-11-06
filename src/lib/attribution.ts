@@ -38,6 +38,18 @@ const touchSchema = z.object({
   landing: z.string().max(300).optional(),
   /** ISO time of the touch. */
   at: z.string().max(40),
+  /* The ad click ids, exactly as they arrived, so a sale can be reported
+     back to the network that paid for the click even if every browser-side
+     tag failed — Google's offline conversion import is keyed on these. Kept
+     per touch, so `last` carries the click that preceded the order.
+       gclid   Google Ads, the ordinary click
+       gbraid  Google Ads, app / iOS measurement
+       wbraid  Google Ads, web without third-party cookies
+       srsltid Google's free Shopping listings (the Merchant Center feed) */
+  gclid: z.string().max(300).optional(),
+  gbraid: z.string().max(300).optional(),
+  wbraid: z.string().max(300).optional(),
+  srsltid: z.string().max(300).optional(),
 });
 
 export const attributionSchema = z.object({
@@ -85,6 +97,7 @@ const SOURCE_LABELS: Record<string, string> = {
 const MEDIUM_LABELS: Record<string, string> = {
   "(none)": "",
   organic: "חיפוש אורגני",
+  shopping: "שופינג (מודעה חינמית)",
   cpc: "פרסום ממומן",
   "paid-social": "פרסום ממומן",
   social: "רשת חברתית",

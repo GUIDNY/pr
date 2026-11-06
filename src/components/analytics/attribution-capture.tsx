@@ -52,6 +52,24 @@ function isOwn(host: string): boolean {
 /** What this page load says about where the visitor came from, or null
     when it says nothing new (an internal navigation, a reload). */
 function touchFromPage(): AttributionTouch | null {
+  const touch = classifyPage();
+  if (!touch) return null;
+  return { ...touch, ...clickIds(new URLSearchParams(window.location.search)) };
+}
+
+/* Whichever ad click ids the address carries, verbatim. Attached to the
+   touch whatever classified it — a tagged campaign link carries gclid too
+   when auto-tagging is on, and that is the one Google can match a sale to. */
+function clickIds(params: URLSearchParams): Pick<AttributionTouch, "gclid" | "gbraid" | "wbraid" | "srsltid"> {
+  const ids: Pick<AttributionTouch, "gclid" | "gbraid" | "wbraid" | "srsltid"> = {};
+  for (const key of ["gclid", "gbraid", "wbraid", "srsltid"] as const) {
+    const v = params.get(key)?.trim();
+    if (v) ids[key] = v.slice(0, 300);
+  }
+  return ids;
+}
+
+function classifyPage(): AttributionTouch | null {
   const params = new URLSearchParams(window.location.search);
   const referrerHost = document.referrer ? hostOf(document.referrer) : null;
   const landing = (window.location.pathname + window.location.search).slice(0, 300);
@@ -78,6 +96,11 @@ function touchFromPage(): AttributionTouch | null {
   if (params.has("fbclid")) {
     const source = referrerHost && /instagram/.test(referrerHost) ? "instagram" : "facebook";
     return { source, medium: "paid-social", referrer: referrerHost ?? undefined, landing, at };
+  }
+  /* Google appends srsltid to a click on a free Shopping listing — the
+     Merchant Center feed — and the referrer is often stripped on the way. */
+  if (params.has("srsltid") && !(referrerHost && !isOwn(referrerHost) && !/(^|\.)google\./.test(referrerHost))) {
+    return { source: "google", medium: "shopping", referrer: referrerHost ?? undefined, landing, at };
   }
   if (params.has("ttclid")) {
     return { source: "tiktok", medium: "paid-social", referrer: referrerHost ?? undefined, landing, at };

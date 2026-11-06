@@ -1,7 +1,9 @@
 "use client";
 
 import Script from "next/script";
+import { usePathname } from "next/navigation";
 import { useConsent } from "@/lib/consent";
+import { isBackOfficePath } from "@/components/analytics/back-office-analytics-off";
 import { useIsNativeApp } from "@/lib/native-app";
 
 /**
@@ -31,8 +33,11 @@ import { useIsNativeApp } from "@/lib/native-app";
 export function GoogleTagManager() {
   const id = process.env.NEXT_PUBLIC_GTM_ID;
   const consent = useConsent();
+  const pathname = usePathname();
   const inApp = useIsNativeApp();
   if (!id || inApp || consent !== "granted") return null;
+  /* Not on the back office — see back-office-analytics-off.tsx. */
+  if (isBackOfficePath(pathname)) return null;
 
   prepareDataLayer();
   return <Script id="gtm" src={`https://www.googletagmanager.com/gtm.js?id=${id}`} strategy="afterInteractive" />;
