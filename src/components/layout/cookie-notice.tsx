@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Cookie } from "lucide-react";
+import { Check, Cookie } from "lucide-react";
 import { setConsent, useIsUndecided } from "@/lib/consent";
 import { trackVisit } from "@/lib/pageview/track";
 import { useIsNativeApp } from "@/lib/native-app";
@@ -100,8 +100,24 @@ export function CookieNotice() {
     };
   }, [open]);
 
-  const accept = useCallback(() => setConsent("granted"), []);
-  const decline = useCallback(() => setConsent("denied"), []);
+  /* Counted on the shop's own anonymous visit log (lib/pageview/events.ts),
+     so the approval rate is a number and not a guess: consent_choice with
+     choice=granted over consent_shown. `variant` names the wording, so a
+     change to it can be compared with the one before. */
+  const shownLogged = useRef(false);
+  useEffect(() => {
+    if (!open || shownLogged.current) return;
+    shownLogged.current = true;
+    trackVisit("consent_shown", { variant: BANNER_VARIANT });
+  }, [open]);
+  const accept = useCallback(() => {
+    trackVisit("consent_choice", { choice: "granted", variant: BANNER_VARIANT });
+    setConsent("granted");
+  }, []);
+  const decline = useCallback(() => {
+    trackVisit("consent_choice", { choice: "denied", variant: BANNER_VARIANT });
+    setConsent("denied");
+  }, []);
 
   /* The measurement behind #230. A click that lands on the notice's own
      background — not on either of its buttons — and would have landed on
@@ -127,49 +143,64 @@ export function CookieNotice() {
       role="region"
       aria-label="בחירת הסכמה לעוגיות מדידה ופרסום"
       onClick={onBackgroundClick}
-      className="border-border bg-background fixed inset-x-0 bottom-0 z-[55] border-t shadow-[0_-4px_20px_rgb(0_0_0/0.08)]"
+      className="fixed inset-x-0 bottom-0 z-[55] px-3 pb-3 sm:px-4 sm:pb-4"
     >
-      {/* One row, not a paragraph. The previous version ran three lines on
-          a desktop and five on a phone, and sat over the product page's buy
-          bar and the bottom of every listing until someone dealt with it.
-          Everything that has to be said is still said — what is strictly
-          necessary, which third parties would be loaded, that nothing loads
-          until it is allowed, and that the choice can be changed — in two
-          sentences instead of four. */}
-      <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 sm:flex-nowrap">
-        <Cookie className="text-brand hidden size-5 shrink-0 sm:block" aria-hidden="true" />
-        <p className="text-muted-foreground min-w-0 flex-1 text-xs leading-snug sm:text-sm">
-          לתפעול האתר יש רק עוגיות הכרחיות (התחברות, עגלה ומזהה גלישה זמני). אישור מדידה דרך Google Analytics,
-          Microsoft Clarity ו־Meta Pixel עוזר לנו להבין מה עובד באתר ולשפר אותו; שום דבר לא נטען בלי אישורכם,
-          ואפשר לשנות את הבחירה בכל רגע.{" "}
-          <Link href="/privacy" className="text-brand underline underline-offset-2">
-            למדיניות הפרטיות
-          </Link>
-        </p>
-        {/* Same size, same row, same weight, one click each. "מאשר" comes
-            first in reading order (18 October) and carries the brand colour;
-            the refusal is the same height, the same width and the same font
-            beside it — not a faint link, not a smaller button, not a second
-            step. Making the no harder than the yes is the pattern this bar
-            exists to not be. Below sm: the pair takes its own full-width row
-            under the text, each button half of it. */}
-        <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto">
+      {/* A card, not a strip. The strip read as small print — one grey line
+          across the bottom that most people scrolled past or answered
+          without reading — and a question nobody notices is a question
+          answered "no" by default, since nothing loads until somebody says
+          yes. Now: one plain question in bold, one sentence of why, what is
+          loaded in small print with the policy beside it, and two big
+          buttons a thumb finds without aiming.
+
+          What did NOT change, and must not: the refusal is the same size,
+          the same shape and one tap, right beside the yes. Israel's privacy
+          law since Amendment 13 (August 2025) and Google's EU user consent
+          policy both read a refusal made harder than a yes as consent that
+          was never given — and then the data it collects is the shop's
+          liability rather than its asset. The yes is allowed to be the
+          brand colour and to come first; it is not allowed to be the only
+          button that looks like a button. */}
+      <div className="bg-background border-border mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl border p-4 shadow-[0_8px_40px_rgb(0_0_0/0.18)] sm:flex-row sm:items-center sm:gap-5 sm:p-5">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span className="bg-brand/10 text-brand flex size-10 shrink-0 items-center justify-center rounded-full" aria-hidden="true">
+            <Cookie className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[15px] font-bold leading-snug sm:text-base">מאשרים לנו ללמוד מהגלישה באתר?</p>
+            <p className="text-muted-foreground mt-0.5 text-[13px] leading-snug sm:text-sm">
+              זה עוזר לנו לשפר את האתר ולהציג לכם פרסומות רלוונטיות. בלי אישור — לא נטען שום כלי מדידה.
+            </p>
+            <p className="text-muted-foreground/80 mt-1 text-[11px] leading-snug sm:text-xs">
+              Google Analytics, Microsoft Clarity ו־Meta Pixel · אפשר לשנות בכל רגע ·{" "}
+              <Link href="/privacy" className="text-brand underline underline-offset-2">
+                מדיניות פרטיות
+              </Link>
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-stretch">
           <button
             type="button"
             onClick={accept}
-            className="bg-brand text-brand-foreground hover:bg-brand-hover border-brand flex-1 rounded-lg border px-4 py-1.5 text-sm font-medium sm:min-w-24 sm:flex-none"
+            className="bg-brand text-brand-foreground hover:bg-brand-hover flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-5 text-[15px] font-bold shadow-sm transition sm:w-36 sm:flex-none"
           >
-            מאשר
+            <Check className="size-4" strokeWidth={3} aria-hidden="true" />
+            מאשר/ת
           </button>
           <button
             type="button"
             onClick={decline}
-            className="bg-muted text-foreground hover:bg-muted/70 border-border flex-1 rounded-lg border px-4 py-1.5 text-sm font-medium sm:min-w-24 sm:flex-none"
+            className="bg-muted text-foreground hover:bg-muted/70 border-border flex h-11 flex-1 items-center justify-center rounded-xl border px-5 text-[15px] font-semibold transition sm:w-36 sm:flex-none"
           >
-            לא מאשר
+            לא, תודה
           </button>
         </div>
       </div>
     </div>
   );
 }
+
+/* Bump when the wording or the look changes, so the log can tell the two
+   apart. "strip-1" is everything before 6 November. */
+const BANNER_VARIANT = "card-1";
