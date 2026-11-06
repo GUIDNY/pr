@@ -7,6 +7,7 @@ import { SessionSummaryProvider } from "@/components/layout/session-summary-prov
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { AttributionCapture } from "@/components/analytics/attribution-capture";
 import { GoogleTagManager } from "@/components/analytics/google-tag-manager";
+import { BackOfficeAnalyticsOff } from "@/components/analytics/back-office-analytics-off";
 import { PathLog } from "@/components/analytics/path-log";
 import { ContactClicks } from "@/components/analytics/contact-clicks";
 import { NativeViewport } from "@/components/layout/native-viewport";
@@ -168,6 +169,7 @@ export default function RootLayout({
             <Toaster position="top-center" richColors />
             <GoogleAnalytics />
             <GoogleTagManager />
+            <BackOfficeAnalyticsOff />
             <Clarity />
             <MetaPixel />
             <AttributionCapture />

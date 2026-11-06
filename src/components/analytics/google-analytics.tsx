@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Suspense, useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useConsent } from "@/lib/consent";
+import { isBackOfficePath } from "@/components/analytics/back-office-analytics-off";
 import { redactSensitiveParams } from "@/lib/analytics/redact";
 import { useIsNativeApp } from "@/lib/native-app";
 
@@ -33,6 +34,7 @@ export function GoogleAnalytics() {
   // unanswered banner and a refusal both render nothing at all — see
   // lib/consent.ts for why "load it and switch it off" is not the same thing.
   const consent = useConsent();
+  const pathname = usePathname();
   /* And never inside the iOS app, which is the other half of removing the
      consent bar there (see cookie-notice.tsx). Without the bar nobody in the
      app can be asked, and a measurement tag that loads without being asked is
@@ -41,6 +43,8 @@ export function GoogleAnalytics() {
      file was the one that still would have run on an unanswered question. */
   const inApp = useIsNativeApp();
   if (!id || inApp || consent !== "granted") return null;
+  /* Not on the back office — see back-office-analytics-off.tsx. */
+  if (isBackOfficePath(pathname)) return null;
 
   /* Google's two setup lines used to be an inline <script> here, which was
      right while this component was part of the server's HTML: the parser ran
