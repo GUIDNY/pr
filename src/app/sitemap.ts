@@ -55,6 +55,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         updatedAt: true,
         categoryId: true,
         brandId: true,
+        brand: { select: { name: true } }, // isSellableNow's always-sellable brands
         stockQty: true,
         sourceAvailability: true,
         source: { select: { key: true } },

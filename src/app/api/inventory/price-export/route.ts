@@ -139,6 +139,7 @@ export async function GET() {
       supplierCost: true,
       stockQty: true,
       sourceAvailability: true,
+      brand: { select: { name: true } },
       source: { select: { key: true } },
       stockStatus: true,
       isPublished: true,

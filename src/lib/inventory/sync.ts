@@ -846,7 +846,7 @@ async function applyOneRow(
      same way: electronics is sold from the shelf, so a row with nothing on
      the shelf is not a product yet. It becomes one on the first sync that
      finds a number in its stock column. */
-  if (rawStock <= 0 && !existing && !sellableWithoutStock(row.availability, row.sourceKey)) return null;
+  if (rawStock <= 0 && !existing && !sellableWithoutStock(row.availability, row.sourceKey, row.brandName)) return null;
 
   /* A subtotal line, not a product. The sheets carry running totals among
      the rows — a brand name in the description cell, the sum of its

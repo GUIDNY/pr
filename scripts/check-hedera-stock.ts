@@ -22,7 +22,7 @@
 // Run: npx tsx scripts/check-hedera-stock.ts
 import { totalStock } from "../src/lib/inventory/diff-engine";
 import type { ClassifiedField } from "../src/lib/inventory/types";
-import { sellableStockColumnsFor, stockLineCounts } from "../src/lib/inventory/availability";
+import { isSellableNow, sellableStockColumnsFor, sellableWithoutStock, stockLineCounts } from "../src/lib/inventory/availability";
 
 let failed = 0;
 let checked = 0;
@@ -126,6 +126,15 @@ expect(
 );
 expect("no stock lines at all", totalStock({ stockLines: [] }, HEDERA), 0);
 expect("a negative never becomes a negative stock", totalStock({ stockLines: [line("מלאי חדרה", -3)] }, HEDERA), 0);
+
+/* ── Ninja: sold with or without stock (owner, 8 November) ───────────── */
+expect("Ninja at zero in ליין קטן is sellable", sellableWithoutStock("ORDERABLE", "small-appliances", "NINJA"), true);
+expect("whatever the case of the brand name", sellableWithoutStock("ORDERABLE", "small-appliances", "Ninja"), true);
+expect("even on a row the supplier marked gone", sellableWithoutStock("END_OF_LINE", "small-appliances", "NINJA"), true);
+expect("any other brand at zero in ליין קטן is not", sellableWithoutStock("ORDERABLE", "small-appliances", "Tefal"), false);
+expect("nor with no brand at all", sellableWithoutStock("ORDERABLE", "small-appliances", null), false);
+expect("a Ninja product page with nothing in Hedera still sells", isSellableNow({ stockQty: 0, sourceKey: "small-appliances", brand: { name: "NINJA" } }), true);
+expect("and a non-Ninja one beside it does not", isSellableNow({ stockQty: 0, sourceKey: "small-appliances", brand: { name: "Philips" } }), false);
 
 console.log(
   `${checked - failed}/${checked} passed  (ליין קטן sells from "מלאי חדרה" alone; ` +

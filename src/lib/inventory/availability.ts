@@ -173,10 +173,34 @@ export function stockLineCounts(
  * optional one would read as ORDERABLE wherever somebody forgot it, which is
  * the permissive direction and the silent one.
  */
+/**
+ * Brands sold whether or not any stock column has a number — and whatever the
+ * row says about availability.
+ *
+ * Ninja, the owner on 8 November: "מוצרי נינג'ה גם אם יש במלאי וגם אם אין —
+ * שתמיד יופיע באתר". Ninja is the one brand the shop prices by hand and
+ * sources directly, so the price list's stock columns say nothing about
+ * whether one can be had. It overrides STOCK_ONLY_SOURCES, which is what
+ * hid 22 of them: מחירון ליין קטן counts only "מלאי חדרה", and Ninja is
+ * rarely there.
+ *
+ * Compared case-insensitively against Brand.name ("NINJA" in the table).
+ * Written once here and read by the three places the rule lives —
+ * PUBLIC_PRODUCT_WHERE, isSellableNow and the sync's deriveStockStatus — so
+ * the listing, the product page and the card's buy button cannot disagree.
+ */
+export const ALWAYS_SELLABLE_BRANDS: readonly string[] = ["NINJA"];
+
+export function brandAlwaysSellable(brandName: string | null | undefined): boolean {
+  return !!brandName && ALWAYS_SELLABLE_BRANDS.includes(brandName.trim().toUpperCase());
+}
+
 export function sellableWithoutStock(
   availability: SourceAvailability,
   sourceKey: string | null | undefined,
+  brandName?: string | null,
 ): boolean {
+  if (brandAlwaysSellable(brandName)) return true;
   if (sourceKey && STOCK_ONLY_SOURCES.has(sourceKey)) return false;
   return availability === "ORDERABLE";
 }
@@ -215,9 +239,13 @@ export function isSellableNow(p: {
   /* Required, not optional — see sellableWithoutStock. Null is right for a
      product that came from no price list at all. */
   sourceKey: string | null | undefined;
+  /* For ALWAYS_SELLABLE_BRANDS. Optional so a caller without the brand in
+     hand still compiles — but it then answers as though the product were
+     any other brand, so every caller that can should pass it. */
+  brand?: { name: string } | null;
 }): boolean {
   if (p.stockQty > 0) return true;
-  return sellableWithoutStock((p.sourceAvailability ?? "ORDERABLE") as SourceAvailability, p.sourceKey);
+  return sellableWithoutStock((p.sourceAvailability ?? "ORDERABLE") as SourceAvailability, p.sourceKey, p.brand?.name);
 }
 
 /* For the back office only. The customer is told nothing about where the unit
