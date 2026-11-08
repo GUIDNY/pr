@@ -67,9 +67,15 @@ and probes port 445 first, so the log now says which it was: "does not answer
 on port 445" is the office line or the server, "answers, but the share is
 still not there" is the Mac's own keychain or Finder. Five runs between 27
 and 30 October were lost to the first kind, each to a line that was back
-within the hour. The script runs from `/Users/guindybot/buytoday/`, a copy
-of `scripts/agent/`, and is updated by copying the file there — nothing
-pulls it. Nothing in this repository or
+within the hour. A third kind cost three runs from 6 to 8 November: a
+**dead mount** — `/Volumes/מחירון` still in the mount table from 30 October,
+listed by `ls /Volumes` but "No such file or directory" inside, with the
+server answering on 445 throughout. A remount cannot land while the name is
+taken, so the script now force-unmounts that exact path first
+(`clear_dead_mount`). The script runs from `/Users/guindybot/buytoday/`, a
+copy of `scripts/agent/`, and is updated by copying the file there — nothing
+pulls it, and on 8 November the copy there was found to predate even the
+30 October retries. Nothing in this repository or
 this database can tell you which of the causes it was, and no amount of
 checking from here substitutes for reading that file.
 
