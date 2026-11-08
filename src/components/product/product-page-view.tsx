@@ -4,7 +4,7 @@ import { MetaViewContent } from "@/components/analytics/meta-events";
 import { GaViewItem } from "@/components/analytics/ga-events";
 import { breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
-import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw } from "lucide-react";
+import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench } from "lucide-react";
 import {
   FREE_DELIVERY_THRESHOLD,
   computeDeliveryFee,
@@ -75,6 +75,7 @@ import type { StockStatus } from "@/lib/enums";
 import { BUSINESS } from "@/lib/business";
 import { maxCartQuantity } from "@/lib/cart-merge";
 import { isSellableNow } from "@/lib/inventory/availability";
+import { needsPaidInstallation } from "@/lib/installation";
 
 /**
  * The product page itself, rendered identically for everyone except an admin.
@@ -613,6 +614,21 @@ export async function ProductPageView({
               </p>
             </div>
           ) : (
+            <>
+            {/* Installation is extra and arranged by phone — said here, above
+                the button, so it is known before the order and not after it.
+                See lib/installation.ts. */}
+            {needsPaidInstallation(product.category.slug) && (
+              <div className="flex items-start gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-3.5 text-amber-950 dark:border-amber-500/60 dark:bg-amber-950/30 dark:text-amber-100">
+                <Wrench className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                <div className="text-sm leading-relaxed">
+                  <p className="font-bold">התקנה בתוספת תשלום</p>
+                  <p className="mt-0.5">
+                    ההתקנה אינה כלולה במחיר. לאחר ההזמנה ניצור איתכם קשר לתיאום ההתקנה ולפרטי העלות.
+                  </p>
+                </div>
+              </div>
+            )}
             <PurchasePanel
               productId={product.id}
               slug={product.slug}
@@ -620,6 +636,7 @@ export async function ProductPageView({
               stockStatus={product.stockStatus as StockStatus}
               maxQuantity={maxQuantity}
             />
+            </>
           )}
 
           <div className="flex flex-wrap gap-2">

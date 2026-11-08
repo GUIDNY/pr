@@ -1,6 +1,6 @@
 import "server-only";
 import { MIN_PUBLIC_PRICE } from "@/lib/inventory/underpriced";
-import { STOCK_ONLY_SOURCE_KEYS } from "@/lib/inventory/availability";
+import { ALWAYS_SELLABLE_BRANDS, STOCK_ONLY_SOURCE_KEYS } from "@/lib/inventory/availability";
 import { cache } from "react";
 import { normalizeFacetValue } from "@/lib/facet-value";
 import { db } from "@/lib/db";
@@ -142,6 +142,9 @@ const SELLABLE_CLAUSE: Prisma.ProductWhereInput[] = [
           { source: { is: { key: { notIn: [...STOCK_ONLY_SOURCE_KEYS] } } } },
         ],
       },
+      /* Ninja is sold with or without stock — ALWAYS_SELLABLE_BRANDS in
+         inventory/availability.ts. */
+      { brand: { is: { name: { in: [...ALWAYS_SELLABLE_BRANDS], mode: "insensitive" } } } },
     ],
   },
 ];
