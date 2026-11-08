@@ -86,6 +86,7 @@
     "check:underpriced-noise": "tsx scripts/check-underpriced-noise.ts",
     "check:openai-ads": "tsx scripts/check-openai-ads.ts",
     "check:attribution-ids": "tsx scripts/check-attribution-ids.ts",
+    "check:brand-markup": "tsx scripts/check-brand-markup.ts",
     "check:duplicate-alerts": "tsx scripts/check-duplicate-alerts.ts",
     "check:duplicates": "tsx scripts/check-duplicate-listings.ts",
     "check:row-aliases": "tsx scripts/check-row-aliases.ts"

@@ -34,6 +34,7 @@ import {
   MIN_ALIAS_TITLE_LENGTH,
 } from "./row-aliases";
 import { resolveBrandId, findBrandId } from "./brand-resolver";
+import { brandPriceMarkup, withMarkup } from "./brand-markup";
 import {
   modelsAreTheSame,
   modelsAreTheSameAllowingTypedZero,
@@ -901,7 +902,11 @@ async function applyOneRow(
   // now the brand may be created. Reuses whatever findBrandId already found.
   const brandId = existingBrandId ?? (await resolveBrandId(row.brandName));
 
-  const { price: resolved, rejected: rejectedPrices } = resolvedPrice(row);
+  const { price: sheetPrice, rejected: rejectedPrices } = resolvedPrice(row);
+  /* Frigidaire is always the price list plus 200 — see brand-markup.ts. On
+     the product's own brand when there is one (enrichment's field, and the
+     one the back office shows), the row's otherwise. */
+  const resolved = withMarkup(sheetPrice, await brandPriceMarkup(existing?.brandId ?? brandId));
 
   // A quantity that is really a price. The supplier typed 9900 into the
   // "בונדד ספק" column of a ₪12,900 fridge whose own notes say it is sold
@@ -1104,8 +1109,10 @@ async function applyOneRow(
      sometimes inc-VAT, so this can only ever withhold fewer prices than it
      should, never invent a reason to withhold one. */
   const rowCost = row.internalCost;
+  /* On the price list's own number, before any brand markup: the markup must
+     never be what lifts a below-cost row over the line. */
   const resolvedIsBelowCost =
-    resolved !== null && rowCost !== null && rowCost > 0 && resolved < rowCost;
+    sheetPrice !== null && rowCost !== null && rowCost > 0 && sheetPrice < rowCost;
 
   /* And never over a running sale. compareAtPrice set means price is a sale
      price being advertised against it; adopting the sheet's figure there
