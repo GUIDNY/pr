@@ -275,6 +275,40 @@ def server_reachable(smb_url: str) -> "bool | None":
         return False
 
 
+def clear_dead_mount() -> None:
+    """Take a dead mount of the share off its mount point, if there is one.
+
+    What stopped the sync from Friday afternoon 6 November to Sunday
+    morning: /Volumes/מחירון was still in the mount table, from 30 October,
+    but the connection behind it was gone — `ls -la /Volumes` listed it and
+    `ls` inside answered "No such file or directory". The server answered on
+    port 445 the whole time. Asking macOS to mount the share again changes
+    nothing while the name is taken by the dead mount, so every remount
+    attempt "succeeded" and the folder never came back. Three runs were
+    lost before a person ran `diskutil unmount force` by hand.
+
+    Only ever called once listing the folder has already failed, and only
+    ever on SHEETS_DIR itself. Unmounting drops this Mac's connection and
+    nothing else: no file on the server is touched.
+    """
+    try:
+        table = subprocess.run(["/sbin/mount"], check=False, capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return
+    if f" on {SHEETS_DIR} (" not in table:
+        return
+    log(f"WARN   {SHEETS_DIR} is still mounted but cannot be read — a dead connection; unmounting it")
+    try:
+        subprocess.run(
+            ["/usr/sbin/diskutil", "unmount", "force", str(SHEETS_DIR)],
+            check=False,
+            capture_output=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as err:
+        log(f"       could not unmount: {err}")
+
+
 def remount() -> bool:
     """Ask macOS to mount the share again, and wait to see whether it did.
 
@@ -296,6 +330,7 @@ def remount() -> bool:
         return False
 
     host = urllib.parse.urlsplit(SHEETS_SMB_URL).hostname or "the file server"
+    clear_dead_mount()
     log(f"WARN   {SHEETS_DIR} is not there — asking macOS to mount it")
     unreachable = 0
     for attempt in range(1, MOUNT_ATTEMPTS + 1):
