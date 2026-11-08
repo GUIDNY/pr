@@ -101,7 +101,7 @@ so renaming a product must not break links already shared.
 
 Stated by the owner on 13 October, after a sweep found the catalogue holding
 36 hand-set prices nobody remembered setting: **nothing is priced by hand any
-more except Ninja.** Every other product shows whatever `resolvedPrice` reads
+more except Ninja**, and since 1 November the Frigidaire +200 below. Every other product shows whatever `resolvedPrice` reads
 off its row.
 
 He also gave the rule in the form that matters, and it is worth keeping in his
@@ -125,6 +125,13 @@ only cell is `1`.
 one column, and it may be set for exactly four reasons:
 
 - **Ninja.** Nine live products, eight of them on a running `compareAtPrice`.
+- **Frigidaire, 200 ₪ over the price list.** The owner's request on
+  1 November, confirmed again on 8 November ("זה נשאר כרגע"): all 22
+  Frigidaire fridges were raised by exactly 200 ₪ and frozen, audit log
+  `PRODUCT_PRICE_MANUAL` with reason "Frigidaire +200". It is the price set
+  that day, not "sheet + 200" — the freeze stops the sheet moving it either
+  way. A reconciliation will show each of them 200 ₪ above its row; that is
+  the policy, not drift, so do not "correct" them. Only the owner ends it.
 - **The sheet's own price is below the sheet's own cost.** 200052 (LG OLED 65
   G5: cost 8,100, `קוד מנכ"ל` 6,900) and 200131 (1,800 against 1,790). Adopting
   those would break "אין אפשרות שמחיר יהיה מתחת לעלות", so `adoptPrice` refuses
