@@ -64,6 +64,7 @@ export async function sendReferralInviteAction(orderId: string, channel: "EMAIL"
       : `פתחו חשבון וקבלו קישור אישי לחברים — כל חבר שקונה דרכו מקבל ${REFERRAL_FRIEND_PERCENT}% הנחה, ואתם מקבלים מתנה לקנייה הבאה (חבר ${steps}).`,
     progress && progress.friends > 0 ? `כבר הבאתם ${progress.friends} — המתנה הבאה ₪${progress.nextReward}.` : null,
     link,
+    `והמבצעים שלנו עכשיו: ${SITE_URL}/deals`,
   ].filter(Boolean) as string[];
 
   if (channel === "EMAIL") {
@@ -78,6 +79,7 @@ export async function sendReferralInviteAction(orderId: string, channel: "EMAIL"
 ${progress && progress.friends > 0 ? `<p>${escapeHtml(lines[3])}</p>` : ""}
 <p><a href="${link}" style="display:inline-block;background:#f55305;color:#fff;padding:12px 22px;border-radius:10px;text-decoration:none;font-weight:bold">${order.user ? "לקישור האישי שלי" : "פתיחת חשבון"}</a></p>
 <p style="font-size:13px;color:#555" dir="ltr">${link}</p>
+<p><a href="${SITE_URL}/deals" style="color:#f55305;font-weight:bold">למבצעים שלנו עכשיו ←</a></p>
 <hr style="border:none;border-top:1px solid #eee"/>
 <p style="font-size:12px;color:#888">${BUSINESS.name} · ${BUSINESS.phone}<br/>
 קיבלתם את ההודעה כי אישרתם קבלת מבצעים בהזמנה. <a href="${unsub}" style="color:#888">להסרה מרשימת הדיוור</a></p>

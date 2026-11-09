@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import {
+  HeartHandshake,
+  Star,
   LayoutDashboard,
   Package,
   ShoppingBag,
@@ -56,6 +58,10 @@ const NAV = [
      neither label is that word on its own any more. */
   { href: "/admin/deals", label: "מוצרים במבצע", icon: TagIcon, catalog: true },
   { href: "/admin/promotions", label: "קופונים והנחות עגלה", icon: TicketPercent, catalog: true },
+  /* A week after a purchase: review requests to every buyer, the deals and
+     חבר מביא חבר to those who did not refuse marketing. */
+  { href: "/admin/follow-up", label: "מעקב אחרי רכישה", icon: HeartHandshake, catalog: true },
+  { href: "/admin/reviews", label: "אישור ביקורות", icon: Star, catalog: true },
   /* A campaign being prepared, for looking at and showing — it changes no
      price. See lib/campaigns/singles-day-2026.ts. Sellers see it too
      (`seller`), and it leaves the nav at `until`, midnight after 11.11. */
