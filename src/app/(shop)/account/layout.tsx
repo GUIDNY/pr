@@ -1,32 +1,20 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import {
-  LayoutDashboard,
-  Package,
-  MapPin,
-  Heart,
-  KeyRound,
-  Trash2,
-  Trophy,
-} from "lucide-react";
 import { getSession } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { AccountDeleteLink, AccountNav, type AccountNavItem } from "@/components/account/account-nav";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { mallViewerEmail } from "@/lib/mall-access-server";
 
-const NAV = [
-  { href: "/account", label: "סקירה כללית", icon: LayoutDashboard },
-  { href: "/account/orders", label: "ההזמנות שלי", icon: Package },
-  { href: "/account/club", label: "מועדון הקניון", icon: Trophy },
-  { href: "/account/addresses", label: "כתובות", icon: MapPin },
-  { href: "/account/favorites", label: "מועדפים", icon: Heart },
-  { href: "/account/password", label: "סיסמה", icon: KeyRound },
+const NAV: AccountNavItem[] = [
+  { href: "/account", label: "סקירה כללית", icon: "overview" },
+  { href: "/account/orders", label: "ההזמנות שלי", icon: "orders" },
+  { href: "/account/club", label: "מועדון הקניון", icon: "club" },
+  { href: "/account/addresses", label: "כתובות", icon: "addresses" },
+  { href: "/account/favorites", label: "מועדפים", icon: "favorites" },
+  { href: "/account/password", label: "סיסמה", icon: "password" },
 ];
 
-export default async function AccountLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function AccountLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
   // proxy.ts already turns a cookie-less request away, and does it knowing
   // which account page was asked for. This is the check that matters though:
@@ -34,58 +22,48 @@ export default async function AccountLayout({
   // belonging to a user who no longer exists — and only getSession can tell.
   if (!session) redirect("/login?redirect=/account");
   // the mall's club only for the accounts that may see the mall (lib/mall-access.ts)
-  const nav = (await mallViewerEmail())
-    ? NAV
-    : NAV.filter((n) => n.href !== "/account/club");
+  const nav = (await mallViewerEmail()) ? NAV : NAV.filter((n) => n.href !== "/account/club");
+  const user = await db.user.findUnique({ where: { id: session.sub }, select: { email: true } });
+  const initial = session.name.trim().charAt(0).toUpperCase() || "?";
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[220px_1fr]">
-        <aside className="border-border h-fit rounded-xl border p-3 lg:sticky lg:top-24">
-          <div className="px-2 py-2">
-            <p className="font-semibold">{session.name}</p>
-          </div>
-          <nav className="mt-2 flex flex-col gap-1">
-            {nav.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="hover:bg-muted flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
-              >
-                <item.icon className="size-4" />
-                {item.label}
-              </Link>
-            ))}
-            {/* App Store guideline 5.1.1(v): an account that can be created
-                in the app has to be deletable in the app, and a reviewer looks
-                for it here rather than in a help page.
-
-                With the English underneath, and this is the only place in the
-                shop carrying a second language. App Review is not staffed to
-                read Hebrew, and a reviewer scanning an RTL sidebar for a way
-                to delete an account cannot tell which of five identical rows
-                it is — which is a rejection for a feature that is right
-                there. It is small and muted, so a customer reads the Hebrew
-                and the label stays out of the way. */}
-            <Link
-              href="/account/delete"
-              className="hover:bg-muted text-muted-foreground flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium"
-            >
-              <Trash2 className="size-4 shrink-0" />
-              <span className="flex flex-col items-start leading-tight">
-                מחיקת החשבון
-                <span
-                  dir="ltr"
-                  className="text-muted-foreground/70 text-[11px] font-normal"
-                >
-                  Delete account
+    <div className="bg-muted/30 min-h-[70vh]">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[250px_1fr] lg:gap-8">
+          <aside className="h-fit lg:sticky lg:top-24">
+            <div className="bg-card hidden rounded-2xl border p-4 shadow-[0_1px_2px_rgb(0_0_0/0.04)] lg:block">
+              <div className="mb-4 flex items-center gap-3 border-b pb-4">
+                <span className="from-brand to-brand-hover text-brand-foreground grid size-12 shrink-0 place-items-center rounded-full bg-gradient-to-br text-lg font-black">
+                  {initial}
                 </span>
-              </span>
-            </Link>
-            <LogoutButton className="hover:bg-muted text-destructive flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium disabled:opacity-60" />
-          </nav>
-        </aside>
-        <div>{children}</div>
+                <div className="min-w-0">
+                  <p className="truncate font-bold">{session.name}</p>
+                  {user?.email && (
+                    <p dir="ltr" className="text-muted-foreground truncate text-end text-xs">
+                      {user.email}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <AccountNav items={nav} />
+              <div className="mt-3 border-t pt-3">
+                <AccountDeleteLink />
+                <LogoutButton className="hover:bg-muted text-destructive flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium disabled:opacity-60" />
+              </div>
+            </div>
+            {/* phone: the same menu as tabs; account deletion and sign-out sit at the foot of the page */}
+            <div className="lg:hidden">
+              <AccountNav items={nav} />
+            </div>
+          </aside>
+          <div className="min-w-0">
+            {children}
+            <div className="mt-8 flex flex-col gap-1 border-t pt-4 lg:hidden">
+              <AccountDeleteLink />
+              <LogoutButton className="hover:bg-muted text-destructive flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium disabled:opacity-60" />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
