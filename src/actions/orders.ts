@@ -20,6 +20,7 @@ import { retireGameCoupon } from "@/lib/game-wheel";
 import { awardPurchase } from "@/lib/game-levels";
 import { cookies } from "next/headers";
 import { ATTRIBUTION_COOKIE, attributionFromJson, parseAttribution } from "@/lib/attribution";
+import { REFERRAL_CODE_PREFIX, REFERRAL_COOKIE, REFERRAL_FLAG_COOKIE } from "@/lib/referral-rules";
 
 export async function createOrderAction(input: CheckoutInput) {
   const parsed = checkoutSchema.safeParse(input);
@@ -240,6 +241,14 @@ export async function createOrderAction(input: CheckoutInput) {
   // A personal wheel coupon is spent by an order that is final as placed; a
   // gateway order spends it when the payment clears (the Pelecard callback).
   if (!payWithPelecard) await retireGameCoupon(summary.couponCode);
+
+  /* A friend's discount is spent once it is on an order: the bar and the
+     product-page line that announce it stop here. See lib/referral.ts. */
+  if (summary.couponCode?.startsWith(REFERRAL_CODE_PREFIX)) {
+    const jar = await cookies();
+    jar.delete(REFERRAL_COOKIE);
+    jar.delete(REFERRAL_FLAG_COOKIE);
+  }
 
   if (!payWithPelecard && paymentStatus === "AUTHORIZED") {
     const last4 = data.cardNumber ? data.cardNumber.replace(/\s/g, "").slice(-4) : null;

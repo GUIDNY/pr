@@ -33,3 +33,8 @@ export function qualifiesForReferral(goodsAfterDiscount: number): boolean {
 export const REFERRAL_CODE_PREFIX = "REF-";
 export const REFERRAL_COOKIE = "bt_ref";
 export const REFERRAL_COOKIE_DAYS = 60;
+/* Readable by the page (REFERRAL_COOKIE is httpOnly, and the shop's pages are
+   cached, so the server cannot tell them who is looking): it only says that
+   a friend's discount is waiting, so the bar and the product page can say
+   so. Never trusted for the discount itself — that is the code on the cart. */
+export const REFERRAL_FLAG_COOKIE = "bt_ref_on";
