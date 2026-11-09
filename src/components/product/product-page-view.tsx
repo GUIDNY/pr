@@ -26,6 +26,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProductGallery } from "@/components/product/product-gallery";
 import { PriceBlock } from "@/components/product/price-block";
+import { FriendPriceLine } from "@/components/referral/friend-discount";
 import { ProductPriceEditor } from "@/components/product/product-price-editor";
 import { ProductTitleEditor } from "@/components/product/product-title-editor";
 import { ProductSpecsEditor } from "@/components/product/product-specs-editor";
@@ -567,12 +568,15 @@ export async function ProductPageView({
                engine reads. */
             null
           ) : (
-            <PriceBlock
-              price={product.price}
-              compareAtPrice={product.compareAtPrice}
-              installmentMonths={product.installmentMonths}
-              size="lg"
-            />
+            <>
+              <PriceBlock
+                price={product.price}
+                compareAtPrice={product.compareAtPrice}
+                installmentMonths={product.installmentMonths}
+                size="lg"
+              />
+              <FriendPriceLine price={product.price} />
+            </>
           )}
 
           {/* After the price and before the stock line, because a finish can

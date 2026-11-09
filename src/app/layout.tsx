@@ -7,6 +7,7 @@ import { SessionSummaryProvider } from "@/components/layout/session-summary-prov
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { AttributionCapture } from "@/components/analytics/attribution-capture";
 import { FriendWelcome } from "@/components/referral/friend-welcome";
+import { FriendDiscountBar } from "@/components/referral/friend-discount";
 import { GoogleTagManager } from "@/components/analytics/google-tag-manager";
 import { BackOfficeAnalyticsOff } from "@/components/analytics/back-office-analytics-off";
 import { PathLog } from "@/components/analytics/path-log";
@@ -141,6 +142,8 @@ export default function RootLayout({
           <TooltipProvider delayDuration={150}>
             {/* The one request that personalises a page the server built
                 for nobody in particular: name, favourites and cart together. */}
+            {/* A friend's discount, waiting — see components/referral. */}
+            <FriendDiscountBar />
             <SessionSummaryProvider>{children}</SessionSummaryProvider>
             {/* Browsing furniture. Hidden on the payment step — see ShoppingOnly. */}
             {/* The cart drawer stays usable inside the 3D mall's product

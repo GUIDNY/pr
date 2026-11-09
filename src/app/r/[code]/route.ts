@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { CART_COOKIE } from "@/lib/cart";
 import { referrerOf } from "@/lib/referral";
-import { REFERRAL_COOKIE, REFERRAL_COOKIE_DAYS } from "@/lib/referral-rules";
+import { REFERRAL_COOKIE, REFERRAL_COOKIE_DAYS, REFERRAL_FLAG_COOKIE } from "@/lib/referral-rules";
 
 /**
  * A friend's referral link: buytoday.co.il/r/REF-XXXXXX.
@@ -26,6 +26,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
   const res = NextResponse.redirect(home);
   res.cookies.set(REFERRAL_COOKIE, code, {
     httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: REFERRAL_COOKIE_DAYS * 86400,
+  });
+
+  res.cookies.set(REFERRAL_FLAG_COOKIE, "1", {
+    httpOnly: false,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
