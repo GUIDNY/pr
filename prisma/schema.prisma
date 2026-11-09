@@ -80,6 +80,14 @@ model User {
   gameProfile       GameProfile?
   gameSpins         GameSpin[]
   memberCoupons     MemberCoupon[]
+  /// חבר מביא חבר: the account whose link brought this one (lib/referral.ts).
+  /// Kept on the account so the friend's discount works from any device.
+  referredById String?
+  referredBy   User?     @relation("Referral", fields: [referredById], references: [id], onDelete: SetNull)
+  referred     User[]    @relation("Referral")
+  referredAt   DateTime?
+
+  @@index([referredById])
 }
 
 model Address {

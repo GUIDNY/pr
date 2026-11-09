@@ -142,9 +142,12 @@ export default function RootLayout({
           <TooltipProvider delayDuration={150}>
             {/* The one request that personalises a page the server built
                 for nobody in particular: name, favourites and cart together. */}
-            {/* A friend's discount, waiting — see components/referral. */}
-            <FriendDiscountBar />
-            <SessionSummaryProvider>{children}</SessionSummaryProvider>
+            <SessionSummaryProvider>
+              {/* A friend's discount, waiting — see components/referral. Inside
+                  the provider: it needs to know who is signed in. */}
+              <FriendDiscountBar />
+              {children}
+            </SessionSummaryProvider>
             {/* Browsing furniture. Hidden on the payment step — see ShoppingOnly. */}
             {/* The cart drawer stays usable inside the 3D mall's product
                 frame — it is where "added" is confirmed and where the way

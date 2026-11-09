@@ -60,7 +60,7 @@ export async function sendReferralInviteAction(orderId: string, channel: "EMAIL"
     `פרסומת: ${BUSINESS.name}`,
     `${firstName}, תודה שקניתם אצלנו!`,
     order.user
-      ? `שתפו את הקישור האישי שלכם — כל חבר שקונה דרכו מקבל ${REFERRAL_FRIEND_PERCENT}% הנחה, ואתם מקבלים מתנה לקנייה הבאה כשהוא קונה ב-${REFERRAL_MIN_ORDER} ₪ ומעלה (חבר ${steps}).`
+      ? `שתפו את הקישור האישי שלכם — כל חבר שנרשם דרכו מקבל ${REFERRAL_FRIEND_PERCENT}% הנחה, ואתם מקבלים מתנה לקנייה הבאה כשהוא קונה ב-${REFERRAL_MIN_ORDER} ₪ ומעלה (חבר ${steps}).`
       : `פתחו חשבון וקבלו קישור אישי לחברים — כל חבר שקונה דרכו מקבל ${REFERRAL_FRIEND_PERCENT}% הנחה, ואתם מקבלים מתנה לקנייה הבאה (חבר ${steps}).`,
     progress && progress.friends > 0 ? `כבר הבאתם ${progress.friends} — המתנה הבאה ₪${progress.nextReward}.` : null,
     link,

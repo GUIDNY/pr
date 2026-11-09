@@ -27,7 +27,7 @@ export function ReferralCard({
   const [copied, setCopied] = useState(false);
   const message =
     `היי! אני קונה ב-Buy Today — מוצרי חשמל עם אחריות ומשלוח עד הבית. ` +
-    `דרך הקישור שלי מקבלים ${REFERRAL_FRIEND_PERCENT}% הנחה בהזמנה הראשונה: ${link}`;
+    `נרשמים דרך הקישור שלי ומקבלים ${REFERRAL_FRIEND_PERCENT}% הנחה בהזמנה הראשונה: ${link}`;
 
   const copy = async () => {
     try {
@@ -61,7 +61,7 @@ export function ReferralCard({
         <div>
           <h2 className="text-lg font-bold">חבר מביא חבר</h2>
           <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
-            החבר מקבל {REFERRAL_FRIEND_PERCENT}% הנחה בהזמנה הראשונה, ואתם מקבלים מתנה לקנייה הבאה כשהוא קונה
+            החבר נרשם דרך הקישור ומקבל {REFERRAL_FRIEND_PERCENT}% הנחה בהזמנה הראשונה, ואתם מקבלים מתנה לקנייה הבאה כשהוא קונה
             ב-{REFERRAL_MIN_ORDER} ₪ ומעלה.
           </p>
         </div>
@@ -145,7 +145,7 @@ export function ReferralCard({
           </button>
         </div>
         <p className="text-muted-foreground text-xs leading-relaxed">
-          ההנחה לחבר תקפה בהזמנה הראשונה שלו בלבד. המתנה שלכם נכנסת לאזור האישי אחרי שהחבר שילם על הזמנה של{" "}
+          ההנחה לחבר נשמרת בחשבון שהוא פותח דרך הקישור, ותקפה בהזמנה הראשונה שלו בלבד. המתנה שלכם נכנסת לאזור האישי אחרי שהחבר שילם על הזמנה של{" "}
           {REFERRAL_MIN_ORDER} ₪ ומעלה, ותקפה ל-90 יום.
         </p>
       </div>

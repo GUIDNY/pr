@@ -1,8 +1,11 @@
 import "server-only";
 import { randomBytes } from "crypto";
+import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { hasMemberCoupon, issueMemberCoupon } from "@/lib/member-coupons";
 import {
+  REFERRAL_COOKIE,
+  REFERRAL_FLAG_COOKIE,
   REFERRAL_CODE_PREFIX,
   REFERRAL_FRIEND_PERCENT,
   REFERRAL_REWARD_DAYS,
@@ -52,6 +55,9 @@ export async function referralCodeFor(userId: string): Promise<string> {
         isActive: true,
         firstOrderOnly: true,
         perCustomerLimit: 1,
+        /* Registered accounts only — the discount lives on the account so it
+           works from any device (owner, 9 November). */
+        membersOnly: true,
         description: `${REFERRAL_FRIEND_PERCENT}% הנחה בהזמנה הראשונה — בזכות חבר`,
       },
     }),
@@ -118,4 +124,60 @@ export async function awardReferral(orderId: string): Promise<void> {
   } catch (error) {
     console.error("[referral] could not award", orderId, error);
   }
+}
+
+/**
+ * Tie a friend's account to the account whose link brought it.
+ *
+ * The owner, 9 November: the friend registers, and the discount belongs to
+ * the account — so it works from the phone the link was opened on and from
+ * the computer the order is placed on alike. Called right after sign-up and
+ * after every sign-in (password, Google, Apple), reading the code the link
+ * left in a cookie, or with the code directly when the visitor was already
+ * signed in when they clicked it.
+ *
+ * First link wins, the referrer cannot refer themselves, and an account
+ * that has already paid for an order is not a new customer, so it is not
+ * tied (the discount is first-order-only anyway). Puts the code on the
+ * account's cart, and clears the link's cookies: from here the account
+ * carries it. Never throws.
+ */
+export async function attachReferral(userId: string, code?: string | null): Promise<void> {
+  try {
+    const jar = await cookies();
+    const fromCookie = jar.get(REFERRAL_COOKIE)?.value ?? null;
+    const referralCode = (code ?? fromCookie)?.trim().toUpperCase() ?? null;
+    if (!referralCode) return;
+    const referrerId = await referrerOf(referralCode);
+    const clear = () => {
+      jar.delete(REFERRAL_COOKIE);
+      jar.delete(REFERRAL_FLAG_COOKIE);
+    };
+    if (!referrerId || referrerId === userId) return clear();
+
+    const user = await db.user.findUnique({ where: { id: userId }, select: { referredById: true } });
+    if (!user || user.referredById) return clear();
+    const paid = await db.order.count({ where: { userId, paymentStatus: { in: ["CAPTURED", "AUTHORIZED"] } } });
+    if (paid > 0) return clear();
+
+    await db.user.update({ where: { id: userId }, data: { referredById: referrerId, referredAt: new Date() } });
+    await db.cart.updateMany({ where: { userId, couponCode: null }, data: { couponCode: referralCode } });
+    clear();
+  } catch (error) {
+    console.error("[referral] could not attach", userId, error);
+  }
+}
+
+/**
+ * The friend's discount code for this account's cart, while it is still
+ * owed: the account was referred and has not yet paid for an order. Null
+ * otherwise. What makes the discount appear on a cart opened on any device.
+ */
+export async function owedReferralCode(userId: string): Promise<string | null> {
+  const user = await db.user.findUnique({ where: { id: userId }, select: { referredById: true } });
+  if (!user?.referredById) return null;
+  const paid = await db.order.count({ where: { userId, paymentStatus: { in: ["CAPTURED", "AUTHORIZED"] } } });
+  if (paid > 0) return null;
+  const link = await db.memberCoupon.findFirst({ where: { userId: user.referredById, kind: LINK_KIND }, select: { code: true } });
+  return link?.code ?? null;
 }

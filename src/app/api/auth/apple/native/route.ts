@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { createSession, getSession, grantReauth, hashPassword } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
+import { attachReferral } from "@/lib/referral";
 import { appleNativeConfigured, verifyAppleIdentityToken } from "@/lib/apple-oauth";
 
 export const dynamic = "force-dynamic";
@@ -147,6 +148,7 @@ export async function POST(request: Request) {
   /* The cart this browser filled before signing in. Without this the shop
      answers a fresh sign-in with an empty cart — see claimGuestCart. */
   await claimGuestCart(user.id);
+  await attachReferral(user.id);
 
   /* No redirect. The caller is a fetch from a page that is already open, and
      it reloads itself — a redirect here would only be followed by the fetch. */

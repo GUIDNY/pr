@@ -9,9 +9,10 @@ type SessionSummary = {
   favoriteIds: string[];
   cart: CartSummary;
   backOffice: string | null;
+  friendDiscount?: boolean;
 };
 
-type Loaded = { name: string | null; favoriteIds: Set<string>; backOffice: string | null };
+type Loaded = { name: string | null; favoriteIds: Set<string>; backOffice: string | null; friendDiscount: boolean };
 
 const SessionSummaryContext = createContext<Loaded | null>(null);
 
@@ -51,6 +52,7 @@ export function SessionSummaryProvider({ children }: { children: React.ReactNode
           name: summary.name,
           favoriteIds: new Set(summary.favoriteIds),
           backOffice: summary.backOffice ?? null,
+          friendDiscount: summary.friendDiscount === true,
         });
         if (summary.cart) hydrateCart(summary.cart);
       })
@@ -84,4 +86,15 @@ export function useFavoriteCount(): number {
 /** The path to this visitor's back office, or null if they have none. */
 export function useBackOfficeHome(): string | null {
   return useContext(SessionSummaryContext)?.backOffice ?? null;
+}
+
+/** A friend's discount owed to the signed-in account (חבר מביא חבר). */
+export function useFriendDiscountOwed(): boolean {
+  return useContext(SessionSummaryContext)?.friendDiscount ?? false;
+}
+
+/** Null until the answer arrives, then whether someone is signed in. */
+export function useSignedIn(): boolean | null {
+  const loaded = useContext(SessionSummaryContext);
+  return loaded === null ? null : loaded.name !== null;
 }

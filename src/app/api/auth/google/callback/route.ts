@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { createSession, grantReauth, hashPassword, readReauthIntent } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
+import { attachReferral } from "@/lib/referral";
 import { exchangeCodeForProfile, googleOAuthConfigured } from "@/lib/google-oauth";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
 import { SITE_URL } from "@/lib/site-url";
@@ -127,6 +128,7 @@ export async function GET(request: Request) {
   /* The cart this browser filled before signing in. Without this the shop
      answers a fresh sign-in with an empty cart — see claimGuestCart. */
   await claimGuestCart(user.id);
+  await attachReferral(user.id);
 
   const destination = isBackOffice(user.role) ? backOfficeHome(user.role) : returnTo;
   return NextResponse.redirect(`${SITE_URL}${destination}`);
