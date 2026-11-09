@@ -1,3 +1,4 @@
+import { owedReferralCode } from "@/lib/referral";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
@@ -42,6 +43,9 @@ export async function GET() {
       // a detail about staffing that the shop has no reason to publish.
       backOffice: session && isBackOffice(session.role) ? backOfficeHome(session.role) : null,
       favoriteIds: favorites.map((f) => f.productId),
+      // A friend's discount still owed to this account (חבר מביא חבר) — so the
+      // bar and the product page can say so on any device.
+      friendDiscount: session ? (await owedReferralCode(session.sub)) !== null : false,
       cart: await buildCartSummary(cart),
     },
     {

@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { Gift } from "lucide-react";
+import { REFERRAL_FRIEND_PERCENT } from "@/lib/referral-rules";
 import { RegisterForm } from "@/components/auth/register-form";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { googleOAuthConfigured, googleNativeConfigured } from "@/lib/google-oauth";
@@ -19,9 +21,23 @@ import { appleOAuthConfigured, appleNativeConfigured } from "@/lib/apple-oauth";
 export const dynamic = "force-dynamic";
 
 /** Server-side only so it can read whether Google sign-in is configured. */
-export default function RegisterPage() {
+export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ friend?: string }> }) {
+  /* Arrived through a friend's link (/r/<code>): say what signing up is for. */
+  const fromFriend = (await searchParams).friend === "1";
   return (
     <AuthShell mode="register">
+      {fromFriend && (
+        <div className="border-brand/30 bg-brand/5 mb-5 flex items-start gap-3 rounded-xl border p-4">
+          <Gift className="text-brand mt-0.5 size-6 shrink-0" aria-hidden="true" />
+          <div className="text-sm leading-relaxed">
+            <p className="text-base font-bold">חבר הזמין אותך — מחכה לך {REFERRAL_FRIEND_PERCENT}% הנחה</p>
+            <p className="text-muted-foreground mt-0.5">
+              נרשמים פעם אחת, וההנחה נשמרת בחשבון ותופעל אוטומטית בהזמנה הראשונה — מהטלפון או מהמחשב. כבר יש לכם
+              חשבון? פשוט התחברו והיא תישמר שם.
+            </p>
+          </div>
+        </div>
+      )}
       <Suspense>
         <RegisterForm
           googleEnabled={googleOAuthConfigured()}

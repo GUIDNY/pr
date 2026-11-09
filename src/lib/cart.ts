@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth";
 import { planCartMerge } from "@/lib/cart-merge";
 import { ATTRIBUTION_COOKIE, parseAttribution } from "@/lib/attribution";
 import { REFERRAL_CODE_PREFIX, REFERRAL_COOKIE } from "@/lib/referral-rules";
+import { owedReferralCode } from "@/lib/referral";
 import { maxCartQuantity } from "@/lib/cart-merge";
 
 export const CART_COOKIE = "prec_cart_sid";
@@ -198,10 +199,21 @@ export async function getOrCreateCart() {
     await claimGuestCart(session.sub);
 
     const existing = await db.cart.findUnique({ where: { userId: session.sub }, include: cartInclude });
-    if (existing) return existing;
+    /* A referred account's discount, on whichever device the cart is opened —
+       the reason the friend's link asks them to register. */
+    if (existing) {
+      if (existing.couponCode) return existing;
+      const owed = await owedReferralCode(session.sub);
+      if (!owed) return existing;
+      return db.cart.update({ where: { id: existing.id }, data: { couponCode: owed }, include: cartInclude });
+    }
 
     return db.cart.create({
-      data: { userId: session.sub, attribution: await currentAttribution(), couponCode: await referralCodeFromCookie() },
+      data: {
+        userId: session.sub,
+        attribution: await currentAttribution(),
+        couponCode: (await owedReferralCode(session.sub)) ?? (await referralCodeFromCookie()),
+      },
       include: cartInclude,
     });
   }

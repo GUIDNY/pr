@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { createSession, getSession, grantReauth, hashPassword } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
+import { attachReferral } from "@/lib/referral";
 import { googleNativeClientIds, googleNativeConfigured, verifyGoogleIdToken } from "@/lib/google-oauth";
 
 export const dynamic = "force-dynamic";
@@ -120,6 +121,7 @@ export async function POST(request: Request) {
   /* The cart this browser filled before signing in. Without this the shop
      answers a fresh sign-in with an empty cart — see claimGuestCart. */
   await claimGuestCart(user.id);
+  await attachReferral(user.id);
 
   /* No redirect: the caller is a fetch from a page that is already open and
      reloads itself. */
