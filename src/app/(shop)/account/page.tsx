@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Package, Heart, MapPin, ArrowLeft, Trophy, Gamepad2 } from "lucide-react";
+import { Package, Heart, MapPin, ArrowLeft, Trophy, Gamepad2, Gift } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
@@ -11,8 +11,9 @@ import { formatPrice, formatDate } from "@/lib/format";
 import { ConsentToggle } from "@/components/account/consent-toggle";
 import { purchaseLevel } from "@/lib/game-levels";
 import { listMemberCoupons } from "@/lib/member-coupons";
-import { referralCodeFor, referralProgress } from "@/lib/referral";
+import { owedReferralFor, referralCodeFor, referralProgress } from "@/lib/referral";
 import { ReferralCard } from "@/components/referral/referral-card";
+import { REFERRAL_FRIEND_PERCENT } from "@/lib/referral-rules";
 import { SITE_URL } from "@/lib/site-url";
 import { mallViewerEmail } from "@/lib/mall-access-server";
 import { MallAnchor } from "@/components/layout/mall-link";
@@ -45,7 +46,11 @@ export default async function AccountDashboardPage() {
     purchaseLevel(session.sub),
     listMemberCoupons(session.sub),
   ]);
-  const [referralCode, referral] = await Promise.all([referralCodeFor(session.sub), referralProgress(session.sub)]);
+  const [referralCode, referral, owedFriend] = await Promise.all([
+    referralCodeFor(session.sub),
+    referralProgress(session.sub),
+    owedReferralFor(session.sub),
+  ]);
   const nextTier = club.tiers[club.level] ?? null;
   const showClub = !!(await mallViewerEmail()); // the mall is private for now: lib/mall-access.ts
 
@@ -59,6 +64,27 @@ export default async function AccountDashboardPage() {
           ברוכים הבאים לאזור האישי שלכם
         </p>
       </div>
+
+      {/* A friend's discount waiting on this account — said plainly, with who
+          it came from, so it is clearly theirs and clearly kept. */}
+      {owedFriend && (
+        <section className="border-brand bg-brand/5 flex items-start gap-3 rounded-2xl border-2 p-4 sm:p-5">
+          <span className="bg-brand text-brand-foreground flex size-11 shrink-0 items-center justify-center rounded-full">
+            <Gift className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-black">
+              {owedFriend.fromName ? `${owedFriend.fromName} הביא/ה לך` : "חבר הביא לך"} {REFERRAL_FRIEND_PERCENT}% הנחה 🎁
+            </h2>
+            <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
+              ההנחה שמורה בחשבון שלך ותופעל אוטומטית בעגלה בהזמנה הראשונה — מכל מכשיר שתתחברו ממנו.
+            </p>
+            <Link href="/" className="bg-brand text-brand-foreground hover:bg-brand-hover mt-3 inline-flex h-10 items-center rounded-xl px-4 text-sm font-bold">
+              לקנייה עם ההנחה
+            </Link>
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-3 gap-4">
         <Link

@@ -181,3 +181,12 @@ export async function owedReferralCode(userId: string): Promise<string | null> {
   const link = await db.memberCoupon.findFirst({ where: { userId: user.referredById, kind: LINK_KIND }, select: { code: true } });
   return link?.code ?? null;
 }
+
+/** For the friend's own personal area: the discount waiting, and who sent it. */
+export async function owedReferralFor(userId: string): Promise<{ code: string; fromName: string | null } | null> {
+  const code = await owedReferralCode(userId);
+  if (!code) return null;
+  const user = await db.user.findUnique({ where: { id: userId }, select: { referredBy: { select: { name: true } } } });
+  const first = user?.referredBy?.name?.trim().split(/\s+/)[0] ?? null;
+  return { code, fromName: first };
+}
