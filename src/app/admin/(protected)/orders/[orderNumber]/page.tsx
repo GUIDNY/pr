@@ -21,6 +21,7 @@ import {
   type PaymentStatus,
 } from "@/lib/enums";
 import { requireBackOffice } from "@/lib/auth";
+import { ReferralInvitePanel } from "@/components/admin/referral-invite-panel";
 import { canManageCatalog } from "@/lib/permissions";
 import { getSellerOrderDetail } from "@/lib/queries/seller-orders";
 import { SellerOrderPage } from "@/components/admin/seller-order-page";
@@ -54,6 +55,7 @@ export default async function AdminOrderDetailPage({
           </div>
         )}
         <SellerOrderPage order={detail} />
+        <ReferralInvitePanel orderNumber={orderNumber} />
       </div>
     );
   }
@@ -165,6 +167,8 @@ export default async function AdminOrderDetailPage({
             <h2 className="mb-3 font-semibold">עדכון סטטוס</h2>
             <OrderStatusControl orderId={order.id} currentStatus={order.status as OrderStatus} />
           </div>
+
+          <ReferralInvitePanel orderNumber={orderNumber} />
 
           <div className="border-border bg-card rounded-xl border p-5">
             <h2 className="mb-3 font-semibold">שיוך עובד</h2>

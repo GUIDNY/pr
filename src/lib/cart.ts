@@ -7,9 +7,10 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { planCartMerge } from "@/lib/cart-merge";
 import { ATTRIBUTION_COOKIE, parseAttribution } from "@/lib/attribution";
+import { REFERRAL_CODE_PREFIX, REFERRAL_COOKIE } from "@/lib/referral-rules";
 import { maxCartQuantity } from "@/lib/cart-merge";
 
-const CART_COOKIE = "prec_cart_sid";
+export const CART_COOKIE = "prec_cart_sid";
 const CART_COOKIE_TTL = 60 * 60 * 24 * 90; // 90 days
 
 const cartInclude = {
@@ -199,7 +200,10 @@ export async function getOrCreateCart() {
     const existing = await db.cart.findUnique({ where: { userId: session.sub }, include: cartInclude });
     if (existing) return existing;
 
-    return db.cart.create({ data: { userId: session.sub, attribution: await currentAttribution() }, include: cartInclude });
+    return db.cart.create({
+      data: { userId: session.sub, attribution: await currentAttribution(), couponCode: await referralCodeFromCookie() },
+      include: cartInclude,
+    });
   }
 
   const cookieStore = await cookies();
@@ -220,9 +224,23 @@ export async function getOrCreateCart() {
   });
 
   return db.cart.create({
-    data: { sessionId: sid, attribution: await currentAttribution(), visitSid: await currentVisitSid() },
+    data: {
+      sessionId: sid,
+      attribution: await currentAttribution(),
+      visitSid: await currentVisitSid(),
+      couponCode: await referralCodeFromCookie(),
+    },
     include: cartInclude,
   });
+}
+
+/* A friend's referral link (/r/<code>) leaves its code in a cookie, so a
+   cart made after the click starts with the friend's discount on it — the
+   click and the first item are often minutes or days apart. A cart that
+   already existed got the code from the link itself. */
+async function referralCodeFromCookie(): Promise<string | null> {
+  const value = (await cookies()).get(REFERRAL_COOKIE)?.value?.trim().toUpperCase();
+  return value && value.startsWith(REFERRAL_CODE_PREFIX) && value.length <= 20 ? value : null;
 }
 
 /** Where this visitor came from, as the browser recorded it — see
