@@ -34,34 +34,52 @@ const SessionSummaryContext = createContext<Loaded | null>(null);
  * an unanswered call leaves a header with no name, empty hearts and an empty
  * badge, all of which the page is designed to look right with.
  */
+/**
+ * Fired after a sign-in, a sign-up or a sign-out that does not reload the
+ * page (the forms navigate with router.push). Without it the summary kept
+ * describing whoever was looking before: the header kept "התחברות" after a
+ * sign-in, and a friend's-discount bar kept asking a signed-in customer to
+ * register.
+ */
+export const SESSION_CHANGED_EVENT = "prec:session-changed";
+
+export function announceSessionChanged() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(SESSION_CHANGED_EVENT));
+}
+
 export function SessionSummaryProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const hydrateCart = useCartStore((s) => s.hydrate);
   const asked = useRef(false);
 
   useEffect(() => {
-    if (asked.current) return;
-    asked.current = true;
-
     let cancelled = false;
-    fetch("/api/session-summary", { credentials: "same-origin" })
-      .then((r) => (r.ok ? (r.json() as Promise<SessionSummary>) : null))
-      .then((summary) => {
-        if (!summary || cancelled) return;
-        setLoaded({
-          name: summary.name,
-          favoriteIds: new Set(summary.favoriteIds),
-          backOffice: summary.backOffice ?? null,
-          friendDiscount: summary.friendDiscount === true,
+    const load = () =>
+      fetch("/api/session-summary", { credentials: "same-origin", cache: "no-store" })
+        .then((r) => (r.ok ? (r.json() as Promise<SessionSummary>) : null))
+        .then((summary) => {
+          if (!summary || cancelled) return;
+          setLoaded({
+            name: summary.name,
+            favoriteIds: new Set(summary.favoriteIds),
+            backOffice: summary.backOffice ?? null,
+            friendDiscount: summary.friendDiscount === true,
+          });
+          if (summary.cart) hydrateCart(summary.cart);
+        })
+        .catch(() => {
+          // Anonymous is the honest default when the answer never arrives.
         });
-        if (summary.cart) hydrateCart(summary.cart);
-      })
-      .catch(() => {
-        // Anonymous is the honest default when the answer never arrives.
-      });
 
+    if (!asked.current) {
+      asked.current = true;
+      void load();
+    }
+    const onChanged = () => void load();
+    window.addEventListener(SESSION_CHANGED_EVENT, onChanged);
     return () => {
       cancelled = true;
+      window.removeEventListener(SESSION_CHANGED_EVENT, onChanged);
     };
   }, [hydrateCart]);
 

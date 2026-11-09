@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Gift, X } from "lucide-react";
 import { REFERRAL_FLAG_COOKIE, REFERRAL_FRIEND_PERCENT } from "@/lib/referral-rules";
 import { formatPrice } from "@/lib/format";
-import { useFriendDiscountOwed, useSignedIn } from "@/components/layout/session-summary-provider";
+import { SESSION_CHANGED_EVENT, useFriendDiscountOwed, useSignedIn } from "@/components/layout/session-summary-provider";
 
 /**
  * Where a friend's discount stands for this visitor, from two sources:
@@ -20,11 +20,20 @@ import { useFriendDiscountOwed, useSignedIn } from "@/components/layout/session-
 function useFriendDiscount(): "owed" | "invite" | null {
   const owed = useFriendDiscountOwed();
   const signedIn = useSignedIn();
+  const pathname = usePathname();
   const [cookie, setCookie] = useState(false);
+  /* Re-read on every page and after a sign-in: signing in ties the discount
+     to the account and clears this cookie, and a bar that read it once at
+     load kept asking a signed-in customer to register. */
   useEffect(() => {
-    const t = setTimeout(() => setCookie(document.cookie.split("; ").some((c) => c === `${REFERRAL_FLAG_COOKIE}=1`)), 0);
-    return () => clearTimeout(t);
-  }, []);
+    const read = () => setCookie(document.cookie.split("; ").some((c) => c === `${REFERRAL_FLAG_COOKIE}=1`));
+    const t = setTimeout(read, 0);
+    window.addEventListener(SESSION_CHANGED_EVENT, read);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener(SESSION_CHANGED_EVENT, read);
+    };
+  }, [pathname]);
   if (owed) return "owed";
   if (cookie && signedIn === false) return "invite";
   return null;

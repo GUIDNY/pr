@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { registerAction } from "@/actions/auth";
+import { announceSessionChanged } from "@/components/layout/session-summary-provider";
 
 export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, googleNativeEnabled }: { googleEnabled: boolean; appleEnabled: boolean; appleNativeEnabled: boolean; googleNativeEnabled: boolean }) {
   /* Google refuses OAuth from an embedded WebView — their documented
@@ -106,6 +107,7 @@ export function RegisterForm({ googleEnabled, appleEnabled, appleNativeEnabled, 
         return;
       }
       toast.success("החשבון נוצר בהצלחה");
+      announceSessionChanged();
       router.push("/account");
       router.refresh();
     });

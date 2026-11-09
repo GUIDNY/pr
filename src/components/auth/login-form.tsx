@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { loginAction } from "@/actions/auth";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { announceSessionChanged } from "@/components/layout/session-summary-provider";
 
 /* What the social sign-in routes can bounce back with. Each says what
    happened and what to do about it — "שגיאה" on its own leaves somebody
@@ -149,6 +150,7 @@ export function LoginForm({ googleEnabled, appleEnabled, appleNativeEnabled, goo
         window.location.assign(redirectTo);
         return;
       }
+      announceSessionChanged();
       router.push(isBackOffice(result.role) ? backOfficeHome(result.role) : redirectTo);
       router.refresh();
     });
