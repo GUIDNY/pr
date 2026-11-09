@@ -1,3 +1,4 @@
+import type { CheckoutInput } from "@/lib/order-schema";
 import { consentGranted } from "@/lib/consent";
 import { isNativeApp } from "@/lib/native-app";
 
@@ -133,8 +134,22 @@ export function pushEvent(event: string, params: Record<string, string | number 
  */
 export function readGaIds(measurementId: string | undefined): { clientId: string | null; sessionId: string | null } {
   if (typeof document === "undefined") return { clientId: null, sessionId: null };
+  return parseGaIds(document.cookie, measurementId);
+}
+
+/**
+ * The parsing half of readGaIds, pure so a script can test it.
+ *
+ * Two cookie generations, and both are live:
+ *   _ga            GA1.1.<random>.<timestamp>       → client_id "<random>.<timestamp>"
+ *   _ga_<STREAM>   GS1.1.<session_id>.<n>.…         (until 2025)
+ *                  GS2.1.s<session_id>$o<n>$g…$t…   (Google's format since 2025)
+ * The first version of this read GS1 only, so on every browser with a
+ * current cookie the session id came back null even after consent.
+ */
+export function parseGaIds(cookie: string, measurementId: string | undefined): { clientId: string | null; sessionId: string | null } {
   const cookies = new Map<string, string>();
-  for (const part of document.cookie.split(";")) {
+  for (const part of cookie.split(";")) {
     const eq = part.indexOf("=");
     if (eq > 0) cookies.set(part.slice(0, eq).trim(), part.slice(eq + 1).trim());
   }
@@ -142,6 +157,24 @@ export function readGaIds(measurementId: string | undefined): { clientId: string
   const clientId = ga ? (ga.match(/^GA\d+\.\d+\.(\d+\.\d+)$/)?.[1] ?? null) : null;
   const stream = measurementId?.replace(/^G-/, "");
   const gs = stream ? cookies.get(`_ga_${stream}`) : undefined;
-  const sessionId = gs ? (gs.match(/^GS\d+\.\d+\.(\d+)\./)?.[1] ?? null) : null;
+  const sessionId = gs
+    ? (gs.match(/^GS2\.\d+\.s(\d+)(?:\$|$)/)?.[1] ?? gs.match(/^GS1\.\d+\.(\d+)\./)?.[1] ?? null)
+    : null;
   return { clientId, sessionId };
+}
+
+/**
+ * readGaIds' answer under the names the order schema reads.
+ *
+ * Until 9 November the checkout spread readGaIds() straight into the order
+ * payload — `clientId` and `sessionId` — while CheckoutInput names them
+ * `gaClientId` and `gaSessionId`. zod drops keys it does not know, the
+ * payload was cast `as CheckoutInput` so the compiler never compared the
+ * two, and every order since 18 October was written with both null:
+ * 22 of 22, including orders from browsers that had consented and held the
+ * cookie. Typed against CheckoutInput so a rename on either side fails to
+ * compile instead of failing silently.
+ */
+export function gaIdsForOrder(ids: { clientId: string | null; sessionId: string | null }): Pick<CheckoutInput, "gaClientId" | "gaSessionId"> {
+  return { gaClientId: ids.clientId, gaSessionId: ids.sessionId };
 }

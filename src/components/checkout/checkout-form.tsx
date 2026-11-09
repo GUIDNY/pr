@@ -28,7 +28,7 @@ import SiGooglepay from "@icons-pack/react-simple-icons/icons/SiGooglepay";
 import { useCartStore } from "@/stores/cart-store";
 import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
 import { GaBeginCheckout } from "@/components/analytics/ga-events";
-import { readGaIds } from "@/lib/analytics/ga";
+import { gaIdsForOrder, readGaIds } from "@/lib/analytics/ga";
 import { trackVisit } from "@/lib/pageview/track";
 import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/orders";
 import {
@@ -520,7 +520,7 @@ export function CheckoutForm({
            so the server-side purchase report carries the same client as
            the browser's and GA4 counts the sale once — see lib/analytics/ga.ts.
            Not personal data: two numbers GA4 minted for this browser. */
-        ...readGaIds(process.env.NEXT_PUBLIC_GA_ID),
+        ...gaIdsForOrder(readGaIds(process.env.NEXT_PUBLIC_GA_ID)),
       };
       const result = await createOrderAction(payload as CheckoutInput);
       if (!result.success) {
