@@ -1,22 +1,11 @@
-import Link from "next/link";
-import { Package, Heart, MapPin, ArrowLeft, Trophy, Gamepad2, Gift } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
-import {
-  ORDER_STATUS_LABELS,
-  ORDER_STATUS_COLORS,
-  type OrderStatus,
-} from "@/lib/enums";
-import { formatPrice, formatDate } from "@/lib/format";
-import { ConsentToggle } from "@/components/account/consent-toggle";
 import { purchaseLevel } from "@/lib/game-levels";
 import { listMemberCoupons } from "@/lib/member-coupons";
 import { owedReferralFor, referralCodeFor, referralProgress } from "@/lib/referral";
-import { ReferralCard } from "@/components/referral/referral-card";
-import { REFERRAL_FRIEND_PERCENT } from "@/lib/referral-rules";
 import { SITE_URL } from "@/lib/site-url";
+import { AccountOverview } from "@/components/account/account-overview";
 import { mallViewerEmail } from "@/lib/mall-access-server";
-import { MallAnchor } from "@/components/layout/mall-link";
 
 export default async function AccountDashboardPage() {
   const session = await getSession();
@@ -41,7 +30,7 @@ export default async function AccountDashboardPage() {
     }),
     db.user.findUnique({
       where: { id: session.sub },
-      select: { phone: true, whatsappOptIn: true, marketingOptIn: true },
+      select: { phone: true, whatsappOptIn: true, marketingOptIn: true, createdAt: true },
     }),
     purchaseLevel(session.sub),
     listMemberCoupons(session.sub),
@@ -55,172 +44,16 @@ export default async function AccountDashboardPage() {
   const showClub = !!(await mallViewerEmail()); // the mall is private for now: lib/mall-access.ts
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">
-          שלום, {session.name.split(" ")[0]}
-        </h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          ברוכים הבאים לאזור האישי שלכם
-        </p>
-      </div>
-
-      {/* A friend's discount waiting on this account — said plainly, with who
-          it came from, so it is clearly theirs and clearly kept. */}
-      {owedFriend && (
-        <section className="border-brand bg-brand/5 flex items-start gap-3 rounded-2xl border-2 p-4 sm:p-5">
-          <span className="bg-brand text-brand-foreground flex size-11 shrink-0 items-center justify-center rounded-full">
-            <Gift className="size-5" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-black">
-              {owedFriend.fromName ? `${owedFriend.fromName} הביא/ה לך` : "חבר הביא לך"} {REFERRAL_FRIEND_PERCENT}% הנחה 🎁
-            </h2>
-            <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
-              ההנחה שמורה בחשבון שלך ותופעל אוטומטית בעגלה בהזמנה הראשונה — מכל מכשיר שתתחברו ממנו.
-            </p>
-            <Link href="/" className="bg-brand text-brand-foreground hover:bg-brand-hover mt-3 inline-flex h-10 items-center rounded-xl px-4 text-sm font-bold">
-              לקנייה עם ההנחה
-            </Link>
-          </div>
-        </section>
-      )}
-
-      <div className="grid grid-cols-3 gap-4">
-        <Link
-          href="/account/orders"
-          className="border-border hover:border-brand/40 rounded-xl border p-4 text-center transition-colors"
-        >
-          <Package className="text-brand mx-auto mb-2 size-6" />
-          <p className="text-xl font-bold">{orderCount}</p>
-          <p className="text-muted-foreground text-xs">הזמנות</p>
-        </Link>
-        <Link
-          href="/account/favorites"
-          className="border-border hover:border-brand/40 rounded-xl border p-4 text-center transition-colors"
-        >
-          <Heart className="text-brand mx-auto mb-2 size-6" />
-          <p className="text-xl font-bold">{favoriteCount}</p>
-          <p className="text-muted-foreground text-xs">מועדפים</p>
-        </Link>
-        <Link
-          href="/account/addresses"
-          className="border-border hover:border-brand/40 rounded-xl border p-4 text-center transition-colors"
-        >
-          <MapPin className="text-brand mx-auto mb-2 size-6" />
-          <p className="text-xl font-bold">{addressCount}</p>
-          <p className="text-muted-foreground text-xs">כתובות</p>
-        </Link>
-      </div>
-
-      {/* חבר מביא חבר — every account has its link. See lib/referral.ts. */}
-      <ReferralCard link={`${SITE_URL}/r/${referralCode}`} friends={referral.friends} nextReward={referral.nextReward} />
-
-      {/* The way into the game, for the accounts that may see it. Nothing
-          public on the shop points at the mall while it is private, so the
-          personal area is where a management account finds the door; the
-          club card below it is the standing, this is the entrance. */}
-      {showClub && (
-        <MallAnchor
-          medium="account-home"
-          className="from-brand to-brand-hover text-brand-foreground flex items-center gap-4 rounded-xl bg-gradient-to-l p-4 shadow-sm transition-opacity hover:opacity-95"
-        >
-          <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-white/20">
-            <Gamepad2 className="size-6" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold">כניסה לקניון התלת־ממדי</p>
-            <p className="text-xs opacity-90">המשחק פתוח כרגע לצוות ההנהלה בלבד</p>
-          </div>
-          <ArrowLeft className="size-4 shrink-0" />
-        </MallAnchor>
-      )}
-
-      {/* The mall's club in one line: the level, the cashback, the coupons waiting. */}
-      {showClub && (
-        <Link
-          href="/account/club"
-          className="border-brand/30 bg-brand/5 hover:border-brand/60 flex items-center gap-4 rounded-xl border p-4 transition-colors"
-        >
-          <div className="bg-brand text-brand-foreground grid size-12 shrink-0 place-items-center rounded-xl">
-            <Trophy className="size-6" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-semibold">
-              מועדון הקניון · רמה {club.level}
-              {club.cashback ? ` · ${club.cashback}% קאשבק` : ""}
-            </p>
-            <p className="text-muted-foreground text-xs">
-              {coupons.length
-                ? `${coupons.length} הטבות מחכות לכם`
-                : "אין כרגע הטבות פעילות"}
-              {nextTier
-                ? ` · עוד ${formatPrice(Math.max(0, nextTier.spend - club.spent))} לרמה ${nextTier.level}`
-                : ""}
-            </p>
-          </div>
-          <ArrowLeft className="text-brand size-4 shrink-0" />
-        </Link>
-      )}
-
-      {/* The one setting a customer comes here to change. Under the counts
-          and above the orders, because the orders are what it is about. */}
-      <div className="flex flex-col gap-3">
-        <ConsentToggle
-          kind="whatsapp"
-          initial={account?.whatsappOptIn ?? true}
-          phone={account?.phone ?? null}
-        />
-        <ConsentToggle
-          kind="marketing"
-          initial={account?.marketingOptIn ?? false}
-        />
-      </div>
-
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold">הזמנות אחרונות</h2>
-          <Link
-            href="/account/orders"
-            className="text-brand flex items-center gap-1 text-sm hover:underline"
-          >
-            כל ההזמנות <ArrowLeft className="size-3.5" />
-          </Link>
-        </div>
-        {recentOrders.length === 0 ? (
-          <p className="text-muted-foreground border-border rounded-xl border p-6 text-center text-sm">
-            עדיין לא ביצעתם הזמנות.
-          </p>
-        ) : (
-          <ul className="divide-border border-border divide-y rounded-xl border">
-            {recentOrders.map((order) => (
-              <li key={order.id}>
-                <Link
-                  href={`/account/orders/${order.orderNumber}`}
-                  className="hover:bg-muted flex items-center justify-between p-4"
-                >
-                  <div>
-                    <p className="font-medium">{order.orderNumber}</p>
-                    <p className="text-muted-foreground text-xs">
-                      {formatDate(order.createdAt)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${ORDER_STATUS_COLORS[order.status as OrderStatus]}`}
-                    >
-                      {ORDER_STATUS_LABELS[order.status as OrderStatus]}
-                    </span>
-                    <span className="font-semibold tabular-nums">
-                      {formatPrice(order.total)}
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
+    <AccountOverview
+      firstName={session.name.split(" ")[0]}
+      since={account?.createdAt ?? null}
+      counts={{ orders: orderCount, favorites: favoriteCount, addresses: addressCount }}
+      owedFriend={owedFriend}
+      coupons={coupons}
+      referral={{ link: `${SITE_URL}/r/${referralCode}`, friends: referral.friends, nextReward: referral.nextReward }}
+      club={showClub ? { level: club.level, cashback: club.cashback, toNext: nextTier ? { spend: Math.max(0, nextTier.spend - club.spent), level: nextTier.level } : null } : null}
+      recentOrders={recentOrders.map((o) => ({ id: o.id, orderNumber: o.orderNumber, createdAt: o.createdAt, status: o.status, total: o.total }))}
+      consent={{ whatsapp: account?.whatsappOptIn ?? true, marketing: account?.marketingOptIn ?? false, phone: account?.phone ?? null }}
+    />
   );
 }
