@@ -15,6 +15,9 @@ import { formatPrice, formatDateTime } from "@/lib/format";
 import type { OrderStatus, DeliveryMethod } from "@/lib/enums";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
 import { customerHasPaid } from "@/lib/order-signal";
+import { referralCodeFor, referralProgress } from "@/lib/referral";
+import { ReferralCard } from "@/components/referral/referral-card";
+import { SITE_URL } from "@/lib/site-url";
 
 export default async function CheckoutSuccessPage({ params }: { params: Promise<{ orderNumber: string }> }) {
   const { orderNumber } = await params;
@@ -42,6 +45,12 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
      come back to — and we are holding the name, email and phone they just
      typed, so the invitation costs them one field. */
   const isGuest = !session;
+  const referral = session
+    ? await Promise.all([referralCodeFor(session.sub), referralProgress(session.sub)]).then(([code, p]) => ({
+        link: `${SITE_URL}/r/${code}`,
+        ...p,
+      }))
+    : null;
 
   /* An order paid through the gateway is only confirmed by Pelecard's
      server-side callback, and that can land a second or two after the customer
@@ -127,6 +136,15 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
           </p>
         )}
       </div>
+
+      {/* חבר מביא חבר, at the moment a customer is most pleased with the shop.
+          Accounts only: the gift is a coupon in the personal area, and a
+          guest has none — the invitation below is how they get one. */}
+      {referral && (
+        <div className="mb-6">
+          <ReferralCard link={referral.link} friends={referral.friends} nextReward={referral.nextReward} compact />
+        </div>
+      )}
 
       {/* A guest leaves this page with an order number and nothing else: no
           account, and nothing on the page that offers one. Their name, email

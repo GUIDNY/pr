@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { SessionSummaryProvider } from "@/components/layout/session-summary-provider";
 import { GoogleAnalytics } from "@/components/analytics/google-analytics";
 import { AttributionCapture } from "@/components/analytics/attribution-capture";
+import { FriendWelcome } from "@/components/referral/friend-welcome";
 import { GoogleTagManager } from "@/components/analytics/google-tag-manager";
 import { BackOfficeAnalyticsOff } from "@/components/analytics/back-office-analytics-off";
 import { PathLog } from "@/components/analytics/path-log";
@@ -173,6 +174,7 @@ export default function RootLayout({
             <Clarity />
             <MetaPixel />
             <AttributionCapture />
+            <FriendWelcome />
             <PathLog />
             <ContactClicks />
             <NativeViewport />

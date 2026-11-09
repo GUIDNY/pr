@@ -53,7 +53,7 @@ export async function issueMemberCoupon(spec: MemberCouponSpec): Promise<IssuedC
 
 /** The account's coupons that can still be used. */
 export async function listMemberCoupons(userId: string) {
-  const mine = await db.memberCoupon.findMany({ where: { userId }, select: { code: true, kind: true } });
+  const mine = await db.memberCoupon.findMany({ where: { userId, kind: { not: "ref-link" } }, select: { code: true, kind: true } });
   if (!mine.length) return [];
   const kinds = new Map(mine.map((m) => [m.code, m.kind]));
   const promos = await db.promotion.findMany({
@@ -78,7 +78,7 @@ export type CouponState = "active" | "used" | "expired";
 
 /** Every club coupon the account was ever given, newest first, and what became of it. */
 export async function memberCouponHistory(userId: string, take = 30) {
-  const mine = await db.memberCoupon.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take, select: { code: true, kind: true, createdAt: true } });
+  const mine = await db.memberCoupon.findMany({ where: { userId, kind: { not: "ref-link" } }, orderBy: { createdAt: "desc" }, take, select: { code: true, kind: true, createdAt: true } });
   if (!mine.length) return [];
   const promos = await db.promotion.findMany({
     where: { code: { in: mine.map((m) => m.code) } },

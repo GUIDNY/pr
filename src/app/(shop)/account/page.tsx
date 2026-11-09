@@ -11,6 +11,9 @@ import { formatPrice, formatDate } from "@/lib/format";
 import { ConsentToggle } from "@/components/account/consent-toggle";
 import { purchaseLevel } from "@/lib/game-levels";
 import { listMemberCoupons } from "@/lib/member-coupons";
+import { referralCodeFor, referralProgress } from "@/lib/referral";
+import { ReferralCard } from "@/components/referral/referral-card";
+import { SITE_URL } from "@/lib/site-url";
 import { mallViewerEmail } from "@/lib/mall-access-server";
 import { MallAnchor } from "@/components/layout/mall-link";
 
@@ -42,6 +45,7 @@ export default async function AccountDashboardPage() {
     purchaseLevel(session.sub),
     listMemberCoupons(session.sub),
   ]);
+  const [referralCode, referral] = await Promise.all([referralCodeFor(session.sub), referralProgress(session.sub)]);
   const nextTier = club.tiers[club.level] ?? null;
   const showClub = !!(await mallViewerEmail()); // the mall is private for now: lib/mall-access.ts
 
@@ -82,6 +86,9 @@ export default async function AccountDashboardPage() {
           <p className="text-muted-foreground text-xs">כתובות</p>
         </Link>
       </div>
+
+      {/* חבר מביא חבר — every account has its link. See lib/referral.ts. */}
+      <ReferralCard link={`${SITE_URL}/r/${referralCode}`} friends={referral.friends} nextReward={referral.nextReward} />
 
       {/* The way into the game, for the accounts that may see it. Nothing
           public on the shop points at the mall while it is private, so the

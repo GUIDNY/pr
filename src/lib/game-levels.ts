@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { DESTRUCTIVE_ORDER_STATUSES } from "@/lib/enums";
 import { hasMemberCoupon, issueMemberCoupon } from "@/lib/member-coupons";
+import { awardReferral } from "@/lib/referral";
 
 /**
  * The BuyToday club in the 3D mall: levels that come from purchases, and
@@ -53,6 +54,9 @@ export async function purchaseLevel(userId: string) {
  * benefit is a courtesy, the payment record is not.
  */
 export async function awardPurchase(orderId: string): Promise<void> {
+  /* חבר מביא חבר first and on its own: the buyer may be a guest, and the
+     gift goes to whoever sent them, not to the buyer. */
+  await awardReferral(orderId);
   try {
     const order = await db.order.findUnique({ where: { id: orderId }, select: { id: true, userId: true, total: true, orderNumber: true } });
     if (!order?.userId) return;
