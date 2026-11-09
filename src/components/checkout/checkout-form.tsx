@@ -697,22 +697,25 @@ export function CheckoutForm({
                   <span className="text-muted-foreground block text-xs">אישור ההזמנה, יציאה למשלוח ומסירה. בלי זה, העדכונים יגיעו במייל בלבד.</span>
                 </span>
               </label>
-              {/* Consent to advertising, as section 30א of the Communications
-                  Law wants it: a separate box, unticked, in plain words that
-                  name the channels, with the way out stated beside it. The
-                  order updates above are service messages and need no
-                  consent; this is the one that does, and it is never assumed. */}
-              <label htmlFor="marketingOptIn" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
+              {/* Section 30א(ד) of the Communications Law: an advertiser may send
+                  offers on similar products to someone who bought from it, if at
+                  the purchase it said so and gave them the chance to refuse —
+                  and every message after still carries a way out. So: the
+                  notice, in plain words naming the channels, and a box to
+                  refuse, right here, one tick. Ticking it is a refusal on the
+                  order and on the account, and nothing promotional is sent. */}
+              <label htmlFor="marketingRefuse" className="mt-2 flex cursor-pointer items-start gap-2 text-sm">
                 <Checkbox
-                  id="marketingOptIn"
-                  checked={form.marketingOptIn}
-                  onCheckedChange={(v) => update("marketingOptIn", v === true)}
+                  id="marketingRefuse"
+                  checked={!form.marketingOptIn}
+                  onCheckedChange={(v) => update("marketingOptIn", v !== true)}
                   className="mt-0.5 rounded-full"
                 />
                 <span className="leading-snug">
-                  אני מאשר/ת ל‑Buy Today לשלוח לי מבצעים ועדכונים שיווקיים במייל, ב‑SMS ובוואטסאפ
+                  אני לא מעוניין/ת לקבל מבצעים
                   <span className="text-muted-foreground block text-xs">
-                    לא חובה. אפשר להסיר בכל עת מהאזור האישי או בקישור שבכל הודעה.{" "}
+                    מדי פעם נשלח ללקוחות שלנו מבצעים על מוצרי חשמל במייל ובוואטסאפ, מסומנים &quot;פרסומת&quot;. אפשר לסרב כאן,
+                    באזור האישי או בקישור שבכל הודעה.{" "}
                     <Link href="/privacy" className="underline underline-offset-2" target="_blank">מדיניות הפרטיות</Link>
                   </span>
                 </span>

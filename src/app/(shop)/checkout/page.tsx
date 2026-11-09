@@ -43,7 +43,12 @@ export default async function CheckoutPage() {
       defaultEmail={user?.email}
       defaultPhone={user?.phone ?? savedAddress?.phone ?? undefined}
       defaultWhatsappOptIn={user?.whatsappOptIn ?? true}
-      defaultMarketingOptIn={user?.marketingOptIn ?? false}
+      /* §30A(d): a buyer told at the purchase that offers may follow, and
+         given the chance to refuse right there, may be sent offers on
+         similar products. A guest starts as not refusing and sees the box
+         to refuse; an account keeps the answer it last gave — someone who
+         once refused is never quietly turned back on. */
+      defaultMarketingOptIn={user ? user.marketingOptIn : true}
       defaultCity={savedAddress?.city ?? undefined}
       defaultStreet={savedAddress?.street ?? undefined}
       defaultHouseNo={savedAddress?.houseNo ?? undefined}
