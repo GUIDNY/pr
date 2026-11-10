@@ -20,6 +20,7 @@ import {
   GalleryHorizontal,
   CreditCard,
   MoreHorizontal,
+  ChevronDown,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -131,5 +132,60 @@ export function AdminTabBar({ tabs }: { tabs: AdminTab[] }) {
         עוד
       </button>
     </nav>
+  );
+}
+
+/**
+ * "נוספים" — every screen that is not one of the five the owner uses daily,
+ * folded under one heading so the menu opens on those five and nothing else.
+ * It opens by itself when the page being shown is one of the folded ones, so
+ * nobody lands on a screen whose link they cannot see.
+ */
+export function AdminMoreGroup({
+  hrefs,
+  tone,
+  children,
+}: {
+  hrefs: string[];
+  tone: "sidebar" | "sheet";
+  children: ReactNode;
+}) {
+  const pathname = usePathname();
+  const inside = hrefs.some((h) => pathname === h || pathname.startsWith(`${h}/`));
+  const [open, setOpen] = useState(inside);
+  const [seen, setSeen] = useState(pathname);
+  if (seen !== pathname) {
+    setSeen(pathname);
+    if (inside) setOpen(true);
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        className={cn(
+          "flex items-center gap-2.5 rounded-lg px-3 text-sm font-medium transition-colors",
+          tone === "sidebar" ? "hover:bg-primary-foreground/10 py-2.5" : "hover:bg-muted py-3",
+        )}
+      >
+        <MoreHorizontal className={tone === "sidebar" ? "size-4" : "text-brand size-5"} />
+        <span className="flex-1 text-start">נוספים</span>
+        <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div
+          className={cn(
+            "flex flex-col gap-1 border-s-2 ps-2 ms-4",
+            tone === "sidebar" ? "border-primary-foreground/15" : "border-border",
+          )}
+        >
+          {children}
+        </div>
+      )}
+    </div>
   );
 }

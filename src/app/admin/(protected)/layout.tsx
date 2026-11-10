@@ -27,7 +27,7 @@ import { isBackOffice, canManageCatalog, isSiteAdmin } from "@/lib/permissions";
 import { canSeePriceList } from "@/lib/price-list-access";
 import { db } from "@/lib/db";
 import { SINGLES_DAY_ENDS_AT_MS } from "@/lib/campaigns/singles-day-2026";
-import { AdminMenuSheet, AdminTabBar } from "@/components/admin/admin-mobile-shell";
+import { AdminMenuSheet, AdminMoreGroup, AdminTabBar } from "@/components/admin/admin-mobile-shell";
 
 /**
  * `catalog: true` means the link belongs to running the shop rather than to
@@ -57,7 +57,7 @@ const NAV = [
      coupon codes and cart-level discounts. Same word, unrelated jobs, so
      neither label is that word on its own any more. */
   { href: "/admin/deals", label: "מוצרים במבצע", icon: TagIcon, catalog: true },
-  { href: "/admin/promotions", label: "קופונים והנחות עגלה", icon: TicketPercent, catalog: true },
+  { href: "/admin/promotions", label: "קופונים", icon: TicketPercent, catalog: true },
   /* A week after a purchase: review requests to every buyer, the deals and
      חבר מביא חבר to those who did not refuse marketing. */
   { href: "/admin/follow-up", label: "מעקב אחרי רכישה", icon: HeartHandshake, catalog: true },
@@ -75,10 +75,16 @@ const NAV = [
 ];
 
 /* The phone's tab bar: the four screens a thumb reaches for, when the role
-   has them — the dashboard, the orders, the products, the stock — and for a
+   has them — the dashboard, the orders, the stock, the complaints — and for a
    role that has not (a seller sees orders and little else) the first of
    what it does have. */
-const TAB_BAR_PREFERRED = ["/admin", "/admin/orders", "/admin/products", "/admin/inventory"];
+const TAB_BAR_PREFERRED = ["/admin", "/admin/orders", "/admin/inventory", "/admin/complaints"];
+
+/* The menu itself, as the owner asked for it on 10 November ("מרגיש לי
+   עמוס"): these five, in this order, and every other screen folded under
+   "נוספים". Nothing was removed — a role still sees exactly the links it
+   saw before, only fewer of them at first glance. */
+const PRIMARY = ["/admin", "/admin/orders", "/admin/inventory", "/admin/complaints", "/admin/promotions"];
 function tabBar(nav: { href: string; label: string; exact?: boolean }[]) {
   const preferred = TAB_BAR_PREFERRED.map((href) => nav.find((n) => n.href === href)).filter((n) => n !== undefined);
   const picked = preferred.length >= 3 ? preferred : nav.slice(0, 4);
@@ -124,6 +130,30 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         },
       ]
     : visible;
+  const primary = PRIMARY.map((href) => nav.find((n) => n.href === href)).filter((n) => n !== undefined);
+  const more = nav.filter((n) => !PRIMARY.includes(n.href));
+  const moreHrefs = more.map((n) => n.href);
+  type Item = (typeof nav)[number];
+  const sidebarLink = (item: Item) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      className="hover:bg-primary-foreground/10 flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
+    >
+      <item.icon className="size-4" />
+      {item.label}
+    </Link>
+  );
+  const sheetLink = (item: Item) => (
+    <Link
+      key={item.href}
+      href={item.href}
+      className="hover:bg-muted flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium"
+    >
+      <item.icon className="text-brand size-5" />
+      {item.label}
+    </Link>
+  );
 
   return (
     <div dir="rtl" className="bg-secondary/30 flex min-h-svh">
@@ -138,16 +168,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </span>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
-          {nav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="hover:bg-primary-foreground/10 flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors"
-            >
-              <item.icon className="size-4" />
-              {item.label}
-            </Link>
-          ))}
+          {primary.map(sidebarLink)}
+          {more.length > 0 && (
+            <AdminMoreGroup hrefs={moreHrefs} tone="sidebar">
+              {more.map(sidebarLink)}
+            </AdminMoreGroup>
+          )}
         </nav>
         <div className="border-primary-foreground/10 flex flex-col gap-1 border-t p-3">
           <Link
@@ -170,16 +196,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <header className="bg-background sticky top-0 z-30 flex items-center gap-2 border-b px-3 py-2 lg:hidden">
           <AdminMenuSheet>
             <nav className="flex flex-col gap-1 p-3">
-              {nav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="hover:bg-muted flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium"
-                >
-                  <item.icon className="text-brand size-5" />
-                  {item.label}
-                </Link>
-              ))}
+              {primary.map(sheetLink)}
+              {more.length > 0 && (
+                <AdminMoreGroup hrefs={moreHrefs} tone="sheet">
+                  {more.map(sheetLink)}
+                </AdminMoreGroup>
+              )}
             </nav>
             <div className="border-t p-3">
               <Link href="/" className="hover:bg-muted flex items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium">
