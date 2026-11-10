@@ -2,6 +2,7 @@ import { HeroBand } from "@/components/home/hero-band";
 import { UspBar } from "@/components/home/usp-bar";
 import { FinderTile } from "@/components/home/finder-tile";
 import { CategoryGrid } from "@/components/home/category-grid-mobile";
+import { MallPromo } from "@/components/home/mall-promo";
 import { ProductRail } from "@/components/home/product-rail";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
@@ -131,6 +132,12 @@ export default async function HomePage() {
 
         <div className="order-2">
           <ProductRail title="מבצעים חמים" subtitle="הנחות לזמן מוגבל" products={deals} viewAllHref="/deals" phoneGrid />
+        </div>
+
+        {/* The 3D mall, back since it opened to everyone (10 November):
+            after the first products and ahead of the brands. See MallPromo. */}
+        <div className="order-3">
+          <MallPromo />
         </div>
 
         <div className="order-4">
