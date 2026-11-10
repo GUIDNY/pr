@@ -128,9 +128,9 @@ export function PromoCarousel({
   // Decided from the slides when not given.
   natural?: boolean;
 }) {
-  // The 3D mall is private for now (lib/mall-access.ts): a banner pointing at
-  // it is not shown, whatever an admin saved.
-  const slides = allSlides.filter((s) => !isMallHref("href" in s ? s.href : (s.ctaHref ?? "")));
+  // A banner pointing at the 3D mall is shown again since the mall opened to
+  // everyone (10 November); SlideLink sends it to the right address.
+  const slides = allSlides;
   const trackRef = useRef<HTMLDivElement>(null);
   const [index, setIndex] = useState(0);
   const pausedRef = useRef(false);
