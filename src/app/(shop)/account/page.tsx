@@ -5,7 +5,6 @@ import { listMemberCoupons } from "@/lib/member-coupons";
 import { owedReferralFor, referralCodeFor, referralProgress } from "@/lib/referral";
 import { SITE_URL } from "@/lib/site-url";
 import { AccountOverview } from "@/components/account/account-overview";
-import { mallViewerEmail } from "@/lib/mall-access-server";
 
 export default async function AccountDashboardPage() {
   const session = await getSession();
@@ -41,7 +40,7 @@ export default async function AccountDashboardPage() {
     owedReferralFor(session.sub),
   ]);
   const nextTier = club.tiers[club.level] ?? null;
-  const showClub = !!(await mallViewerEmail()); // the mall is private for now: lib/mall-access.ts
+  const showClub = true; // the mall's club, for everyone since the mall opened (10 November)
 
   return (
     <AccountOverview

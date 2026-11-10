@@ -8,9 +8,7 @@ import {
   Percent,
   Trophy,
 } from "lucide-react";
-import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { mallViewerEmail } from "@/lib/mall-access-server";
 import { db } from "@/lib/db";
 import { formatDate, formatPrice } from "@/lib/format";
 import { purchaseLevel, CASHBACK_DAYS, GIFT_DAYS } from "@/lib/game-levels";
@@ -47,7 +45,6 @@ const STATE = {
 export default async function ClubPage() {
   const session = await getSession();
   if (!session) return null;
-  if (!(await mallViewerEmail())) notFound(); // private for now: lib/mall-access.ts
 
   const [lv, checkin, history, game] = await Promise.all([
     purchaseLevel(session.sub),
