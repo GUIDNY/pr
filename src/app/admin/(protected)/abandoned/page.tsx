@@ -1,7 +1,8 @@
 import { requireCatalogPage } from "@/lib/auth";
 import Link from "next/link";
 import { Phone, MessageCircle } from "lucide-react";
-import { getAbandonedCarts, DEFAULT_MIN_VALUE } from "@/lib/queries/abandoned-carts";
+import { getAbandonedCarts, getAnonymousCarts, DEFAULT_MIN_VALUE } from "@/lib/queries/abandoned-carts";
+import { attributionFromJson, describeTouch } from "@/lib/attribution";
 import { AbandonedCartActions } from "@/components/admin/abandoned-cart-actions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -14,9 +15,12 @@ import { formatPrice, formatDateTime } from "@/lib/format";
 
 export const metadata = { title: "עגלות נטושות | Buy Today Admin" };
 
-const TABS: { value: CartFollowUpStatus | "ALL"; label: string }[] = [
+const TABS: { value: CartFollowUpStatus | "ALL" | "ANON"; label: string }[] = [
   ...CART_FOLLOW_UP_STATUSES.map((s) => ({ value: s, label: CART_FOLLOW_UP_STATUS_LABELS[s] })),
   { value: "ALL", label: "הכל" },
+  /* Not a follow-up state: the carts with nobody to call. See
+     getAnonymousCarts. */
+  { value: "ANON", label: "בלי פרטים" },
 ];
 
 /** 972 + drop the leading 0, which is the only form wa.me accepts. */
@@ -33,7 +37,9 @@ export default async function AbandonedCartsPage({
 }) {
   await requireCatalogPage();
   const sp = await searchParams;
-  const status = (TABS.find((t) => t.value === sp.status)?.value ?? "NEW") as CartFollowUpStatus | "ALL";
+  const tab = TABS.find((t) => t.value === sp.status)?.value ?? "NEW";
+  if (tab === "ANON") return <AnonymousCarts />;
+  const status = tab as CartFollowUpStatus | "ALL";
   const { carts, totalValue } = await getAbandonedCarts({ status });
 
   return (
@@ -49,21 +55,7 @@ export default async function AbandonedCartsPage({
         {formatPrice(DEFAULT_MIN_VALUE)} שלא נגעו בהן בחצי השעה האחרונה.
       </p>
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {TABS.map((tab) => (
-          <Link
-            key={tab.value}
-            href={`/admin/abandoned?status=${tab.value}`}
-            className={
-              status === tab.value
-                ? "bg-primary text-primary-foreground rounded-full px-3 py-1.5 text-sm font-medium"
-                : "border-border hover:bg-muted rounded-full border px-3 py-1.5 text-sm"
-            }
-          >
-            {tab.label}
-          </Link>
-        ))}
-      </div>
+      <Tabs current={status} />
 
       {carts.length === 0 ? (
         <div className="border-border text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
@@ -152,6 +144,133 @@ export default async function AbandonedCartsPage({
                     </TableCell>
                     <TableCell>
                       <AbandonedCartActions cartId={cart.id} status={followUpStatus} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Tabs({ current }: { current: string }) {
+  return (
+    <div className="mb-4 flex flex-wrap gap-2">
+      {TABS.map((tab) => (
+        <Link
+          key={tab.value}
+          href={`/admin/abandoned?status=${tab.value}`}
+          className={
+            current === tab.value
+              ? "bg-primary text-primary-foreground rounded-full px-3 py-1.5 text-sm font-medium"
+              : "border-border hover:bg-muted rounded-full border px-3 py-1.5 text-sm"
+          }
+        >
+          {tab.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+/** Carts with items and no phone — nobody to call, but a picture of what is
+    walked away from, how much, and from which channel. */
+async function AnonymousCarts() {
+  const { carts, totalValue } = await getAnonymousCarts();
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">עגלות נטושות</h1>
+        <span className="text-muted-foreground text-sm">
+          {carts.length} עגלות · {formatPrice(totalValue)}
+        </span>
+      </div>
+      <p className="text-muted-foreground mb-4 text-sm">
+        עגלות מעל {formatPrice(DEFAULT_MIN_VALUE)} שאין בהן טלפון — אין למי להתקשר, אבל רואים מה נוטשים, כמה כסף ומאיזה
+        ערוץ. &quot;מסלול&quot; הוא העמודים שהגולש ראה באותו ביקור.
+      </p>
+      <Tabs current="ANON" />
+      {carts.length === 0 ? (
+        <div className="border-border text-muted-foreground rounded-xl border border-dashed p-10 text-center text-sm">
+          אין עגלות כאלה כרגע.
+        </div>
+      ) : (
+        <div className="border-border bg-card overflow-x-auto rounded-xl border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>מתי</TableHead>
+                <TableHead>מה בעגלה</TableHead>
+                <TableHead>שווי</TableHead>
+                <TableHead>מקור</TableHead>
+                <TableHead>ביקור</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {carts.map((cart) => {
+                const attribution = attributionFromJson(cart.attribution);
+                const touch = attribution?.first;
+                const last = attribution?.last;
+                return (
+                  <TableRow key={cart.id}>
+                    <TableCell className="text-muted-foreground text-xs whitespace-nowrap">
+                      {formatDateTime(cart.updatedAt)}
+                      {cart.userId && <div>לקוח רשום</div>}
+                    </TableCell>
+                    <TableCell className="max-w-xs">
+                      <ul className="flex flex-col gap-0.5 text-xs">
+                        {cart.items.map((item) => (
+                          <li key={item.id} className="truncate">
+                            <Link href={`/product/${item.product.slug}`} className="hover:underline" target="_blank">
+                              {item.product.title}
+                            </Link>
+                            {item.quantity > 1 && <span className="text-muted-foreground"> × {item.quantity}</span>}
+                          </li>
+                        ))}
+                      </ul>
+                    </TableCell>
+                    <TableCell className="font-semibold tabular-nums whitespace-nowrap">{formatPrice(cart.value)}</TableCell>
+                    <TableCell className="max-w-[16rem] text-xs">
+                      {touch ? (
+                        <>
+                          <div className="font-medium">{describeTouch(touch)}</div>
+                          {last && describeTouch(last) !== describeTouch(touch) && (
+                            <div className="text-muted-foreground">אחרון: {describeTouch(last)}</div>
+                          )}
+                          {cart.gclid && <div className="text-muted-foreground">קליק ממומן (gclid)</div>}
+                          {touch.landing && (
+                            <div className="text-muted-foreground truncate" dir="ltr" title={touch.landing}>
+                              {touch.landing}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell className="max-w-[18rem] text-xs">
+                      {cart.visitSid ? (
+                        <>
+                          <div className="text-muted-foreground font-mono text-[10px]" dir="ltr">
+                            {cart.visitSid}
+                          </div>
+                          {cart.pages.length > 0 && (
+                            <details className="mt-0.5">
+                              <summary className="cursor-pointer">מסלול · {cart.pages.length} עמודים</summary>
+                              <ol className="mt-1 list-decimal ps-4" dir="ltr">
+                                {cart.pages.slice(0, 30).map((p, i) => (
+                                  <li key={i} className="truncate">{p}</li>
+                                ))}
+                              </ol>
+                            </details>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                   </TableRow>
                 );

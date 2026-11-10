@@ -118,3 +118,10 @@ export function describeTouch(t: AttributionTouch): string {
   if (t.campaign) parts.push(`קמפיין ${t.campaign}`);
   return parts.join(" · ");
 }
+
+/** The Google Ads click id to credit a sale to: the most recent touch's,
+    else the first's. Google matches a click conversion on this alone, so it
+    is kept in its own column on the cart and the order. */
+export function gclidOf(a: Attribution | null | undefined): string | null {
+  return a?.last?.gclid ?? a?.first.gclid ?? null;
+}

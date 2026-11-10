@@ -473,6 +473,31 @@ Two things that are easy to undo by accident:
 `npm run check:feed` guards the escaping, the exclusions and the price/identifier
 rules without needing a database.
 
+## Google Ads hears about a sale from the server, keyed on gclid
+
+On 10 November the Shopping campaign had 56 clicks and zero conversions, and
+that was the truth of what Google received: the only signal was a browser
+tag, and a visitor who refuses cookies has no `_ga` to send it under. The
+click id does not need the browser's consent — `bt_attr` keeps it, the cart
+and the order copy it into their own `gclid` column, and
+`lib/analytics/google-ads-conversions.ts` reports each paid order back to
+Google Ads with `orderId` = the order number (that is what de-duplicates it
+against a tag).
+
+Two ways out, both off until configured: the API uploader on the
+`/api/internal/ads-conversions` cron (needs every `GOOGLE_ADS_*` variable,
+including a developer token from a manager account), and
+`/feeds/google-ads-conversions.csv` for Google Ads' scheduled HTTPS upload
+(needs `GOOGLE_ADS_FEED_PASSWORD`). The conversion action has to be an
+*Import → clicks* action; a website-tag action refuses uploads, and the error
+is kept on the order in `adsConversionError`. `npm run check:ads-conversions`.
+
+Consent Mode v2 "advanced" — GTM loaded for a visitor who *refused*, every
+signal denied — exists behind `NEXT_PUBLIC_GTM_DENIED_MODE=1` and is off.
+Do not turn it on until every non-Google tag in GTM-5Z82SD4Z has
+"Additional consent checks → ad_storage"; GTM enforces consent only on tags
+that ask, so otherwise a refused tag fires anyway.
+
 ## The crawler log counts nothing until the address is checked
 
 `CrawlerHit` records which crawler reached which URL, written from

@@ -378,16 +378,30 @@ export function CheckoutForm({
 
   /* Leaving a contact field hands the details to the shop, so a checkout
      someone walks away from halfway is a callback rather than a silent lost
-     sale. On blur and not on every keystroke — a half-typed phone number is
-     not a lead — and deliberately not awaited: this is a side errand next to
-     the order, and it must never be able to delay or break one. */
+     sale. On blur, and after a pause in typing (below) — and deliberately
+     not awaited: this is a side errand next to the order, and it must never
+     be able to delay or break one. */
+  const lastContact = useRef("");
   function rememberContact() {
+    const key = `${form.fullName}\u0000${form.phone}\u0000${form.email}`;
+    if (key === lastContact.current) return;
+    lastContact.current = key;
     void saveCheckoutContactAction({
       fullName: form.fullName,
       phone: form.phone,
       email: form.email,
     }).catch(() => {});
   }
+  /* And 800 ms after typing stops, not only on leaving the field: on a phone
+     the last field typed into is often never left — the tab is closed with
+     the cursor still in it. Partial values are kept on purpose (see the
+     action); the same values are never sent twice. */
+  useEffect(() => {
+    if (!form.fullName.trim() && !form.phone.trim() && !form.email.trim()) return;
+    const t = setTimeout(rememberContact, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.fullName, form.phone, form.email]);
 
   /* The order is created first and the payment opened against it, in that
      order and never the other way round: the amount is read from the order on

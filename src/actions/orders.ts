@@ -19,7 +19,7 @@ import { rememberAddress } from "@/lib/address-book";
 import { retireGameCoupon } from "@/lib/game-wheel";
 import { awardPurchase } from "@/lib/game-levels";
 import { cookies } from "next/headers";
-import { ATTRIBUTION_COOKIE, attributionFromJson, parseAttribution } from "@/lib/attribution";
+import { ATTRIBUTION_COOKIE, attributionFromJson, gclidOf, parseAttribution } from "@/lib/attribution";
 import { REFERRAL_CODE_PREFIX, REFERRAL_COOKIE, REFERRAL_FLAG_COOKIE } from "@/lib/referral-rules";
 
 export async function createOrderAction(input: CheckoutInput) {
@@ -135,6 +135,8 @@ export async function createOrderAction(input: CheckoutInput) {
   const paymentStatus = payWithPelecard ? "PENDING" : demoCard ? "AUTHORIZED" : "PENDING";
   const orderStatus = payWithPelecard ? "PAYMENT_PENDING" : demoCard ? "NEW" : "NEW";
 
+  const orderAttribution =
+    parseAttribution((await cookies()).get(ATTRIBUTION_COOKIE)?.value) ?? attributionFromJson(cart.attribution);
   const order = await db.order.create({
     data: {
       orderNumber,
@@ -153,10 +155,11 @@ export async function createOrderAction(input: CheckoutInput) {
       guestPhone: data.phone,
       // Where this customer came from: the browser's record now, or the
       // cart's from when it was made if the cookie has since gone.
-      attribution:
-        parseAttribution((await cookies()).get(ATTRIBUTION_COOKIE)?.value) ??
-        attributionFromJson(cart.attribution) ??
-        undefined,
+      attribution: orderAttribution ?? undefined,
+      // The Google Ads click to report this sale against
+      // (lib/analytics/google-ads-conversions.ts): the browser's, else the
+      // cart's from whichever visit last carried one.
+      gclid: gclidOf(orderAttribution) ?? cart.gclid ?? null,
       // The tick beside the phone field. Missing (an older client) means yes,
       // which is what the column defaults to as well.
       // The visit this was placed in, so the path log can be read up to the

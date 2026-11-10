@@ -73,20 +73,28 @@ export async function getCartSummaryAction() {
 /**
  * Keeps the contact details a customer typed into the checkout form, so an
  * order they walked away from halfway is something the shop can ring about
- * rather than a lost sale nobody ever hears of. Called as each field is left,
- * never on submit — by the time the order exists this has nothing to add.
+ * rather than a lost sale nobody ever hears of. Called as a field is left and
+ * 800 ms after typing stops — never only on submit, because by then the order
+ * exists and this has nothing to add.
  *
- * Deliberately narrow:
- * - It saves nothing until the phone is long enough to actually call. A
- *   half-typed number is not a lead, it is a row someone has to sift through.
- * - It never touches the follow-up status. Someone editing their phone number
- *   is not a new lead, and re-opening a call the shop already made would have
- *   customers rung twice.
+ * - Whatever was typed is kept, partial or not. It used to wait for a
+ *   nine-digit phone, and three checkouts in four were walked away from
+ *   before that: in November 6 carts had details against 22 without. A name
+ *   and seven digits are a lead; nothing is not. Validation stays where it
+ *   was, on placing the order — nothing here ever shows the customer an
+ *   error.
+ * - A field that arrives empty never clears one already kept. Clearing the
+ *   phone box to retype it must not lose the number.
+ * - It never touches the follow-up status. Someone editing their phone
+ *   number is not a new lead, and re-opening a call the shop already made
+ *   would have customers rung twice. A new cart starts at NEW by default.
  * - It never throws. This runs beside a checkout: a failure here must cost a
  *   callback, never an order.
  *
- * The checkout form tells the customer this is kept (and the privacy policy
- * spells it out) — that notice is the condition on which this is lawful, so
+ * What it permits is a call about the purchase the customer started. It is
+ * not consent to advertise — see the checkout's marketing notice. The
+ * checkout form tells the customer this is kept (and the privacy policy
+ * spells it out); that notice is the condition on which this is lawful, so
  * the two move together.
  */
 export async function saveCheckoutContactAction(input: {
@@ -95,8 +103,10 @@ export async function saveCheckoutContactAction(input: {
   email?: string;
 }) {
   try {
-    const phone = input.phone?.trim() ?? "";
-    if (phone.replace(/\D/g, "").length < 9) return { success: false as const };
+    const name = input.fullName?.trim().slice(0, 120) || undefined;
+    const phone = input.phone?.trim().slice(0, 30) || undefined;
+    const email = input.email?.trim().slice(0, 160) || undefined;
+    if (!name && !phone && !email) return { success: false as const };
 
     const cart = await getCart();
     if (!cart.id || cart.items.length === 0) return { success: false as const };
@@ -104,9 +114,9 @@ export async function saveCheckoutContactAction(input: {
     await db.cart.update({
       where: { id: cart.id },
       data: {
-        contactName: input.fullName?.trim().slice(0, 120) || null,
-        contactPhone: phone.slice(0, 30),
-        contactEmail: input.email?.trim().slice(0, 160) || null,
+        ...(name ? { contactName: name } : {}),
+        ...(phone ? { contactPhone: phone } : {}),
+        ...(email ? { contactEmail: email } : {}),
         contactAt: new Date(),
       },
     });

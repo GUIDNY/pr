@@ -78,3 +78,73 @@ export async function getAbandonedCartsSummary() {
     todayCount: carts.filter((cart) => (cart.contactAt?.getTime() ?? 0) >= dayAgo).length,
   };
 }
+
+/**
+ * The carts nobody can be called about: items worth more than the floor and
+ * no phone. Three in four abandoned carts look like this, and until now the
+ * back office showed none of them — so what was being walked away from, how
+ * much, and from which channel was invisible. Nothing here is actionable
+ * per person; it is a picture of where money leaks.
+ *
+ * Sorted by the last time the cart was touched. `pages` is the visit's path
+ * through the site (PageView by visitSid), for reading what the person looked
+ * at before leaving — the visit id is a session, not a person (lib/pageview).
+ */
+export async function getAnonymousCarts({
+  minValue = DEFAULT_MIN_VALUE,
+  take = 200,
+}: { minValue?: number; take?: number } = {}) {
+  const rows = await db.cart.findMany({
+    where: {
+      contactPhone: null,
+      updatedAt: { lt: new Date(Date.now() - SETTLE_MINUTES * 60 * 1000) },
+      items: { some: {} },
+    },
+    select: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      visitSid: true,
+      gclid: true,
+      attribution: true,
+      userId: true,
+      items: {
+        select: {
+          id: true,
+          quantity: true,
+          product: { select: { title: true, slug: true, price: true } },
+        },
+      },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: take * 3,
+  });
+
+  const carts = rows
+    .map((cart) => ({
+      ...cart,
+      value: cart.items.reduce((sum, item) => sum + item.product.price * item.quantity, 0),
+    }))
+    .filter((cart) => cart.value >= minValue)
+    .slice(0, take);
+
+  const sids = [...new Set(carts.map((c) => c.visitSid).filter((s): s is string => !!s))];
+  const views = sids.length
+    ? await db.pageView.findMany({
+        where: { sid: { in: sids }, isBot: false, isRsc: false },
+        select: { sid: true, path: true },
+        orderBy: { createdAt: "asc" },
+      })
+    : [];
+  const pagesBySid = new Map<string, string[]>();
+  for (const v of views) {
+    const list = pagesBySid.get(v.sid) ?? [];
+    if (list[list.length - 1] !== v.path) list.push(v.path);
+    pagesBySid.set(v.sid, list);
+  }
+
+  return {
+    carts: carts.map((c) => ({ ...c, pages: c.visitSid ? pagesBySid.get(c.visitSid) ?? [] : [] })),
+    totalValue: carts.reduce((sum, cart) => sum + cart.value, 0),
+  };
+}
