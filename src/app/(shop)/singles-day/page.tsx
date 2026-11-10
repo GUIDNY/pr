@@ -8,6 +8,7 @@ import { getCardsBySkuForPreview, getPublicSaleCardsByBrand } from "@/lib/querie
 import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import { SINGLES_DAY_ITEMS, canSeeSinglesDay, type SinglesDayItem } from "@/lib/campaigns/singles-day-2026";
 import { singlesDayPhase } from "@/lib/campaigns/singles-day-window";
+import { SinglesDayMallCard } from "@/components/campaign/singles-day-mall-card";
 import {
   SinglesDayHero,
   SinglesDaySectionHeading,
@@ -67,6 +68,7 @@ export default async function SinglesDayPage() {
       <div className="pb-16">
         <SinglesDayHero spotlight={null} count={SINGLES_DAY_ITEMS.length} maxDiscount={MAX_DISCOUNT} groups={[]} initialNow={now} teaser />
         <SinglesDayTicker lines={tickerLines()} />
+        <SinglesDayMallCard className="mt-8" />
       </div>
     );
   }
@@ -164,6 +166,8 @@ export default async function SinglesDayPage() {
       <SinglesDayTicker lines={tickerLines(totalDeals)} />
 
       <SinglesDayStickyNav groups={groupLinks} />
+
+      <SinglesDayMallCard className="mt-6" />
 
       <div id="deals" className="mx-auto max-w-7xl space-y-10 px-4 pt-8 sm:space-y-14 sm:pt-12">
         {groups.map((g, i) => (

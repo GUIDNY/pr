@@ -3,7 +3,6 @@ import { getSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AccountDeleteLink, AccountNav, type AccountNavItem } from "@/components/account/account-nav";
 import { LogoutButton } from "@/components/layout/logout-button";
-import { mallViewerEmail } from "@/lib/mall-access-server";
 
 const NAV: AccountNavItem[] = [
   { href: "/account", label: "סקירה כללית", icon: "overview" },
@@ -21,8 +20,8 @@ export default async function AccountLayout({ children }: { children: React.Reac
   // a cookie can be present and still not be a session — expired, forged, or
   // belonging to a user who no longer exists — and only getSession can tell.
   if (!session) redirect("/login?redirect=/account");
-  // the mall's club only for the accounts that may see the mall (lib/mall-access.ts)
-  const nav = (await mallViewerEmail()) ? NAV : NAV.filter((n) => n.href !== "/account/club");
+  // the mall's club, for everyone since the mall opened to the public (10 November)
+  const nav = NAV;
   const user = await db.user.findUnique({ where: { id: session.sub }, select: { email: true } });
   const initial = session.name.trim().charAt(0).toUpperCase() || "?";
 

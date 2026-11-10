@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Phone, MapPin, ShieldCheck, Truck, CreditCard, MessageCircle } from "lucide-react";
+import { MallLink } from "@/components/layout/mall-link";
 /* The official marks, from Simple Icons. lucide-react dropped every brand
    glyph before v1.31, so these cannot come from the same import as the icons
    beside them.
@@ -94,6 +95,9 @@ export async function Footer() {
               <SiFacebook aria-hidden className="size-4" />
             </a>
           </div>
+          {/* The 3D mall, open to everyone since 10 November. Inside the iOS
+              app it goes to /mall instead, see mall-link.tsx. */}
+          <MallLink />
         </div>
 
         <div>
