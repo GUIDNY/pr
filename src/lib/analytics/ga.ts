@@ -1,5 +1,5 @@
 import type { CheckoutInput } from "@/lib/order-schema";
-import { consentGranted } from "@/lib/consent";
+import { gtmMayRun } from "@/lib/consent";
 import { isNativeApp } from "@/lib/native-app";
 
 /**
@@ -99,7 +99,7 @@ export function itemsValue(items: AnalyticsItem[]): number {
 
 export function pushEcommerce(event: string, ecommerce: EcommercePayload): boolean {
   if (typeof window === "undefined") return false;
-  if (!consentGranted() || isNativeApp()) return false;
+  if (!gtmMayRun() || isNativeApp()) return false;
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push({ ecommerce: null });
   window.dataLayer.push({ event, ecommerce: { currency: GA_CURRENCY, ...ecommerce } });
@@ -114,7 +114,7 @@ export function pushEcommerce(event: string, ecommerce: EcommercePayload): boole
  */
 export function pushEvent(event: string, params: Record<string, string | number | boolean> = {}): boolean {
   if (typeof window === "undefined") return false;
-  if (!consentGranted() || isNativeApp()) return false;
+  if (!gtmMayRun() || isNativeApp()) return false;
   window.dataLayer = window.dataLayer || [];
   window.dataLayer.push({ event, ...params });
   return true;

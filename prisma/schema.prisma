@@ -654,6 +654,10 @@ model Cart {
   /// Where the visitor came from (lib/attribution.ts), as the browser
   /// recorded it when the cart was made.
   attribution Json?
+  /// The Google Ads click id this cart arrived under (bt_attr's last
+  /// touch, else its first) — copied to the order and from there reported
+  /// to Google Ads (lib/analytics/google-ads-conversions.ts).
+  gclid      String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -789,6 +793,13 @@ model Order {
   /// so the server-side purchase report is the same client as the browser's
   /// and GA4 deduplicates the two. Null without consent.
   gaClientId         String?
+  /// The Google Ads click this sale came from, from the cart or bt_attr.
+  gclid              String?
+  /// Set once Google Ads accepted the click conversion; attempts and the
+  /// last error are kept so a stuck upload is visible, not silent.
+  adsConversionSentAt   DateTime?
+  adsConversionAttempts Int       @default(0)
+  adsConversionError    String?
   gaSessionId        String?
   /// GA4 Measurement Protocol purchase sent for this order (once only).
   ga4PurchaseSentAt  DateTime?

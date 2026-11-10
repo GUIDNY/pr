@@ -6,7 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { planCartMerge } from "@/lib/cart-merge";
-import { ATTRIBUTION_COOKIE, parseAttribution } from "@/lib/attribution";
+import { ATTRIBUTION_COOKIE, gclidOf, parseAttribution } from "@/lib/attribution";
 import { REFERRAL_CODE_PREFIX, REFERRAL_COOKIE } from "@/lib/referral-rules";
 import { owedReferralCode } from "@/lib/referral";
 import { maxCartQuantity } from "@/lib/cart-merge";
@@ -58,7 +58,7 @@ export async function getCart() {
   const sid = cookieStore.get(CART_COOKIE)?.value;
   if (sid) {
     const existing = await db.cart.findUnique({ where: { sessionId: sid }, include: cartInclude });
-    if (existing) return existing;
+    if (existing) return refreshCartVisit(existing);
   }
   return EMPTY_CART;
 }
@@ -198,7 +198,8 @@ export async function getOrCreateCart() {
        whenever there is no guest cookie, which is almost always. */
     await claimGuestCart(session.sub);
 
-    const existing = await db.cart.findUnique({ where: { userId: session.sub }, include: cartInclude });
+    const found = await db.cart.findUnique({ where: { userId: session.sub }, include: cartInclude });
+    const existing = found ? await refreshCartVisit(found) : null;
     /* A referred account's discount, on whichever device the cart is opened —
        the reason the friend's link asks them to register. */
     if (existing) {
@@ -208,10 +209,23 @@ export async function getOrCreateCart() {
       return db.cart.update({ where: { id: existing.id }, data: { couponCode: owed }, include: cartInclude });
     }
 
+    /* A signed-in customer's details are already ours, so the cart starts
+       with them — an account that walks away from a full cart is somebody
+       the shop can ring, and before this it was one of the anonymous ones
+       (15 of them, on 10 November). contactAt is what puts a cart on the
+       abandoned list, so it is stamped too when there is someone to call. */
+    const user = await db.user.findUnique({ where: { id: session.sub }, select: { name: true, email: true, phone: true } });
+    const attribution = await currentAttribution();
     return db.cart.create({
       data: {
         userId: session.sub,
-        attribution: await currentAttribution(),
+        attribution,
+        gclid: gclidOf(attribution),
+        visitSid: await currentVisitSid(),
+        contactName: user?.name?.trim() || null,
+        contactEmail: user?.email || null,
+        contactPhone: user?.phone?.trim() || null,
+        contactAt: user?.email || user?.phone ? new Date() : null,
         couponCode: (await owedReferralCode(session.sub)) ?? (await referralCodeFromCookie()),
       },
       include: cartInclude,
@@ -223,7 +237,7 @@ export async function getOrCreateCart() {
 
   if (sid) {
     const existing = await db.cart.findUnique({ where: { sessionId: sid }, include: cartInclude });
-    if (existing) return existing;
+    if (existing) return refreshCartVisit(existing);
   }
 
   sid = randomUUID();
@@ -235,15 +249,38 @@ export async function getOrCreateCart() {
     maxAge: CART_COOKIE_TTL,
   });
 
+  const attribution = await currentAttribution();
   return db.cart.create({
     data: {
       sessionId: sid,
-      attribution: await currentAttribution(),
+      attribution,
+      gclid: gclidOf(attribution),
       visitSid: await currentVisitSid(),
       couponCode: await referralCodeFromCookie(),
     },
     include: cartInclude,
   });
+}
+
+/* A cart outlives the visit that made it — the cookie lasts weeks — so the
+   visit id and the ad click it carries are brought up to date whenever the
+   cart is opened in a later visit. Before this the cart kept the visit it
+   was born in, or none at all (#208), and a customer who came back through
+   an ad and bought had the sale credited to nothing. Written only when
+   something changed, so an ordinary page costs no write. */
+async function refreshCartVisit<T extends { id: string; visitSid: string | null; gclid: string | null }>(cart: T): Promise<T> {
+  const visitSid = await currentVisitSid();
+  const gclid = gclidOf(await currentAttribution());
+  const data: { visitSid?: string; gclid?: string } = {};
+  if (visitSid && visitSid !== cart.visitSid) data.visitSid = visitSid;
+  if (gclid && gclid !== cart.gclid) data.gclid = gclid;
+  if (!data.visitSid && !data.gclid) return cart;
+  try {
+    await db.cart.update({ where: { id: cart.id }, data });
+    return { ...cart, ...data };
+  } catch {
+    return cart;
+  }
 }
 
 /* A friend's referral link (/r/<code>) leaves its code in a cookie, so a

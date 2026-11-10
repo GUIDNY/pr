@@ -88,6 +88,7 @@
     "check:attribution-ids": "tsx scripts/check-attribution-ids.ts",
     "check:brand-markup": "tsx scripts/check-brand-markup.ts",
     "check:ga-ids": "tsx scripts/check-ga-ids.ts",
+    "check:ads-conversions": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-ads-conversions.ts",
     "check:referral": "AUTH_SECRET=${AUTH_SECRET:-check-referral-only} NODE_OPTIONS=--conditions=react-server tsx scripts/check-referral.ts",
     "check:duplicate-alerts": "tsx scripts/check-duplicate-alerts.ts",
     "check:duplicates": "tsx scripts/check-duplicate-listings.ts",

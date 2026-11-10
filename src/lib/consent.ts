@@ -112,6 +112,30 @@ export function consentGranted(): boolean {
   return getSnapshot() === "granted";
 }
 
+/**
+ * Consent Mode v2 "advanced": whether GTM is loaded for a visitor who
+ * REFUSED, with every consent signal denied, so Google's own tags send
+ * cookieless pings and Google can model the conversions it cannot see.
+ *
+ * Off unless NEXT_PUBLIC_GTM_DENIED_MODE is "1", and it must stay off until
+ * every non-Google tag in the container (the OpenAI funnel tags, anything
+ * else added there) carries "Additional consent checks → ad_storage": GTM
+ * enforces consent only on tags that ask for it, so without that a tag the
+ * person refused would fire on them. An unanswered banner is never treated
+ * as an answer — that is the line this file exists to hold.
+ */
+export function gtmDeniedModeEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_GTM_DENIED_MODE === "1";
+}
+
+/** Whether GTM is (or may be) on the page for this visitor: consent given,
+    or refused while denied mode is on. The dataLayer helpers push only then. */
+export function gtmMayRun(): boolean {
+  if (typeof window === "undefined") return false;
+  const state = getSnapshot();
+  return state === "granted" || (state === "denied" && gtmDeniedModeEnabled());
+}
+
 /** Record a decision and apply it immediately. */
 export function setConsent(next: "granted" | "denied") {
   const wasGranted = getSnapshot() === "granted";
