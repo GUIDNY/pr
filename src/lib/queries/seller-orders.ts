@@ -15,6 +15,7 @@ import { channelReadiness } from "@/lib/notify";
 import { attributionFromJson, type Attribution } from "@/lib/attribution";
 import { orderProblems, type OrderProblem } from "@/lib/order-problems";
 import { undoTargetStatus } from "@/lib/order-undo";
+import { getPriorityStock, normalizeSku, type PriorityStock } from "@/lib/queries/priority-stock";
 
 /**
  * The orders queue as a salesperson needs it.
@@ -75,7 +76,18 @@ export type SellerOrderDetail = SellerOrderSummary & {
   courier: { name: string | null; trackingNumber: string | null; trackingUrl: string | null };
   shippedAt: Date | null;
   deliveredAt: Date | null;
-  items: { title: string; sku: string; quantity: number; price: number; cost: number | null; inStock: number | null }[];
+  items: {
+    title: string;
+    sku: string;
+    quantity: number;
+    price: number;
+    cost: number | null;
+    inStock: number | null;
+    /** Priority's own warehouse stock for this SKU; null when Priority has none at all. */
+    priority: PriorityStock | null;
+  }[];
+  /** When the Priority mirror was last refreshed; null if it could not be read. */
+  prioritySyncedAt: Date | null;
   /** What the delivery cost the shop, typed in by hand. Null means nobody
       has entered it, which is not the same as zero — the profit panel says
       which of the two it is looking at. */
@@ -235,6 +247,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
   if (!row) return null;
 
   const summary = toSummary(row);
+  const priority = await getPriorityStock(row.items.map((i) => i.skuSnap));
   const live = row.payments.find((p) => p.status === "AUTHORIZED" || p.status === "CAPTURED");
 
   return {
@@ -283,7 +296,9 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
       price: item.priceSnap,
       cost: item.costSnap,
       inStock: item.product ? item.product.stockQty : null,
+      priority: priority.bySku.get(normalizeSku(item.skuSnap)) ?? null,
     })),
+    prioritySyncedAt: priority.syncedAt,
     history: row.statusHistory.map((h) => ({
       at: h.createdAt,
       from: h.fromStatus,

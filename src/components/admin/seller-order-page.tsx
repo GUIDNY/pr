@@ -471,6 +471,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
                     {item.sku}
                     {item.inStock !== null && ` · במלאי ${item.inStock}`}
                   </span>
+                  <PriorityStockNote stock={item.priority} syncedAt={order.prioritySyncedAt} />
                 </span>
                 <span className="shrink-0 font-semibold">{formatPrice(item.price * item.quantity)}</span>
               </li>
@@ -876,5 +877,32 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <span className="text-muted-foreground w-24 shrink-0 sm:w-28">{label}</span>
       <span className="min-w-0 flex-1 break-words">{children}</span>
     </div>
+  );
+}
+/* Priority's warehouse stock, beside the price-sheet number above it. The
+   two come from different places and may disagree; this one is the shelf. */
+function PriorityStockNote({
+  stock,
+  syncedAt,
+}: {
+  stock: { totalQty: number; lines: { warehouse: string; status: string; qty: number }[] } | null;
+  syncedAt: Date | null;
+}) {
+  if (!syncedAt) return null;
+  const when = syncedAt.toLocaleString("he-IL", { timeZone: "Asia/Jerusalem", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
+  if (!stock || stock.totalQty <= 0) {
+    return (
+      <span className="block text-xs font-semibold text-red-600">
+        פריוריטי: אין במלאי באף מחסן <span className="text-muted-foreground font-normal">· עודכן {when}</span>
+      </span>
+    );
+  }
+  const parts = stock.lines
+    .filter((l) => l.qty !== 0)
+    .map((l) => `מחסן ${l.warehouse}: ${l.qty}${l.status && l.status !== "טובים" ? ` (${l.status})` : ""}`);
+  return (
+    <span className="block text-xs text-emerald-700">
+      פריוריטי: {stock.totalQty} במלאי · {parts.join(" · ")} <span className="text-muted-foreground">· עודכן {when}</span>
+    </span>
   );
 }
