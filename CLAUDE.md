@@ -488,7 +488,11 @@ Two ways out, both off until configured: the API uploader on the
 `/api/internal/ads-conversions` cron (needs every `GOOGLE_ADS_*` variable,
 including a developer token from a manager account), and
 `/feeds/google-ads-conversions.csv` for Google Ads' scheduled HTTPS upload
-(needs `GOOGLE_ADS_FEED_PASSWORD`). The conversion action has to be an
+(needs `GOOGLE_ADS_FEED_PASSWORD`; connected 12 November in Data Manager).
+**The feed's last row is a permanent placeholder with an invalid gclid —
+leave it.** Data Manager re-reads the schema on every run and fails the whole
+upload on a file with headers and no data row (error 4000, which took the
+connection red on its first run). The conversion action has to be an
 *Import → clicks* action; a website-tag action refuses uploads, and the error
 is kept on the order in `adsConversionError`. `npm run check:ads-conversions`.
 
