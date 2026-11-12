@@ -19,7 +19,7 @@ import { db } from "@/lib/db";
  * so both sides are matched without leading zeros.
  */
 
-export type PriorityStockLine = { warehouse: string; status: string; qty: number };
+export type PriorityStockLine = { warehouse: string; warehouseName: string | null; status: string; qty: number };
 export type PriorityStock = { totalQty: number; lines: PriorityStockLine[] };
 export type PriorityStockResult = {
   /** null when the mirror could not be read at all. */

@@ -885,7 +885,7 @@ function PriorityStockNote({
   stock,
   syncedAt,
 }: {
-  stock: { totalQty: number; lines: { warehouse: string; status: string; qty: number }[] } | null;
+  stock: { totalQty: number; lines: { warehouse: string; warehouseName: string | null; status: string; qty: number }[] } | null;
   syncedAt: Date | null;
 }) {
   if (!syncedAt) return null;
@@ -899,7 +899,7 @@ function PriorityStockNote({
   }
   const parts = stock.lines
     .filter((l) => l.qty !== 0)
-    .map((l) => `מחסן ${l.warehouse}: ${l.qty}${l.status && l.status !== "טובים" ? ` (${l.status})` : ""}`);
+    .map((l) => `${l.warehouseName ?? `מחסן ${l.warehouse}`} (${l.warehouse}): ${l.qty}${l.status && l.status !== "טובים" ? ` (${l.status})` : ""}`);
   return (
     <span className="block text-xs text-emerald-700">
       פריוריטי: {stock.totalQty} במלאי · {parts.join(" · ")} <span className="text-muted-foreground">· עודכן {when}</span>
