@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { conversionRow, pendingConversionWhere } from "@/lib/analytics/google-ads-conversions";
+import { adsDateTime, conversionRow, pendingConversionWhere } from "@/lib/analytics/google-ads-conversions";
 
 /**
  * The paid orders that came from a Google Ads click, as the file Google Ads'
@@ -49,6 +49,15 @@ export async function GET(request: Request) {
 
   const lines = [
     "Google Click ID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency,Order ID",
+    /* TEMPORARY — remove once the Data Manager connection is complete.
+       Google's Data Manager will not finish connecting a source that has
+       headers and no data row ("Failed to determine the data type or schema
+       of the data source"), and on 12 November no order carried a gclid yet.
+       This row only shows Google the shape of the columns: the click id names
+       no click, so Google rejects it as "Invalid click ID" and records no
+       conversion. Agreed with the owner, on the condition that it comes out
+       as soon as the connection is made and that nothing was counted. */
+    ["SETUP-TEST-NOT-A-CLICK", name, adsDateTime(new Date()), 1, "ILS", "SETUP-TEST"].map(csvCell).join(","),
     ...orders.map((o) => {
       const r = conversionRow({ ...o, gclid: o.gclid! });
       return [r.gclid, name, r.conversionDateTime, r.conversionValue, r.currencyCode, r.orderId].map(csvCell).join(",");
