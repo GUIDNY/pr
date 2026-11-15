@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/seo/json-ld";
 import { MetaViewContent } from "@/components/analytics/meta-events";
 import { GaViewItem } from "@/components/analytics/ga-events";
-import { breadcrumbSchema } from "@/lib/schema";
+import { ORGANIZATION_ID, SITE_NAME, breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
 import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench } from "lucide-react";
 import {
@@ -404,18 +404,35 @@ export async function ProductPageView({
             },
             merchantReturnLink: absoluteUrl("/returns"),
           },
+          /* Who sells it: the one Organization the homepage describes, by
+             its @id, so an engine joins this offer to the entity with the
+             phone, the registration number and the Merchant Center account
+             rather than meeting an anonymous seller on every product. */
+          seller: { "@type": "Organization", "@id": ORGANIZATION_ID, name: SITE_NAME },
+          /* The warranty the page already states in words, twice — "אחריות
+             יבואן רשמי · N חודשים" beside the price and "N חודשים מיום
+             הרכישה" in the delivery tab — from the same column, under the
+             same > 0 condition, so the markup cannot claim a warranty the
+             page does not show. */
+          warranty:
+            product.warrantyMonths > 0
+              ? {
+                  "@type": "WarrantyPromise",
+                  durationOfWarranty: {
+                    "@type": "QuantitativeValue",
+                    value: product.warrantyMonths,
+                    unitCode: "MON",
+                  },
+                }
+              : undefined,
         },
-        // Only when there is a real rating behind it. schema.org rejects an
-        // aggregateRating with a zero reviewCount, and inventing one is the
-        // kind of thing that costs a merchant its rich results outright.
-        aggregateRating:
-          product.ratingCount > 0
-            ? {
-                "@type": "AggregateRating",
-                ratingValue: product.ratingAvg.toFixed(1),
-                reviewCount: product.ratingCount,
-              }
-            : undefined,
+        /* There used to be a second aggregateRating key here, from
+           product.ratingAvg/ratingCount. A later key in an object literal
+           replaces an earlier one, so it silently overwrote the summary
+           above — and with ratingCount at 0 it set it to undefined, dropping
+           the rating of a product whose approved reviews the page shows.
+           The summary above, from the same approved reviews the reviews tab
+           renders, is the one copy now. */
       };
 
   // Same three or four steps the visible breadcrumb renders below.

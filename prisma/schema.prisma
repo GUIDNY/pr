@@ -1417,3 +1417,23 @@ model CrawlerHit {
   @@index([path])
   @@index([createdAt])
 }
+
+// ---------- Marketing: market price benchmarks ----------
+
+// Google's market price for one of our items, as Merchant Center's pricing
+// report shows it (Analytics → Pricing: "benchmark"). Written by the paid
+// agent from that report, about weekly; nothing in the shop computes it.
+// Keyed by our SKU because that is the feed's g:id, which is what the report
+// is keyed by. No relation to Product on purpose: this table must never
+// reach into the catalogue, and a SKU that later leaves the feed simply has
+// a row nobody reads. Read only by the Merchant feed, for custom_label_2 —
+// see lib/feeds/google-merchant.ts. The data itself never goes into the repo.
+model PriceBenchmark {
+  sku            String   @id
+  benchmarkPrice Float
+  // Our price on the day the report was read, so a later reader can tell
+  // whether the gap moved because of us or because of the market.
+  ourPrice       Float
+  capturedAt     DateTime
+  source         String   @default("merchant-center")
+}

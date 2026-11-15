@@ -597,6 +597,53 @@ export function CheckoutForm({
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-bold">תשלום</h1>
 
+        {/* On a phone the full summary is the last thing on the page, below
+            three steps of form, so the first screen of the checkout showed
+            neither what was being bought nor for how much. This is the same
+            information in one row that opens into the list of items; the
+            full summary (#order-summary) is still where quantities are edited. Hidden on desktop, where the summary
+            is already beside the form. */}
+        <details className="border-border bg-muted/40 group rounded-xl border lg:hidden">
+          <summary className="flex cursor-pointer list-none items-center gap-3 p-3 [&::-webkit-details-marker]:hidden">
+            <div className="bg-muted relative size-12 shrink-0 overflow-hidden rounded-md">
+              {cart.items[0].image ? (
+                <Image src={cart.items[0].image} alt="" fill className="bg-white object-contain" sizes="48px" />
+              ) : (
+                <ProductImagePlaceholder title={cart.items[0].title} brand={cart.items[0].brandName} />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">
+                {cart.itemCount === 1 ? "פריט אחד בהזמנה" : `${cart.itemCount} פריטים בהזמנה`}
+              </p>
+              <p className="text-brand text-xs underline underline-offset-2">
+                <span className="group-open:hidden">הצגת הפריטים</span>
+                <span className="hidden group-open:inline">הסתרת הפריטים</span>
+              </p>
+            </div>
+            <div className="shrink-0 text-end">
+              <p className="text-muted-foreground text-xs">סה״כ לתשלום</p>
+              <p className="text-base font-bold tabular-nums">{formatPrice(orderTotal)}</p>
+            </div>
+          </summary>
+          <ul className="border-border flex flex-col gap-2 border-t px-3 py-2.5 text-sm">
+            {cart.items.map((item) => (
+              <li key={item.id} className="flex items-start justify-between gap-3">
+                <span className="min-w-0">
+                  {item.title}
+                  {item.quantity > 1 && <span className="text-muted-foreground"> × {item.quantity}</span>}
+                </span>
+                <span className="shrink-0 font-semibold tabular-nums">{formatPrice(item.lineTotal)}</span>
+              </li>
+            ))}
+            <li>
+              <a href="#order-summary" className="text-muted-foreground text-xs underline underline-offset-2">
+                לשינוי כמות או קופון — בסיכום ההזמנה למטה
+              </a>
+            </li>
+          </ul>
+        </details>
+
         {isStaff && (
           <CheckoutTestPanel
             onFillTestDetails={fillTestDetails}
@@ -635,13 +682,18 @@ export function CheckoutForm({
                the offer to open an account is gone. One tap still fills the
                three fields from an account and the customer comes back here
                signed in — the cart is in the browser, not on the trip. */
-            <div className="bg-muted/50 mb-4 rounded-xl p-3">
-              <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+            /* Folded by default (16 Nov): open, the box pushed the name field
+               about 200px down a phone screen, and 33 of the 61 sessions that
+               started a checkout in the previous 30 days left before typing a
+               contact detail. Everything inside is unchanged. */
+            <details className="bg-muted/50 group mb-4 rounded-xl p-3">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-sm [&::-webkit-details-marker]:hidden">
                 <span className="font-semibold">יש לכם חשבון?</span>
                 <Badge variant="outline" className="bg-background">לא חובה</Badge>
-                <span className="text-muted-foreground basis-full">
-                  התחברו בלחיצה ונמלא את הפרטים במקומכם.
-                </span>
+                <span className="text-brand ms-auto underline underline-offset-2 group-open:hidden">התחברות</span>
+              </summary>
+              <p className="text-muted-foreground mt-2 mb-2 text-sm">
+                התחברו בלחיצה ונמלא את הפרטים במקומכם.
               </p>
               <Suspense>
                 <div className={`grid gap-2 ${twoUp ? "grid-cols-2" : "grid-cols-1"}`}>
@@ -662,13 +714,15 @@ export function CheckoutForm({
                   יש לכם סיסמה? התחברות עם מייל וסיסמה
                 </Link>
               </p>
-            </div>
+            </details>
           )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
               <Label htmlFor="fullName" className="mb-1.5">שם מלא</Label>
               <Input
                 id="fullName"
+                name="name"
+                autoComplete="name"
                 value={form.fullName}
                 onChange={(e) => update("fullName", e.target.value)}
                 onBlur={rememberContact}
@@ -679,7 +733,10 @@ export function CheckoutForm({
               <Label htmlFor="email" className="mb-1.5">אימייל</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                inputMode="email"
+                autoComplete="email"
                 value={form.email}
                 onChange={(e) => update("email", e.target.value)}
                 onBlur={rememberContact}
@@ -690,7 +747,10 @@ export function CheckoutForm({
               <Label htmlFor="phone" className="mb-1.5">טלפון</Label>
               <Input
                 id="phone"
+                name="tel"
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={form.phone}
                 onChange={(e) => update("phone", e.target.value)}
                 onBlur={rememberContact}
@@ -847,15 +907,15 @@ export function CheckoutForm({
               </div>
               <div className="col-span-2 sm:col-span-2">
                 <Label className="mb-1.5">רחוב</Label>
-                <Input value={form.street} onChange={(e) => update("street", e.target.value)} />
+                <Input name="street" autoComplete="address-line1" value={form.street} onChange={(e) => update("street", e.target.value)} />
               </div>
               <div>
                 <Label className="mb-1.5">מספר בית</Label>
-                <Input value={form.houseNo} onChange={(e) => update("houseNo", e.target.value)} />
+                <Input name="houseNo" inputMode="numeric" value={form.houseNo} onChange={(e) => update("houseNo", e.target.value)} />
               </div>
               <div>
                 <Label className="mb-1.5">דירה (אופציונלי)</Label>
-                <Input value={form.apartment} onChange={(e) => update("apartment", e.target.value)} />
+                <Input name="apartment" autoComplete="address-line2" value={form.apartment} onChange={(e) => update("apartment", e.target.value)} />
               </div>
               <div className="col-span-2 sm:col-span-4">
                 <Label className="mb-1.5">הערות למשלוח</Label>
@@ -1178,7 +1238,7 @@ export function CheckoutForm({
         </section>
       </div>
 
-      <div className="border-border h-fit rounded-xl border p-5 lg:sticky lg:top-24">
+      <div id="order-summary" className="border-border h-fit scroll-mt-24 rounded-xl border p-5 lg:sticky lg:top-24">
         <h2 className="mb-1 font-semibold">4. סיכום הזמנה</h2>
         <p className="text-muted-foreground mb-4 text-xs">
           {isEditingCart ? "מעדכנים את ההזמנה..." : payment ? "שינוי כמות יעדכן את הסכום ויפתח את טופס התשלום מחדש" : "אפשר לשנות כמות או להסיר מוצר כאן"}

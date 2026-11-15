@@ -59,7 +59,8 @@ export function CityCombobox({
         aria-activedescendant={active >= 0 ? `${id}-${active}` : undefined}
         aria-autocomplete="list"
         aria-invalid={invalid || undefined}
-        autoComplete="off"
+        name="city"
+        autoComplete="address-level2"
         value={value}
         onChange={(e) => {
           onChange(e.target.value);
