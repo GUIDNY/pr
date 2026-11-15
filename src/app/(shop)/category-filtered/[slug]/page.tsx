@@ -36,7 +36,7 @@ export async function generateMetadata({
      which is exactly how 297 products came to have no inbound link. The
      same noindex-under-threshold rule as page 1. */
   return {
-    title: categoryPageTitle(name, page),
+    title: categoryPageTitle(name, page, facts),
     description: categoryMetaDescription(name, facts, page),
     // Page 2 is its own address; every other filtered view points back at the
     // bare category, which is the page Google should hold — see listingCanonical.

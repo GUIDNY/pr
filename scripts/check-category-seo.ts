@@ -9,6 +9,7 @@
  */
 import { categoryMetaDescription, categoryPageTitle } from "../src/lib/seo/category-description";
 import { brandMetaDescription, brandPageTitle } from "../src/lib/seo/brand-description";
+import { listingOrderBy } from "../src/lib/queries/listing-order";
 
 let failures = 0;
 function is(name: string, got: unknown, want: unknown) {
@@ -20,8 +21,20 @@ function is(name: string, got: unknown, want: unknown) {
 const microwaves = { count: 60, minPrice: 299, topBrands: ["Samsung", "LG", "Bosch", "Sharp"] };
 
 console.log("\ntitles");
-is("page 1 is the name", categoryPageTitle("מיקרוגלים"), "מיקרוגלים");
+is("page 1 with no facts is the name", categoryPageTitle("מיקרוגלים"), "מיקרוגלים");
 is("page 2 says so", categoryPageTitle("מיקרוגלים", 2), "מיקרוגלים – עמוד 2");
+/* The live shelves on 15 November, as the pages themselves described them. */
+is("page 1 carries the count and the price", categoryPageTitle("מיקרוגלים", 1, { count: 26, minPrice: 1100, topBrands: [] }), "מיקרוגלים – 26 דגמים החל מ-1,100 ₪");
+is("a three-digit shelf", categoryPageTitle("מסכי טלוויזיה", 1, { count: 174, minPrice: 400, topBrands: [] }), "מסכי טלוויזיה – 174 דגמים החל מ-400 ₪");
+is("page 2 ignores the facts", categoryPageTitle("מיקרוגלים", 2, microwaves), "מיקרוגלים – עמוד 2");
+is("no price, count only", categoryPageTitle("אוזניות", 1, { count: 3, minPrice: null, topBrands: [] }), "אוזניות – 3 דגמים");
+is("an empty shelf is the name", categoryPageTitle("טאבונים", 1, { count: 0, minPrice: null, topBrands: [] }), "טאבונים");
+const longName = "נגני בלוריי, DVD וסטרימרים";
+is("a long name keeps the count and drops the price", categoryPageTitle(longName, 1, { count: 12, minPrice: 12990, topBrands: [] }), `${longName} – 12 דגמים`);
+is("a very long name stays as it was", categoryPageTitle("מיקרופונים ומערכות אלחוטיות למופעים ולאולמות גדולים", 1, microwaves), "מיקרופונים ומערכות אלחוטיות למופעים ולאולמות גדולים");
+for (const [n, f] of [["מיקרוגלים", { count: 26, minPrice: 1100, topBrands: [] }], [longName, { count: 12, minPrice: 12990, topBrands: [] }], ["מקרר 4-5 דלתות", { count: 1390, minPrice: 30000, topBrands: [] }]] as const) {
+  is(`"${n}" leaves room for the site name`, categoryPageTitle(n, 1, { ...f, topBrands: [] }).length <= 50, true);
+}
 
 console.log("\ndescriptions");
 const d1 = categoryMetaDescription("מיקרוגל", microwaves);
@@ -57,6 +70,18 @@ is("a thousand gets its separator", brandPageTitle("Sauter", 1234), "Sauter – 
 is("nothing live, nothing claimed", brandPageTitle("NOVIS", 0), "NOVIS");
 is("a very long name stays as it was", brandPageTitle("Schaub Lorenz International Home Appliances", 12), "Schaub Lorenz International Home Appliances");
 is("leaves room for the site name", brandPageTitle("Morphy Richards", 87).length <= 50, true);
+console.log("\nlisting order");
+/* /category/fridge-4-door on 15 November: 139 products, 134 shown across
+   five pages, five on two pages and five on none — because every sort was
+   one key and the default key tied on every row. */
+for (const sort of [undefined, "relevance", "price-asc", "price-desc", "newest", "rating"] as const) {
+  const order = listingOrderBy(sort);
+  is(`${sort ?? "(default)"} ends on a unique key`, order[order.length - 1], { id: "asc" });
+  is(`${sort ?? "(default)"} names each key once`, new Set(order.map((o) => Object.keys(o)[0])).size, order.length);
+}
+is("the default is best sellers, then newest", listingOrderBy(undefined).slice(0, 2), [{ isBestSeller: "desc" }, { createdAt: "desc" }]);
+is("price ascending still leads with price", listingOrderBy("price-asc")[0], { price: "asc" });
+is("price descending still leads with price", listingOrderBy("price-desc")[0], { price: "desc" });
 
 console.log(failures === 0 ? "\nall good" : `\n${failures} failing`);
 process.exit(failures === 0 ? 0 : 1);
