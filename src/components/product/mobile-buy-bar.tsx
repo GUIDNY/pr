@@ -2,6 +2,7 @@
 
 import { formatPrice } from "@/lib/format";
 import { computeDeliveryFee } from "@/lib/delivery";
+import { maxPaymentsFor } from "@/lib/pelecard/instalments";
 import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import { useProductQtyStore } from "@/stores/product-qty-store";
 import type { StockStatus } from "@/lib/enums";
@@ -39,6 +40,7 @@ export function MobileBuyBar({
      and a basket that already holds something may ship free sooner. */
   const total = price * qty;
   const deliveryFee = computeDeliveryFee(total);
+  const maxPayments = maxPaymentsFor(total);
   /* max-sm:ps-[6.75rem]: on a phone the WhatsApp and Alfred launchers sit in
      this bar's start corner (see whatsapp-button.tsx), so the price starts
      after them instead of under them. */
@@ -47,7 +49,16 @@ export function MobileBuyBar({
       <span className="flex shrink-0 flex-col leading-tight">
         <span className="text-lg font-bold tabular-nums">{formatPrice(total)}</span>
         {deliveryFee === 0 ? (
-          <span className="text-success text-[11px] font-medium whitespace-nowrap">משלוח חינם</span>
+          <>
+            <span className="text-success text-[11px] font-medium whitespace-nowrap">משלוח חינם</span>
+            {/* Only on this branch: under the free-delivery threshold the two
+                lines below already fill the column, and what a 300–600 ₪
+                basket needs said first is the delivery cost. The product
+                page's own price block says it for every price. */}
+            {maxPayments > 1 && (
+              <span className="text-muted-foreground text-[11px] whitespace-nowrap">עד {maxPayments} תשלומים</span>
+            )}
+          </>
         ) : (
           <>
             <span className="text-muted-foreground text-[11px] whitespace-nowrap tabular-nums">
