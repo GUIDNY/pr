@@ -7,7 +7,7 @@ import { getSession, getCurrentUser } from "@/lib/auth";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
-import { computeDeliveryFee, requiresAddress } from "@/lib/delivery";
+import { computeDeliveryFee, deliveryFeeAfterMethodChange, requiresAddress } from "@/lib/delivery";
 import { cartHasBulky, isBulkyCategory } from "@/lib/bulky";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
@@ -411,6 +411,10 @@ export async function trackOrderAction(orderNumber: string, contact: string) {
  * So the fields stay live and the order follows them, the delivery method
  * included.
  *
+ * (The next two paragraphs stopped being true when collecting became free:
+ * the method now moves the total, and the function re-prices or refuses
+ * accordingly. They are kept because they explain why the fields are live.)
+ *
  * NOTHING ON THE CHECKOUT PAGE MOVES THE TOTAL, which is worth writing down
  * because it was assumed otherwise and the assumption cost a bug. The delivery
  * method looked like the exception and is not: computeDeliveryFee() in
@@ -440,12 +444,29 @@ export async function updatePendingOrderDetailsAction(
     deliveryNotes?: string;
     deliveryMethod?: "DELIVERY" | "PICKUP_POINT" | "PICKUP";
   },
+  /* Set only by the checkout when NO payment form is open for this order: it
+     has closed the form and will open a new one, for the new amount, once
+     this returns. With a form open the amount is already in Pelecard's hands
+     and must not move underneath it. */
+  { reprice = false }: { reprice?: boolean } = {},
 ) {
   const session = await getSession();
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: { id: true, orderNumber: true, userId: true, status: true, paymentStatus: true, addressId: true },
+    select: {
+      id: true,
+      orderNumber: true,
+      userId: true,
+      status: true,
+      paymentStatus: true,
+      addressId: true,
+      subtotal: true,
+      discountTotal: true,
+      deliveryMethod: true,
+      deliveryFee: true,
+      couponCode: true,
+    },
   });
   if (!order) return { success: false as const };
 
@@ -484,6 +505,30 @@ export async function updatePendingOrderDetailsAction(
   const shipsHome = method ? requiresAddress(method) : null;
   const fullAddress = Boolean(details.city && details.street && details.houseNo);
 
+  /* THE DELIVERY METHOD MOVES THE TOTAL, and the note above this function
+     said it did not. It was true when it was written: the charge was read off
+     the subtotal alone. Collecting has been free since, so a basket under the
+     free-delivery threshold costs 40 ₪ more delivered than collected — and an
+     order that followed the form from one to the other kept the first price.
+     A collection charged for delivery, or a delivery nobody was charged for.
+
+     So a change of method that changes the charge is refused while a payment
+     form is open (the amount is Pelecard's by then), and applied — with the
+     order re-priced in the same write — only when the checkout says it has
+     closed the form and is about to open a new one. */
+  let repriced: { deliveryFee: number; total: number } | null = null;
+  if (method && method !== order.deliveryMethod) {
+    const fee = deliveryFeeAfterMethodChange(order, method);
+    if (fee === null) return { success: false as const };
+    if (fee !== order.deliveryFee) {
+      if (!reprice) return { success: false as const };
+      repriced = { deliveryFee: fee, total: Math.max(0, order.subtotal - order.discountTotal + fee) };
+    }
+  }
+  /* A re-priced order is about to be paid for: it must be deliverable. The
+     keystroke path below tolerates a half-typed address; this one does not. */
+  if (reprice && shipsHome && !fullAddress) return { success: false as const };
+
   await db.order.update({
     where: { id: order.id },
     data: {
@@ -492,6 +537,7 @@ export async function updatePendingOrderDetailsAction(
       guestPhone: details.phone,
       customerNote: details.deliveryNotes,
       ...(method ? { deliveryMethod: method } : {}),
+      ...(repriced ?? {}),
       ...(shipsHome === false
         ? { shipCity: null, shipStreet: null, shipHouseNo: null, shipApartment: null }
         : fullAddress

@@ -223,3 +223,31 @@ export function freeCollectionNote(hasBulky: boolean): string {
 export function requiresAddress(method: DeliveryMethod): boolean {
   return method !== "PICKUP";
 }
+
+/**
+ * What a pending order's delivery charge becomes when its method is changed
+ * at the checkout, after the order already exists.
+ *
+ * The charge depends on the method — collecting is free, home delivery under
+ * the threshold is not — so an order that follows the form from one method to
+ * the other has to be re-priced, or it ends up as a home delivery that was
+ * charged as a collection (or the reverse). null means "cannot be known from
+ * the order alone": a coupon may have waived the charge, and whether it did
+ * is not recorded on an order that was created as a collection. The caller
+ * makes a new order then, which is priced from the cart and the coupon.
+ */
+export function deliveryFeeAfterMethodChange(order: {
+  subtotal: number;
+  discountTotal: number;
+  deliveryMethod: string;
+  deliveryFee: number;
+  couponCode: string | null;
+}, next: DeliveryMethod): number | null {
+  if (next !== "DELIVERY") return 0;
+  if (order.deliveryMethod === "DELIVERY") return order.deliveryFee;
+  const listed = computeDeliveryFee(order.subtotal - order.discountTotal, "DELIVERY");
+  /* Free by the threshold is free whatever a coupon says. */
+  if (listed === 0) return 0;
+  if (order.couponCode) return null;
+  return listed;
+}
