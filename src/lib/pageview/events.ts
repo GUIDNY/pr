@@ -39,7 +39,22 @@ const META_KEYS: Record<VisitEventType, Record<string, "string" | "number" | "bo
   checkout_start: { itemCount: "number", total: "number" },
   payment_submit: { orderNumber: "string", total: "number" },
   payment_result: { orderNumber: "string", statusCode: "string" },
-  checkout_abandon: { itemCount: "number", total: "number", secondsOnPage: "number" },
+  /* `reached` is the furthest of the form's three sections the shopper
+     actually touched — "none", "contact", "delivery" or "payment" — and
+     `submitTried` whether the order button was pressed. The name of a
+     section, never anything typed into it. Without them an abandonment was a
+     number of seconds: 25 of the 34 checkouts opened between 1 and 14
+     November were left without a payment attempt, ten of them inside ten
+     seconds and others after a quarter of an hour, and nothing recorded
+     could say whether people stop at their phone number, at the delivery
+     choice or in front of the card form. */
+  checkout_abandon: {
+    itemCount: "number",
+    total: "number",
+    secondsOnPage: "number",
+    reached: "string",
+    submitTried: "boolean",
+  },
   contact_click: { channel: "string", target: "string" },
   form_submit: { form: "string", channel: "string" },
   consent_shown: { variant: "string" },

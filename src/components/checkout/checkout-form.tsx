@@ -68,6 +68,11 @@ import type { CheckoutInput } from "@/lib/order-schema";
  */
 const BIT_DAILY_CAP = 7000;
 
+/* The form's sections in the order a shopper meets them — what the abandon
+   event reports as the furthest one reached. */
+const CHECKOUT_SECTIONS = ["contact", "delivery", "payment"] as const;
+type CheckoutSection = (typeof CHECKOUT_SECTIONS)[number];
+
 function detailsCompleteFor(f: {
   fullName: string;
   email: string;
@@ -219,6 +224,17 @@ export function CheckoutForm({
   const openedAt = useRef(Date.now());
   const submitted = useRef(false);
   const started = useRef(false);
+  /* How far down the form the shopper got, for the abandon event: the
+     furthest section they typed in or tapped. Changes and pointer presses
+     only — a field the browser focused or filled by itself is not the
+     shopper reaching it. See checkout_abandon in lib/pageview/events.ts. */
+  const reached = useRef<CheckoutSection | "none">("none");
+  const submitTried = useRef(false);
+  const markReached = (e: { target: EventTarget | null }) => {
+    const section = (e.target as HTMLElement | null)?.closest?.("[data-checkout-section]")?.getAttribute("data-checkout-section");
+    const at = CHECKOUT_SECTIONS.indexOf(section as CheckoutSection);
+    if (at > CHECKOUT_SECTIONS.indexOf(reached.current as CheckoutSection)) reached.current = CHECKOUT_SECTIONS[at];
+  };
   /* Not on mount: the store hydrates after it (session-summary-provider),
      so the first render has an empty cart and a mount-once effect saw no
      checkout at all — the first live test logged the add-to-cart and the
@@ -236,6 +252,8 @@ export function CheckoutForm({
       trackVisit("checkout_abandon", {
         ...snapshot,
         secondsOnPage: Math.round((Date.now() - openedAt.current) / 1000),
+        reached: reached.current,
+        submitTried: submitTried.current,
       });
     };
     window.addEventListener("pagehide", onLeave);
@@ -518,6 +536,7 @@ export function CheckoutForm({
   ]);
 
   function submit() {
+    submitTried.current = true;
     setErrors({});
     startTransition(async () => {
       /* The radio still says DEMO_CARD — it is one "credit card" option to the
@@ -615,7 +634,7 @@ export function CheckoutForm({
             the only thing on this page that changes what is owed, and the
             amount has already been sent to Pelecard. */}
         <fieldset disabled={!!payment && !canEditWhilePaying} className="contents">
-        <section className="border-border rounded-xl border p-5">
+        <section className="border-border rounded-xl border p-5" data-checkout-section="contact" onChangeCapture={markReached} onPointerDownCapture={markReached}>
           <h2 className="mb-4 font-semibold">1. פרטי התקשרות</h2>
           {quickSignIn && (
             /* Optional, and it has to SAY so where the eye lands.
@@ -738,7 +757,7 @@ export function CheckoutForm({
           </div>
         </section>
 
-        <section className="border-border rounded-xl border p-5">
+        <section className="border-border rounded-xl border p-5" data-checkout-section="delivery" onChangeCapture={markReached} onPointerDownCapture={markReached}>
           <h2 className="mb-4 font-semibold">2. משלוח</h2>
           {/* Said here, where the method is chosen, and not only in a footer
               link: the order is placed under the shipping policy, and the
@@ -872,7 +891,7 @@ export function CheckoutForm({
 
         </fieldset>
 
-        <section className="border-border rounded-xl border p-5">
+        <section className="border-border rounded-xl border p-5" data-checkout-section="payment" onChangeCapture={markReached} onPointerDownCapture={markReached}>
           <h2 className="mb-4 font-semibold">3. תשלום</h2>
 
           {/* WHAT THE SHOP ACCEPTS — and it is no longer a chooser.
