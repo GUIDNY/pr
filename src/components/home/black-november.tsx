@@ -5,7 +5,6 @@ import type { ProductCardData } from "@/components/product/product-card";
 import { FavoriteButton } from "@/components/product/favorite-button";
 import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import { BLACK_NOVEMBER_LABEL, BLACK_NOVEMBER_LIMITED, blackNovemberScope } from "@/lib/campaigns/black-november";
-import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import { formatInstallment, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -189,11 +188,12 @@ function BlackNovemberCard({ product, className }: { product: ProductCardData; c
 
         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium sm:text-xs">
           <span className="rounded-full bg-white/10 px-2 py-0.5 text-white/80">{BLACK_NOVEMBER_LIMITED}</span>
-          {/* The shop's own rule, as on every other card: over the threshold,
-              delivery is free. */}
-          {product.price >= FREE_DELIVERY_THRESHOLD && (
-            <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-emerald-300">משלוח חינם</span>
-          )}
+          {/* No "משלוח חינם" here, although the ordinary card says it over the
+              threshold. The terms keep free delivery for products that go by
+              ordinary courier, and a television of 75 inches and up may not —
+              a promise this panel has no way to check per product is one it
+              does not make. The product page and the checkout say what the
+              delivery costs. */}
         </div>
 
         <div className="mt-auto pt-3">
