@@ -119,9 +119,25 @@ export function describeTouch(t: AttributionTouch): string {
   return parts.join(" · ");
 }
 
+/** A click id that is really an id, not a template left unfilled.
+
+    On 15 November a visit arrived with `gclid={gclid}&gbraid={gbraid}` —
+    Google's placeholders, never substituted — and the cart stored the
+    literal text `{gclid}` as its click id. Google can match nothing to that,
+    and a real id never contains a brace, so anything with one is dropped
+    rather than kept as if it were a click. */
+export function isRealClickId(value: string | null | undefined): value is string {
+  return !!value && value.trim() !== "" && !/[{}]/.test(value);
+}
+
 /** The Google Ads click id to credit a sale to: the most recent touch's,
     else the first's. Google matches a click conversion on this alone, so it
-    is kept in its own column on the cart and the order. */
+    is kept in its own column on the cart and the order. A placeholder is
+    skipped, so a cookie written before the browser refused them still
+    falls back to the touch that has a real one. */
 export function gclidOf(a: Attribution | null | undefined): string | null {
-  return a?.last?.gclid ?? a?.first.gclid ?? null;
+  const last = a?.last?.gclid;
+  if (isRealClickId(last)) return last;
+  const first = a?.first.gclid;
+  return isRealClickId(first) ? first : null;
 }

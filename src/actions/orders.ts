@@ -19,7 +19,7 @@ import { rememberAddress } from "@/lib/address-book";
 import { retireGameCoupon } from "@/lib/game-wheel";
 import { awardPurchase } from "@/lib/game-levels";
 import { cookies } from "next/headers";
-import { ATTRIBUTION_COOKIE, attributionFromJson, gclidOf, parseAttribution } from "@/lib/attribution";
+import { ATTRIBUTION_COOKIE, attributionFromJson, gclidOf, isRealClickId, parseAttribution } from "@/lib/attribution";
 import { REFERRAL_CODE_PREFIX, REFERRAL_COOKIE, REFERRAL_FLAG_COOKIE } from "@/lib/referral-rules";
 
 export async function createOrderAction(input: CheckoutInput) {
@@ -159,7 +159,7 @@ export async function createOrderAction(input: CheckoutInput) {
       // The Google Ads click to report this sale against
       // (lib/analytics/google-ads-conversions.ts): the browser's, else the
       // cart's from whichever visit last carried one.
-      gclid: gclidOf(orderAttribution) ?? cart.gclid ?? null,
+      gclid: gclidOf(orderAttribution) ?? (isRealClickId(cart.gclid) ? cart.gclid : null),
       // The tick beside the phone field. Missing (an older client) means yes,
       // which is what the column defaults to as well.
       // The visit this was placed in, so the path log can be read up to the

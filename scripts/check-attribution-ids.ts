@@ -8,7 +8,7 @@
  *     so all 19 orders since 1 October arrived without one.
  *   - the back office is recognised as such, and nothing else is.
  */
-import { attributionFromJson, parseAttribution } from "../src/lib/attribution";
+import { attributionFromJson, gclidOf, isRealClickId, parseAttribution } from "../src/lib/attribution";
 import { isBackOfficePath } from "../src/components/analytics/back-office-analytics-off";
 
 let failed = 0;
@@ -38,6 +38,18 @@ const stored = attributionFromJson(JSON.parse(JSON.stringify(parsed)));
 check("gclid survives the order column", stored?.last?.gclid === "CjwKCAtest");
 check("a touch without ids still parses", parseAttribution(encodeURIComponent(JSON.stringify({ first: { source: "direct", medium: "(none)", at: "x" } }))) !== null);
 check("an absurd gclid is refused, not stored", parseAttribution(encodeURIComponent(JSON.stringify({ first: { ...touch, gclid: "x".repeat(301) } }))) === null);
+
+// 15 November: a visit landed with gclid={gclid}&gbraid={gbraid}, Google's
+// templates unfilled, and the cart kept "{gclid}" as its click id.
+check("an unfilled {gclid} is not a click id", !isRealClickId("{gclid}"));
+check("an unfilled {gbraid} is not a click id", !isRealClickId("{gbraid}"));
+check("an empty id is not a click id", !isRealClickId("") && !isRealClickId(null));
+check("a real gclid is a click id", isRealClickId("CjwKCAtest"));
+check("a placeholder in last falls back to first's real gclid",
+  gclidOf({ first: touch, last: { ...touch, gclid: "{gclid}" } }) === "CjwKCAtest");
+check("placeholders on both touches give no gclid",
+  gclidOf({ first: { ...touch, gclid: "{gclid}" }, last: { ...touch, gclid: "{gclid}" } }) === null);
+check("a real last gclid still wins", gclidOf({ first: touch, last: { ...touch, gclid: "CjwKCAlast" } }) === "CjwKCAlast");
 
 for (const [path, want] of [
   ["/admin", true],
