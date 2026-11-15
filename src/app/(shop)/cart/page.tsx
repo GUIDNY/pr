@@ -116,20 +116,25 @@ export default function CartPage() {
               </button>
             </div>
           ) : (
-            <form
-              className="mb-3 flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!couponInput.trim()) return;
-                runAction(applyCouponAction(couponInput));
-                setCouponInput("");
-              }}
-            >
-              <Input placeholder="קוד קופון" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} className="h-9" />
-              <Button type="submit" variant="outline" size="sm" className="h-9">
-                החל
-              </Button>
-            </form>
+            <details className="mb-3" open={!!cart.couponError}>
+              <summary className="text-muted-foreground cursor-pointer text-xs underline underline-offset-2">
+                יש לכם קוד קופון?
+              </summary>
+              <form
+                className="mt-2 flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!couponInput.trim()) return;
+                  runAction(applyCouponAction(couponInput));
+                  setCouponInput("");
+                }}
+              >
+                <Input placeholder="קוד קופון" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} className="h-9" />
+                <Button type="submit" variant="outline" size="sm" className="h-9">
+                  החל
+                </Button>
+              </form>
+            </details>
           )}
           {cart.couponError && <p className="text-destructive mb-2 text-xs">{cart.couponError}</p>}
 
@@ -144,21 +149,34 @@ export default function CartPage() {
                 <span className="tabular-nums">-{formatPrice(cart.discount)}</span>
               </div>
             )}
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">{cart.deliveryFee === 0 ? "משלוח" : "משלוח עד הבית"}</span>
-              <span className="tabular-nums">{cart.deliveryFee === 0 ? "חינם" : formatPrice(cart.deliveryFee)}</span>
-            </div>
-            {/* As in the cart drawer: the fee is the door's, collecting is free. */}
-            {cart.deliveryFee > 0 && (
-              <p className="text-success text-xs font-medium">
-                {freeCollectionNote(cartHasBulky(cart.items))} · בוחרים בקופה
-              </p>
+            {/* The delivery charge is not added to the total here any more
+                (16 Nov). Nobody has chosen a method yet, and collecting is
+                free: an 80 ₪ heater read "120 ₪ לתשלום" in this box, and the
+                baskets that came from an ad left at that number. Both prices
+                are said; the checkout adds the one that is picked. */}
+            {cart.deliveryFee === 0 ? (
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">משלוח</span>
+                <span className="tabular-nums">חינם</span>
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">משלוח</span>
+                  <span>לפי הבחירה בקופה</span>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  עד הבית <span className="tabular-nums">{formatPrice(cart.deliveryFee)}</span>
+                  {" · "}
+                  <span className="text-success font-medium">{freeCollectionNote(cartHasBulky(cart.items))}</span>
+                </p>
+              </>
             )}
           </div>
           <Separator className="my-3" />
           <div className="flex justify-between text-base font-bold">
-            <span>סה&quot;כ לתשלום</span>
-            <span className="tabular-nums">{formatPrice(cart.total)}</span>
+            <span>{cart.deliveryFee > 0 ? "סה\"כ לפני משלוח" : "סה\"כ לתשלום"}</span>
+            <span className="tabular-nums">{formatPrice(cart.deliveryFee > 0 ? cart.total - cart.deliveryFee : cart.total)}</span>
           </div>
 
           <Button variant="brand" size="lg" className="mt-4 w-full" asChild>
