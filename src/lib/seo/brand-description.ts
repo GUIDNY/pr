@@ -28,6 +28,27 @@
  */
 const TAIL = "מחירים מעודכנים, משלוח עד הבית ואחריות יבואן רשמי.";
 
+/**
+ * The title of a brand page.
+ *
+ * It was the bare name — "AEG" — which in a search result reads as the
+ * manufacturer's own site and says nothing about what the page is. Search
+ * Console, 28 days to 12 November, on brand names alone: "אלקטרולוקס" 78
+ * impressions, "בלומברג" 28, "electrolux" 23, "beko" 19, "asko" 14 — no
+ * clicks on any of them.
+ *
+ * The count is the live one the page already shows, so the title says the
+ * one thing a shop's brand page can say that the manufacturer's cannot:
+ * how many of them are on the shelf. A brand with nothing live keeps its
+ * bare name, and so does one whose name is too long to leave room for the
+ * site name after it.
+ */
+export function brandPageTitle(name: string, total: number): string {
+  if (total <= 0) return name;
+  const title = `${name} – ${total.toLocaleString("he-IL")} מוצרים במלאי`;
+  return title.length <= 50 ? title : name;
+}
+
 export function brandMetaDescription(name: string, total: number, categories: readonly string[] = []): string {
   const what =
     total > 0

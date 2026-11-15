@@ -8,7 +8,7 @@
  *   npm run check:category-seo
  */
 import { categoryMetaDescription, categoryPageTitle } from "../src/lib/seo/category-description";
-import { brandMetaDescription } from "../src/lib/seo/brand-description";
+import { brandMetaDescription, brandPageTitle } from "../src/lib/seo/brand-description";
 
 let failures = 0;
 function is(name: string, got: unknown, want: unknown) {
@@ -50,6 +50,13 @@ is("an empty brand still says something", brandMetaDescription("NOVIS", 0), "מ�
 const longBrand = brandMetaDescription("Schaub Lorenz International", 1234, ["נגני בלוריי, DVD וסטרימרים", "מיקרופונים ומערכות אלחוטיות", "מקררים ומקפיאים אינטגרליים", "מכונת כביסה משולבת מייבש"]);
 is("long names drop categories rather than overflow", longBrand.length <= 160, true);
 is("…and never end on a cut-off word", longBrand.endsWith("ואחריות יבואן רשמי."), true);
+
+console.log("\nbrand titles");
+is("says how many are on the shelf", brandPageTitle("AEG", 56), "AEG – 56 מוצרים במלאי");
+is("a thousand gets its separator", brandPageTitle("Sauter", 1234), "Sauter – 1,234 מוצרים במלאי");
+is("nothing live, nothing claimed", brandPageTitle("NOVIS", 0), "NOVIS");
+is("a very long name stays as it was", brandPageTitle("Schaub Lorenz International Home Appliances", 12), "Schaub Lorenz International Home Appliances");
+is("leaves room for the site name", brandPageTitle("Morphy Richards", 87).length <= 50, true);
 
 console.log(failures === 0 ? "\nall good" : `\n${failures} failing`);
 process.exit(failures === 0 ? 0 : 1);

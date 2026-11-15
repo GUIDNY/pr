@@ -4,7 +4,7 @@ import { notFound, permanentRedirect } from "next/navigation";
 import { BrandPageView } from "@/components/brand/brand-page-view";
 import { JsonLd } from "@/components/seo/json-ld";
 import { brandGraphSchema, breadcrumbSchema } from "@/lib/schema";
-import { brandMetaDescription } from "@/lib/seo/brand-description";
+import { brandMetaDescription, brandPageTitle } from "@/lib/seo/brand-description";
 import { getBrandTopCategories } from "@/lib/queries/categories";
 import { getProductsByBrandSlug, getCurrentSlugForLegacyBrandSlug, LISTING_MIN_PRODUCTS } from "@/lib/queries/products";
 
@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     // The brand's own slug, never the one that was asked for: a page reached
     // through an old address must not declare that old address canonical.
     ...shareMetadata({
-      title: brand.name,
+      title: brandPageTitle(brand.name, total),
       /* Not brand.description: it is a tagline — "הנדסה גרמנית מדויקת,
          מאז 1886" is 29 characters, and Google writes its own snippet
          rather than show one that short. The generated line says what the
