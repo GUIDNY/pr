@@ -143,7 +143,7 @@ export function CookieNotice() {
       role="region"
       aria-label="בחירת הסכמה לעוגיות מדידה ופרסום"
       onClick={onBackgroundClick}
-      className="fixed inset-x-0 bottom-0 z-[55] px-3 pb-3 sm:px-4 sm:pb-4"
+      className="fixed inset-x-0 bottom-0 z-[55] px-2 pb-2 sm:px-4 sm:pb-4"
     >
       {/* A card, not a strip. The strip read as small print — one grey line
           across the bottom that most people scrolled past or answered
@@ -160,18 +160,30 @@ export function CookieNotice() {
           was never given — and then the data it collects is the shop's
           liability rather than its asset. The yes is allowed to be the
           brand colour and to come first; it is not allowed to be the only
-          button that looks like a button. */}
-      <div className="bg-background border-border mx-auto flex max-w-3xl flex-col gap-3 rounded-2xl border p-4 shadow-[0_8px_40px_rgb(0_0_0/0.18)] sm:flex-row sm:items-center sm:gap-5 sm:p-5">
+          button that looks like a button.
+
+          On a phone it is compact (card-2, 16 November): the card took
+          about a third of a 390px screen, over the price and the buy
+          button of the very page a paid click landed on. Below sm the icon
+          goes, the purpose is said in one short line, and the buttons are
+          40px instead of 44px. Everything that makes the consent valid
+          stays on the phone too: the question, the purpose (measurement
+          and advertising), which tools, that it can be changed, the policy
+          link, and two equal one-tap buttons. */}
+      <div className="bg-background border-border mx-auto flex max-w-3xl flex-col gap-2 rounded-2xl border p-3 shadow-[0_8px_40px_rgb(0_0_0/0.18)] sm:flex-row sm:items-center sm:gap-5 sm:p-5">
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <span className="bg-brand/10 text-brand flex size-10 shrink-0 items-center justify-center rounded-full" aria-hidden="true">
+          <span className="bg-brand/10 text-brand hidden size-10 shrink-0 items-center justify-center rounded-full sm:flex" aria-hidden="true">
             <Cookie className="size-5" />
           </span>
           <div className="min-w-0">
-            <p className="text-[15px] font-bold leading-snug sm:text-base">מאשרים לנו ללמוד מהגלישה באתר?</p>
-            <p className="text-muted-foreground mt-0.5 text-[13px] leading-snug sm:text-sm">
+            <p className="text-[14px] font-bold leading-snug sm:text-base">מאשרים לנו ללמוד מהגלישה באתר?</p>
+            <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug sm:hidden">
+              לשיפור האתר ולפרסום מותאם. בלי אישור — לא נטען שום כלי מדידה.
+            </p>
+            <p className="text-muted-foreground mt-0.5 hidden text-sm leading-snug sm:block">
               זה עוזר לנו לשפר את האתר ולהציג לכם פרסומות רלוונטיות. בלי אישור — לא נטען שום כלי מדידה.
             </p>
-            <p className="text-muted-foreground/80 mt-1 text-[11px] leading-snug sm:text-xs">
+            <p className="text-muted-foreground/80 mt-0.5 text-[11px] leading-snug sm:mt-1 sm:text-xs">
               Google Analytics, Microsoft Clarity ו־Meta Pixel · אפשר לשנות בכל רגע ·{" "}
               <Link href="/privacy" className="text-brand underline underline-offset-2">
                 מדיניות פרטיות
@@ -183,7 +195,7 @@ export function CookieNotice() {
           <button
             type="button"
             onClick={accept}
-            className="bg-brand text-brand-foreground hover:bg-brand-hover flex h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-5 text-[15px] font-bold shadow-sm transition sm:w-36 sm:flex-none"
+            className="bg-brand text-brand-foreground hover:bg-brand-hover flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl px-5 text-[15px] font-bold shadow-sm sm:h-11 transition sm:w-36 sm:flex-none"
           >
             <Check className="size-4" strokeWidth={3} aria-hidden="true" />
             מאשר/ת
@@ -191,7 +203,7 @@ export function CookieNotice() {
           <button
             type="button"
             onClick={decline}
-            className="bg-muted text-foreground hover:bg-muted/70 border-border flex h-11 flex-1 items-center justify-center rounded-xl border px-5 text-[15px] font-semibold transition sm:w-36 sm:flex-none"
+            className="bg-muted text-foreground hover:bg-muted/70 border-border flex h-10 flex-1 items-center justify-center rounded-xl border px-5 text-[15px] font-semibold sm:h-11 transition sm:w-36 sm:flex-none"
           >
             לא, תודה
           </button>
@@ -202,5 +214,6 @@ export function CookieNotice() {
 }
 
 /* Bump when the wording or the look changes, so the log can tell the two
-   apart. "strip-1" is everything before 6 November. */
-const BANNER_VARIANT = "card-1";
+   apart. "strip-1" is everything before 6 November; "card-1" is the card
+   until the compact phone layout of 16 November. */
+const BANNER_VARIANT = "card-2";

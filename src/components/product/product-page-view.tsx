@@ -54,6 +54,8 @@ import { ColorVariantPicker } from "@/components/product/color-variant-picker";
 import { ConsultSection } from "@/components/product/consult-section";
 import { ProductRail } from "@/components/home/product-rail";
 import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
+import { SpecChips, ProductTitle } from "@/components/product/pdp-jump";
+import { PDP_TABS_ID, pdpTabTriggerId } from "@/lib/pdp-tabs";
 import {
   getProductBySlug,
   getRelatedProducts,
@@ -78,7 +80,7 @@ import type { StockStatus } from "@/lib/enums";
 import { BUSINESS } from "@/lib/business";
 import { maxCartQuantity } from "@/lib/cart-merge";
 import { isSellableNow } from "@/lib/inventory/availability";
-import { needsPaidInstallation } from "@/lib/installation";
+import { needsPaidInstallation, INSTALLATION_NOT_INCLUDED, INSTALLATION_ARRANGED_SEPARATELY } from "@/lib/installation";
 
 /**
  * The product page itself, rendered identically for everyone except an admin.
@@ -525,7 +527,7 @@ export async function ProductPageView({
             {isAdminViewer ? (
               <ProductTitleEditor productId={product.id} title={product.title} />
             ) : (
-              <h1 className="mt-1 text-xl leading-snug font-bold sm:text-3xl sm:leading-tight md:text-2xl lg:text-3xl">{product.title}</h1>
+              <ProductTitle title={product.title} />
             )}
             <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-sm">
               <span>מק&quot;ט: {product.sku}</span>
@@ -540,16 +542,7 @@ export async function ProductPageView({
             {/* The four facts an appliance is bought on — capacity, spin,
                 energy class, the like — as chips under the title, so they
                 are read before the price rather than found in a tab. */}
-            {keySpecs.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-1.5">
-                {keySpecs.map((row) => (
-                  <li key={row.label} className="bg-muted text-foreground rounded-lg px-2.5 py-1 text-xs">
-                    <span className="text-muted-foreground">{row.label}: </span>
-                    <span className="font-semibold">{row.value}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <SpecChips chips={keySpecs.map((row) => ({ label: row.label, value: String(row.value) }))} />
           </div>
 
           {isAdminViewer ? (
@@ -628,9 +621,19 @@ export async function ProductPageView({
               <div className="flex items-start gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-3.5 text-amber-950 dark:border-amber-500/60 dark:bg-amber-950/30 dark:text-amber-100">
                 <Wrench className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
                 <div className="text-sm leading-relaxed">
-                  <p className="font-bold">התקנה בתוספת תשלום</p>
+                  <p className="font-bold">{INSTALLATION_NOT_INCLUDED}</p>
+                  {/* No amount here because there is none to give: the
+                      installer is arranged per order and the shop holds no
+                      price list for it. What the customer can be told is
+                      when they will hear the price — before anything is
+                      installed or charged — and how to hear it now. */}
                   <p className="mt-0.5">
-                    ההתקנה אינה כלולה במחיר. לאחר ההזמנה ניצור איתכם קשר לתיאום ההתקנה ולפרטי העלות.
+                    {INSTALLATION_ARRANGED_SEPARATELY} את העלות נמסור לכם בטלפון לפני ביצוע ההתקנה. רוצים לדעת
+                    את המחיר לפני ההזמנה? התקשרו{" "}
+                    <a href={BUSINESS.phoneHref} className="font-semibold underline underline-offset-2">
+                      {BUSINESS.phone}
+                    </a>
+                    .
                   </p>
                 </div>
               </div>
@@ -721,7 +724,7 @@ export async function ProductPageView({
       </div>
 
       {/* info tabs */}
-      <div className="mt-6">
+      <div id={PDP_TABS_ID} className="mt-6 scroll-mt-28">
         <Tabs defaultValue="overview">
           <StickyTabsBar>
             <div className="overflow-x-auto">
@@ -744,6 +747,7 @@ export async function ProductPageView({
                 ].map((tab) => (
                   <TabsTrigger
                     key={tab.value}
+                    id={pdpTabTriggerId(tab.value)}
                     value={tab.value}
                     className="text-muted-foreground data-active:text-foreground hover:text-foreground shrink-0 rounded-none border-0 bg-transparent px-0.5 pb-3 text-xs shadow-none data-active:bg-transparent data-active:font-bold data-active:shadow-none after:bg-brand after:h-0.5 sm:px-1 sm:text-sm"
                   >
@@ -913,6 +917,20 @@ export async function ProductPageView({
                 <p className="font-bold">מדיניות החזרות</p>
                 <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
                   ניתן להחזיר את המוצר באריזתו המקורית בהתאם לתקנון האתר.
+                </p>
+              </div>
+            </div>
+            {/* On every product, not only the categories that carry the
+                amber notice above the buy button: no price includes
+                installation (lib/installation.ts). */}
+            <div className="border-border bg-card flex items-start gap-3.5 rounded-xl border p-4 shadow-sm">
+              <span className="bg-brand/10 text-brand flex size-10 shrink-0 items-center justify-center rounded-full">
+                <Wrench className="size-5" />
+              </span>
+              <div>
+                <p className="font-bold">התקנה</p>
+                <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
+                  {INSTALLATION_NOT_INCLUDED} {INSTALLATION_ARRANGED_SEPARATELY}
                 </p>
               </div>
             </div>
