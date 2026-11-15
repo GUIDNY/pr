@@ -181,6 +181,34 @@ function money(amount: number): string {
 
 export const GOOGLE_MERCHANT_FEED_PATH = "/feeds/google-merchant.xml";
 
+/* How long the CDN may answer for the feed without asking the database.
+
+   An hour, and nothing after it. This used to read
+   "s-maxage=3600, stale-while-revalidate=86400", and the second half is
+   wrong for the one reader this file is written for. stale-while-revalidate
+   means: once the hour is up, hand the next caller the OLD copy and rebuild
+   behind their back. That is a good trade for a page a thousand people open
+   — one of them gets a slightly old page and the rest get a fresh one. Google
+   fetches this feed once a day. Unless something else happened to ask in
+   the hour before, it is "the next caller" — handed the copy that the
+   previous request caused to be built, which for a file nobody else reads
+   is its own fetch of the day before. Up to a day behind, on a catalogue
+   whose stock is synced twice a day:
+   an item that sold out yesterday afternoon is advertised until tomorrow
+   morning, while the page it links to already says otherwise. A feed that
+   disagrees with its landing page is what Google disapproves items for.
+
+   Without it, a fetch after the hour waits for a real render — measured at
+   about four seconds for 2,104 items on 15 November, which no fetcher minds
+   — and gets what the storefront shows now.
+
+   The hour stays, and should not be shortened without pricing it: every
+   render reads every live product with its description and specs out of the
+   database, and database egress is the quota that ran out in September
+   (CLAUDE.md, "Supabase counts database egress"). The hour is the cap on
+   how often anybody can make that happen. */
+export const GOOGLE_MERCHANT_FEED_CACHE_CONTROL = "public, s-maxage=3600";
+
 /** Exactly what the renderer needs from a product — see the route's select. */
 export type FeedProduct = {
   sku: string;
