@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { ATTRIBUTION_COOKIE, ATTRIBUTION_COOKIE_DAYS, parseAttribution, type Attribution, type AttributionTouch } from "@/lib/attribution";
+import {
+  ATTRIBUTION_COOKIE,
+  ATTRIBUTION_COOKIE_DAYS,
+  nextAttribution,
+  parseAttribution,
+  type Attribution,
+  type AttributionTouch,
+} from "@/lib/attribution";
 
 /**
  * Writes the bt_attr cookie — see lib/attribution.ts for what it holds.
@@ -136,15 +143,11 @@ export function AttributionCapture() {
     try {
       const touch = touchFromPage();
       if (!touch) return;
-      const existing = readCookie();
-      if (!existing) {
-        writeCookie({ first: touch });
-        return;
-      }
-      /* A later arrival from somewhere real replaces the last touch. A
-         direct visit does not: typing the address after a campaign click is
-         still the campaign's sale. */
-      if (touch.source !== "direct") writeCookie({ first: existing.first, last: touch });
+      /* Which touch this becomes, and what is kept of the one it replaces,
+         is nextAttribution's rule — in lib/attribution.ts, where it is
+         tested. */
+      const next = nextAttribution(readCookie(), touch);
+      if (next) writeCookie(next);
     } catch {
       /* A cookie that cannot be written is not a problem the visitor should
          ever see. */
