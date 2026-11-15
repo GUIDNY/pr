@@ -37,3 +37,27 @@ export function maxPaymentsFor(totalShekels: number): number {
 export function instalmentsOffered(totalShekels: number): boolean {
   return maxPaymentsFor(totalShekels) > 1;
 }
+
+/**
+ * The same table, said to the customer before the checkout: on the product
+ * page, beside the price.
+ *
+ * It was shown nowhere — the number of payments first appeared as a field on
+ * Pelecard's card form, after the name, the address and the delivery choice.
+ * A visitor reading a 7,000 ₪ fridge page for three minutes had no way to
+ * know it could be split at all.
+ *
+ * Worded as what the card form will offer and nothing more. It does NOT say
+ * "ללא ריבית": whether a given number of payments is a credit deal is set by
+ * the shop's agreement with its acquirer (see MinPaymentsForCredit above),
+ * not by this file, and a promise about interest is not ours to print.
+ * "בכרטיס אשראי" because the field exists on the card tab only.
+ *
+ * Called with the product's own price. An order adds delivery to that, which
+ * can only move it up the table, so the number here is never more than the
+ * form will show.
+ */
+export function instalmentsNote(priceShekels: number): string | null {
+  const max = maxPaymentsFor(priceShekels);
+  return max > 1 ? `אפשר לשלם בעד ${max} תשלומים בכרטיס אשראי` : null;
+}
