@@ -24,3 +24,31 @@ export const BLACK_NOVEMBER_ROW_MARKS = ["BLACK FRIDAY", "בלאק פריידי"
 
 export const BLACK_NOVEMBER_LABEL = "מחיר בלאק נובמבר";
 export const BLACK_NOVEMBER_LIMITED = "לזמן מוגבל";
+
+/**
+ * What the section may say it is a sale *of*, read off the products in it.
+ *
+ * On 16 November every marked row is an LG television, and the owner asked
+ * for the heading to say so. It is derived rather than typed because the
+ * list is the supplier's: the day he marks a Samsung or a fridge, a heading
+ * that still says "LG televisions" is a false statement on the homepage, and
+ * nobody would be editing this file that morning.
+ */
+export function blackNovemberScope(products: { title: string; brandName: string }[]): {
+  headline: string;
+  note: string | null;
+} {
+  const brands = new Set(products.map((p) => p.brandName));
+  const allTelevisions = products.length > 0 && products.every((p) => p.title.trim().startsWith("טלוויזי"));
+  const brand = brands.size === 1 ? [...brands][0] : null;
+
+  if (allTelevisions && brand) {
+    return {
+      headline: `טלוויזיות ${brand} במחירי בלאק נובמבר`,
+      note: `בינתיים המבצע על טלוויזיות ${brand} בלבד.`,
+    };
+  }
+  if (allTelevisions) return { headline: "טלוויזיות במחירי בלאק נובמבר", note: null };
+  if (brand) return { headline: `מוצרי ${brand} במחירי בלאק נובמבר`, note: null };
+  return { headline: "מוצרים נבחרים במחירי בלאק נובמבר", note: null };
+}

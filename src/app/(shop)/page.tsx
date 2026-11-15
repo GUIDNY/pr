@@ -134,7 +134,7 @@ export default async function HomePage() {
             straight under the banner at every width. Renders nothing when
             no row carries the mark, so it ends when the price list says so. */}
         <div className="order-1">
-          <BlackNovember products={blackNovember} />
+          <BlackNovember products={blackNovember} viewAllHref="/black-november" />
         </div>
 
         <div className="order-5">
