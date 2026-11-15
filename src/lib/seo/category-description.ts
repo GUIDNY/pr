@@ -23,8 +23,39 @@ export type CategoryFacts = {
 
 const price = (n: number) => `${Math.round(n).toLocaleString("he-IL")} ₪`;
 
-export function categoryPageTitle(name: string, page = 1): string {
-  return page > 1 ? `${name} – עמוד ${page}` : name;
+/**
+ * The title of a category page.
+ *
+ * Page 1 used to be the bare name — "מיקרוגלים" — while the description
+ * under it already said how many models and from what price. In a search
+ * result the title is the line that is read and the description is the
+ * line that is skimmed, and Search Console (28 days to 12 November) had
+ * the category pages at hundreds of impressions and no clicks on exactly
+ * these words: "מיקרוגלים" 215 and 0, "טוסטר אובן" 176 and 0, "טלוויזיה"
+ * 250 and 0. Every shop on the first page for them says more than the
+ * name in its title.
+ *
+ * So the same two live numbers go into the title, and only those: nothing
+ * typed in, no "מבצע" that is not one. It will not move a page from
+ * position 50 by itself — that is a question of who links to the shop —
+ * but it is what a searcher sees on the day the page does get there.
+ *
+ * Kept under ~50 characters so the root layout's " | Buy Today" still fits
+ * in a result; a long category name keeps the count and drops the price,
+ * and a very long one stays as it was. From page 2 the title is the page
+ * number, as before, so fifty paginated pages are not fifty identical
+ * titles.
+ */
+const TITLE_BUDGET = 50;
+
+export function categoryPageTitle(name: string, page = 1, facts?: CategoryFacts): string {
+  if (page > 1) return `${name} – עמוד ${page}`;
+  if (!facts || facts.count <= 0) return name;
+  const models = `${name} – ${facts.count.toLocaleString("he-IL")} דגמים`;
+  const withPrice =
+    facts.minPrice !== null && facts.minPrice > 0 ? `${models} החל מ-${price(facts.minPrice)}` : models;
+  if (withPrice.length <= TITLE_BUDGET) return withPrice;
+  return models.length <= TITLE_BUDGET ? models : name;
 }
 
 export function categoryMetaDescription(name: string, facts: CategoryFacts, page = 1): string {
