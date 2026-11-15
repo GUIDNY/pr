@@ -4,9 +4,11 @@ import { FinderTile } from "@/components/home/finder-tile";
 import { CategoryGrid } from "@/components/home/category-grid-mobile";
 import { MallPromo } from "@/components/home/mall-promo";
 import { ProductRail } from "@/components/home/product-rail";
+import { BlackNovember } from "@/components/home/black-november";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
 import {
+  getBlackNovemberProducts,
   getDeals,
   getBestSellers,
   getFeaturedProducts,
@@ -52,6 +54,7 @@ export default async function HomePage() {
     showcases,
     departmentCounts,
     banners,
+    blackNovember,
   ] = await Promise.all([
       getHomepageSection("hero"),
       getDeals(8),
@@ -64,6 +67,7 @@ export default async function HomePage() {
       getDepartmentShowcases({ departments: 8, perDepartment: 6 }),
       getDepartmentCounts(),
       getPromoBanners(),
+      getBlackNovemberProducts(),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
@@ -124,6 +128,13 @@ export default async function HomePage() {
             banners={banners}
             phoneSlot={<PublicSinglesDayBanner inset className="mb-3" />}
           />
+        </div>
+
+        {/* בלאק נובמבר: the products the supplier marked in the price list,
+            straight under the banner at every width. Renders nothing when
+            no row carries the mark, so it ends when the price list says so. */}
+        <div className="order-1">
+          <BlackNovember products={blackNovember} />
         </div>
 
         <div className="order-5">
