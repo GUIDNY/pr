@@ -15,10 +15,13 @@
 //
 // Run: npx tsx scripts/check-google-feed.ts
 import { renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
-import { readFileSync } from "node:fs";
-import { GOOGLE_MERCHANT_FEED_CACHE_CONTROL } from "../src/lib/feeds/google-merchant";
 import { SITE_URL } from "../src/lib/site-url";
 import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE, HANDLING_DAYS, TRANSIT_DAYS, STANDARD_DELIVERY_DAYS } from "../src/lib/delivery";
+
+// For the cache-header checks at the bottom. Imported here, apart from the
+// renderer's import above, so the two are not one line to edit.
+import { readFileSync } from "node:fs";
+import { GOOGLE_MERCHANT_FEED_CACHE_CONTROL } from "../src/lib/feeds/google-merchant";
 
 function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
   return {
