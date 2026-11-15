@@ -56,7 +56,9 @@ export function BlackNovember({ products }: { products: ProductCardData[] }) {
               key={p.id}
               product={p}
               ribbon={BLACK_NOVEMBER_LABEL}
-              className="w-[calc(50%-18px)] shrink-0 snap-start sm:w-[calc(33.333%-11px)] lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
+              // text-foreground: the panel sets white text for its heading, and
+              // a card is a white surface that would otherwise inherit it.
+              className="text-foreground w-[calc(50%-18px)] shrink-0 snap-start sm:w-[calc(33.333%-11px)] lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
             />
           ))}
         </div>
