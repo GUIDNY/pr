@@ -4,7 +4,8 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Minus, Plus, ShoppingCart, Trash2, Truck, X } from "lucide-react";
-import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
+import { FREE_DELIVERY_THRESHOLD, freeCollectionNote } from "@/lib/delivery";
+import { cartHasBulky } from "@/lib/bulky";
 import {
   Sheet,
   SheetContent,
@@ -213,11 +214,20 @@ export function CartDrawer() {
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">משלוח</span>
+                  <span className="text-muted-foreground">{cart.deliveryFee === 0 ? "משלוח" : "משלוח עד הבית"}</span>
                   <span className="tabular-nums">
                     {cart.deliveryFee === 0 ? "חינם" : formatPrice(cart.deliveryFee)}
                   </span>
                 </div>
+                {/* The charge above is the door's. Said here, where the total
+                    first includes it, that collecting is free — see
+                    freeCollectionNote for the three baskets that left at
+                    exactly this line. */}
+                {cart.deliveryFee > 0 && (
+                  <p className="text-success text-xs font-medium">
+                    {freeCollectionNote(cartHasBulky(cart.items))} · בוחרים בקופה
+                  </p>
+                )}
               </div>
               <Separator className="my-3" />
               <div className="flex justify-between text-base font-bold">

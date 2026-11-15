@@ -10,6 +10,8 @@ import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { useCartStore } from "@/stores/cart-store";
 import { formatPrice } from "@/lib/format";
+import { freeCollectionNote } from "@/lib/delivery";
+import { cartHasBulky } from "@/lib/bulky";
 import {
   updateCartItemAction,
   removeCartItemAction,
@@ -143,9 +145,15 @@ export default function CartPage() {
               </div>
             )}
             <div className="flex justify-between">
-              <span className="text-muted-foreground">משלוח</span>
+              <span className="text-muted-foreground">{cart.deliveryFee === 0 ? "משלוח" : "משלוח עד הבית"}</span>
               <span className="tabular-nums">{cart.deliveryFee === 0 ? "חינם" : formatPrice(cart.deliveryFee)}</span>
             </div>
+            {/* As in the cart drawer: the fee is the door's, collecting is free. */}
+            {cart.deliveryFee > 0 && (
+              <p className="text-success text-xs font-medium">
+                {freeCollectionNote(cartHasBulky(cart.items))} · בוחרים בקופה
+              </p>
+            )}
           </div>
           <Separator className="my-3" />
           <div className="flex justify-between text-base font-bold">
