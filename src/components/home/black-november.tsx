@@ -13,8 +13,9 @@ import { BLACK_NOVEMBER_LABEL, BLACK_NOVEMBER_LIMITED } from "@/lib/campaigns/bl
  *
  * One row that scrolls sideways at every width, like the department rails:
  * fifteen televisions two to a row would be eight screens of a phone before
- * the first department. A little over two cards show on a phone, so the cut
- * one says there is more.
+ * the first department. On a phone a card is a little over half the panel:
+ * wide enough for the ribbon to clear the heart and for a television's title
+ * to say which one it is, with the next card cut so it says there is more.
  *
  * The colours are fixed rather than taken from the theme, on purpose — the
  * panel is black in light mode and dark mode alike.
@@ -58,7 +59,7 @@ export function BlackNovember({ products }: { products: ProductCardData[] }) {
               ribbon={BLACK_NOVEMBER_LABEL}
               // text-foreground: the panel sets white text for its heading, and
               // a card is a white surface that would otherwise inherit it.
-              className="text-foreground w-[calc(50%-18px)] shrink-0 snap-start sm:w-[calc(33.333%-11px)] lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
+              className="text-foreground w-[58%] shrink-0 snap-start sm:w-[calc(33.333%-11px)] lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
             />
           ))}
         </div>
