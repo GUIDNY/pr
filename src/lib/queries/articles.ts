@@ -112,7 +112,38 @@ export async function getArticleBySlug(slug: string) {
 // forget when a price changes. Walks up rather than down because a
 // department's guide generalises to its leaves and a leaf's does not
 // generalise to its siblings.
+/* Leaves whose guide lives on a SIBLING, not on a parent. The three
+   dishwasher shelves sit side by side under "laundry", and the one
+   dishwasher guide points at dishwasher-standard — so walking up from
+   fully-integrated (52 models) or semi-integrated (6) reached "laundry",
+   found no guide there, and showed none. The guide itself covers all three
+   ("אינטגרלי מלא, חצי אינטגרלי או עומד חופשי?"), which is the case the
+   comment above makes for one guide over four. The order is: a guide of
+   the leaf's own, then the sibling's, then the usual walk up — so a guide
+   written for one of these leaves later wins, and a department-wide
+   "laundry" guide, if one is ever written, does not displace the
+   dishwasher one. */
+const GUIDE_FROM_SIBLING: Record<string, string> = {
+  "dishwasher-fully-integrated": "dishwasher-standard",
+  "dishwasher-semi-integrated": "dishwasher-standard",
+};
+
 export async function getArticleByCategorySlug(categorySlug: string) {
+  const sibling = GUIDE_FROM_SIBLING[categorySlug];
+  if (sibling) {
+    const own = await db.article.findFirst({
+      where: { relatedCategorySlug: categorySlug, isPublished: true },
+      orderBy: { publishedAt: "desc" },
+      select: { slug: true, title: true, excerpt: true },
+    });
+    if (own) return own;
+    const shared = await findGuideWalkingUp(sibling);
+    if (shared) return shared;
+  }
+  return findGuideWalkingUp(categorySlug);
+}
+
+async function findGuideWalkingUp(categorySlug: string) {
   let slug: string | null = categorySlug;
   // Bounded: a cycle in parentId would otherwise spin here forever, and the
   // tree is three deep.
