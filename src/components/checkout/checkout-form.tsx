@@ -703,6 +703,8 @@ export function CheckoutForm({
               <Label htmlFor="fullName" className="mb-1.5">שם מלא</Label>
               <Input
                 id="fullName"
+                name="name"
+                autoComplete="name"
                 value={form.fullName}
                 onChange={(e) => update("fullName", e.target.value)}
                 onBlur={rememberContact}
@@ -713,7 +715,10 @@ export function CheckoutForm({
               <Label htmlFor="email" className="mb-1.5">אימייל</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                inputMode="email"
+                autoComplete="email"
                 value={form.email}
                 onChange={(e) => update("email", e.target.value)}
                 onBlur={rememberContact}
@@ -724,7 +729,10 @@ export function CheckoutForm({
               <Label htmlFor="phone" className="mb-1.5">טלפון</Label>
               <Input
                 id="phone"
+                name="tel"
                 type="tel"
+                inputMode="tel"
+                autoComplete="tel"
                 value={form.phone}
                 onChange={(e) => update("phone", e.target.value)}
                 onBlur={rememberContact}
@@ -881,15 +889,15 @@ export function CheckoutForm({
               </div>
               <div className="col-span-2 sm:col-span-2">
                 <Label className="mb-1.5">רחוב</Label>
-                <Input value={form.street} onChange={(e) => update("street", e.target.value)} />
+                <Input name="street" autoComplete="address-line1" value={form.street} onChange={(e) => update("street", e.target.value)} />
               </div>
               <div>
                 <Label className="mb-1.5">מספר בית</Label>
-                <Input value={form.houseNo} onChange={(e) => update("houseNo", e.target.value)} />
+                <Input name="houseNo" inputMode="numeric" value={form.houseNo} onChange={(e) => update("houseNo", e.target.value)} />
               </div>
               <div>
                 <Label className="mb-1.5">דירה (אופציונלי)</Label>
-                <Input value={form.apartment} onChange={(e) => update("apartment", e.target.value)} />
+                <Input name="apartment" autoComplete="address-line2" value={form.apartment} onChange={(e) => update("apartment", e.target.value)} />
               </div>
               <div className="col-span-2 sm:col-span-4">
                 <Label className="mb-1.5">הערות למשלוח</Label>
