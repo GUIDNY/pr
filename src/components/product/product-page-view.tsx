@@ -13,7 +13,9 @@ import {
   BUSINESS_DAY_NAMES,
   deliveryPromiseText,
   LOCAL_DELIVERY_NOTE,
+  freeCollectionNote,
 } from "@/lib/delivery";
+import { isBulkyCategory } from "@/lib/bulky";
 import { RETURN_WINDOW_DAYS, cancellationFee } from "@/lib/returns-policy";
 import {
   Breadcrumb,
@@ -679,6 +681,14 @@ export async function ProductPageView({
                       <span className="text-muted-foreground">
                         {" "}
                         · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · {deliveryPromiseText(product)} · {LOCAL_DELIVERY_NOTE}
+                      </span>
+                      {/* The fee is the door's; collecting is free, and a
+                          product under the threshold is the one whose buyer
+                          needs to hear it before the basket does the sum. */}
+                      <span className="text-success block font-medium">
+                        {freeCollectionNote(
+                          isBulkyCategory(product.category.slug, product.category.parent?.slug ?? null),
+                        )}
                       </span>
                     </>
                   )}

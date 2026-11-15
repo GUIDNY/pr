@@ -188,6 +188,31 @@ export function computeDeliveryFee(subtotal: number, method: DeliveryMethod = "D
 }
 
 /**
+ * The sentence that goes beside a delivery charge: collecting costs nothing.
+ *
+ * A basket under the threshold was shown "משלוח 40 ₪" and a total that
+ * included it — in the cart drawer, on the cart page and on the product
+ * page — and nowhere before the checkout was it said that a collection
+ * point and the shop's own counter are both free. computeDeliveryFee above
+ * quotes the door on purpose, as the number to plan for; quoting it with
+ * nothing beside it reads as the only number there is.
+ *
+ * It is where the paid visitors were lost. Between 9 and 14 November three
+ * visits that arrived from a Google ad put something in the basket, and all
+ * three left at the first screen that showed the total with delivery: an
+ * 80 ₪ heater that became 120, 250 that became 290, 340 that became 380 at
+ * the checkout and was abandoned four seconds later. None of them had been
+ * told there was a way to pay 80.
+ *
+ * A bulky basket cannot go to a collection point (lib/bulky.ts), so it is
+ * offered the counter alone — the same two cases the checkout's own radio
+ * group draws, in the checkout's own words.
+ */
+export function freeCollectionNote(hasBulky: boolean): string {
+  return hasBulky ? "איסוף מהסניף — חינם" : "נקודת איסוף או איסוף מהסניף — חינם";
+}
+
+/**
  * Whether this method needs a street address.
  *
  * A pickup point does, which is the part that surprises people: the carrier
