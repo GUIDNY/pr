@@ -221,10 +221,13 @@ export const CUSTOM_LABEL_0_BY_CATEGORY: Record<string, string> = {
 
    For the campaign, not for the shopper — a custom label is never shown.
    In the week of 8–14 November the Shopping campaign bought 496 clicks for
-   ₪462 and almost all of them landed on heaters priced ₪80–450: 408 paid
-   visits, four carts, no order. Nothing in the account could tell a ₪80
-   fan heater from a ₪7,900 refrigerator, so one bid covered both and the
-   budget went where the clicks are cheapest. With the band on every item
+   ₪462, and 231 of those clicks — ₪209, by the account's own per-item
+   report — went to seventeen heaters priced ₪80–450. The other half was
+   spread over some two hundred items at one to three clicks each. On the
+   shop's side that was 408 paid visits, four carts and no order. Nothing
+   in the account could tell a ₪80 fan heater from a ₪7,900 refrigerator,
+   so one bid covered both and close to half the budget went where the
+   clicks are cheapest. With the band on every item
    the campaign can be subdivided by it and bid, or not, per band. Sending
    it changes nothing by itself: a label does nothing until a campaign is
    told to use it.
