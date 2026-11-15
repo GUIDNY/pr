@@ -1,4 +1,5 @@
 import "server-only";
+import { listingOrderBy } from "@/lib/queries/listing-order";
 import { MIN_PUBLIC_PRICE } from "@/lib/inventory/underpriced";
 import { ALWAYS_SELLABLE_BRANDS, STOCK_ONLY_SOURCE_KEYS } from "@/lib/inventory/availability";
 import { cache } from "react";
@@ -451,16 +452,9 @@ export async function getProductsByCategorySlug(
     }));
   }
 
-  const orderBy =
-    opts.sort === "price-asc"
-      ? { price: "asc" as const }
-      : opts.sort === "price-desc"
-        ? { price: "desc" as const }
-        : opts.sort === "newest"
-          ? { createdAt: "desc" as const }
-          : opts.sort === "rating"
-            ? { ratingAvg: "desc" as const }
-            : { isBestSeller: "desc" as const };
+  // Every sort ends on a unique key — see listing-order.ts for the five
+  // refrigerators that were on no page of their own category.
+  const orderBy = listingOrderBy(opts.sort);
 
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 24;
@@ -752,16 +746,9 @@ export async function getProductsByBrandSlug(
   const brand = await db.brand.findUnique({ where: { slug: brandSlug } });
   if (!brand) return { products: [], total: 0, brand: null };
 
-  const orderBy =
-    opts.sort === "price-asc"
-      ? { price: "asc" as const }
-      : opts.sort === "price-desc"
-        ? { price: "desc" as const }
-        : opts.sort === "newest"
-          ? { createdAt: "desc" as const }
-          : opts.sort === "rating"
-            ? { ratingAvg: "desc" as const }
-            : { isBestSeller: "desc" as const };
+  // Every sort ends on a unique key — see listing-order.ts for the five
+  // refrigerators that were on no page of their own category.
+  const orderBy = listingOrderBy(opts.sort);
 
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 24;

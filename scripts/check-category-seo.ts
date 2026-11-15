@@ -8,6 +8,7 @@
  *   npm run check:category-seo
  */
 import { categoryMetaDescription, categoryPageTitle } from "../src/lib/seo/category-description";
+import { listingOrderBy } from "../src/lib/queries/listing-order";
 
 let failures = 0;
 function is(name: string, got: unknown, want: unknown) {
@@ -34,6 +35,19 @@ const long = categoryMetaDescription("מקררים ומקפיאים אינטגר
 is("a long one drops the tail rather than overflow", long.length <= 160, true);
 is("…but keeps the facts", long.startsWith("1,234 דגמי"), true);
 is("price is formatted with a thousands separator", categoryMetaDescription("x", { count: 1, minPrice: 1990, topBrands: [] }).includes("1,990 ₪"), true);
+
+console.log("\nlisting order");
+/* /category/fridge-4-door on 15 November: 139 products, 134 shown across
+   five pages, five on two pages and five on none — because every sort was
+   one key and the default key tied on every row. */
+for (const sort of [undefined, "relevance", "price-asc", "price-desc", "newest", "rating"] as const) {
+  const order = listingOrderBy(sort);
+  is(`${sort ?? "(default)"} ends on a unique key`, order[order.length - 1], { id: "asc" });
+  is(`${sort ?? "(default)"} names each key once`, new Set(order.map((o) => Object.keys(o)[0])).size, order.length);
+}
+is("the default is best sellers, then newest", listingOrderBy(undefined).slice(0, 2), [{ isBestSeller: "desc" }, { createdAt: "desc" }]);
+is("price ascending still leads with price", listingOrderBy("price-asc")[0], { price: "asc" });
+is("price descending still leads with price", listingOrderBy("price-desc")[0], { price: "desc" });
 
 console.log(failures === 0 ? "\nall good" : `\n${failures} failing`);
 process.exit(failures === 0 ? 0 : 1);
