@@ -4,7 +4,7 @@ import { MetaViewContent } from "@/components/analytics/meta-events";
 import { GaViewItem } from "@/components/analytics/ga-events";
 import { ORGANIZATION_ID, SITE_NAME, breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
-import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench } from "lucide-react";
+import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench, CreditCard } from "lucide-react";
 import {
   FREE_DELIVERY_THRESHOLD,
   computeDeliveryFee,
@@ -16,6 +16,7 @@ import {
   freeCollectionNote,
 } from "@/lib/delivery";
 import { isBulkyCategory } from "@/lib/bulky";
+import { instalmentsNote } from "@/lib/pelecard/instalments";
 import { RETURN_WINDOW_DAYS, cancellationFee } from "@/lib/returns-policy";
 import {
   Breadcrumb,
@@ -607,6 +608,12 @@ export async function ProductPageView({
                 installmentMonths={product.installmentMonths}
                 size="lg"
               />
+              {instalmentsNote(product.price) && (
+                <p className="text-muted-foreground -mt-2 flex items-center gap-1.5 text-sm">
+                  <CreditCard className="size-4 shrink-0" aria-hidden="true" />
+                  {instalmentsNote(product.price)}
+                </p>
+              )}
               <FriendPriceLine price={product.price} />
             </div>
           )}
