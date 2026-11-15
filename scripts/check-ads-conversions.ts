@@ -6,8 +6,8 @@
  * of the clock change, the row sent for an order, gclid precedence, and the
  * uploader staying off until every credential is present.
  */
-import { adsApiConfig, adsDateTime, conversionRow } from "../src/lib/analytics/google-ads-conversions";
-import { gclidOf } from "../src/lib/attribution";
+import { adsApiConfig, adsDateTime, conversionRow, pendingConversionWhere } from "../src/lib/analytics/google-ads-conversions";
+import { adClickOf, gclidOf } from "../src/lib/attribution";
 
 let failed = 0;
 const is = (name: string, got: unknown, want: unknown) => {
@@ -22,7 +22,7 @@ is("midnight is 00, not 24", adsDateTime(new Date("2026-11-10T22:00:05Z")), "202
 
 is(
   "row",
-  conversionRow({ gclid: "CjwK", createdAt: new Date("2026-11-10T12:44:30Z"), total: 1529, orderNumber: "PR-1" }),
+  conversionRow({ click: { gclid: "CjwK" }, createdAt: new Date("2026-11-10T12:44:30Z"), total: 1529, orderNumber: "PR-1" }),
   { gclid: "CjwK", conversionDateTime: "2026-11-10 14:44:30+02:00", conversionValue: 1529, currencyCode: "ILS", orderId: "PR-1" },
 );
 
@@ -31,6 +31,30 @@ is("gclid: last touch first", gclidOf({ first: { ...touch, gclid: "A" }, last: {
 is("gclid: falls back to first", gclidOf({ first: { ...touch, gclid: "A" }, last: { ...touch } }), "A");
 is("gclid: none", gclidOf({ first: touch }), null);
 is("gclid: no attribution", gclidOf(null), null);
+
+/* The click a sale is reported against. An ad click from an iPhone often has
+   a gbraid or a wbraid and no gclid, and until this was written such an
+   order was never reported at all. */
+const direct = { source: "direct", medium: "(none)", at: "x" };
+is("click: the gclid column wins", adClickOf("COL", { first: { ...touch, gbraid: "G" } }), { gclid: "COL" });
+is("click: gbraid on the last touch", adClickOf(null, { first: direct, last: { ...touch, gbraid: "G" } }), { gbraid: "G" });
+is("click: wbraid on the first touch", adClickOf(null, { first: { ...touch, wbraid: "W" } }), { wbraid: "W" });
+is("click: the most recent touch first", adClickOf(null, { first: { ...touch, wbraid: "OLD" }, last: { ...touch, gbraid: "NEW" } }), { gbraid: "NEW" });
+is("click: one id, never two", adClickOf(null, { first: { ...touch, gbraid: "G", wbraid: "W" } }), { gbraid: "G" });
+is("click: srsltid is a free listing, not an ad click", adClickOf(null, { first: { source: "google", medium: "shopping", at: "x", srsltid: "S" } }), null);
+is("click: none", adClickOf(null, { first: direct }), null);
+is("click: no attribution", adClickOf(null, null), null);
+is("click: a malformed attribution is not a reason to throw", adClickOf(null, "not json"), null);
+is(
+  "row: a gbraid goes out under its own name, with no gclid key",
+  conversionRow({ click: { gbraid: "G" }, createdAt: new Date("2026-11-10T12:44:30Z"), total: 250, orderNumber: "PR-2" }),
+  { gbraid: "G", conversionDateTime: "2026-11-10 14:44:30+02:00", conversionValue: 250, currencyCode: "ILS", orderId: "PR-2" },
+);
+/* The click-id condition must not be a top-level OR: the uploader spreads
+   this beside its own keys, and a spread replaces a key of the same name. */
+const where = pendingConversionWhere(new Date("2026-11-15T00:00:00Z")) as Record<string, unknown>;
+is("where: no top-level OR to be clobbered", "OR" in where, false);
+is("where: gclid column or a braid on either touch", JSON.stringify(where.AND).match(/gclid|gbraid|wbraid/g)?.sort(), ["gbraid", "gbraid", "gclid", "wbraid", "wbraid"]);
 
 for (const k of Object.keys(process.env)) if (k.startsWith("GOOGLE_ADS_")) delete process.env[k];
 is("off with no credentials", adsApiConfig(), null);
