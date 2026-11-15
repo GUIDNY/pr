@@ -14,7 +14,7 @@
 // ASCII quotes for ס"מ and אינץ', an "A&I" in the body text.
 //
 // Run: npx tsx scripts/check-google-feed.ts
-import { priceBand, renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
+import { priceBand, priceCompetitiveness, renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
 import { SITE_URL } from "../src/lib/site-url";
 import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE, HANDLING_DAYS, TRANSIT_DAYS, STANDARD_DELIVERY_DAYS } from "../src/lib/delivery";
 
@@ -293,6 +293,30 @@ const flattened = toPlainText(rows[1].description!);
 check("html description keeps its text", flattened.includes("נפח שימושי: 326 ליטר"));
 check("html description decodes entities", flattened.includes("A&I") && flattened.includes("5 > 3"));
 check("html description breaks between blocks", /ליטר\n/.test(flattened));
+
+// custom_label_2 against the market benchmark. The eight items the owner
+// approved by hand on 15 November, at the gaps Merchant Center showed, must
+// come out "competitive"; the five excluded ones "overpriced"; the boundary
+// and the no-benchmark cases get nothing.
+check("−6.3% is competitive", priceCompetitiveness(1630, 1740) === "competitive");
+check("−3.2% is competitive", priceCompetitiveness(1990, 2056) === "competitive");
+check("−2.0% is unlabelled", priceCompetitiveness(600, 612.1) === null);
+check("+4.0% is unlabelled", priceCompetitiveness(6400, 6154) === null);
+check("+5.7% is overpriced", priceCompetitiveness(4400, 4163) === "overpriced");
+check("+27.7% is overpriced", priceCompetitiveness(1490, 1167) === "overpriced");
+check("no benchmark, no label", priceCompetitiveness(1000, null) === null);
+check("zero benchmark, no label", priceCompetitiveness(1000, 0) === null);
+{
+  const labelled = renderGoogleMerchantFeed([
+    product({ sku: "CHEAP", price: 900, benchmarkPrice: 1000 }),
+    product({ sku: "DEAR", price: 1100, benchmarkPrice: 1000 }),
+    product({ sku: "NONE", price: 1000 }),
+  ]);
+  check("feed carries competitive", /<g:id>CHEAP<\/g:id>[\s\S]*?<g:custom_label_2>competitive<\/g:custom_label_2>/.test(labelled));
+  check("feed carries overpriced", /<g:id>DEAR<\/g:id>[\s\S]*?<g:custom_label_2>overpriced<\/g:custom_label_2>/.test(labelled));
+  const none = /<item>(?:(?!<\/item>)[\s\S])*<g:id>NONE<\/g:id>[\s\S]*?<\/item>/.exec(labelled)?.[0] ?? "";
+  check("no benchmark sends no custom_label_2", none !== "" && !none.includes("custom_label_2"));
+}
 
 console.log(
   failed === 0
