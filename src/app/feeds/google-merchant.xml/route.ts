@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { renderGoogleMerchantFeed } from "@/lib/feeds/google-merchant";
+import { GOOGLE_MERCHANT_FEED_CACHE_CONTROL, renderGoogleMerchantFeed } from "@/lib/feeds/google-merchant";
 import { specRowsFor, structuredSpecs } from "@/lib/product-specs";
 import { TEST_PRODUCT_SKUS } from "@/lib/test-products";
 
@@ -57,7 +57,9 @@ export async function GET() {
   return new Response(renderGoogleMerchantFeed(rows), {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      // An hour, and no stale copy after it — see the constant for why a
+      // once-a-day fetcher must not be given stale-while-revalidate.
+      "Cache-Control": GOOGLE_MERCHANT_FEED_CACHE_CONTROL,
     },
   });
 }

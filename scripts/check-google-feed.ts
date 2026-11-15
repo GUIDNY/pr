@@ -18,6 +18,11 @@ import { priceBand, renderGoogleMerchantFeed, toPlainText, type FeedProduct } fr
 import { SITE_URL } from "../src/lib/site-url";
 import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE, HANDLING_DAYS, TRANSIT_DAYS, STANDARD_DELIVERY_DAYS } from "../src/lib/delivery";
 
+// For the cache-header checks at the bottom. Imported here, apart from the
+// renderer's import above, so the two are not one line to edit.
+import { readFileSync } from "node:fs";
+import { GOOGLE_MERCHANT_FEED_CACHE_CONTROL } from "../src/lib/feeds/google-merchant";
+
 function product(over: Partial<FeedProduct> & { sku: string }): FeedProduct {
   return {
     slug: `slug-${over.sku}`,
@@ -293,6 +298,15 @@ const flattened = toPlainText(rows[1].description!);
 check("html description keeps its text", flattened.includes("נפח שימושי: 326 ליטר"));
 check("html description decodes entities", flattened.includes("A&I") && flattened.includes("5 > 3"));
 check("html description breaks between blocks", /ליטר\n/.test(flattened));
+
+/* The cache header. Google fetches the feed once a day, and
+   stale-while-revalidate hands a caller who arrives after the cache expired
+   the old copy — so a daily fetcher was always given yesterday's feed. The
+   CDN may hold it for a while; it may not serve it stale. */
+check("the feed is never served stale", !/stale-while-revalidate|stale-if-error/.test(GOOGLE_MERCHANT_FEED_CACHE_CONTROL), GOOGLE_MERCHANT_FEED_CACHE_CONTROL);
+const sMaxAge = Number(/s-maxage=(\d+)/.exec(GOOGLE_MERCHANT_FEED_CACHE_CONTROL)?.[1]);
+check("and is held by the CDN for an hour at most, and not for nothing", sMaxAge >= 600 && sMaxAge <= 3600, String(sMaxAge));
+check("the route sends that header and no other", /"Cache-Control": GOOGLE_MERCHANT_FEED_CACHE_CONTROL/.test(readFileSync("src/app/feeds/google-merchant.xml/route.ts", "utf8")));
 
 console.log(
   failed === 0
