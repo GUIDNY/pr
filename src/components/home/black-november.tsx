@@ -9,25 +9,29 @@ import { formatInstallment, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
- * "בלאק נובמבר" — the panel on the homepage and the whole of /black-november.
+ * "בלאק נובמבר" — the banner on the homepage and the whole of /black-november.
  *
- * Near-black, with the shop's own orange as the only colour: a glow behind
- * the heading, the word נובמבר, the label over each price and the button.
- * The first version borrowed gold, which belongs to nobody here, and put the
- * shop's ordinary white cards on the dark panel, which read as a rail that
- * had been given a frame. These cards are the panel's own: the photograph on
- * a white tile, because the manufacturers' pictures are cut out on white,
- * and everything else in white type on the dark surface.
+ * Built the way a shop prints a campaign, not the way a template draws one.
+ * Two flat blocks side by side: black with the name of the sale set large in
+ * white, and white with a photograph of one of the televisions and an orange
+ * price sticker on its corner. Under them, the products on the page's own
+ * white, in plain bordered cards.
  *
- * What it says is the owner's decision (see lib/campaigns/black-november.ts):
- * the product's ordinary price, labelled as the campaign's and as temporary.
- * No struck-through number, no percentage, and no countdown — there is no
- * end date to count down to, and a clock that does not end is a lie with
- * animation.
+ * The version before this was a dark panel with an orange glow, gradient
+ * lettering, an English strapline and two pills on every card, and the owner
+ * said what it looked like: something generated. So the rules here are the
+ * ones a print buyer would recognise — one black, one white, one orange, all
+ * flat; square corners; a single heavy typeface doing the work; a product
+ * photograph as the picture; nothing that glows, fades or floats.
  *
- * Nothing here is client code except the two buttons every card on the site
- * already carries, and the decoration is CSS gradients — no image, no font,
- * no library is added to the homepage for it.
+ * What it says is still the owner's decision (lib/campaigns/black-november.ts):
+ * the product's ordinary price, named as the campaign's and as temporary. No
+ * struck-through number, no percentage, no countdown, and no free-delivery
+ * tag — the terms keep that for ordinary courier, and a large television is
+ * not one.
+ *
+ * No client code beyond the cart and favourite buttons every card has, and
+ * no image, font or library added: the photograph is one already in the row.
  */
 export function BlackNovember({
   products,
@@ -36,9 +40,8 @@ export function BlackNovember({
   viewAllHref,
 }: {
   products: ProductCardData[];
-  /* "rail": one row that scrolls sideways, for the homepage, where fifteen
-     televisions in a grid would push every department a screen further down.
-     "grid": all of them, for the campaign's own page. */
+  /* "rail": one row that scrolls sideways, for the homepage. "grid": all of
+     them, for the campaign's own page. */
   layout?: "rail" | "grid";
   heading?: "h1" | "h2";
   viewAllHref?: string;
@@ -46,93 +49,82 @@ export function BlackNovember({
   if (products.length === 0) return null;
 
   const scope = blackNovemberScope(products);
-  const lowest = Math.min(...products.map((p) => p.price));
+  const lowest = products.reduce((a, b) => (b.price < a.price ? b : a));
+  /* The picture is of the product the sticker's price belongs to, so the two
+     halves of the banner are one true statement. */
+  const pictured = lowest.imageUrl ? lowest : (products.find((p) => p.imageUrl) ?? lowest);
   const Heading = heading;
 
   return (
-    <section aria-labelledby="black-november-title" className="mx-auto max-w-7xl px-4 py-4 sm:py-6">
-      <div className="relative isolate overflow-hidden rounded-[1.75rem] bg-[#0a0a0c] text-white shadow-[0_24px_60px_-28px_rgb(0_0_0/0.85)]">
-        {/* the orange behind the heading, a cooler echo in the far corner,
-            and a hairline grid so the black has a surface */}
-        <span
-          aria-hidden
-          className="bg-brand pointer-events-none absolute -top-40 -right-32 -z-10 size-[30rem] rounded-full opacity-35 blur-[110px] sm:size-[40rem]"
-        />
-        <span
-          aria-hidden
-          className="bg-brand pointer-events-none absolute -bottom-52 -left-40 -z-10 size-[26rem] rounded-full opacity-15 blur-[120px]"
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(rgb(255_255_255/0.035)_1px,transparent_1px),linear-gradient(90deg,rgb(255_255_255/0.035)_1px,transparent_1px)] bg-[size:44px_44px] [mask-image:linear-gradient(to_bottom,black,transparent_70%)]"
-        />
-        <span aria-hidden className="pointer-events-none absolute inset-0 rounded-[1.75rem] ring-1 ring-white/10 ring-inset" />
-
-        <div className="flex flex-col gap-6 px-5 pt-8 sm:px-9 sm:pt-11 lg:flex-row lg:items-end lg:justify-between lg:gap-10">
-          <div className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center gap-2.5 text-xs font-bold">
-              <span className="bg-brand text-brand-foreground rounded-full px-2.5 py-1">{BLACK_NOVEMBER_LIMITED}</span>
-              <span dir="ltr" className="tracking-[0.28em] text-white/45">
-                BLACK NOVEMBER
-              </span>
-            </div>
-            <Heading
-              id="black-november-title"
-              className="text-[clamp(2.1rem,12.5vw,2.9rem)] leading-[0.95] font-black tracking-tight sm:text-7xl"
+    <section aria-labelledby="black-november-title" className="mx-auto max-w-7xl px-4 py-5 sm:py-7">
+      <div className="grid overflow-hidden border-2 border-black md:grid-cols-2">
+        <div className="flex flex-col justify-center bg-black px-5 py-7 text-white sm:px-9 sm:py-10">
+          <p className="text-brand text-sm font-bold sm:text-base">{BLACK_NOVEMBER_LIMITED}</p>
+          <Heading
+            id="black-november-title"
+            className="mt-1 text-[clamp(2.6rem,13.5vw,3.6rem)] leading-[0.9] font-black tracking-tight md:text-[4.25rem] lg:text-[5.5rem]"
+          >
+            בלאק
+            <br />
+            נובמבר
+          </Heading>
+          <span aria-hidden className="bg-brand mt-4 block h-1.5 w-20 sm:mt-5 sm:h-2 sm:w-28" />
+          <p className="mt-4 text-lg leading-snug font-bold sm:mt-5 sm:text-2xl">{scope.headline}</p>
+          {scope.note && <p className="mt-1 text-sm text-white/70 sm:text-base">{scope.note}</p>}
+          {viewAllHref && (
+            <Link
+              href={viewAllHref}
+              className="bg-brand text-brand-foreground hover:bg-brand-hover mt-6 inline-flex h-12 items-center gap-2 self-start px-6 text-base font-bold transition-colors"
             >
-              בלאק{" "}
-              <span className="from-brand bg-gradient-to-l to-[#ffb36b] bg-clip-text text-transparent">נובמבר</span>
-            </Heading>
-            <p className="mt-3 text-lg leading-snug font-bold text-white sm:mt-4 sm:text-2xl">{scope.headline}</p>
-            {scope.note && <p className="mt-1.5 text-sm text-white/60 sm:text-base">{scope.note}</p>}
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-4">
-            <dl className="flex items-center gap-6">
-              <div>
-                <dd className="text-2xl leading-none font-black tabular-nums sm:text-3xl">
-                  {products.length.toLocaleString("he-IL")}
-                </dd>
-                <dt className="mt-1 text-xs text-white/55">דגמים</dt>
-              </div>
-              <div className="h-9 w-px bg-white/15" aria-hidden />
-              <div>
-                <dd className="text-2xl leading-none font-black tabular-nums sm:text-3xl">{formatPrice(lowest)}</dd>
-                <dt className="mt-1 text-xs text-white/55">החל מ־</dt>
-              </div>
-            </dl>
-            {viewAllHref && (
-              <Link
-                href={viewAllHref}
-                className="group/cta inline-flex h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-bold text-[#0a0a0c] transition hover:bg-white/90"
-              >
-                לכל הדגמים
-                <ArrowLeft className="size-4 transition-transform group-hover/cta:-translate-x-0.5" />
-              </Link>
-            )}
-          </div>
-        </div>
-
-        <div
-          className={cn(
-            "mt-7 px-5 pb-6 sm:mt-9 sm:px-9 sm:pb-9",
-            layout === "rail"
-              ? "flex snap-x snap-mandatory gap-3 overflow-x-auto [scrollbar-color:rgb(255_255_255/0.25)_transparent] [scrollbar-width:thin] sm:gap-4"
-              : "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5"
+              לכל {products.length.toLocaleString("he-IL")} הדגמים
+              <ArrowLeft className="size-4" />
+            </Link>
           )}
-        >
-          {products.map((p) => (
-            <BlackNovemberCard
-              key={p.id}
-              product={p}
-              className={
-                layout === "rail"
-                  ? "w-[74%] max-w-[17.5rem] shrink-0 snap-start sm:w-[calc(40%-10px)] sm:max-w-none lg:w-[calc(28%-12px)] xl:w-[calc(22%-12px)]"
-                  : undefined
-              }
-            />
-          ))}
         </div>
+
+        <Link
+          href={`/product/${pictured.slug}`}
+          className="relative block min-h-56 bg-white sm:min-h-72 md:min-h-0"
+          aria-label={pictured.title}
+        >
+          {pictured.imageUrl && (
+            <Image
+              src={pictured.imageUrl}
+              alt=""
+              fill
+              className="object-contain p-6 sm:p-10"
+              sizes="(min-width: 768px) 50vw, 100vw"
+              referrerPolicy="no-referrer"
+            />
+          )}
+          <span className="bg-brand text-brand-foreground absolute start-0 bottom-0 px-4 py-2.5 sm:px-5 sm:py-3">
+            <span className="block text-xs font-bold sm:text-sm">החל מ־</span>
+            <span className="block text-3xl leading-none font-black tabular-nums sm:text-4xl">
+              {formatPrice(lowest.price)}
+            </span>
+          </span>
+        </Link>
+      </div>
+
+      <div
+        className={cn(
+          "mt-4 sm:mt-5",
+          layout === "rail"
+            ? "-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:thin] sm:gap-4"
+            : "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5"
+        )}
+      >
+        {products.map((p) => (
+          <BlackNovemberCard
+            key={p.id}
+            product={p}
+            className={
+              layout === "rail"
+                ? "w-[62%] max-w-[16rem] shrink-0 snap-start sm:w-[calc(33.333%-11px)] sm:max-w-none lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
+                : undefined
+            }
+          />
+        ))}
       </div>
     </section>
   );
@@ -142,14 +134,13 @@ function BlackNovemberCard({ product, className }: { product: ProductCardData; c
   const href = `/product/${product.slug}`;
 
   return (
-    <article
-      className={cn(
-        "group flex flex-col rounded-2xl bg-white/[0.055] p-2 ring-1 ring-white/10 transition hover:bg-white/[0.085] hover:ring-white/20",
-        className
-      )}
-    >
+    <article className={cn("bg-card text-foreground flex flex-col border border-black/15", className)}>
+      {/* The campaign's name as a printed strip across the top of the card —
+          one flat bar, the same on every card, in place of a badge. */}
+      <p className="bg-black px-3 py-1.5 text-xs font-bold text-white">{BLACK_NOVEMBER_LABEL}</p>
+
       <div className="relative">
-        <Link href={href} className="relative block aspect-[4/3] overflow-hidden rounded-xl bg-white">
+        <Link href={href} className="relative block aspect-[4/3] bg-white">
           {product.imageUrl && (
             <Image
               src={product.imageUrl}
@@ -158,8 +149,8 @@ function BlackNovemberCard({ product, className }: { product: ProductCardData; c
               // a paragraph where the photograph was.
               alt=""
               fill
-              className="object-contain p-3 transition-transform duration-300 group-hover:scale-[1.04]"
-              sizes="(min-width: 1280px) 22vw, (min-width: 1024px) 28vw, (min-width: 640px) 40vw, 74vw"
+              className="object-contain p-3"
+              sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 62vw"
               referrerPolicy="no-referrer"
             />
           )}
@@ -167,33 +158,20 @@ function BlackNovemberCard({ product, className }: { product: ProductCardData; c
         <FavoriteButton productId={product.id} className="absolute top-2 end-2" />
       </div>
 
-      <div className="flex flex-1 flex-col px-1.5 pt-3 pb-1.5 sm:px-2">
-        <span className="text-xs font-semibold text-white/55">{product.brandName}</span>
-        <Link
-          href={href}
-          className="mt-0.5 line-clamp-2 min-h-10 text-sm leading-5 font-medium text-white hover:underline sm:text-[0.95rem]"
-        >
+      <div className="flex flex-1 flex-col border-t border-black/10 p-3">
+        <span className="text-muted-foreground text-xs font-semibold">{product.brandName}</span>
+        <Link href={href} className="mt-0.5 line-clamp-2 min-h-10 text-sm leading-5 font-medium hover:underline">
           {product.title}
         </Link>
 
-        <div className="mt-3">
-          <span className="text-brand text-[11px] font-bold sm:text-xs">{BLACK_NOVEMBER_LABEL}</span>
-          <div className="text-[1.65rem] leading-tight font-black tabular-nums sm:text-3xl">
+        <div className="mt-2.5">
+          <div className="text-2xl leading-tight font-black tabular-nums sm:text-[1.7rem]">
             {formatPrice(product.price)}
           </div>
-          {product.installmentMonths && (
-            <span className="text-xs text-white/55">{formatInstallment(product.price, product.installmentMonths)}</span>
-          )}
-        </div>
-
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] font-medium sm:text-xs">
-          <span className="rounded-full bg-white/10 px-2 py-0.5 text-white/80">{BLACK_NOVEMBER_LIMITED}</span>
-          {/* No "משלוח חינם" here, although the ordinary card says it over the
-              threshold. The terms keep free delivery for products that go by
-              ordinary courier, and a television of 75 inches and up may not —
-              a promise this panel has no way to check per product is one it
-              does not make. The product page and the checkout say what the
-              delivery costs. */}
+          <p className="text-muted-foreground text-xs">
+            {BLACK_NOVEMBER_LIMITED}
+            {product.installmentMonths ? ` · ${formatInstallment(product.price, product.installmentMonths)}` : ""}
+          </p>
         </div>
 
         <div className="mt-auto pt-3">
@@ -203,7 +181,7 @@ function BlackNovemberCard({ product, className }: { product: ProductCardData; c
             price={product.price}
             disabled={product.stockStatus === "OUT_OF_STOCK"}
             size="sm"
-            className="h-10 w-full rounded-xl text-sm font-bold"
+            className="h-10 w-full rounded-none text-sm font-bold"
             label={product.stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : "הוספה לעגלה"}
           />
         </div>
