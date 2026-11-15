@@ -14,7 +14,7 @@
 // ASCII quotes for ס"מ and אינץ', an "A&I" in the body text.
 //
 // Run: npx tsx scripts/check-google-feed.ts
-import { renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
+import { priceBand, renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
 import { SITE_URL } from "../src/lib/site-url";
 import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE, HANDLING_DAYS, TRANSIT_DAYS, STANDARD_DELIVERY_DAYS } from "../src/lib/delivery";
 
@@ -181,6 +181,30 @@ check("a full-price item has no g:sale_price", !(items.get("PLAIN") ?? "").inclu
 // and nothing else carries one.
 check("a dryer is labelled for the test", (items.get("DRYER") ?? "").includes("<g:custom_label_0>test</g:custom_label_0>"));
 check("a product outside the test carries no label", !(items.get("PLAIN") ?? "").includes("g:custom_label_0"));
+
+// custom_label_1 is the price band, on every item, by the price the
+// customer pays. One boundary is the free-delivery threshold itself, so the
+// band and the shipping line beside it cannot disagree about which side of
+// it an item is on.
+for (const [price, want] of [
+  [80, "under-300"],
+  [299.99, "under-300"],
+  [300, `300-${FREE_DELIVERY_THRESHOLD - 1}`],
+  [FREE_DELIVERY_THRESHOLD - 0.01, `300-${FREE_DELIVERY_THRESHOLD - 1}`],
+  [FREE_DELIVERY_THRESHOLD, `${FREE_DELIVERY_THRESHOLD}-1499`],
+  [1500, "1500-3999"],
+  [4000, "4000-plus"],
+  [49000, "4000-plus"],
+] as const) {
+  check(`a price of ${price} is in band ${want}`, priceBand(price) === want, priceBand(price));
+}
+check("every item carries exactly one price band", [...items.values()].every((i) => i.split("<g:custom_label_1>").length === 2));
+check("the band is the sale price's, not the struck-through one's", onSale.includes("<g:custom_label_1>4000-plus</g:custom_label_1>"));
+check(
+  "an item under the threshold is banded under it and charged delivery",
+  (items.get("PLAIN") ?? "").includes("<g:custom_label_1>under-300</g:custom_label_1>") &&
+    (items.get("PLAIN") ?? "").includes(`<g:price>${HOME_DELIVERY_FEE.toFixed(2)} ILS</g:price>`),
+);
 
 /* Identifiers. A GTIN is the strongest signal Google takes; brand + mpn is
    the accepted substitute; identifier_exists=no is the admission that there
