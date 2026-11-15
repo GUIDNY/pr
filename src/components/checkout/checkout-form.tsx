@@ -597,6 +597,35 @@ export function CheckoutForm({
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-bold">תשלום</h1>
 
+        {/* On a phone the full summary is the last thing on the page, below
+            three steps of form, so the first screen of the checkout showed
+            neither what was being bought nor for how much. This is the same
+            information in one row; the full summary (#order-summary) is still
+            where quantities are edited. Hidden on desktop, where the summary
+            is already beside the form. */}
+        <a
+          href="#order-summary"
+          className="border-border bg-muted/40 flex items-center gap-3 rounded-xl border p-3 lg:hidden"
+        >
+          <div className="bg-muted relative size-12 shrink-0 overflow-hidden rounded-md">
+            {cart.items[0].image ? (
+              <Image src={cart.items[0].image} alt="" fill className="bg-white object-contain" sizes="48px" />
+            ) : (
+              <ProductImagePlaceholder title={cart.items[0].title} brand={cart.items[0].brandName} />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{cart.items[0].title}</p>
+            <p className="text-muted-foreground text-xs">
+              {cart.items.length > 1 ? `ועוד ${cart.items.length - 1} מוצרים · ` : ""}לפרטי ההזמנה
+            </p>
+          </div>
+          <div className="shrink-0 text-end">
+            <p className="text-muted-foreground text-xs">סה״כ לתשלום</p>
+            <p className="text-base font-bold tabular-nums">{formatPrice(orderTotal)}</p>
+          </div>
+        </a>
+
         {isStaff && (
           <CheckoutTestPanel
             onFillTestDetails={fillTestDetails}
@@ -635,13 +664,18 @@ export function CheckoutForm({
                the offer to open an account is gone. One tap still fills the
                three fields from an account and the customer comes back here
                signed in — the cart is in the browser, not on the trip. */
-            <div className="bg-muted/50 mb-4 rounded-xl p-3">
-              <p className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+            /* Folded by default (16 Nov): open, the box pushed the name field
+               about 200px down a phone screen, and 33 of the 61 sessions that
+               started a checkout in the previous 30 days left before typing a
+               contact detail. Everything inside is unchanged. */
+            <details className="bg-muted/50 group mb-4 rounded-xl p-3">
+              <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-sm [&::-webkit-details-marker]:hidden">
                 <span className="font-semibold">יש לכם חשבון?</span>
                 <Badge variant="outline" className="bg-background">לא חובה</Badge>
-                <span className="text-muted-foreground basis-full">
-                  התחברו בלחיצה ונמלא את הפרטים במקומכם.
-                </span>
+                <span className="text-brand ms-auto underline underline-offset-2 group-open:hidden">התחברות</span>
+              </summary>
+              <p className="text-muted-foreground mt-2 mb-2 text-sm">
+                התחברו בלחיצה ונמלא את הפרטים במקומכם.
               </p>
               <Suspense>
                 <div className={`grid gap-2 ${twoUp ? "grid-cols-2" : "grid-cols-1"}`}>
@@ -662,7 +696,7 @@ export function CheckoutForm({
                   יש לכם סיסמה? התחברות עם מייל וסיסמה
                 </Link>
               </p>
-            </div>
+            </details>
           )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -1178,7 +1212,7 @@ export function CheckoutForm({
         </section>
       </div>
 
-      <div className="border-border h-fit rounded-xl border p-5 lg:sticky lg:top-24">
+      <div id="order-summary" className="border-border h-fit scroll-mt-24 rounded-xl border p-5 lg:sticky lg:top-24">
         <h2 className="mb-1 font-semibold">4. סיכום הזמנה</h2>
         <p className="text-muted-foreground mb-4 text-xs">
           {isEditingCart ? "מעדכנים את ההזמנה..." : payment ? "שינוי כמות יעדכן את הסכום ויפתח את טופס התשלום מחדש" : "אפשר לשנות כמות או להסיר מוצר כאן"}
