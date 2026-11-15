@@ -755,14 +755,61 @@ export async function getColorVariants(product: {
   return unique.length > 1 ? unique : [];
 }
 
-export async function getRelatedProducts(categoryId: string, excludeId: string, take = 4) {
-  const rows = await db.product.findMany({
-    where: { ...PUBLIC_PRODUCT_WHERE, categoryId, id: { not: excludeId } },
+/** How far from this product's price another one may be and still be offered
+    as "the same price range" on its page. */
+export const SIMILAR_PRICE_BAND = 0.35;
+
+/**
+ * Other products of the same category for the product page.
+ *
+ * With a price, the ones nearest to it come first. Visitors who arrive from a
+ * Shopping ad tap the search box more than anything else on the page: they
+ * landed on one model and want its neighbours, and four products ordered by
+ * review count (which is zero across most of the catalogue, so by nothing)
+ * were as likely to be a 9,000 ₪ fridge beside a 3,000 ₪ one.
+ *
+ * Products inside the band are taken first, closest price first; if the
+ * category has too few of those, the rest of the row is filled from the
+ * category as before, so the rail never shrinks because of the band.
+ */
+export async function getRelatedProducts(categoryId: string, excludeId: string, take = 4, price?: number) {
+  const base = { ...PUBLIC_PRODUCT_WHERE, categoryId, id: { not: excludeId } };
+  if (!price || price <= 0) {
+    const rows = await db.product.findMany({
+      where: base,
+      select: cardSelect,
+      take,
+      orderBy: [{ ratingCount: "desc" }, { id: "asc" }],
+    });
+    return rows.map(mapProductToCard);
+  }
+
+  const near = await db.product.findMany({
+    where: {
+      ...base,
+      // Replaces the floor PUBLIC_PRODUCT_WHERE carries, so it is kept here.
+      price: {
+        gte: Math.max(MIN_PUBLIC_PRICE, price * (1 - SIMILAR_PRICE_BAND)),
+        lte: price * (1 + SIMILAR_PRICE_BAND),
+      },
+    },
     select: cardSelect,
-    take,
-    orderBy: { ratingCount: "desc" },
+    take: 24,
+    orderBy: [{ ratingCount: "desc" }, { id: "asc" }],
   });
-  return rows.map(mapProductToCard);
+  const picked = near
+    .map(mapProductToCard)
+    .sort((a, b) => Math.abs(a.price - price) - Math.abs(b.price - price))
+    .slice(0, take);
+  if (picked.length >= take) return picked;
+
+  const fill = await db.product.findMany({
+    where: { ...base, id: { notIn: [excludeId, ...picked.map((p) => p.id)] } },
+    select: cardSelect,
+    take: take - picked.length,
+    orderBy: [{ ratingCount: "desc" }, { id: "asc" }],
+  });
+  return [...picked, ...fill.map(mapProductToCard)];
 }
 
 export async function getProductsByBrandSlug(
