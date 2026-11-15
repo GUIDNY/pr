@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
-import { renderGoogleMerchantFeed } from "@/lib/feeds/google-merchant";
+import { renderGoogleMerchantFeed, BENCHMARK_MAX_AGE_DAYS } from "@/lib/feeds/google-merchant";
 import { specRowsFor, structuredSpecs } from "@/lib/product-specs";
 import { TEST_PRODUCT_SKUS } from "@/lib/test-products";
 
@@ -52,7 +52,18 @@ export async function GET() {
     orderBy: { sku: "asc" },
   });
 
-  const rows = products.map((p) => ({ ...p, specs: structuredSpecs(specRowsFor(p).all) }));
+  // Fresh market benchmarks only, for custom_label_2. See priceCompetitiveness.
+  const benchmarks = await db.priceBenchmark.findMany({
+    where: { capturedAt: { gte: new Date(Date.now() - BENCHMARK_MAX_AGE_DAYS * 86_400_000) } },
+    select: { sku: true, benchmarkPrice: true },
+  });
+  const benchmarkBySku = new Map(benchmarks.map((b) => [b.sku, b.benchmarkPrice]));
+
+  const rows = products.map((p) => ({
+    ...p,
+    specs: structuredSpecs(specRowsFor(p).all),
+    benchmarkPrice: benchmarkBySku.get(p.sku) ?? null,
+  }));
 
   return new Response(renderGoogleMerchantFeed(rows), {
     headers: {

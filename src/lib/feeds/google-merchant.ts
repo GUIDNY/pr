@@ -201,6 +201,10 @@ export type FeedProduct = {
   /** The spec rows the product page shows, as name/value pairs — from
       lib/product-specs, the same list the page's JSON-LD carries. */
   specs: StructuredSpec[];
+  /** Google's market price for this item, when a fresh one is on record
+      (PriceBenchmark, at most BENCHMARK_MAX_AGE_DAYS old). Optional so a
+      caller without benchmarks renders exactly the feed it did before. */
+  benchmarkPrice?: number | null;
 };
 
 // Split from the query on purpose: every rule Google can reject an item over
@@ -249,6 +253,37 @@ export function priceBand(price: number): string {
   if (price < PRICE_BAND_MID) return `${FREE_DELIVERY_THRESHOLD}-${PRICE_BAND_MID - 1}`;
   if (price < PRICE_BAND_HIGH) return `${PRICE_BAND_MID}-${PRICE_BAND_HIGH - 1}`;
   return `${PRICE_BAND_HIGH}-plus`;
+}
+
+/* custom_label_2: is our price better or worse than the market's.
+
+   The benchmark is Google's own (Merchant Center → Analytics → Pricing),
+   copied into PriceBenchmark by the paid agent. The owner approved, on
+   16 November, bidding up items that are clearly cheaper than the market and
+   not advertising those clearly dearer; until then it was a hand-kept list
+   of eight item ids in the campaign, which goes stale the day a price moves.
+   With the label the campaign follows the price list by itself.
+
+   Asymmetric on purpose. "competitive" at 3% or more under the market: a
+   shopper comparing listings sees the difference. "overpriced" at 5% or more
+   over it: a smaller gap is within delivery and warranty differences and not
+   worth excluding an item for. Everything between, and every item with no
+   fresh benchmark, gets no label and stays in the campaign's catch-all.
+
+   Compared against the price the item is listed at now, not the one on the
+   day the benchmark was read, so a price change is reflected on the next
+   fetch. A stale benchmark (older than BENCHMARK_MAX_AGE_DAYS) is not
+   passed in at all — the market moves too, and an old reading is a guess. */
+export const COMPETITIVE_BELOW = 0.03;
+export const OVERPRICED_ABOVE = 0.05;
+export const BENCHMARK_MAX_AGE_DAYS = 14;
+
+export function priceCompetitiveness(price: number, benchmark: number | null | undefined): string | null {
+  if (!benchmark || benchmark <= 0 || !(price > 0)) return null;
+  const gap = (price - benchmark) / benchmark;
+  if (gap <= -COMPETITIVE_BELOW) return "competitive";
+  if (gap >= OVERPRICED_ABOVE) return "overpriced";
+  return null;
 }
 
 export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
@@ -407,6 +442,8 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
     const customLabel = CUSTOM_LABEL_0_BY_CATEGORY[p.category.slug];
     if (customLabel) lines.push(tag("g:custom_label_0", customLabel));
     lines.push(tag("g:custom_label_1", priceBand(p.price)));
+    const competitiveness = priceCompetitiveness(p.price, p.benchmarkPrice);
+    if (competitiveness) lines.push(tag("g:custom_label_2", competitiveness));
 
     items.push(`  <item>\n${lines.join("\n")}\n  </item>`);
   }
