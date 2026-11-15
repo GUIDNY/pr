@@ -200,7 +200,20 @@ export async function CategoryPageView({
       </Breadcrumb>
 
       <h1 className="mt-3 text-2xl font-bold sm:text-3xl">{category.name}</h1>
-      <GuideIntro content={category.description} moreLabel="קרא עוד על הקטגוריה" />
+      {/* The buying guide belongs to the shelf, not to every page of it.
+          Page 2 onward is self-canonical on purpose — it is how a crawler
+          that walks links reaches the products past the first thirty — so
+          each of those pages is offered to an index as a page of its own,
+          and each one carried the whole guide: /category/built-in-oven?page=5
+          had the same five headings and the same ~2,000 characters as page
+          1 and differed from it by thirty product cards. Search Console's
+          "not indexed" list on 15 November held 50 such pages among its 67
+          category URLs.
+          Saying it once leaves page 2+ as what it is, a list of products
+          with its own title and description, and leaves the guide's words
+          pointing at one address. The links a crawler follows are the
+          cards and the pagination, and both are untouched. */}
+      {page === 1 && <GuideIntro content={category.description} moreLabel="קרא עוד על הקטגוריה" />}
       {subcategories.length > 1 && <SubcategoryRow tiles={subcategories} currentSlug={found.sub ? slug : null} />}
 
       <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-[240px_1fr]">
