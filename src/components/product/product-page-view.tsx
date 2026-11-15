@@ -495,8 +495,10 @@ export async function ProductPageView({
               <Link href={`/category/${product.category.slug}`}>{product.category.name}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
+          {/* The title again, a line above the title itself: on a phone it
+              only cost a row of the first screen. Kept from sm up. */}
+          <BreadcrumbSeparator className="max-sm:hidden" />
+          <BreadcrumbItem className="max-sm:hidden">
             <BreadcrumbPage className="line-clamp-1">{product.title}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
@@ -537,7 +539,7 @@ export async function ProductPageView({
 
         {/* purchase column */}
         <div className="flex flex-col gap-4">
-          <div>
+          <div className="max-md:-order-3">
             <Link href={`/brand/${product.brand.slug}`} className="text-brand text-sm font-semibold hover:underline">
               {product.brand.name}
             </Link>
@@ -559,8 +561,18 @@ export async function ProductPageView({
             {/* The four facts an appliance is bought on — capacity, spin,
                 energy class, the like — as chips under the title, so they
                 are read before the price rather than found in a tab. */}
-            <SpecChips chips={keySpecs.map((row) => ({ label: row.label, value: String(row.value) }))} />
           </div>
+          {/* A sibling of the title block rather than its last child, so that
+              on a phone the price and the stock-and-delivery line can come
+              first (the negative orders below) and the chips after them. A
+              visitor from a Shopping ad lands here on a phone and the price
+              was a screen down, under four chips. From md up nothing has an
+              order and the DOM order stands: title, chips, price. */}
+          {keySpecs.length > 0 && (
+            <div className="-mt-4">
+              <SpecChips chips={keySpecs.map((row) => ({ label: row.label, value: String(row.value) }))} />
+            </div>
+          )}
 
           {isAdminViewer ? (
             <ProductPriceEditor
@@ -580,7 +592,7 @@ export async function ProductPageView({
                engine reads. */
             null
           ) : (
-            <>
+            <div className="flex flex-col gap-4 max-md:-order-2">
               <PriceBlock
                 price={product.price}
                 compareAtPrice={product.compareAtPrice}
@@ -588,14 +600,14 @@ export async function ProductPageView({
                 size="lg"
               />
               <FriendPriceLine price={product.price} />
-            </>
+            </div>
           )}
 
           {/* After the price and before the stock line, because a finish can
               carry its own price and the choice is made between the two. */}
           <ColorVariantPicker variants={colorVariants} />
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 max-md:-order-1">
             <StockBadge status={isSoldOut ? "OUT_OF_STOCK" : (product.stockStatus as StockStatus)} />
             {/* The delivery cost said at the price, where the decision is
                 made — the one fee shoppers most often first meet at checkout. */}
