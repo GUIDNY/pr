@@ -4,7 +4,7 @@ import { shareMetadata } from "@/lib/seo/share-metadata";
 import { CategoryPageView } from "@/components/category/category-page-view";
 import { findCategoryBySlug } from "@/lib/category-tree";
 import { getCategoryMetaFacts, categoryShareImage } from "@/lib/queries/categories";
-import { categoryMetaDescription } from "@/lib/seo/category-description";
+import { categoryMetaDescription, categoryPageTitle } from "@/lib/seo/category-description";
 
 // The canonical category page: no filter, no sort, no page number — which is
 // what a crawler asks for and what nearly every visitor lands on.
@@ -61,7 +61,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
   return {
     ...shareMetadata({
-      title: name,
+      title: categoryPageTitle(name, 1, facts),
       description: categoryMetaDescription(name, facts),
       path: `/category/${slug}`,
       image,
