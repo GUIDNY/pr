@@ -527,7 +527,23 @@ export function CheckoutForm({
         apartment: form.apartment,
         deliveryNotes: form.deliveryNotes,
         deliveryMethod,
-      }).catch(() => {});
+      })
+        .then((result) => {
+          /* The server would not follow the form because the change moves the
+             amount, and the card form on the page was opened for the old one.
+             update() closes the form for exactly this before it gets here; this
+             is for the change it cannot see — a delivery method picked in the
+             moment between the details being complete and the form opening,
+             when the order was already being made from the earlier choice. */
+          if (result.success || !("reason" in result) || result.reason !== "reprice") return;
+          const orderId = paidOrderId.current;
+          if (!orderId) return;
+          reusableOrder.current = { orderId, orderNumber: payment.orderNumber };
+          paidOrderId.current = null;
+          autoOpened.current = false;
+          setPayment(null);
+        })
+        .catch(() => {});
     }, 700);
     return () => clearTimeout(timer);
   }, [

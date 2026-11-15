@@ -519,9 +519,11 @@ export async function updatePendingOrderDetailsAction(
   let repriced: { deliveryFee: number; total: number } | null = null;
   if (method && method !== order.deliveryMethod) {
     const fee = deliveryFeeAfterMethodChange(order, method);
-    if (fee === null) return { success: false as const };
+    /* "reprice" tells the checkout why: the form on the page is for an amount
+       this order no longer has, so it must close it rather than carry on. */
+    if (fee === null) return { success: false as const, reason: "reprice" as const };
     if (fee !== order.deliveryFee) {
-      if (!reprice) return { success: false as const };
+      if (!reprice) return { success: false as const, reason: "reprice" as const };
       repriced = { deliveryFee: fee, total: Math.max(0, order.subtotal - order.discountTotal + fee) };
     }
   }
