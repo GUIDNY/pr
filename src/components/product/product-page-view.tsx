@@ -614,7 +614,34 @@ export async function ProductPageView({
                 <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
                   {BUSINESS.phone}
                 </a>{" "}
-                כדי לברר מתי הוא צפוי לחזור, או לראות מוצרים דומים בהמשך העמוד.
+                כדי לברר מתי הוא צפוי לחזור
+                {/* The way out used to be a sentence — "או לראות מוצרים דומים
+                    בהמשך העמוד" — and the rail it meant is the last thing on
+                    the page, below the description, the specifications and
+                    the brand's own rail. Counted on 15 November: 62 visits
+                    from ChatGPT landed on a sold-out page in four weeks and
+                    one of them made a cart, against 21 carts from 295 visits
+                    to pages that could be bought; 84% of those visitors are
+                    on a phone, where "further down" is a long way. The rail
+                    was already right — every one of the 26 products linked
+                    from the three pages checked could be ordered. So the
+                    words are now a link to it, and the category is offered
+                    beside it, which is where the same question has more than
+                    a handful of answers. Only when there is a rail to jump
+                    to: ProductRail renders nothing for an empty list. */}
+                {related.length > 0 ? (
+                  <>
+                    , לראות{" "}
+                    <a href="#similar-products" className="text-brand hover:underline">
+                      מוצרים דומים
+                    </a>
+                  </>
+                ) : null}
+                , או לעבור לקטגוריה{" "}
+                <Link href={`/category/${product.category.slug}`} className="text-brand hover:underline">
+                  {product.category.name}
+                </Link>
+                .
               </p>
             </div>
           ) : (
@@ -969,7 +996,11 @@ export async function ProductPageView({
         </Tabs>
       </div>
 
-      <ProductRail title="מוצרים דומים" products={related} />
+      {/* The anchor the sold-out notice links to. scroll-mt so the sticky
+          header does not sit on top of the rail's title after the jump. */}
+      <div id="similar-products" className="scroll-mt-24">
+        <ProductRail title="מוצרים דומים" products={related} />
+      </div>
 
       {!isSoldOut && (
         <MobileBuyBar productId={product.id} slug={product.slug} price={product.price} stockStatus={product.stockStatus as StockStatus} />
