@@ -37,6 +37,7 @@ export function ProductCard({
   isFavorite = false,
   className,
   previewLabel,
+  ribbon,
 }: {
   product: ProductCardData;
   isFavorite?: boolean;
@@ -46,6 +47,10 @@ export function ProductCard({
      put a different number in the cart than the card shows. When set, the
      button is replaced by this label. */
   previewLabel?: string;
+  /* A campaign's name for the price on this card, shown on the picture's
+     corner where a discount badge would otherwise go — and instead of it:
+     a ribbon is for a price that makes no claim about an earlier one. */
+  ribbon?: string;
 }) {
   // "מלאי אחרון" is true of most of the catalogue — the sheet carries one to
   // three units of nearly everything, which is what the threshold flags —
@@ -93,10 +98,16 @@ export function ProductCard({
             <ProductImagePlaceholder title={product.title} brand={product.brandName} icon={product.categoryIcon} />
           )}
         </div>
-        {pct && (
-          <span className="bg-brand text-brand-foreground absolute top-2.5 start-2.5 rounded-md px-2 py-0.5 text-xs font-bold tabular-nums">
-            {pct}%-
+        {ribbon ? (
+          <span className="absolute top-2.5 start-2.5 rounded-md bg-[#111] px-2 py-1 text-[11px] font-bold leading-none text-[#ffc94d]">
+            {ribbon}
           </span>
+        ) : (
+          pct && (
+            <span className="bg-brand text-brand-foreground absolute top-2.5 start-2.5 rounded-md px-2 py-0.5 text-xs font-bold tabular-nums">
+              {pct}%-
+            </span>
+          )
         )}
         <FavoriteButton productId={product.id} initialFavorite={isFavorite} className="absolute top-2 end-2" />
       </Link>

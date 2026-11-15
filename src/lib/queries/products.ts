@@ -10,6 +10,7 @@ import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 import { resolveIntent } from "@/lib/alfred/intent";
+import { BLACK_NOVEMBER_ROW_MARKS } from "@/lib/campaigns/black-november";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -366,6 +367,31 @@ export async function getCatalogSize() {
     db.brand.count({ where: { isActive: true, products: { some: PUBLIC_PRODUCT_WHERE } } }),
   ]);
   return { products, brands };
+}
+
+/**
+ * The homepage's "בלאק נובמבר" section: the products whose price-list row
+ * the supplier has marked — see lib/campaigns/black-november.ts for where
+ * the mark lives and why nothing is stored for it.
+ *
+ * compareAtPrice is blanked on the way out. The owner asked for a temporary
+ * price with no struck-through number, and a product that happens to carry a
+ * deal of its own must not bring one into this section by the back door.
+ * Cheapest first, so the row opens on the prices most people can reach.
+ */
+export async function getBlackNovemberProducts(take = 24) {
+  const rows = await db.product.findMany({
+    where: {
+      ...PUBLIC_PRODUCT_WHERE,
+      OR: BLACK_NOVEMBER_ROW_MARKS.map((mark) => ({
+        stockBreakdown: { contains: mark, mode: "insensitive" as const },
+      })),
+    },
+    select: cardSelect,
+    take,
+    orderBy: [{ price: "asc" }, { id: "asc" }],
+  });
+  return rows.map((p) => ({ ...mapProductToCard(p), compareAtPrice: null }));
 }
 
 export async function getDeals(take = 8) {

@@ -25,6 +25,15 @@ export const PAID_INSTALLATION_CATEGORY_SLUGS: readonly string[] = [
   "hybrid-cooktops",
 ];
 
+/* The owner, 16 November: "לא לא זה לא כולל התקנה" — no product's price
+   includes installation. The footer said "לכל הארץ, כולל התקנה" on every
+   page while the product page and the terms (section 13) said the
+   opposite. One sentence, used everywhere installation is mentioned, so
+   the site cannot drift into two answers again. No amount: the shop has
+   no installation price list, and inventing one is not an option. */
+export const INSTALLATION_NOT_INCLUDED = "התקנה אינה כלולה במחיר.";
+export const INSTALLATION_ARRANGED_SEPARATELY = "ניתן לתאם התקנה בתשלום נפרד.";
+
 export function needsPaidInstallation(categorySlug: string | null | undefined): boolean {
   return !!categorySlug && PAID_INSTALLATION_CATEGORY_SLUGS.includes(categorySlug);
 }
