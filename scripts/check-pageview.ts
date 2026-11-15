@@ -123,5 +123,18 @@ is("nothing allowed → null, not {}", sanitizeEventMeta("checkout_start", { foo
 is("a non-object meta → null", sanitizeEventMeta("checkout_start", "itemCount=3"), null);
 is("the abandon event carries its seconds", sanitizeEventMeta("checkout_abandon", { itemCount: 1, total: 100, secondsOnPage: 42.4 }), { itemCount: 1, total: 100, secondsOnPage: 42.4 });
 
+/* How far the shopper got before leaving: a section's name and whether the
+   order button was pressed — and still nothing that was typed. */
+is(
+  "the abandon event says how far the shopper got",
+  sanitizeEventMeta("checkout_abandon", { itemCount: 1, total: 380, secondsOnPage: 4, reached: "delivery", submitTried: false }),
+  { itemCount: 1, total: 380, secondsOnPage: 4, reached: "delivery", submitTried: false },
+);
+is(
+  "and a typed value sent alongside is dropped",
+  sanitizeEventMeta("checkout_abandon", { itemCount: 1, total: 380, secondsOnPage: 4, reached: "contact", phone: "0500000000", fullName: "x" }),
+  { itemCount: 1, total: 380, secondsOnPage: 4, reached: "contact" },
+);
+
 console.log(failures === 0 ? "\nall good" : `\n${failures} failing`);
 process.exit(failures === 0 ? 0 : 1);
