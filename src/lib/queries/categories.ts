@@ -239,6 +239,28 @@ export const getCategoryMetaFacts = cache(async (slug: string) => {
   };
 });
 
+/** The categories a brand has live products in, most products first — for
+    the brand page's meta description, which used to name the same four
+    categories for every brand whether it sold them or not. The same public
+    predicate the brand page lists by, so the sentence cannot name a shelf
+    the page does not show. */
+export const getBrandTopCategories = cache(async (brandId: string, take = 4): Promise<string[]> => {
+  const byCategory = await db.product.groupBy({
+    by: ["categoryId"],
+    where: { ...PUBLIC_PRODUCT_WHERE, brandId },
+    _count: { _all: true },
+    orderBy: { _count: { categoryId: "desc" } },
+    take,
+  });
+  if (byCategory.length === 0) return [];
+  const categories = await db.category.findMany({
+    where: { id: { in: byCategory.map((c) => c.categoryId) } },
+    select: { id: true, name: true },
+  });
+  const nameOf = new Map(categories.map((c) => [c.id, c.name]));
+  return byCategory.map((c) => nameOf.get(c.categoryId)).filter((n): n is string => !!n);
+});
+
 export async function countLiveProductsInCategory(slug: string): Promise<number> {
   const category = await db.category.findUnique({
     where: { slug },

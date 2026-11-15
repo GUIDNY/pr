@@ -5,6 +5,7 @@ import { BrandPageView } from "@/components/brand/brand-page-view";
 import { JsonLd } from "@/components/seo/json-ld";
 import { brandGraphSchema, breadcrumbSchema } from "@/lib/schema";
 import { brandMetaDescription } from "@/lib/seo/brand-description";
+import { getBrandTopCategories } from "@/lib/queries/categories";
 import { getProductsByBrandSlug, getCurrentSlugForLegacyBrandSlug, LISTING_MIN_PRODUCTS } from "@/lib/queries/products";
 
 // The canonical brand page: no sort chosen, which is what a crawler asks for
@@ -33,7 +34,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
          מאז 1886" is 29 characters, and Google writes its own snippet
          rather than show one that short. The generated line says what the
          page actually holds. */
-      description: brandMetaDescription(brand.name, total),
+      description: brandMetaDescription(brand.name, total, await getBrandTopCategories(brand.id)),
       path: `/brand/${brand.slug}`,
       image: brand.logoUrl,
     }),
@@ -79,7 +80,7 @@ export default async function BrandPage({ params }: { params: Promise<{ slug: st
         data={brandGraphSchema({
           path: `/brand/${brand.slug}`,
           name: brand.name,
-          description: brandMetaDescription(brand.name, total),
+          description: brandMetaDescription(brand.name, total, await getBrandTopCategories(brand.id)),
           products: products.map((p) => ({ slug: p.slug, title: p.title })),
         })}
       />
