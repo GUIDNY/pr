@@ -27,7 +27,7 @@ export async function Footer() {
             <Truck className="text-brand size-8 shrink-0" />
             <div>
               <p className="font-semibold">משלוח עד הבית</p>
-              <p className="text-primary-foreground/60 text-sm">לכל הארץ, כולל התקנה</p>
+              <p className="text-primary-foreground/60 text-sm">לכל הארץ</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
