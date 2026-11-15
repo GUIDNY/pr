@@ -79,7 +79,7 @@ export function BlackNovember({
             </div>
             <Heading
               id="black-november-title"
-              className="text-[2.9rem] leading-[0.95] font-black tracking-tight sm:text-7xl"
+              className="text-[clamp(2.1rem,12.5vw,2.9rem)] leading-[0.95] font-black tracking-tight sm:text-7xl"
             >
               בלאק{" "}
               <span className="from-brand bg-gradient-to-l to-[#ffb36b] bg-clip-text text-transparent">נובמבר</span>
@@ -128,7 +128,7 @@ export function BlackNovember({
               product={p}
               className={
                 layout === "rail"
-                  ? "w-[74%] shrink-0 snap-start sm:w-[calc(40%-10px)] lg:w-[calc(28%-12px)] xl:w-[calc(22%-12px)]"
+                  ? "w-[74%] max-w-[17.5rem] shrink-0 snap-start sm:w-[calc(40%-10px)] sm:max-w-none lg:w-[calc(28%-12px)] xl:w-[calc(22%-12px)]"
                   : undefined
               }
             />
