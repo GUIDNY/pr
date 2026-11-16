@@ -39,7 +39,9 @@ export default function robots(): MetadataRoute.Robots {
     ],
     /* sitemap-recent.xml: only the products whose price or stock changed in
        the last seven days, dated by that change — see its route for why
-       sitemap.xml alone cannot say which pages are stale. */
-    sitemap: [`${SITE_URL}/sitemap.xml`, `${SITE_URL}/sitemap-recent.xml`],
+       sitemap.xml alone cannot say which pages are stale.
+       sitemap-refresh.xml: sellable products OAI-SearchBot has not fetched
+       in 14 days — see its route. */
+    sitemap: [`${SITE_URL}/sitemap.xml`, `${SITE_URL}/sitemap-recent.xml`, `${SITE_URL}/sitemap-refresh.xml`],
   };
 }
