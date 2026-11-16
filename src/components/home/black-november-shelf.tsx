@@ -233,7 +233,9 @@ function Card({
             />
           )}
         </Link>
-        <FavoriteButton productId={product.id} className="absolute top-1 end-1" />
+        {/* At the start corner: with the set now filling the frame, the end
+            corner sat on the maker's logo printed on the screen. */}
+        <FavoriteButton productId={product.id} className="absolute top-1 start-1" />
       </div>
 
       <div className="flex flex-1 flex-col px-3 pt-2 pb-3">
