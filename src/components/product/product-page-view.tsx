@@ -2,9 +2,9 @@ import { notFound } from "next/navigation";
 import { JsonLd } from "@/components/seo/json-ld";
 import { MetaViewContent } from "@/components/analytics/meta-events";
 import { GaViewItem } from "@/components/analytics/ga-events";
-import { breadcrumbSchema } from "@/lib/schema";
+import { ORGANIZATION_ID, SITE_NAME, breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
-import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench } from "lucide-react";
+import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench, CreditCard } from "lucide-react";
 import {
   FREE_DELIVERY_THRESHOLD,
   computeDeliveryFee,
@@ -13,7 +13,10 @@ import {
   BUSINESS_DAY_NAMES,
   deliveryPromiseText,
   LOCAL_DELIVERY_NOTE,
+  freeCollectionNote,
 } from "@/lib/delivery";
+import { isBulkyCategory } from "@/lib/bulky";
+import { instalmentsNote } from "@/lib/pelecard/instalments";
 import { RETURN_WINDOW_DAYS, cancellationFee } from "@/lib/returns-policy";
 import {
   Breadcrumb,
@@ -52,9 +55,12 @@ import { ColorVariantPicker } from "@/components/product/color-variant-picker";
 import { ConsultSection } from "@/components/product/consult-section";
 import { ProductRail } from "@/components/home/product-rail";
 import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
+import { SpecChips, ProductTitle } from "@/components/product/pdp-jump";
+import { PDP_TABS_ID, pdpTabTriggerId } from "@/lib/pdp-tabs";
 import {
   getProductBySlug,
   getRelatedProducts,
+  SIMILAR_PRICE_BAND,
   getCategoryAttributesFor,
   getProductsByBrandSlug,
   getColorVariants,
@@ -76,7 +82,7 @@ import type { StockStatus } from "@/lib/enums";
 import { BUSINESS } from "@/lib/business";
 import { maxCartQuantity } from "@/lib/cart-merge";
 import { isSellableNow } from "@/lib/inventory/availability";
-import { needsPaidInstallation } from "@/lib/installation";
+import { needsPaidInstallation, INSTALLATION_NOT_INCLUDED, INSTALLATION_ARRANGED_SEPARATELY } from "@/lib/installation";
 
 /**
  * The product page itself, rendered identically for everyone except an admin.
@@ -124,9 +130,15 @@ export async function ProductPageView({
      clause. `stockQty <= 0` alone would have shown every one of the 1,163
      products the 19 October rule admits as sold out, with no buy button, on
      pages the listings had just started linking to. */
+  /* NEEDS_REVIEW belongs here too. The badge has always shown it to a
+     customer as "אזל מהמלאי" (see stock-badge.tsx), and the cart refuses the
+     product, because PUBLIC_PRODUCT_WHERE excludes the status — but this
+     condition did not, so the page said sold out beside a working buy button
+     that ended in an error. */
   const isSoldOut =
     !isSellableNow({ ...product, sourceKey: product.source?.key ?? null }) ||
-    product.missingFromSourceSince !== null;
+    product.missingFromSourceSince !== null ||
+    product.stockStatus === "NEEDS_REVIEW";
 
   // A regular visitor still gets a 404 for anything unpublished, and for
   // anything with no photograph — the two conditions PUBLIC_PRODUCT_WHERE
@@ -139,11 +151,18 @@ export async function ProductPageView({
   if (offSiteForVisitors && !isAdminViewer) notFound();
 
   const [related, brandProductsResult, colorVariants] = await Promise.all([
-    getRelatedProducts(product.categoryId, product.id, 4),
+    getRelatedProducts(product.categoryId, product.id, 6, product.price),
     getProductsByBrandSlug(product.brand.slug, { pageSize: 8 }),
     getColorVariants(product),
   ]);
   const brandProducts = brandProductsResult.products.filter((p) => p.id !== product.id);
+  /* The rail says "same price range" only when every card in it is: a short
+     category is topped up from outside the band (see getRelatedProducts). */
+  const relatedTitle = related.every(
+    (p) => Math.abs(p.price - product.price) <= product.price * SIMILAR_PRICE_BAND
+  )
+    ? "דגמים דומים באותו טווח מחיר"
+    : "מוצרים דומים";
   // Only fetched for admins — every other visitor never needs the full
   // attribute list, just whichever ones already have a value.
   const categoryAttributes = isAdminViewer ? await getCategoryAttributesFor(product.categoryId) : [];
@@ -400,18 +419,35 @@ export async function ProductPageView({
             },
             merchantReturnLink: absoluteUrl("/returns"),
           },
+          /* Who sells it: the one Organization the homepage describes, by
+             its @id, so an engine joins this offer to the entity with the
+             phone, the registration number and the Merchant Center account
+             rather than meeting an anonymous seller on every product. */
+          seller: { "@type": "Organization", "@id": ORGANIZATION_ID, name: SITE_NAME },
+          /* The warranty the page already states in words, twice — "אחריות
+             יבואן רשמי · N חודשים" beside the price and "N חודשים מיום
+             הרכישה" in the delivery tab — from the same column, under the
+             same > 0 condition, so the markup cannot claim a warranty the
+             page does not show. */
+          warranty:
+            product.warrantyMonths > 0
+              ? {
+                  "@type": "WarrantyPromise",
+                  durationOfWarranty: {
+                    "@type": "QuantitativeValue",
+                    value: product.warrantyMonths,
+                    unitCode: "MON",
+                  },
+                }
+              : undefined,
         },
-        // Only when there is a real rating behind it. schema.org rejects an
-        // aggregateRating with a zero reviewCount, and inventing one is the
-        // kind of thing that costs a merchant its rich results outright.
-        aggregateRating:
-          product.ratingCount > 0
-            ? {
-                "@type": "AggregateRating",
-                ratingValue: product.ratingAvg.toFixed(1),
-                reviewCount: product.ratingCount,
-              }
-            : undefined,
+        /* There used to be a second aggregateRating key here, from
+           product.ratingAvg/ratingCount. A later key in an object literal
+           replaces an earlier one, so it silently overwrote the summary
+           above — and with ratingCount at 0 it set it to undefined, dropping
+           the rating of a product whose approved reviews the page shows.
+           The summary above, from the same approved reviews the reviews tab
+           renders, is the one copy now. */
       };
 
   // Same three or four steps the visible breadcrumb renders below.
@@ -474,8 +510,10 @@ export async function ProductPageView({
               <Link href={`/category/${product.category.slug}`}>{product.category.name}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
+          {/* The title again, a line above the title itself: on a phone it
+              only cost a row of the first screen. Kept from sm up. */}
+          <BreadcrumbSeparator className="max-sm:hidden" />
+          <BreadcrumbItem className="max-sm:hidden">
             <BreadcrumbPage className="line-clamp-1">{product.title}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
@@ -516,14 +554,14 @@ export async function ProductPageView({
 
         {/* purchase column */}
         <div className="flex flex-col gap-4">
-          <div>
+          <div className="max-md:-order-3">
             <Link href={`/brand/${product.brand.slug}`} className="text-brand text-sm font-semibold hover:underline">
               {product.brand.name}
             </Link>
             {isAdminViewer ? (
               <ProductTitleEditor productId={product.id} title={product.title} />
             ) : (
-              <h1 className="mt-1 text-xl leading-snug font-bold sm:text-3xl sm:leading-tight md:text-2xl lg:text-3xl">{product.title}</h1>
+              <ProductTitle title={product.title} />
             )}
             <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-sm">
               <span>מק&quot;ט: {product.sku}</span>
@@ -538,17 +576,18 @@ export async function ProductPageView({
             {/* The four facts an appliance is bought on — capacity, spin,
                 energy class, the like — as chips under the title, so they
                 are read before the price rather than found in a tab. */}
-            {keySpecs.length > 0 && (
-              <ul className="mt-3 flex flex-wrap gap-1.5">
-                {keySpecs.map((row) => (
-                  <li key={row.label} className="bg-muted text-foreground rounded-lg px-2.5 py-1 text-xs">
-                    <span className="text-muted-foreground">{row.label}: </span>
-                    <span className="font-semibold">{row.value}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
           </div>
+          {/* A sibling of the title block rather than its last child, so that
+              on a phone the price and the stock-and-delivery line can come
+              first (the negative orders below) and the chips after them. A
+              visitor from a Shopping ad lands here on a phone and the price
+              was a screen down, under four chips. From md up nothing has an
+              order and the DOM order stands: title, chips, price. */}
+          {keySpecs.length > 0 && (
+            <div className="-mt-4">
+              <SpecChips chips={keySpecs.map((row) => ({ label: row.label, value: String(row.value) }))} />
+            </div>
+          )}
 
           {isAdminViewer ? (
             <ProductPriceEditor
@@ -568,22 +607,28 @@ export async function ProductPageView({
                engine reads. */
             null
           ) : (
-            <>
+            <div className="flex flex-col gap-4 max-md:-order-2">
               <PriceBlock
                 price={product.price}
                 compareAtPrice={product.compareAtPrice}
                 installmentMonths={product.installmentMonths}
                 size="lg"
               />
+              {instalmentsNote(product.price) && (
+                <p className="text-muted-foreground -mt-2 flex items-center gap-1.5 text-sm">
+                  <CreditCard className="size-4 shrink-0" aria-hidden="true" />
+                  {instalmentsNote(product.price)}
+                </p>
+              )}
               <FriendPriceLine price={product.price} />
-            </>
+            </div>
           )}
 
           {/* After the price and before the stock line, because a finish can
               carry its own price and the choice is made between the two. */}
           <ColorVariantPicker variants={colorVariants} />
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 max-md:-order-1">
             <StockBadge status={isSoldOut ? "OUT_OF_STOCK" : (product.stockStatus as StockStatus)} />
             {/* The delivery cost said at the price, where the decision is
                 made — the one fee shoppers most often first meet at checkout. */}
@@ -614,7 +659,7 @@ export async function ProductPageView({
                 <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
                   {BUSINESS.phone}
                 </a>{" "}
-                כדי לברר מתי הוא צפוי לחזור, או לראות מוצרים דומים בהמשך העמוד.
+                כדי לברר מתי הוא צפוי לחזור, או לראות דגמים דומים שזמינים עכשיו, מיד כאן למטה.
               </p>
             </div>
           ) : (
@@ -626,9 +671,19 @@ export async function ProductPageView({
               <div className="flex items-start gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-3.5 text-amber-950 dark:border-amber-500/60 dark:bg-amber-950/30 dark:text-amber-100">
                 <Wrench className="mt-0.5 size-5 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
                 <div className="text-sm leading-relaxed">
-                  <p className="font-bold">התקנה בתוספת תשלום</p>
+                  <p className="font-bold">{INSTALLATION_NOT_INCLUDED}</p>
+                  {/* No amount here because there is none to give: the
+                      installer is arranged per order and the shop holds no
+                      price list for it. What the customer can be told is
+                      when they will hear the price — before anything is
+                      installed or charged — and how to hear it now. */}
                   <p className="mt-0.5">
-                    ההתקנה אינה כלולה במחיר. לאחר ההזמנה ניצור איתכם קשר לתיאום ההתקנה ולפרטי העלות.
+                    {INSTALLATION_ARRANGED_SEPARATELY} את העלות נמסור לכם בטלפון לפני ביצוע ההתקנה. רוצים לדעת
+                    את המחיר לפני ההזמנה? התקשרו{" "}
+                    <a href={BUSINESS.phoneHref} className="font-semibold underline underline-offset-2">
+                      {BUSINESS.phone}
+                    </a>
+                    .
                   </p>
                 </div>
               </div>
@@ -680,6 +735,14 @@ export async function ProductPageView({
                         {" "}
                         · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · {deliveryPromiseText(product)} · {LOCAL_DELIVERY_NOTE}
                       </span>
+                      {/* The fee is the door's; collecting is free, and a
+                          product under the threshold is the one whose buyer
+                          needs to hear it before the basket does the sum. */}
+                      <span className="text-success block font-medium">
+                        {freeCollectionNote(
+                          isBulkyCategory(product.category.slug, product.category.parent?.slug ?? null),
+                        )}
+                      </span>
                     </>
                   )}
                 </span>
@@ -710,8 +773,21 @@ export async function ProductPageView({
         </div>
       </div>
 
+      {/* On a phone the similar models come here, straight after the buy
+          block, instead of under the description, the spec table, the
+          delivery terms and the reviews — about ten screens down, where the
+          scroll map says fewer than one visitor in ten arrives. From md up
+          the rail stays where it was, at the foot of the page. Same data,
+          rendered twice; only one is ever displayed. */}
+      {/* A sold-out product has nothing else to offer above the fold, so there
+          the rail is up here on every screen: the next thing after "אזל
+          מהמלאי" and the phone number is what can be bought instead. */}
+      <div className={isSoldOut ? undefined : "md:hidden"}>
+        <ProductRail title={relatedTitle} products={related} />
+      </div>
+
       {/* info tabs */}
-      <div className="mt-6">
+      <div id={PDP_TABS_ID} className="mt-6 scroll-mt-28">
         <Tabs defaultValue="overview">
           <StickyTabsBar>
             <div className="overflow-x-auto">
@@ -734,6 +810,7 @@ export async function ProductPageView({
                 ].map((tab) => (
                   <TabsTrigger
                     key={tab.value}
+                    id={pdpTabTriggerId(tab.value)}
                     value={tab.value}
                     className="text-muted-foreground data-active:text-foreground hover:text-foreground shrink-0 rounded-none border-0 bg-transparent px-0.5 pb-3 text-xs shadow-none data-active:bg-transparent data-active:font-bold data-active:shadow-none after:bg-brand after:h-0.5 sm:px-1 sm:text-sm"
                   >
@@ -906,6 +983,20 @@ export async function ProductPageView({
                 </p>
               </div>
             </div>
+            {/* On every product, not only the categories that carry the
+                amber notice above the buy button: no price includes
+                installation (lib/installation.ts). */}
+            <div className="border-border bg-card flex items-start gap-3.5 rounded-xl border p-4 shadow-sm">
+              <span className="bg-brand/10 text-brand flex size-10 shrink-0 items-center justify-center rounded-full">
+                <Wrench className="size-5" />
+              </span>
+              <div>
+                <p className="font-bold">התקנה</p>
+                <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
+                  {INSTALLATION_NOT_INCLUDED} {INSTALLATION_ARRANGED_SEPARATELY}
+                </p>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="reviews" className="max-w-2xl py-4">
@@ -969,7 +1060,11 @@ export async function ProductPageView({
         </Tabs>
       </div>
 
-      <ProductRail title="מוצרים דומים" products={related} />
+      {!isSoldOut && (
+        <div className="max-md:hidden">
+          <ProductRail title={relatedTitle} products={related} />
+        </div>
+      )}
 
       {!isSoldOut && (
         <MobileBuyBar productId={product.id} slug={product.slug} price={product.price} stockStatus={product.stockStatus as StockStatus} />

@@ -11,13 +11,54 @@
  * It lands between 120 and 160 characters for every brand name this
  * catalogue holds, which is the window a result actually prints.
  */
-export function brandMetaDescription(name: string, total: number): string {
+/*
+ * The middle of the sentence used to be a constant — "מקררים, מכונות כביסה,
+ * תנורים, טלוויזיות ומוצרי חשמל נוספים" — on every brand page. Two things
+ * were wrong with that, measured on 15 November. It was false for most of
+ * them: /brand/trust holds three fans and kettles and said refrigerators,
+ * washing machines, ovens and televisions. And it made all 84 indexable
+ * brand pages offer the same sentence with a name and a number swapped in,
+ * which is the complaint the header above makes about `Brand.description`
+ * and the one category-description.ts was written to end for categories.
+ * Search Console's "not indexed" list held 48 brand pages that day.
+ *
+ * So the middle is now the categories the brand really has live products
+ * in, most first, from getBrandTopCategories. With none to name it says
+ * nothing rather than something untrue.
+ */
+const TAIL = "מחירים מעודכנים, משלוח עד הבית ואחריות יבואן רשמי.";
+
+/**
+ * The title of a brand page.
+ *
+ * It was the bare name — "AEG" — which in a search result reads as the
+ * manufacturer's own site and says nothing about what the page is. Search
+ * Console, 28 days to 12 November, on brand names alone: "אלקטרולוקס" 78
+ * impressions, "בלומברג" 28, "electrolux" 23, "beko" 19, "asko" 14 — no
+ * clicks on any of them.
+ *
+ * The count is the live one the page already shows, so the title says the
+ * one thing a shop's brand page can say that the manufacturer's cannot:
+ * how many of them are on the shelf. A brand with nothing live keeps its
+ * bare name, and so does one whose name is too long to leave room for the
+ * site name after it.
+ */
+export function brandPageTitle(name: string, total: number): string {
+  if (total <= 0) return name;
+  const title = `${name} – ${total.toLocaleString("he-IL")} מוצרים במלאי`;
+  return title.length <= 50 ? title : name;
+}
+
+export function brandMetaDescription(name: string, total: number, categories: readonly string[] = []): string {
   const what =
     total > 0
       ? `${total} מוצרי ${name} במלאי`
       : `מוצרי ${name}`;
-  return (
-    `${what} ב-Buy Today — מקררים, מכונות כביסה, תנורים, טלוויזיות ומוצרי חשמל נוספים. ` +
-    `מחירים מעודכנים, משלוח עד הבית ואחריות יבואן רשמי.`
-  );
+  /* Fewer names rather than a cut-off one: drop from the end until the
+     whole line fits what a result prints. */
+  for (let n = Math.min(categories.length, 4); n > 0; n--) {
+    const text = `${what} ב-Buy Today — ${categories.slice(0, n).join(", ")}. ${TAIL}`;
+    if (text.length <= 160) return text;
+  }
+  return `${what} ב-Buy Today. ${TAIL}`;
 }

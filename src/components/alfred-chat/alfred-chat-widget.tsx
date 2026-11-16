@@ -157,7 +157,11 @@ export function AlfredChatWidget() {
         className={cn(
           "floating-launcher border-border bg-background fixed bottom-24 start-4 z-50 flex size-14 items-center justify-center rounded-full border shadow-lg transition-transform hover:scale-105 lg:bottom-6",
           open && "scale-0 opacity-0",
-          hasTab && "max-sm:hidden"
+          hasTab && "max-sm:hidden",
+          /* Phone product page: beside the WhatsApp bubble in the start
+             corner of the buy bar, not floating over the price and the
+             add-to-cart button. See whatsapp-button.tsx. */
+          pathname.startsWith("/product/") && "max-sm:bottom-3 max-sm:start-[3.75rem] max-sm:size-10"
         )}
       >
         <Image src="/mascot/alfred-face.png" alt="" width={56} height={56} className="size-full rounded-full object-cover" />

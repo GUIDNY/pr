@@ -22,6 +22,7 @@ import { customerHasPaid } from "@/lib/order-signal";
 import { notifyOrder } from "@/lib/notify";
 import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 import { declineText, notifyPaymentFailed } from "@/lib/notify/payment-alert";
+import { paymentForFeedback } from "@/lib/pelecard/callback-match";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -163,15 +164,45 @@ export async function POST(req: Request) {
   const order = await db.order.findUnique({ where: { id: orderId } });
   if (!order) return new NextResponse("unknown order", { status: 404 });
 
-  const payment = await db.payment.findFirst({
+  /* The form this notification is about, which is not always the order's
+     latest — see lib/pelecard/callback-match.ts. */
+  const payments = await db.payment.findMany({
     where: { orderId, provider: "PELECARD" },
     orderBy: { createdAt: "desc" },
+    take: 25,
   });
-  if (!payment) return new NextResponse("no pending payment", { status: 404 });
+  const matched = paymentForFeedback(payments, feedback.ConfirmationKey);
+  if (!matched) return new NextResponse("no pending payment", { status: 404 });
+  const { payment, superseded } = matched;
 
   // 2. Idempotency. Pelecard may deliver the same callback twice, and a retry
   //    must not produce a second payment record or a second status entry.
   if (customerHasPaid(order.paymentStatus)) return NextResponse.json({ ok: true });
+
+  /* A form the checkout has already replaced ran out of time, or was
+     refused. That is a fact about that form and nothing else: the order is
+     still being paid for in the form that replaced it, so its status, the
+     owner's alert and the customer's visit log are left alone. Recorded on
+     its own row, so the exchange is kept. A SUCCESS on such a form is not
+     handled here — money was taken, and it goes through the full path below
+     against the row it names. */
+  const failSuperseded = async (reason: string) => {
+    console.warn("[pelecard] superseded form ended", {
+      orderId,
+      reason,
+      statusCode: feedback.PelecardStatusCode ?? null,
+      errorMessage: feedback.ErrorMessage ?? null,
+    });
+    await db.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: "FAILED",
+        pelecardStatusCode: feedback.PelecardStatusCode ?? null,
+        rawResponse: { feedback, rawBody, reason, superseded: true } as object,
+      },
+    });
+    return NextResponse.json({ ok: true });
+  };
 
   const fail = async (reason: string, extra?: unknown) => {
     // Pelecard's own verdict, in our logs. `reason` is our summary of why we
@@ -249,11 +280,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   };
 
-  if (url.searchParams.get("failed")) return fail("error feedback url");
+  if (url.searchParams.get("failed")) {
+    return superseded ? failSuperseded("error feedback url") : fail("error feedback url");
+  }
 
   // 3. Anything but "000" is a decline.
   if (feedback.PelecardStatusCode !== "000") {
-    return fail(`status ${feedback.PelecardStatusCode}`);
+    return superseded
+      ? failSuperseded(`status ${feedback.PelecardStatusCode}`)
+      : fail(`status ${feedback.PelecardStatusCode}`);
   }
 
   // 4. The sum charged must be the sum we asked for, to the agora. Compared

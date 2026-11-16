@@ -14,7 +14,7 @@
 // ASCII quotes for ס"מ and אינץ', an "A&I" in the body text.
 //
 // Run: npx tsx scripts/check-google-feed.ts
-import { renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
+import { priceBand, priceCompetitiveness, renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
 import { SITE_URL } from "../src/lib/site-url";
 import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE, HANDLING_DAYS, TRANSIT_DAYS, STANDARD_DELIVERY_DAYS } from "../src/lib/delivery";
 
@@ -182,6 +182,30 @@ check("a full-price item has no g:sale_price", !(items.get("PLAIN") ?? "").inclu
 check("a dryer is labelled for the test", (items.get("DRYER") ?? "").includes("<g:custom_label_0>test</g:custom_label_0>"));
 check("a product outside the test carries no label", !(items.get("PLAIN") ?? "").includes("g:custom_label_0"));
 
+// custom_label_1 is the price band, on every item, by the price the
+// customer pays. One boundary is the free-delivery threshold itself, so the
+// band and the shipping line beside it cannot disagree about which side of
+// it an item is on.
+for (const [price, want] of [
+  [80, "under-300"],
+  [299.99, "under-300"],
+  [300, `300-${FREE_DELIVERY_THRESHOLD - 1}`],
+  [FREE_DELIVERY_THRESHOLD - 0.01, `300-${FREE_DELIVERY_THRESHOLD - 1}`],
+  [FREE_DELIVERY_THRESHOLD, `${FREE_DELIVERY_THRESHOLD}-1499`],
+  [1500, "1500-3999"],
+  [4000, "4000-plus"],
+  [49000, "4000-plus"],
+] as const) {
+  check(`a price of ${price} is in band ${want}`, priceBand(price) === want, priceBand(price));
+}
+check("every item carries exactly one price band", [...items.values()].every((i) => i.split("<g:custom_label_1>").length === 2));
+check("the band is the sale price's, not the struck-through one's", onSale.includes("<g:custom_label_1>4000-plus</g:custom_label_1>"));
+check(
+  "an item under the threshold is banded under it and charged delivery",
+  (items.get("PLAIN") ?? "").includes("<g:custom_label_1>under-300</g:custom_label_1>") &&
+    (items.get("PLAIN") ?? "").includes(`<g:price>${HOME_DELIVERY_FEE.toFixed(2)} ILS</g:price>`),
+);
+
 /* Identifiers. A GTIN is the strongest signal Google takes; brand + mpn is
    the accepted substitute; identifier_exists=no is the admission that there
    is neither — and sending that on an item which does have brand + mpn
@@ -269,6 +293,30 @@ const flattened = toPlainText(rows[1].description!);
 check("html description keeps its text", flattened.includes("נפח שימושי: 326 ליטר"));
 check("html description decodes entities", flattened.includes("A&I") && flattened.includes("5 > 3"));
 check("html description breaks between blocks", /ליטר\n/.test(flattened));
+
+// custom_label_2 against the market benchmark. The eight items the owner
+// approved by hand on 15 November, at the gaps Merchant Center showed, must
+// come out "competitive"; the five excluded ones "overpriced"; the boundary
+// and the no-benchmark cases get nothing.
+check("−6.3% is competitive", priceCompetitiveness(1630, 1740) === "competitive");
+check("−3.2% is competitive", priceCompetitiveness(1990, 2056) === "competitive");
+check("−2.0% is unlabelled", priceCompetitiveness(600, 612.1) === null);
+check("+4.0% is unlabelled", priceCompetitiveness(6400, 6154) === null);
+check("+5.7% is overpriced", priceCompetitiveness(4400, 4163) === "overpriced");
+check("+27.7% is overpriced", priceCompetitiveness(1490, 1167) === "overpriced");
+check("no benchmark, no label", priceCompetitiveness(1000, null) === null);
+check("zero benchmark, no label", priceCompetitiveness(1000, 0) === null);
+{
+  const labelled = renderGoogleMerchantFeed([
+    product({ sku: "CHEAP", price: 900, benchmarkPrice: 1000 }),
+    product({ sku: "DEAR", price: 1100, benchmarkPrice: 1000 }),
+    product({ sku: "NONE", price: 1000 }),
+  ]);
+  check("feed carries competitive", /<g:id>CHEAP<\/g:id>[\s\S]*?<g:custom_label_2>competitive<\/g:custom_label_2>/.test(labelled));
+  check("feed carries overpriced", /<g:id>DEAR<\/g:id>[\s\S]*?<g:custom_label_2>overpriced<\/g:custom_label_2>/.test(labelled));
+  const none = /<item>(?:(?!<\/item>)[\s\S])*<g:id>NONE<\/g:id>[\s\S]*?<\/item>/.exec(labelled)?.[0] ?? "";
+  check("no benchmark sends no custom_label_2", none !== "" && !none.includes("custom_label_2"));
+}
 
 console.log(
   failed === 0

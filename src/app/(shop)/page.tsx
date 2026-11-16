@@ -4,9 +4,11 @@ import { FinderTile } from "@/components/home/finder-tile";
 import { CategoryGrid } from "@/components/home/category-grid-mobile";
 import { MallPromo } from "@/components/home/mall-promo";
 import { ProductRail } from "@/components/home/product-rail";
+import { BlackNovember } from "@/components/home/black-november";
 import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
 import {
+  getBlackNovemberProducts,
   getDeals,
   getBestSellers,
   getFeaturedProducts,
@@ -24,7 +26,6 @@ import { organizationSchema, webSiteSchema } from "@/lib/schema";
 // canonical set once at the root would be handed to every page that does not
 // override it — each one announcing itself as the homepage, which is worse
 // than having none at all.
-import { PublicSinglesDayBanner } from "@/components/campaign/singles-day-home-banner";
 export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 // Nothing on this page differs between visitors any more — the greeting and
@@ -52,6 +53,7 @@ export default async function HomePage() {
     showcases,
     departmentCounts,
     banners,
+    blackNovember,
   ] = await Promise.all([
       getHomepageSection("hero"),
       getDeals(8),
@@ -64,6 +66,7 @@ export default async function HomePage() {
       getDepartmentShowcases({ departments: 8, perDepartment: 6 }),
       getDepartmentCounts(),
       getPromoBanners(),
+      getBlackNovemberProducts(),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
@@ -107,11 +110,14 @@ export default async function HomePage() {
           brands — the brands after the first products, so a product is on
           the first screen of a laptop rather than a row of logos. */}
       <div className="flex flex-col lg:contents">
-        {/* Singles' Day, until 24:00 on 11.11; it hides itself after. On a
-            phone it sits under the category circles instead, in the hero band. */}
-        <div className="order-first hidden lg:block">
-          <PublicSinglesDayBanner />
-        </div>
+        {/* The Singles' Day banner used to sit here and in the hero's phone
+            slot. The day ended on 11.11, and the banner hid itself — but only
+            in the browser, after hydration, where its clock runs. The server
+            went on sending it, so on every visit since it was drawn and then
+            dropped half a second later, and the first screen jumped up by its
+            height: about 300px on a phone, a layout shift of 0.24. A banner
+            for a day that is over is not rendered at all. The component and
+            /singles-day are untouched; put it back here for the next one. */}
         <div className="order-1">
           <HeroBand
             title={hero?.title || "מוצרי חשמל מיבואן רשמי, במחיר טוב"}
@@ -122,8 +128,14 @@ export default async function HomePage() {
             categoryTiles={categoryTiles}
             deals={deals}
             banners={banners}
-            phoneSlot={<PublicSinglesDayBanner inset className="mb-3" />}
           />
+        </div>
+
+        {/* בלאק נובמבר: the products the supplier marked in the price list,
+            straight under the banner at every width. Renders nothing when
+            no row carries the mark, so it ends when the price list says so. */}
+        <div className="order-1">
+          <BlackNovember products={blackNovember} viewAllHref="/black-november" />
         </div>
 
         <div className="order-5">

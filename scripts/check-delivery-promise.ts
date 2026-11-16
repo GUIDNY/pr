@@ -33,6 +33,8 @@ import {
   STANDARD_DELIVERY_DAYS,
   HANDLING_DAYS,
   TRANSIT_DAYS,
+  computeDeliveryFee,
+  freeCollectionNote,
 } from "../src/lib/delivery";
 import { canonicalLocality, deliveryZoneFor, deliveryPromiseTextForCity, suggestLocalities, LOCALITY_NAMES, MAJOR_LOCALITIES } from "../src/lib/delivery-zones";
 
@@ -51,6 +53,20 @@ is("the published promise is the national maximum", STANDARD_DELIVERY_DAYS, DELI
 is("the local promise is the faster one", DELIVERY_ZONES.local.max < DELIVERY_ZONES.national.max, true);
 is("an unset row is told the national range", deliveryPromiseText({ deliveryDays: 7 }), "3–7 ימי עסקים");
 is("a row with its own figure is told that figure", deliveryPromiseText({ deliveryDays: 5 }), "עד 5 ימי עסקים");
+
+/* Beside every delivery charge: collecting is free. The sentence has to be
+   true, so it is held to the fee function itself — both collection methods
+   cost nothing at a basket that pays for the door — and a bulky basket is
+   never promised the collection point the checkout will not offer it. */
+console.log("\nCollecting is free, and said so beside the fee");
+is("a small basket pays for the door", computeDeliveryFee(80) > 0, true);
+is("and nothing at a collection point", computeDeliveryFee(80, "PICKUP_POINT"), 0);
+is("and nothing at the counter", computeDeliveryFee(80, "PICKUP"), 0);
+is("the note names both", freeCollectionNote(false), "נקודת איסוף או איסוף מהסניף — חינם");
+is("a bulky basket is offered the counter only", freeCollectionNote(true).includes("נקודת איסוף"), false);
+for (const file of ["src/components/cart/cart-drawer.tsx", "src/app/(shop)/cart/page.tsx", "src/components/product/product-page-view.tsx"]) {
+  is(`${file} says it`, readFileSync(file, "utf8").includes("freeCollectionNote("), true);
+}
 /* Google adds the two maximums to produce the estimate it shows, and counts
    both in business days. So their sum is the promise, and anything larger
    advertises a delivery slower than the one the page makes — which is what

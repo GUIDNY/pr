@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { ATTRIBUTION_COOKIE, ATTRIBUTION_COOKIE_DAYS, parseAttribution, type Attribution, type AttributionTouch } from "@/lib/attribution";
+import { ATTRIBUTION_COOKIE, ATTRIBUTION_COOKIE_DAYS, isRealClickId, parseAttribution, type Attribution, type AttributionTouch } from "@/lib/attribution";
 
 /**
  * Writes the bt_attr cookie — see lib/attribution.ts for what it holds.
@@ -59,12 +59,13 @@ function touchFromPage(): AttributionTouch | null {
 
 /* Whichever ad click ids the address carries, verbatim. Attached to the
    touch whatever classified it — a tagged campaign link carries gclid too
-   when auto-tagging is on, and that is the one Google can match a sale to. */
+   when auto-tagging is on, and that is the one Google can match a sale to.
+   An unfilled template such as `{gclid}` is not an id and is left out. */
 function clickIds(params: URLSearchParams): Pick<AttributionTouch, "gclid" | "gbraid" | "wbraid" | "srsltid"> {
   const ids: Pick<AttributionTouch, "gclid" | "gbraid" | "wbraid" | "srsltid"> = {};
   for (const key of ["gclid", "gbraid", "wbraid", "srsltid"] as const) {
     const v = params.get(key)?.trim();
-    if (v) ids[key] = v.slice(0, 300);
+    if (isRealClickId(v)) ids[key] = v.slice(0, 300);
   }
   return ids;
 }

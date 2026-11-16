@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Plus, X, Star, ImagePlus, Upload, Link as LinkIcon, ShieldCheck } from "lucide-react";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { FavoriteButton } from "@/components/product/favorite-button";
+import { GalleryLightbox } from "@/components/product/gallery-lightbox";
 import {
   addProductImageAction,
   removeProductImageAction,
@@ -54,6 +55,7 @@ export function ProductGallery({
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zoomOpen, setZoomOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const active = localImages[activeIndex] ?? null;
@@ -142,6 +144,15 @@ export function ProductGallery({
 
   return (
     <div className="relative">
+      {!isAdmin && localImages.length > 0 && (
+        <GalleryLightbox
+          images={localImages.map((img) => ({ id: img.id, url: img.url }))}
+          title={title}
+          index={activeIndex}
+          open={zoomOpen}
+          onOpenChange={setZoomOpen}
+        />
+      )}
       <div
         // 4:3 on a phone, square from sm:. A square photo at 390px is 358px
         // tall and pushes the price and the buy button under the fold; the
@@ -184,6 +195,17 @@ export function ProductGallery({
           />
         ) : (
           <ProductImagePlaceholder title={title} brand={brand} icon={categoryIcon} />
+        )}
+        {/* The whole photograph opens it full screen — for shoppers only: an
+            admin's stage is a drop target and an edit surface. Before the
+            heart in the DOM, so the heart stays on top of it. */}
+        {!isAdmin && active && (
+          <button
+            type="button"
+            onClick={() => setZoomOpen(true)}
+            aria-label="הגדלת התמונה"
+            className="absolute inset-0 cursor-zoom-in"
+          />
         )}
         <FavoriteButton productId={productId} className="absolute top-4 end-4" />
 

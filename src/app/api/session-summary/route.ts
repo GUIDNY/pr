@@ -2,7 +2,7 @@ import { owedReferralCode } from "@/lib/referral";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { getCart } from "@/lib/cart";
+import { claimGuestCart, getCart } from "@/lib/cart";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { isBackOffice, backOfficeHome } from "@/lib/permissions";
 
@@ -23,6 +23,27 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const session = await getSession();
+
+  /* A signed-in visitor who still carries a guest cart cookie: hand that cart
+     to the account before reading it.
+
+     Every sign-in path already does this in its own callback, and for one of
+     them it cannot work. Apple returns the shopper with a cross-site form
+     POST, and the cart cookie is SameSite=Lax, which a browser does not send
+     on a cross-site POST. So in the Apple callback claimGuestCart finds no
+     cookie and returns, the session is created, and the shopper lands on
+     /checkout signed in — where getCart() looks for the account's cart, finds
+     none on a first sign-in, and the page says "אין פריטים בעגלה" over a cart
+     that is still in the database under the cookie. The recordings have
+     shoppers arriving on /checkout from appleid.apple.com and leaving within
+     seconds.
+
+     This request is same-site, so the cookie is here, and it is the first
+     thing every page asks after that redirect. It is a route handler, so the
+     cookie can be cleared. For everyone else it costs nothing: with no guest
+     cookie claimGuestCart returns before touching the database, and it never
+     throws. */
+  if (session) await claimGuestCart(session.sub);
 
   const [favorites, cart] = await Promise.all([
     session

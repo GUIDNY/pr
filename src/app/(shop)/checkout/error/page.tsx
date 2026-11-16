@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { PELECARD_STATUS_MESSAGES, NO_RETRY_STATUS_CODES, TRY_ANOTHER_CARD_CODES } from "@/lib/pelecard/client";
 import { BUSINESS } from "@/lib/business";
+import { gatewayErrorMessage, paymentPageExpired, PAYMENT_PAGE_EXPIRED_MESSAGE } from "@/lib/pelecard/failure";
 
 export const metadata = { title: "התשלום לא הושלם" };
 export const dynamic = "force-dynamic";
@@ -37,15 +38,23 @@ export default async function CheckoutErrorPage({
     ? await db.payment.findFirst({
         where: { orderId: order.id },
         orderBy: { createdAt: "desc" },
-        select: { pelecardStatusCode: true },
+        select: { pelecardStatusCode: true, pelecardTransactionId: true, rawResponse: true },
       })
     : null;
 
   const statusCode = payment?.pelecardStatusCode ?? null;
-  const message =
-    (statusCode && PELECARD_STATUS_MESSAGES[statusCode]) ??
-    "התשלום לא הושלם. לא בוצע חיוב, וניתן לנסות שוב.";
-  const allowRetry = !statusCode || !NO_RETRY_STATUS_CODES.includes(statusCode);
+  /* A 301 is either a lost answer or a form that expired untouched, and only
+     the first is a reason to keep a customer from trying again — see
+     lib/pelecard/failure.ts. */
+  const expired = paymentPageExpired({
+    statusCode,
+    transactionId: payment?.pelecardTransactionId,
+    errorMessage: gatewayErrorMessage(payment?.rawResponse),
+  });
+  const message = expired
+    ? PAYMENT_PAGE_EXPIRED_MESSAGE
+    : ((statusCode && PELECARD_STATUS_MESSAGES[statusCode]) ?? "התשלום לא הושלם. לא בוצע חיוב, וניתן לנסות שוב.");
+  const allowRetry = expired || !statusCode || !NO_RETRY_STATUS_CODES.includes(statusCode);
   const anotherCard = !!statusCode && TRY_ANOTHER_CARD_CODES.includes(statusCode);
 
   return (

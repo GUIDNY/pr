@@ -188,6 +188,31 @@ export function computeDeliveryFee(subtotal: number, method: DeliveryMethod = "D
 }
 
 /**
+ * The sentence that goes beside a delivery charge: collecting costs nothing.
+ *
+ * A basket under the threshold was shown "משלוח 40 ₪" and a total that
+ * included it — in the cart drawer, on the cart page and on the product
+ * page — and nowhere before the checkout was it said that a collection
+ * point and the shop's own counter are both free. computeDeliveryFee above
+ * quotes the door on purpose, as the number to plan for; quoting it with
+ * nothing beside it reads as the only number there is.
+ *
+ * It is where the paid visitors were lost. Between 9 and 14 November three
+ * visits that arrived from a Google ad put something in the basket, and all
+ * three left at the first screen that showed the total with delivery: an
+ * 80 ₪ heater that became 120, 250 that became 290, 340 that became 380 at
+ * the checkout and was abandoned four seconds later. None of them had been
+ * told there was a way to pay 80.
+ *
+ * A bulky basket cannot go to a collection point (lib/bulky.ts), so it is
+ * offered the counter alone — the same two cases the checkout's own radio
+ * group draws, in the checkout's own words.
+ */
+export function freeCollectionNote(hasBulky: boolean): string {
+  return hasBulky ? "איסוף מהסניף — חינם" : "נקודת איסוף או איסוף מהסניף — חינם";
+}
+
+/**
  * Whether this method needs a street address.
  *
  * A pickup point does, which is the part that surprises people: the carrier
@@ -197,4 +222,32 @@ export function computeDeliveryFee(subtotal: number, method: DeliveryMethod = "D
  */
 export function requiresAddress(method: DeliveryMethod): boolean {
   return method !== "PICKUP";
+}
+
+/**
+ * What a pending order's delivery charge becomes when its method is changed
+ * at the checkout, after the order already exists.
+ *
+ * The charge depends on the method — collecting is free, home delivery under
+ * the threshold is not — so an order that follows the form from one method to
+ * the other has to be re-priced, or it ends up as a home delivery that was
+ * charged as a collection (or the reverse). null means "cannot be known from
+ * the order alone": a coupon may have waived the charge, and whether it did
+ * is not recorded on an order that was created as a collection. The caller
+ * makes a new order then, which is priced from the cart and the coupon.
+ */
+export function deliveryFeeAfterMethodChange(order: {
+  subtotal: number;
+  discountTotal: number;
+  deliveryMethod: string;
+  deliveryFee: number;
+  couponCode: string | null;
+}, next: DeliveryMethod): number | null {
+  if (next !== "DELIVERY") return 0;
+  if (order.deliveryMethod === "DELIVERY") return order.deliveryFee;
+  const listed = computeDeliveryFee(order.subtotal - order.discountTotal, "DELIVERY");
+  /* Free by the threshold is free whatever a coupon says. */
+  if (listed === 0) return 0;
+  if (order.couponCode) return null;
+  return listed;
 }
