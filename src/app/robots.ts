@@ -37,6 +37,9 @@ export default function robots(): MetadataRoute.Robots {
       { userAgent: "PerplexityBot", allow: "/", disallow },
       { userAgent: "ClaudeBot", allow: "/", disallow },
     ],
-    sitemap: `${SITE_URL}/sitemap.xml`,
+    /* sitemap-recent.xml: only the products whose price or stock changed in
+       the last seven days, dated by that change — see its route for why
+       sitemap.xml alone cannot say which pages are stale. */
+    sitemap: [`${SITE_URL}/sitemap.xml`, `${SITE_URL}/sitemap-recent.xml`],
   };
 }
