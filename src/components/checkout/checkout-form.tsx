@@ -186,6 +186,8 @@ export function CheckoutForm({
   const [isPending, startTransition] = useTransition();
   const [isEditingCart, startCartEdit] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  /* Set when the server says this basket was just paid as another order. */
+  const [alreadyPaid, setAlreadyPaid] = useState<string | null>(null);
   /* The coupon field in the summary. The server answers with the whole
      summary — discount, delivery, total — and the store takes it as is, so
      the numbers on this page are never computed twice. */
@@ -681,6 +683,15 @@ export function CheckoutForm({
 
       const result = await createOrderAction(payload as CheckoutInput);
       if (!result.success) {
+        /* This basket was just paid for: no second order, and no second
+           payment form. The server has taken the items out of the cart; the
+           page follows it and says which order it was. */
+        if ("alreadyPaidOrderNumber" in result && result.alreadyPaidOrderNumber) {
+          submitted.current = true;
+          setAlreadyPaid(result.alreadyPaidOrderNumber);
+          setCart({ ...cart, items: [], itemCount: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0, couponCode: null });
+          return;
+        }
         toast.error(result.error ?? "שגיאה בביצוע ההזמנה");
         return;
       }
@@ -708,6 +719,20 @@ export function CheckoutForm({
       }
       router.push(`/checkout/success/${result.orderNumber}`);
     });
+  }
+
+  if (alreadyPaid) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-3 px-4 py-24 text-center">
+        <h1 className="text-xl font-bold">ההזמנה {alreadyPaid} כבר שולמה</h1>
+        <p className="text-muted-foreground text-sm">
+          התשלום על המוצרים האלה כבר אושר, ולא נוצרה הזמנה נוספת. אין צורך לשלם שוב.
+        </p>
+        <Button variant="brand" asChild>
+          <Link href={`/checkout/success/${alreadyPaid}`}>לפרטי ההזמנה</Link>
+        </Button>
+      </div>
+    );
   }
 
   if (cart.items.length === 0) {

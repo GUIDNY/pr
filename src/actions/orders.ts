@@ -17,6 +17,7 @@ import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
 import { holdDays } from "@/lib/pelecard/client";
 import { rememberAddress } from "@/lib/address-book";
 import { retireGameCoupon } from "@/lib/game-wheel";
+import { findRecentlyPaidOrder } from "@/lib/paid-cart";
 import { awardPurchase } from "@/lib/game-levels";
 import { cookies } from "next/headers";
 import { ATTRIBUTION_COOKIE, attributionFromJson, gclidOf, isRealClickId, parseAttribution } from "@/lib/attribution";
@@ -34,10 +35,34 @@ export async function createOrderAction(input: CheckoutInput) {
     return { success: false as const, error: "העגלה ריקה" };
   }
 
+  const session = await getSession();
+
+  /* The same basket was just paid for, by this account or in this visit:
+     answer with that order instead of making a second one. The callback
+     empties the cart when a payment clears, so this is for the cases it
+     cannot reach — see lib/paid-cart.ts. The paid order's products leave the
+     cart here too, which is what the callback would have done. */
+  const alreadyPaid = await findRecentlyPaidOrder({
+    userId: session?.sub,
+    visitSid: await currentVisitSid(),
+    items: cart.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+  });
+  if (alreadyPaid) {
+    if (cart.id) {
+      await db.cartItem.deleteMany({
+        where: { cartId: cart.id, productId: { in: cart.items.map((i) => i.productId) } },
+      });
+    }
+    return {
+      success: false as const,
+      error: `ההזמנה ${alreadyPaid} כבר שולמה. אין צורך לשלם שוב.`,
+      alreadyPaidOrderNumber: alreadyPaid,
+    };
+  }
+
   // never trust client prices — recompute from the authoritative cart. The
   // form's email goes in so a coupon limited per customer, or to a first
   // order, is judged against the person actually ordering.
-  const session = await getSession();
   const summary = await buildCartSummary(cart, { userId: session?.sub, email: data.email });
 
   /* An address is kept for the door AND for a pickup point, not only the
