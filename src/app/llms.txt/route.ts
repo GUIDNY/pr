@@ -19,6 +19,16 @@ import { BUSINESS, BUSINESS_ADDRESS } from "@/lib/business";
 // can read: no invented shipping times, no invented returns window. The
 // policy pages are linked instead of summarised, so the answer comes from the
 // page that is actually maintained.
+//
+// Two corrections on 15 November, both from the crawler log rather than from
+// taste. The file used to say a sold-out product "is not shown at all, so
+// every product on the site can be ordered now". True of the listings and
+// false of the address: a sold-out product's page answers 200 and says so,
+// the sitemap lists those pages on purpose, and ChatGPT-User had fetched 84
+// of them in three weeks — each one a page this file had just promised was
+// orderable. And /shipping and /warranty were not linked, while they are the
+// second and fourth most-fetched addresses ChatGPT-User asks for (28 and 15
+// fetches, against 7 for /terms, which was).
 
 export const revalidate = 3600;
 
@@ -45,9 +55,10 @@ export async function GET() {
 > חנות מקוונת ישראלית למוצרי חשמל, אלקטרוניקה וקולנוע ביתי — מקררים, מכונות כביסה,
 > תנורים, מזגנים, טלוויזיות ומוצרי מטבח. האתר בעברית ומשרת לקוחות בישראל.
 
-האתר מציג כרגע ${productCount.toLocaleString("he-IL")} מוצרים במלאי. מוצר שאזל אינו מוצג
-כלל, ולכן כל מוצר שמופיע באתר הוא מוצר שניתן להזמין עכשיו — המחיר והזמינות בעמוד
-המוצר הם המצב הנוכחי ולא הערכה.
+האתר מציג כרגע ${productCount.toLocaleString("he-IL")} מוצרים במלאי. דפי הקטגוריה, המותג
+והחיפוש מציגים רק מוצרים שניתן להזמין עכשיו. עמוד של מוצר שאזל נשאר בכתובתו ואומר
+זאת במפורש ("אזל מהמלאי", ו-OutOfStock ב-JSON-LD) — לכן יש לקרוא את הזמינות מעמוד
+המוצר עצמו. המחיר והזמינות בעמוד המוצר הם המצב הנוכחי ולא הערכה.
 
 ## מחלקות
 
@@ -62,6 +73,8 @@ ${guides}
 - [אודותינו](${absoluteUrl("/page/about")})
 - [סניפים](${absoluteUrl("/page/branches")})
 - [יצירת קשר](${absoluteUrl("/contact")}): טלפון ${BUSINESS.phone}, ${BUSINESS_ADDRESS}
+- [מדיניות משלוחים ואספקה](${absoluteUrl("/shipping")})
+- [אחריות ושירות](${absoluteUrl("/warranty")})
 - [תקנון האתר](${absoluteUrl("/terms")})
 - [מדיניות ביטולים והחזרות](${absoluteUrl("/returns")})
 - [מדיניות פרטיות](${absoluteUrl("/privacy")})
