@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import { ExternalLink, Loader2 } from "lucide-react";
+import { trackVisit } from "@/lib/pageview/track";
 
 /**
  * Pelecard's Apple Pay bridge, and the reason a script of theirs runs on our
@@ -83,9 +84,55 @@ const LOAD_DEADLINE_MS = 12_000;
    scrolling there was no way to tell a wrong number from a class that was
    never emitted. A rule written out cannot go missing. */
 
-export function PaymentFrame({ src }: { src: string }) {
+export function PaymentFrame({ src, orderNumber }: { src: string; orderNumber?: string }) {
   const [state, setState] = useState<"loading" | "ready" | "blocked">("loading");
   const loaded = useRef(false);
+  const frame = useRef<HTMLIFrameElement>(null);
+
+  /* WHAT HAPPENED AT THE CARD FORM, as far as this side of the frame can know.
+     The form is Pelecard's and its "pay" button is theirs; a click inside a
+     frame from another origin never reaches this page. Two things do:
+
+     - the window loses focus to the frame the moment the customer puts the
+       cursor in it — the first field touched, which is the nearest thing to
+       "started paying" that exists out here;
+     - the form goes away: the page is left, the tab closed, or the checkout
+       closes the form because a detail changed. How long it had been open,
+       and whether it was ever touched, is the difference between someone who
+       glanced at a card form and someone who sat in it for four minutes.
+
+     payment_result, written by the gateway's callback, says how the ones who
+     did submit ended. No field of the form is readable from here, so nothing
+     about the card can be recorded even by mistake. */
+  useEffect(() => {
+    if (!orderNumber) return;
+    const openedAt = Date.now();
+    const secondsOpen = () => Math.round((Date.now() - openedAt) / 1000);
+    let touched = false;
+    let closed = false;
+
+    const onBlur = () => {
+      /* activeElement moves to the frame a tick after the blur. */
+      setTimeout(() => {
+        if (touched || document.activeElement !== frame.current) return;
+        touched = true;
+        trackVisit("payment_form_touch", { orderNumber, secondsOpen: secondsOpen() });
+      }, 0);
+    };
+    const onClose = () => {
+      if (closed) return;
+      closed = true;
+      trackVisit("payment_form_closed", { orderNumber, secondsOpen: secondsOpen(), touched });
+    };
+
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("pagehide", onClose);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("pagehide", onClose);
+      onClose();
+    };
+  }, [orderNumber, src]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -132,6 +179,7 @@ export function PaymentFrame({ src }: { src: string }) {
       />
 
       <iframe
+        ref={frame}
         src={src}
         title="טופס תשלום מאובטח"
         // Their form posts to their own domain and runs their scripts; it does

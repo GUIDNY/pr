@@ -94,7 +94,7 @@ export default async function PayPage({ params }: { params: Promise<{ orderNumbe
             </p>
           )}
           {opened.ok ? (
-            <PaymentFrame src={opened.redirectUrl} />
+            <PaymentFrame src={opened.redirectUrl} orderNumber={isTestOrder ? undefined : order.orderNumber} />
           ) : (
             <FrameFailed reason={opened.error} orderNumber={order.orderNumber} />
           )}

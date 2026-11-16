@@ -18,6 +18,15 @@ export const VISIT_EVENT_TYPES = [
   "checkout_start",
   "payment_submit",
   "payment_result",
+  /* The card form belongs to Pelecard and runs in their frame, so the press
+     on their "pay" button cannot be seen from here. What can be seen is the
+     customer putting the cursor into that frame, and how long the form had
+     been open when it went away. Together with payment_result they separate
+     the three stories payment_submit lumps together: never touched the form,
+     touched it and left, touched it and paid or was declined. Nothing typed
+     into the form is ever visible to this page, and nothing is recorded. */
+  "payment_form_touch",
+  "payment_form_closed",
   "checkout_abandon",
   // a lead: a tap on the number or on WhatsApp, or a form that went through
   "contact_click",
@@ -39,6 +48,8 @@ const META_KEYS: Record<VisitEventType, Record<string, "string" | "number" | "bo
   checkout_start: { itemCount: "number", total: "number" },
   payment_submit: { orderNumber: "string", total: "number" },
   payment_result: { orderNumber: "string", statusCode: "string" },
+  payment_form_touch: { orderNumber: "string", secondsOpen: "number" },
+  payment_form_closed: { orderNumber: "string", secondsOpen: "number", touched: "boolean" },
   checkout_abandon: { itemCount: "number", total: "number", secondsOnPage: "number" },
   contact_click: { channel: "string", target: "string" },
   form_submit: { form: "string", channel: "string" },
