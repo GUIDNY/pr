@@ -37,6 +37,8 @@ export const BLACK_NOVEMBER_LIMITED = "לזמן מוגבל";
 export function blackNovemberScope(products: { title: string; brandName: string }[]): {
   headline: string;
   note: string | null;
+  /** The few words for a one-line summary: "טלוויזיות LG". */
+  subject: string;
 } {
   const brands = new Set(products.map((p) => p.brandName));
   const allTelevisions = products.length > 0 && products.every((p) => p.title.trim().startsWith("טלוויזי"));
@@ -46,9 +48,49 @@ export function blackNovemberScope(products: { title: string; brandName: string 
     return {
       headline: `טלוויזיות ${brand} במחירי בלאק נובמבר`,
       note: `בינתיים המבצע על טלוויזיות ${brand} בלבד.`,
+      subject: `טלוויזיות ${brand}`,
     };
   }
-  if (allTelevisions) return { headline: "טלוויזיות במחירי בלאק נובמבר", note: null };
-  if (brand) return { headline: `מוצרי ${brand} במחירי בלאק נובמבר`, note: null };
-  return { headline: "מוצרים נבחרים במחירי בלאק נובמבר", note: null };
+  if (allTelevisions) return { headline: "טלוויזיות במחירי בלאק נובמבר", note: null, subject: "טלוויזיות" };
+  if (brand) return { headline: `מוצרי ${brand} במחירי בלאק נובמבר`, note: null, subject: `מוצרי ${brand}` };
+  return { headline: "מוצרים נבחרים במחירי בלאק נובמבר", note: null, subject: "מוצרים נבחרים" };
+}
+
+/**
+ * The two things somebody buying a television looks for first, read off the
+ * product's own title: how big, and which kind of panel.
+ *
+ * The title is where both are written for a customer ("65 אינץ'", "QNED evo
+ * AI Mini LED") — enrichment puts them there from the manufacturer's page.
+ * Nothing is inferred: a title that does not state a size gives no size, and
+ * a panel name is reported only when the title spells it. A card with a
+ * missing fact shows one fact less; it never shows a guessed one.
+ */
+export function televisionFacts(title: string): { inches: number | null; panel: string | null } {
+  const size = title.match(/(\d{2,3})\s*אינץ/);
+  const inches = size ? Number(size[1]) : null;
+
+  let panel: string | null = null;
+  /* LG write it into the model code itself: OLED55B6ELA. */
+  if (/OLED/i.test(title)) panel = "OLED";
+  else if (/\bQNED\b/i.test(title)) panel = /mini\s*-?\s*led/i.test(title) ? "QNED Mini LED" : "QNED";
+  else if (/nano\s*cell|\bNANO\b/i.test(title)) panel = "NanoCell";
+  else if (/\bQLED\b/i.test(title)) panel = "QLED";
+
+  return { inches: inches !== null && inches >= 20 && inches <= 150 ? inches : null, panel };
+}
+
+/** The shelf's size filter. A set of 86 or 98 inches belongs with "85 and up". */
+export const TV_SIZE_BUCKETS = [
+  { key: "50", label: "50″", min: 0, max: 52 },
+  { key: "55", label: "55″", min: 53, max: 59 },
+  { key: "65", label: "65″", min: 60, max: 69 },
+  { key: "75", label: "75″", min: 70, max: 79 },
+  { key: "85", label: "85″+", min: 80, max: 999 },
+] as const;
+export type TvSizeBucketKey = (typeof TV_SIZE_BUCKETS)[number]["key"];
+
+export function tvSizeBucket(inches: number | null): TvSizeBucketKey | null {
+  if (inches === null) return null;
+  return TV_SIZE_BUCKETS.find((b) => inches >= b.min && inches <= b.max)?.key ?? null;
 }
