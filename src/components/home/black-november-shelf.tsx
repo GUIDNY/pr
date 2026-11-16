@@ -230,15 +230,18 @@ function Card({
 
         {/* Price and the button on one line; the campaign's wording under them. */}
         <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-          <span className="text-xl leading-none font-bold tabular-nums">{formatPrice(product.price)}</span>
+          <span className="min-w-0 text-lg leading-none font-bold whitespace-nowrap tabular-nums sm:text-xl">{formatPrice(product.price)}</span>
           <AddToCartButton
             productId={product.id}
             slug={product.slug}
             price={product.price}
             disabled={product.stockStatus === "OUT_OF_STOCK"}
-            size="sm"
-            className="h-10 shrink-0 rounded-none px-3 text-sm font-bold"
-            label={product.stockStatus === "OUT_OF_STOCK" ? "אזל" : "לעגלה"}
+            /* The cart icon alone: with the word, price and button came to
+               ~160px against the ~132px inside a card on a 360px phone, and
+               the button stuck out past the card's edge. */
+            size="icon"
+            className="size-10 shrink-0 rounded-none [&_svg]:size-5"
+            label={product.stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : `הוספה לעגלה: ${product.title}`}
           />
         </div>
         <p className="text-muted-foreground mt-1.5 text-[11px] leading-tight">
