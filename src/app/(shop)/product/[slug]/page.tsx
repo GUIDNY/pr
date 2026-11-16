@@ -63,8 +63,19 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const product = await getProductBySlug(slug);
   if (!product) {
     const current = await getCurrentSlugForLegacySlug(slug);
-    if (current) permanentRedirect(`/product/${current}`);
-    notFound();
+    if (!current) notFound();
+    /* One hop, not two. Search Console listed six old addresses that went
+       old slug → the product's current slug → that product's fallback,
+       because the product it was renamed to is itself off the site now.
+       The fallback is decided here instead, so the old address lands where
+       the current one would have sent it, in a single redirect. */
+    const renamed = await getProductBySlug(current);
+    if (renamed && isHidden(renamed)) {
+      const fallback = await hiddenProductFallback(renamed);
+      if (fallback.kind === "product") permanentRedirect(`/product/${fallback.slug}`);
+      if (fallback.slug) redirect(`/category/${fallback.slug}`);
+    }
+    permanentRedirect(`/product/${current}`);
   }
   /* A product that is off the site — unpublished, without a photo, or not
      carried by any price list — used to answer 404 here. Google was still
@@ -94,12 +105,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
      which is the usual way a product comes to be "missing" — is the right
      permanent destination when there is one; otherwise the category,
      temporarily, and the address comes back the day the sheet does. */
-  if (
-    !product.isPublished ||
-    product.images.length === 0 ||
-    isOffCatalogue(product) ||
-    product.missingFromSourceSince !== null
-  ) {
+  if (isHidden(product)) {
     const fallback = await hiddenProductFallback(product);
     if (fallback.kind === "product") permanentRedirect(`/product/${fallback.slug}`);
     if (fallback.slug) redirect(`/category/${fallback.slug}`);
@@ -107,4 +113,14 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   }
 
   return <ProductPageView slug={slug} isAdminViewer={false} />;
+}
+
+/** Off the site, by the rules spelled out above: the page redirects instead of rendering. */
+function isHidden(product: NonNullable<Awaited<ReturnType<typeof getProductBySlug>>>): boolean {
+  return (
+    !product.isPublished ||
+    product.images.length === 0 ||
+    isOffCatalogue(product) ||
+    product.missingFromSourceSince !== null
+  );
 }
