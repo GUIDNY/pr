@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, EyeOff, Phone, ShieldAlert } from "lucide-react";
 import { getComplaintDetail, getAssignableStaff } from "@/lib/queries/admin-complaints";
-import { ComplaintControls, ComplaintNoteBox, ComplaintMediaButton } from "@/components/admin/complaint-controls";
+import { ComplaintControls, ComplaintNoteBox, ComplaintMediaButton, ComplaintWhatsAppReplyBox } from "@/components/admin/complaint-controls";
+import { isServiceWindowOpen } from "@/lib/complaints/service-window";
 import { formatDateTime, formatPrice } from "@/lib/format";
 import {
   COMPLAINT_STATUS_LABELS,
@@ -40,6 +41,9 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
   if (!complaint) notFound();
 
   const waHref = `https://wa.me/${complaint.waId}`;
+  const lastCustomerMessageAt =
+    [...complaint.messages].reverse().find((m) => m.role === "CUSTOMER")?.createdAt ?? null;
+  const replyConfigured = Boolean(process.env.N8N_COMPLAINT_REPLY_WEBHOOK && process.env.INTERNAL_API_KEY);
 
   return (
     <div>
@@ -54,7 +58,7 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
         <EyeOff className="text-warning-foreground mt-0.5 size-4 shrink-0" />
         <p>
           <strong>שרשור זה פנימי.</strong> הלקוח אינו רואה אותו ואינו יודע שנפתחה תלונה. שינוי סטטוס, שיוך והערות
-          נשמרים כאן בלבד ואינם נשלחים לוואטסאפ.
+          נשמרים כאן בלבד ואינם נשלחים לוואטסאפ. רק מה שנכתב בתיבה הירוקה &quot;שלח תשובה בוואטסאפ&quot; מגיע ללקוח.
         </p>
       </div>
 
@@ -117,6 +121,17 @@ export default async function ComplaintPage({ params }: { params: Promise<{ id: 
               );
             })}
           </div>
+
+          {complaint.channel === "WHATSAPP" && (
+            <div className="mt-4">
+              <ComplaintWhatsAppReplyBox
+                id={complaint.id}
+                configured={replyConfigured}
+                windowOpen={isServiceWindowOpen(lastCustomerMessageAt)}
+                phone={complaint.waId}
+              />
+            </div>
+          )}
 
           <div className="mt-4">
             <ComplaintNoteBox id={complaint.id} />
