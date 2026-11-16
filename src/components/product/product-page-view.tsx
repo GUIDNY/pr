@@ -129,9 +129,15 @@ export async function ProductPageView({
      clause. `stockQty <= 0` alone would have shown every one of the 1,163
      products the 19 October rule admits as sold out, with no buy button, on
      pages the listings had just started linking to. */
+  /* NEEDS_REVIEW belongs here too. The badge has always shown it to a
+     customer as "אזל מהמלאי" (see stock-badge.tsx), and the cart refuses the
+     product, because PUBLIC_PRODUCT_WHERE excludes the status — but this
+     condition did not, so the page said sold out beside a working buy button
+     that ended in an error. */
   const isSoldOut =
     !isSellableNow({ ...product, sourceKey: product.source?.key ?? null }) ||
-    product.missingFromSourceSince !== null;
+    product.missingFromSourceSince !== null ||
+    product.stockStatus === "NEEDS_REVIEW";
 
   // A regular visitor still gets a 404 for anything unpublished, and for
   // anything with no photograph — the two conditions PUBLIC_PRODUCT_WHERE

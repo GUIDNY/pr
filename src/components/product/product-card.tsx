@@ -164,10 +164,19 @@ export function ProductCard({
             productId={product.id}
             slug={product.slug}
             price={product.price}
-            disabled={product.stockStatus === "OUT_OF_STOCK"}
+            /* The same two states the product page's own button refuses
+               (purchase-panel.tsx), so a card never offers what the page it
+               leads to will not. */
+            disabled={product.stockStatus === "OUT_OF_STOCK" || product.stockStatus === "DISPLAY_ONLY"}
             size="sm"
             className="h-9 w-full rounded-lg text-sm"
-            label={product.stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : "הוספה לעגלה"}
+            label={
+              product.stockStatus === "OUT_OF_STOCK"
+                ? "אזל מהמלאי"
+                : product.stockStatus === "DISPLAY_ONLY"
+                  ? "תצוגה בלבד"
+                  : "הוספה לעגלה"
+            }
           />
           )}
         </div>
