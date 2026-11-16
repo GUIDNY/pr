@@ -669,7 +669,7 @@ export async function ProductPageView({
               <span className="text-muted-foreground flex items-center gap-1 text-sm">
                 <Truck className="size-4" />
                 {deliveryFee === 0
-                  ? `משלוח עד הבית ${withinDays}`
+                  ? /* The "משלוח חינם" chip is right beside it. */ `עד הבית ${withinDays}`
                   : `משלוח ${formatPrice(deliveryFee)} · ${withinDays}`}
               </span>
             )}
