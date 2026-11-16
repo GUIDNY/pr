@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import { CreditCard, Home, MapPin, Minus, PackageOpen, Plus, ShieldCheck, Ticket, Truck, Store, Lock, RotateCcw, Trash2 } from "lucide-react";
+import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -983,6 +984,41 @@ export function CheckoutForm({
                 הכתובת למטה היא כדי שיציעו נקודה קרובה אליכם.
               </span>
             </p>
+          )}
+
+          {/* Where the counter is, said the moment it is chosen. Choosing
+              "איסוף מהסניף" used to answer with nothing at all — no street,
+              no town — and the recordings show what that cost: a shopper left
+              the checkout for the branches page to find out, another picked
+              the option and was gone half a minute later. The address and the
+              phone are business.ts's own; there are no counter hours on file,
+              so none are printed — the line's answering hours are, labelled
+              as what they are. The map opens in its own tab so the checkout
+              stays where it is. */}
+          {deliveryMethod === "PICKUP" && (
+            <div className="border-border bg-muted/40 mb-3 flex items-start gap-2 rounded-lg border p-3 text-sm leading-relaxed">
+              <Store className="mt-0.5 size-4 shrink-0" />
+              <div>
+                <p>
+                  <span className="font-semibold">האיסוף מהחנות ב{BUSINESS.city}:</span> {BUSINESS_ADDRESS}.{" "}
+                  <a
+                    href={BUSINESS_MAP_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-brand font-medium underline underline-offset-2"
+                  >
+                    פתיחה במפה
+                  </a>
+                </p>
+                <p className="text-muted-foreground mt-1">
+                  לתיאום מועד האיסוף:{" "}
+                  <a href={BUSINESS.phoneHref} className="text-foreground font-medium">
+                    {BUSINESS.phone}
+                  </a>{" "}
+                  · מענה טלפוני {BUSINESS.phoneHoursLabel}
+                </p>
+              </div>
+            </div>
           )}
 
           {needsAddress && (
