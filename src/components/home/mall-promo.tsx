@@ -27,8 +27,11 @@ import { MallAnchor } from "@/components/layout/mall-link";
  * one — a real button inside a link is an interactive element inside
  * another, which assistive technology announces badly.
  *
- * The picture is the game's own share image, loaded from the game's host:
- * nothing new to keep in this repo, and it changes when the mall does.
+ * The picture is a screenshot of the mall itself, taken inside the game in
+ * November 2026 after it was rebuilt, with the game's controls hidden. It is
+ * kept here rather than loaded from the game's share image, which still
+ * showed the mall as it was before and has a logo burnt into its corner. It
+ * will need retaking when the mall changes again.
  *
  * Server-rendered; only MallAnchor is a client component, so the homepage
  * stays as cacheable as it is.
@@ -40,16 +43,13 @@ export function MallPromo() {
         medium="home"
         className="group bg-card text-foreground grid overflow-hidden border-2 border-black md:grid-cols-[1.4fr_1fr]"
       >
-        {/* The top of the frame is where the mall is — the departments, the
-            offer screens, the character — and the bottom half is floor, so
-            the crop keeps the top. */}
         <span className="relative block aspect-[16/9] w-full overflow-hidden md:aspect-auto md:min-h-[20rem]">
           <Image
-            src="https://play.buytoday.co.il/og.jpg"
-            alt="הקניון התלת־ממדי של BuyToday: מחלקות, מסכי מבצעים ודמות שמטיילת ביניהם"
+            src="/banners/mall-2026-11.jpg"
+            alt="הקניון התלת־ממדי של BuyToday: שדרת החנויות, מסך מבצעים, אלפרד הנציג ודמות עם עגלה"
             fill
             sizes="(min-width: 1280px) 730px, (min-width: 768px) 58vw, 100vw"
-            className="object-cover object-[50%_22%] transition-transform duration-500 group-hover:scale-[1.03]"
+            className="object-cover object-[50%_40%] transition-transform duration-500 group-hover:scale-[1.03]"
           />
         </span>
 
