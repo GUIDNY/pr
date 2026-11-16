@@ -40,6 +40,7 @@ import {
   updateCartItemAction,
 } from "@/actions/cart";
 import { formatPrice } from "@/lib/format";
+import { BUSINESS as SHOP } from "@/lib/business";
 import { DELIVERY_METHOD_LABELS } from "@/lib/enums";
 import { cartHasBulky } from "@/lib/bulky";
 import {
@@ -670,6 +671,29 @@ export function CheckoutForm({
       <div className="flex flex-col gap-6">
         <h1 className="text-2xl font-bold">תשלום</h1>
 
+        {/* Who is being paid, said before the first field. The same three
+            lines were only under the summary at the very end of the page; a
+            shopper in the recordings left a half-filled checkout to search
+            for "אודות Buy Today" instead. Each claim is one the site already
+            makes: the warranty wording is the footer's, including "על רוב
+            המוצרים". */}
+        <ul className="text-muted-foreground -mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          <li className="flex items-center gap-1">
+            <Lock className="size-3.5" aria-hidden="true" />
+            תשלום מאובטח
+          </li>
+          <li className="flex items-center gap-1">
+            <ShieldCheck className="size-3.5" aria-hidden="true" />
+            אחריות יבואן רשמי על רוב המוצרים
+          </li>
+          <li>
+            שאלות?{" "}
+            <a href={SHOP.phoneHref} className="text-foreground font-medium">
+              {SHOP.phone}
+            </a>
+          </li>
+        </ul>
+
         {/* On a phone the full summary is the last thing on the page, below
             three steps of form, so the first screen of the checkout showed
             neither what was being bought nor for how much. This is the same
@@ -1130,7 +1154,7 @@ export function CheckoutForm({
                   כאן גבוה ממנה. אם התשלום ב־bit נדחה — זו התקרה ולא תקלה באתר, ואפשר לשלם בכרטיס אשראי.
                 </p>
               )}
-              <PaymentFrame src={payment.url} />
+              <PaymentFrame src={payment.url} orderNumber={payment.orderNumber} />
               {/* A way back out. Without it, finishing the address is a one-way
                   door: the fieldset above locks the moment a payment exists,
                   which is what stops the total moving under an open
@@ -1540,7 +1564,7 @@ export function CheckoutForm({
           </li>
           <li className="flex items-center gap-1">
             <RotateCcw className="text-success size-3.5" />
-            <Link href="/returns" className="hover:text-foreground underline underline-offset-2">
+            <Link href="/returns" target="_blank" className="hover:text-foreground underline underline-offset-2">
               ביטול והחזרה
             </Link>
           </li>
@@ -1552,11 +1576,11 @@ export function CheckoutForm({
           הפרטים שתמסרו ישמשו לביצוע ההזמנה, לאספקתה ולמתן שירות ואחריות בלבד. מסירתם אינה חובה חוקית, אך בלעדיהם
           לא ניתן להשלים את ההזמנה. אם תעזבו את העמוד לפני סיום ההזמנה, נשמור את שמכם והטלפון כדי שנוכל ליצור
           קשר ולהשלים אותה איתכם.{" "}
-          <Link href="/privacy" className="hover:text-foreground underline">
+          <Link href="/privacy" target="_blank" className="hover:text-foreground underline">
             מדיניות הפרטיות
           </Link>{" "}
           ·{" "}
-          <Link href="/terms" className="hover:text-foreground underline">
+          <Link href="/terms" target="_blank" className="hover:text-foreground underline">
             תקנון האתר
           </Link>
         </p>
