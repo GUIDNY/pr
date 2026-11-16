@@ -1,10 +1,10 @@
-import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { redactSensitive } from "@/lib/complaints/redact";
 import { deriveSeverity, raiseSeverity, deriveCategory, deriveSubject } from "@/lib/complaints/severity";
 import { storeComplaintMedia } from "@/lib/complaints/media";
 import { notifyOwnerOfComplaint } from "@/lib/notify/complaint-alert";
+import { checkInternalKey, unauthorized } from "@/lib/complaints/internal-key";
 import {
   CLOSED_COMPLAINT_STATUSES,
   COMPLAINT_OPENING_INTENTS,
@@ -52,24 +52,6 @@ type IngestBody = {
 // went quiet for four days and comes back is usually asking about something
 // else, and stapling it to a stale thread hides both.
 const THREAD_WINDOW_HOURS = 72;
-
-function unauthorized() {
-  // No detail, on purpose: this endpoint is not reachable from a browser and
-  // an attacker learns nothing from the answer.
-  return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-}
-
-function checkInternalKey(request: Request): boolean {
-  const expected = process.env.INTERNAL_API_KEY;
-  if (!expected || expected.length < 32) return false;
-  const given = request.headers.get("x-internal-key") ?? "";
-  const a = Buffer.from(given);
-  const b = Buffer.from(expected);
-  // timingSafeEqual throws on a length mismatch, so the lengths are compared
-  // first — and a wrong length is already a wrong key.
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
 
 function parseDate(value: string | null | undefined): Date {
   if (!value) return new Date();

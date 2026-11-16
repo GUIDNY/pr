@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Paperclip, Send } from "lucide-react";
+import { Loader2, MessageCircle, Paperclip, Phone, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import {
   addComplaintNoteAction,
   linkComplaintToOrderAction,
   complaintMediaUrlAction,
+  sendComplaintWhatsAppReplyAction,
 } from "@/actions/admin-complaints";
 import {
   COMPLAINT_STATUSES,
@@ -213,5 +214,86 @@ export function ComplaintMediaButton({ messageId, mime }: { messageId: string; m
       {isPending ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-3.5" />}
       פתיחת הקובץ ({mime ?? "לא ידוע"})
     </Button>
+  );
+}
+
+/**
+ * The one box on this page whose text reaches the customer. Kept visibly
+ * apart from the internal note box, green and labelled, because confusing
+ * the two is the mistake that costs: a note sent to the customer, or a reply
+ * that never left.
+ */
+export function ComplaintWhatsAppReplyBox({
+  id,
+  configured,
+  windowOpen,
+  phone,
+}: {
+  id: string;
+  configured: boolean;
+  windowOpen: boolean;
+  phone: string;
+}) {
+  const [body, setBody] = useState("");
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  const locked = !configured || !windowOpen;
+
+  return (
+    <form
+      className="rounded-xl border border-emerald-600/40 bg-emerald-50/40 p-3 dark:bg-emerald-950/20"
+      action={() =>
+        startTransition(async () => {
+          setResult(null);
+          const r = await sendComplaintWhatsAppReplyAction(id, body);
+          if (r.success) {
+            setBody("");
+            setResult({ ok: true, text: "נשלח ל-n8n לשליחה בוואטסאפ. ההודעה תופיע בשרשור כשוואטסאפ יאשר אותה." });
+            toast.success("נשלח");
+          } else {
+            setResult({ ok: false, text: r.error ?? "שגיאה" });
+            toast.error(r.error ?? "שגיאה");
+          }
+        })
+      }
+    >
+      <h2 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-emerald-800 dark:text-emerald-300">
+        <MessageCircle className="size-4" /> שלח תשובה בוואטסאפ
+      </h2>
+      {!configured ? (
+        <p className="text-muted-foreground text-sm">שליחה בוואטסאפ: לא מוגדר.</p>
+      ) : !windowOpen ? (
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-red-700">
+          <Phone className="size-4 shrink-0" />
+          <span>
+            עברו 24 שעות מההודעה האחרונה של הלקוח — צריך להתקשר:{" "}
+            <a href={`tel:+${phone}`} className="font-mono underline" dir="ltr">
+              +{phone}
+            </a>
+          </span>
+        </p>
+      ) : null}
+      <Textarea
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        rows={3}
+        placeholder="התשובה שתישלח ללקוח בוואטסאפ, כפי שהיא"
+        disabled={isPending || locked}
+        className="mt-2"
+      />
+      <div className="mt-2 flex items-center justify-between gap-3">
+        <span className="text-muted-foreground text-xs">
+          הטקסט נשלח ללקוח כמו שהוא. לא לציין מספר פנייה או &quot;תלונה&quot;.
+        </span>
+        <Button type="submit" size="sm" disabled={isPending || locked || !body.trim()} className="gap-1.5">
+          {isPending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-3.5" />}
+          שליחה
+        </Button>
+      </div>
+      {result && (
+        <p className={`mt-2 text-xs font-medium ${result.ok ? "text-emerald-700" : "text-red-700"}`}>{result.text}</p>
+      )}
+    </form>
   );
 }
