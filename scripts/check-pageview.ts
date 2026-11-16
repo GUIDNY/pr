@@ -9,6 +9,7 @@ import {
   pageViewFromRequest,
   pageViewFromNavigation,
   pageViewFromLanding,
+  isDocumentPrefetch,
   keptQuery,
   KEPT_SORTS,
   trimReferrer,
@@ -120,6 +121,17 @@ is("no referrer is null", pageViewFromLanding({ path: "/x" }, headers({}), "h")?
 is("a landing on /admin is refused", pageViewFromLanding({ path: "/admin/orders" }, headers({}), "h"), null);
 is("a path with a host in it is refused", pageViewFromLanding({ path: "//evil.com/x" }, headers({}), "h"), null);
 is("the same keys as every other row", Object.keys(land ?? {}).sort(), Object.keys(nav ?? {}).sort());
+
+console.log("\na document fetched ahead of a click gets the cookie, not a row");
+const pre = (h: Record<string, string>, pathname = "/brand/midea") => isDocumentPrefetch({ pathname, headers: headers({ ...html, "user-agent": CHROME, ...h }) });
+is("Sec-Purpose: prefetch;prerender (Chrome, from Google)", pre({ "sec-purpose": "prefetch;prerender" }), true);
+is("Sec-Purpose: prefetch", pre({ "sec-purpose": "prefetch" }), true);
+is("Purpose: prefetch", pre({ purpose: "prefetch" }), true);
+is("…and none of them is a page view", pageViewFromRequest({ pathname: "/brand/midea", search: "", headers: headers({ ...html, "sec-purpose": "prefetch;prerender", "user-agent": CHROME }) }), null);
+is("an ordinary load is not a prefetch", pre({}), false);
+is("the App Router's own prefetch is not a document", pre({ "next-router-prefetch": "1", rsc: "1", "sec-purpose": "prefetch" }), false);
+is("a prefetch of an asset is not", pre({ "sec-purpose": "prefetch" }, "/logo.png"), false);
+is("a prefetch of the back office is not", pre({ "sec-purpose": "prefetch" }, "/admin/orders"), false);
 
 console.log("\ncrawlers are kept and flagged");
 const bot = pageViewFromRequest({ pathname: "/product/x", search: "", headers: headers({ ...html, "user-agent": GOOGLEBOT }) });

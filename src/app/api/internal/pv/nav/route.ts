@@ -20,8 +20,10 @@ import { resolveSid, serializeSid, SID_COOKIE, SID_COOKIE_OPTIONS } from "@/lib/
  * the visit was thrown away. So now:
  *
  *   - `landing: true` is the page's first render. With a cookie, the proxy
- *     already logged this load and nothing is written. Without one, a visit
- *     id is issued here and the page is logged (pageViewFromLanding).
+ *     already logged this load and nothing is written — unless the page
+ *     says it was prefetched or prerendered (`prefetched: true`), which the
+ *     proxy never logs. Without a cookie, a visit id is issued here and the
+ *     page is logged (pageViewFromLanding).
  *   - an ordinary navigation with no cookie (a prefetched landing whose
  *     beacon was lost, or a visit that sat idle past 30 minutes) is logged
  *     under a fresh id rather than dropped.
@@ -40,7 +42,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const landing = body.landing === true;
-    if (landing && !sid.isNew) return response;
+    /* A page the browser prefetched or prerendered was never logged by the
+       proxy (a prefetch is not a view), even when the proxy issued the
+       cookie on it — so that landing is logged whether or not the cookie
+       came along. Any other landing with a cookie is the proxy's row. */
+    if (landing && !sid.isNew && body.prefetched !== true) return response;
 
     const view = landing
       ? pageViewFromLanding(body, request.headers, request.nextUrl.host)

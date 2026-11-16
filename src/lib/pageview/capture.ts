@@ -90,6 +90,23 @@ export function isPrefetch(headers: HeaderReader): boolean {
   return purpose.includes("prefetch") || purpose.includes("prerender");
 }
 
+/**
+ * A document the browser is fetching ahead of a click — Chrome's prefetch
+ * or prerender of a Google result (`Sec-Purpose: prefetch;prerender`) — as
+ * opposed to the App Router's own RSC prefetch. Not a page view (nobody has
+ * opened it yet), but if it becomes one, the proxy will never see the
+ * request, so this is the proxy's only chance to issue the visit cookie.
+ * Measured on the live site, 16 November: none of the three prefetch
+ * headers got a cookie back.
+ */
+export function isDocumentPrefetch(req: { pathname: string; headers: HeaderReader }): boolean {
+  const { pathname, headers } = req;
+  if (isSkippedPath(pathname)) return false;
+  if (headers.get("next-router-prefetch") === "1" || headers.get("rsc") === "1") return false;
+  if (!(headers.get("accept") ?? "").includes("text/html")) return false;
+  return isPrefetch(headers);
+}
+
 export function isBotAgent(userAgent: string | null): boolean {
   return !!userAgent && BOT_AGENTS.test(userAgent);
 }

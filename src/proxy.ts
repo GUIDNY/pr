@@ -6,8 +6,8 @@ import {
   LEGACY_BRAND_SLUGS,
 } from "@/generated/legacy-slugs";
 import { MALL_PASS_COOKIE, verifyMallPass } from "@/lib/mall-access";
-import { pageViewFromRequest } from "@/lib/pageview/capture";
-import { resolveSid, serializeSid, SID_COOKIE, SID_IDLE_SECONDS } from "@/lib/pageview/sid";
+import { isDocumentPrefetch, pageViewFromRequest } from "@/lib/pageview/capture";
+import { resolveSid, serializeSid, SID_COOKIE, SID_COOKIE_OPTIONS } from "@/lib/pageview/sid";
 import { matchCrawler, crawlerPathWorthLogging } from "@/lib/pageview/crawlers";
 
 // The one thing that runs before the cache.
@@ -130,16 +130,20 @@ function logPageView(request: NextRequest, response: NextResponse, event: NextFe
     search: request.nextUrl.search,
     headers: request.headers,
   });
-  if (!view) return;
+  if (!view) {
+    /* A document fetched ahead of a click is not a view, but it is the only
+       request the proxy will see if the click comes: a prerendered page is
+       shown without asking again. So it gets the visit cookie and no row —
+       the page logs itself on activation (lib/pageview/visit-ready.ts). */
+    if (isDocumentPrefetch({ pathname: request.nextUrl.pathname, headers: request.headers })) {
+      const sid = resolveSid(request.cookies.get(SID_COOKIE)?.value);
+      response.cookies.set(SID_COOKIE, serializeSid(sid), SID_COOKIE_OPTIONS);
+    }
+    return;
+  }
 
   const sid = resolveSid(request.cookies.get(SID_COOKIE)?.value);
-  response.cookies.set(SID_COOKIE, serializeSid(sid), {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SID_IDLE_SECONDS,
-  });
+  response.cookies.set(SID_COOKIE, serializeSid(sid), SID_COOKIE_OPTIONS);
 
   const secret = process.env.PV_SECRET || process.env.INTERNAL_API_KEY;
   if (!secret) return;
