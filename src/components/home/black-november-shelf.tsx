@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import type { ProductCardData } from "@/components/product/product-card";
 import { FavoriteButton } from "@/components/product/favorite-button";
@@ -34,9 +35,15 @@ import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
 export function BlackNovemberShelf({
   products,
   layout,
+  limit,
+  viewAllHref,
 }: {
   products: ProductCardData[];
   layout: "rail" | "grid";
+  /* With a limit the grid shows that many and then a link to the rest — the
+     homepage: four sets on a phone screen, then "לכל 15 הדגמים". */
+  limit?: number;
+  viewAllHref?: string;
 }) {
   const items = useMemo(
     () =>
@@ -54,7 +61,8 @@ export function BlackNovemberShelf({
   /* Only the sizes that are actually on the shelf. */
   const chips = TV_SIZE_BUCKETS.filter((b) => items.some((i) => i.bucket === b.key));
   const [size, setSize] = useState<TvSizeBucketKey | null>(null);
-  const shown = size ? items.filter((i) => i.bucket === size) : items;
+  const matching = size ? items.filter((i) => i.bucket === size) : items;
+  const shown = limit ? matching.slice(0, limit) : matching;
 
   return (
     <>
@@ -81,7 +89,7 @@ export function BlackNovemberShelf({
              another size meant scrolling all the way back. There they stay
              under the header (the same measured offset the product page's
              tabs use). The homepage rail is one row high and needs nothing. */
-          return layout === "grid" ? <StickyTabsBar>{row}</StickyTabsBar> : row;
+          return layout === "grid" && !limit ? <StickyTabsBar>{row}</StickyTabsBar> : row;
         })()}
 
       <div
@@ -106,6 +114,16 @@ export function BlackNovemberShelf({
           />
         ))}
       </div>
+
+      {limit && viewAllHref && products.length > shown.length && (
+        <Link
+          href={viewAllHref}
+          className="mt-3 flex h-11 items-center justify-center gap-2 border border-black text-sm font-bold hover:bg-black hover:text-white"
+        >
+          לכל {products.length.toLocaleString("he-IL")} הדגמים
+          <ArrowLeft className="size-4" />
+        </Link>
+      )}
     </>
   );
 }

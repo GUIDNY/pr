@@ -51,22 +51,25 @@ export function BlackNovember({
 
   return (
     <section aria-labelledby="black-november-title" className="mx-auto max-w-7xl px-4 py-5 sm:py-7">
-      <div className="border-brand flex flex-col gap-4 border-b-4 bg-black px-5 py-5 text-white sm:flex-row sm:items-center sm:justify-between sm:gap-8 sm:px-8 sm:py-6">
+      {/* A white strip with a black name and the orange rule (version A, 17
+          November). The black block was a screen's worth of ink on a phone
+          before the first television; this is two lines. */}
+      <div className="border-brand flex items-end justify-between gap-4 border-b-4 pb-3">
         <div className="min-w-0">
           <Heading
             id="black-november-title"
-            className="text-[clamp(2rem,10vw,2.5rem)] leading-none font-black tracking-tight sm:text-5xl"
+            className="text-[clamp(1.75rem,8vw,2.25rem)] leading-none font-black tracking-tight sm:text-5xl"
           >
             בלאק נובמבר
           </Heading>
-          <p className="mt-2 text-sm font-medium text-white/85 sm:text-base">
+          <p className="text-muted-foreground mt-1.5 text-sm font-medium sm:text-base">
             {scope.subject} · {products.length.toLocaleString("he-IL")} דגמים · מ־{formatPrice(lowest)}
           </p>
         </div>
         {viewAllHref && (
           <Link
             href={viewAllHref}
-            className="bg-brand text-brand-foreground hover:bg-brand-hover inline-flex h-11 shrink-0 items-center gap-2 self-start px-5 text-sm font-bold transition-colors sm:self-auto"
+            className="text-brand hidden shrink-0 items-center gap-1 text-sm font-bold hover:underline sm:inline-flex"
           >
             לכל הדגמים
             <ArrowLeft className="size-4" />
@@ -74,7 +77,14 @@ export function BlackNovember({
         )}
       </div>
 
-      <BlackNovemberShelf products={products} layout={layout} />
+      {/* The homepage shows four as a grid and links to the rest; the
+          campaign page shows them all. */}
+      <BlackNovemberShelf
+        products={products}
+        layout={layout === "rail" ? "grid" : layout}
+        limit={layout === "rail" ? 4 : undefined}
+        viewAllHref={layout === "rail" ? viewAllHref : undefined}
+      />
     </section>
   );
 }
