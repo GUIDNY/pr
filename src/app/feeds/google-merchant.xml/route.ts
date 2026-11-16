@@ -55,14 +55,17 @@ export async function GET() {
   // Fresh market benchmarks only, for custom_label_2. See priceCompetitiveness.
   const benchmarks = await db.priceBenchmark.findMany({
     where: { capturedAt: { gte: new Date(Date.now() - BENCHMARK_MAX_AGE_DAYS * 86_400_000) } },
-    select: { sku: true, benchmarkPrice: true },
+    select: { sku: true, benchmarkPrice: true, source: true },
   });
-  const benchmarkBySku = new Map(benchmarks.map((b) => [b.sku, b.benchmarkPrice]));
+  const benchmarkBySku = new Map<string, number>();
+  const zapMinBySku = new Map<string, number>();
+  for (const b of benchmarks) (b.source === "zap" ? zapMinBySku : benchmarkBySku).set(b.sku, b.benchmarkPrice);
 
   const rows = products.map((p) => ({
     ...p,
     specs: structuredSpecs(specRowsFor(p).all),
     benchmarkPrice: benchmarkBySku.get(p.sku) ?? null,
+    zapMinPrice: zapMinBySku.get(p.sku) ?? null,
   }));
 
   return new Response(renderGoogleMerchantFeed(rows), {

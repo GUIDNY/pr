@@ -306,6 +306,13 @@ check("+5.7% is overpriced", priceCompetitiveness(4400, 4163) === "overpriced");
 check("+27.7% is overpriced", priceCompetitiveness(1490, 1167) === "overpriced");
 check("no benchmark, no label", priceCompetitiveness(1000, null) === null);
 check("zero benchmark, no label", priceCompetitiveness(1000, 0) === null);
+// Zap's minimum below Google's benchmark takes "competitive" away: a Samsung
+// Bespoke 6% under Google but above Zap's cheapest is not a bargain.
+check("under MC but above zap is not competitive", priceCompetitiveness(14900, 15850, 14500) === null);
+check("under both is competitive", priceCompetitiveness(14000, 15850, 14500) === "competitive");
+check("zap alone can make competitive", priceCompetitiveness(900, null, 1000) === "competitive");
+check("zap alone never excludes", priceCompetitiveness(1200, null, 1000) === null);
+check("overpriced still against MC", priceCompetitiveness(1100, 1000, 1200) === "overpriced");
 {
   const labelled = renderGoogleMerchantFeed([
     product({ sku: "CHEAP", price: 900, benchmarkPrice: 1000 }),
