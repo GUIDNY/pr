@@ -14,7 +14,23 @@ export const dynamic = "force-dynamic";
 
 /* 303 and not the default 307: what arrived here is a POST, and a 307
    preserves the method — the browser would post again to /login. */
-function fail(reason: string) {
+/**
+ * Where a failed or cancelled sign-in goes.
+ *
+ * To the login page, with the reason — except when the shopper set out from
+ * the checkout. There the sign-in was an optional shortcut on a page they
+ * were in the middle of, and sending them to /login instead took the checkout
+ * away for declining it: "cancel" on the provider's screen ended on a login
+ * form with no way back to the order.
+ *
+ * Exactly "/checkout" and nothing derived from the cookie: the destination is
+ * a constant in this file, so this cannot be turned into a redirect to
+ * anywhere else. The reason rides along as a query the page ignores.
+ */
+function fail(reason: string, returnTo?: string) {
+  if (returnTo === "/checkout") {
+    return NextResponse.redirect(`${SITE_URL}/checkout?signin=${reason}`, 303);
+  }
   return NextResponse.redirect(`${SITE_URL}/login?error=${reason}`, 303);
 }
 
@@ -69,14 +85,14 @@ export async function POST(request: Request) {
   jar.delete(APPLE_PURPOSE_COOKIE);
 
   // Somebody pressed cancel on Apple's screen.
-  if (form.get("error")) return fail("apple_cancelled");
+  if (form.get("error")) return fail("apple_cancelled", returnTo);
 
   const state = form.get("state");
   const code = form.get("code");
   if (typeof state !== "string" || !expectedState || !sameValue(state, expectedState)) {
-    return fail("apple_state");
+    return fail("apple_state", returnTo);
   }
-  if (typeof code !== "string" || !code) return fail("apple_code");
+  if (typeof code !== "string" || !code) return fail("apple_code", returnTo);
 
   const exchange = await exchangeCodeForProfile(code);
   if (!exchange.ok) {
@@ -85,12 +101,12 @@ export async function POST(request: Request) {
        URL differing by a trailing slash. Its own words go to the log so the
        next person reads the cause instead of guessing between four. */
     console.error("[apple] token exchange failed:", exchange.detail);
-    return fail("apple_exchange");
+    return fail("apple_exchange", returnTo);
   }
 
   const profile = exchange.profile;
-  if (!expectedNonce || profile.nonce !== expectedNonce) return fail("apple_nonce");
-  if (!profile.emailVerified) return fail("apple_unverified");
+  if (!expectedNonce || profile.nonce !== expectedNonce) return fail("apple_nonce", returnTo);
+  if (!profile.emailVerified) return fail("apple_unverified", returnTo);
 
   /* The name arrives once in a lifetime.
    *
@@ -128,7 +144,7 @@ export async function POST(request: Request) {
   const reauthFor = await readReauthIntent(purpose ?? undefined);
   if (reauthFor) {
     const me = await db.user.findUnique({ where: { id: reauthFor }, select: { email: true } });
-    if (!me || me.email.toLowerCase() !== profile.email) return fail("reauth_mismatch");
+    if (!me || me.email.toLowerCase() !== profile.email) return fail("reauth_mismatch", returnTo);
 
     await grantReauth(reauthFor);
     return NextResponse.redirect(`${SITE_URL}${returnTo}?reauth=ok`, 303);
