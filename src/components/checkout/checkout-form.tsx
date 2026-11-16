@@ -98,6 +98,13 @@ const TYPED_FIELDS_KEY = "bt_checkout_typed";
 const TYPED_FIELDS_TTL_MS = 2 * 60 * 60 * 1000;
 const TYPED_TEXT_FIELDS = ["fullName", "email", "phone", "city", "street", "houseNo", "apartment", "deliveryNotes"] as const;
 
+/* Pelecard's form lives ten minutes. Eight and a half leaves room for a slow
+   request and for a background tab's throttled timer, and five renewals keep
+   a form alive for about fifty minutes — long enough to fetch a card from
+   another room, not so long that a forgotten tab opens forms all night. */
+const RENEW_FORM_AFTER_MS = 8.5 * 60_000;
+const MAX_FORM_RENEWALS = 5;
+
 export function CheckoutForm({
   signedIn = false,
   googleEnabled = false,
@@ -268,6 +275,31 @@ export function CheckoutForm({
      retry, and telling somebody to re-enter an address they already gave is
      how a paid-for cart gets abandoned. */
   const [stranded, setStranded] = useState<{ orderId: string; orderNumber: string; reason: string } | null>(null);
+
+  /* KEEPING THE CARD FORM ALIVE. Pelecard close a payment form ten minutes
+     after it opens, whatever is happening in it, and say nothing on the page
+     beforehand; the customer is simply moved to "the payment was not
+     completed". The form opens by itself the moment the details are complete,
+     so the ten minutes start before anyone has decided to pay — and three of
+     the ten customers who reached the form in a month without paying ended
+     exactly there, on the minute.
+
+     So before it can expire the checkout opens a new form for the SAME order
+     and puts it in the old one's place. Quietly when the form has not been
+     touched: there is nothing in it to lose. When it has been touched, the
+     customer is told and decides — replacing it would wipe a half-typed card
+     number, and saying nothing would let it expire under their hands.
+
+     It cannot charge twice or make a second order. The order is the same
+     one; the form that is replaced leaves the page, so it cannot be
+     submitted; and when Pelecard later report that old form as expired, the
+     callback knows it is not the order's current one and leaves the order
+     alone (lib/pelecard/callback-match.ts).
+
+     Capped, so a tab forgotten overnight stops asking for forms. */
+  const frameTouched = useRef(false);
+  const renewals = useRef(0);
+  const [renewNotice, setRenewNotice] = useState<null | "renewed" | "expiring">(null);
 
   const [form, setForm] = useState({
     fullName: defaultName ?? "",
@@ -509,6 +541,32 @@ export function CheckoutForm({
      that was never created is a form to fix; an order that exists but whose
      payment would not open is a button to press again. Folding them together
      would send somebody back to re-type an address the shop already has. */
+  /* A new form for the order already on the page. Nothing is announced to the
+     visit log (it is not another checkout reaching the card form) and a
+     failure changes nothing: the form that is open stays open. */
+  async function renewPayment() {
+    const orderId = paidOrderId.current;
+    if (!orderId || !payment) return;
+    try {
+      const res = await fetch("/api/pelecard/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { redirectUrl?: string };
+      if (!res.ok || !data.redirectUrl) return;
+      /* The order may have been closed, or the form replaced, while this was
+         in flight. */
+      if (paidOrderId.current !== orderId) return;
+      renewals.current += 1;
+      frameTouched.current = false;
+      setPayment({ url: data.redirectUrl, orderNumber: payment.orderNumber });
+      setRenewNotice("renewed");
+    } catch {
+      /* The open form is still good for what is left of its ten minutes. */
+    }
+  }
+
   async function openPayment(orderId: string, orderNumber: string) {
     setStranded(null);
     try {
@@ -523,6 +581,10 @@ export function CheckoutForm({
         return;
       }
       paidOrderId.current = orderId;
+      /* A form opened afresh starts its own count of touches and renewals. */
+      frameTouched.current = false;
+      renewals.current = 0;
+      setRenewNotice(null);
       setPayment({ url: data.redirectUrl, orderNumber });
       submitted.current = true;
       trackVisit("payment_submit", { orderNumber, total: orderTotal });
@@ -560,6 +622,18 @@ export function CheckoutForm({
     !stranded &&
     form.paymentMethod === "DEMO_CARD" &&
     detailsCompleteFor(form);
+
+  useEffect(() => {
+    if (!payment || !payViaGateway || !paidOrderId.current) return;
+    if (renewals.current >= MAX_FORM_RENEWALS) return;
+    const timer = setTimeout(() => {
+      if (frameTouched.current) setRenewNotice("expiring");
+      else void renewPayment();
+    }, RENEW_FORM_AFTER_MS);
+    return () => clearTimeout(timer);
+    // Keyed on the form itself: a new form (payment.url) starts a new clock.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payment?.url, payViaGateway]);
 
   useEffect(() => {
     if (!readyToPay || autoOpened.current) return;
@@ -1228,7 +1302,39 @@ export function CheckoutForm({
                   כאן גבוה ממנה. אם התשלום ב־bit נדחה — זו התקרה ולא תקלה באתר, ואפשר לשלם בכרטיס אשראי.
                 </p>
               )}
-              <PaymentFrame src={payment.url} orderNumber={payment.orderNumber} />
+              {renewNotice === "renewed" && (
+                <p className="text-muted-foreground text-xs">
+                  רעננו את טופס התשלום כדי שלא יפוג. אפשר להמשיך כרגיל.
+                </p>
+              )}
+              {renewNotice === "expiring" && (
+                <div className="border-warning/40 bg-warning/10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border px-2.5 py-2 text-xs leading-relaxed">
+                  <span className="min-w-0 flex-1">
+                    טופס התשלום נסגר מטעמי אבטחה 10 דקות אחרי שנפתח, וזה עומד לקרות. אם לא תספיקו לסיים, רעננו
+                    אותו. מה שהוקלד בטופס יימחק, וההזמנה נשארת כמו שהיא.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRenewNotice(null);
+                      void renewPayment();
+                    }}
+                    className="bg-background border-border h-8 shrink-0 rounded-md border px-3 font-medium"
+                  >
+                    רענון הטופס
+                  </button>
+                </div>
+              )}
+              {/* Keyed on the address so a renewed form is a new frame, loading
+                  state and all, rather than the old one pointed somewhere else. */}
+              <PaymentFrame
+                key={payment.url}
+                src={payment.url}
+                orderNumber={payment.orderNumber}
+                onTouch={() => {
+                  frameTouched.current = true;
+                }}
+              />
               {/* A way back out. Without it, finishing the address is a one-way
                   door: the fieldset above locks the moment a payment exists,
                   which is what stops the total moving under an open
