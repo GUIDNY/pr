@@ -41,7 +41,7 @@ export const normalizeSku = (sku: string) => sku.trim().replace(/^0+(?=\d)/, "")
  */
 export type PriorityLookup =
   | { by: "sku"; stock: PriorityStock }
-  | { by: "model"; matches: { sku: string; stock: PriorityStock }[] }
+  | { by: "model"; matches: { sku: string; stock: PriorityStock }[]; partial: string | null }
   | null;
 
 /**
@@ -53,19 +53,57 @@ export type PriorityLookup =
  * a series name and is not searched for.
  */
 export function modelPattern(model: string | null | undefined): string | null {
-  const m = (model ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (m.length < 5 || !/\d/.test(m)) return null;
+  return patternFor((model ?? "").toUpperCase().replace(/[^A-Z0-9]/g, ""), 5);
+}
+
+function patternFor(m: string, minLength: number): string | null {
+  if (m.length < minLength || !/\d/.test(m)) return null;
   return `(?<![A-Z0-9])${m.split("").join("[[:space:]-]*")}(?![A-Z0-9])`;
 }
 
-async function findByModel(model: string | null): Promise<{ sku: string; stock: PriorityStock }[]> {
-  const pattern = modelPattern(model);
-  if (!pattern) return [];
+/**
+ * The model without the importer's suffix: up to the first "(" or "/", then
+ * up to the first "-" or space. "MDWMT030S(W)-W-IL" → "MDWMT030S", which
+ * Priority writes as "MDWMT030S-6474" (PR-200999, 16 November).
+ * Null when it is the whole model already, or too short to name a product:
+ * at least six characters with a digit, the same boundaries as the full one.
+ */
+export function modelStem(model: string | null | undefined): string | null {
+  const head = (model ?? "").trim().split(/[(/]/)[0].split(/[-\s]/)[0];
+  const stem = head.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const full = (model ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (stem === full || stem.length < 6 || !/\d/.test(stem)) return null;
+  return stem;
+}
+
+async function findByPattern(pattern: string): Promise<{ sku: string; stock: PriorityStock }[]> {
   const rows = await db.$queryRaw<{ skuNorm: string; totalQty: unknown; lines: PriorityStockLine[] }[]>`
     select b."skuNorm", b."totalQty", b.lines from "PriorityStockBySku" b
     where b."skuNorm" in (select distinct "skuNorm" from "PriorityStockLine" where upper(description) ~ ${pattern})
     order by b."totalQty" desc, b."skuNorm"`;
   return rows.map((r) => ({ sku: r.skuNorm, stock: { totalQty: Number(r.totalQty), lines: r.lines } }));
+}
+
+/**
+ * Most specific first, and the first stage that finds anything wins: the
+ * whole model, then its stem. `partial` names the stem when that is what
+ * matched, so the page can say the match was on part of the model.
+ */
+async function findByModel(
+  model: string | null,
+): Promise<{ matches: { sku: string; stock: PriorityStock }[]; partial: string | null }> {
+  const full = modelPattern(model);
+  if (full) {
+    const matches = await findByPattern(full);
+    if (matches.length) return { matches, partial: null };
+  }
+  const stem = modelStem(model);
+  const stemPattern = stem ? patternFor(stem, 6) : null;
+  if (stem && stemPattern) {
+    const matches = await findByPattern(stemPattern);
+    if (matches.length) return { matches, partial: stem };
+  }
+  return { matches: [], partial: null };
 }
 
 /**
@@ -82,8 +120,8 @@ export async function getPriorityStockForItems(
       const stock = bySku.get(normalizeSku(item.sku));
       if (stock) return { by: "sku", stock };
       try {
-        const matches = await findByModel(item.model);
-        return matches.length ? { by: "model", matches } : null;
+        const { matches, partial } = await findByModel(item.model);
+        return matches.length ? { by: "model", matches, partial } : null;
       } catch {
         return null;
       }

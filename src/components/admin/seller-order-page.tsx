@@ -896,7 +896,7 @@ function PriorityStockNote({
 }: {
   stock:
     | { by: "sku"; stock: PriorityStockShape }
-    | { by: "model"; matches: { sku: string; stock: PriorityStockShape }[] }
+    | { by: "model"; matches: { sku: string; stock: PriorityStockShape }[]; partial: string | null }
     | null;
   syncedAt: Date | null;
 }) {
@@ -913,7 +913,12 @@ function PriorityStockNote({
   const found =
     stock.by === "sku"
       ? [{ note: null as string | null, stock: stock.stock }]
-      : stock.matches.map((m) => ({ note: `(התאמה לפי דגם, מק"ט פריוריטי ${m.sku})`, stock: m.stock }));
+      : stock.matches.map((m) => ({
+          note: stock.partial
+            ? `(התאמה לפי דגם חלקי ${stock.partial}, מק"ט פריוריטי ${m.sku})`
+            : `(התאמה לפי דגם, מק"ט פריוריטי ${m.sku})`,
+          stock: m.stock,
+        }));
   return (
     <>
       {found.map(({ note, stock: s }, i) => {
