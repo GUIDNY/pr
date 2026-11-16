@@ -104,12 +104,16 @@ export function BlackNovemberShelf({
           chips.length > 1 ? "" : "mt-3",
         )}
       >
-        {shown.map(({ product, inches, panel }) => (
+        {shown.map(({ product, inches, panel }, index) => (
           <Card
             key={product.id}
             product={product}
             inches={inches}
             panel={panel}
+            /* The campaign page opens on these four: fetch them with the page
+               rather than after it, so the first screen is not four empty
+               frames. The homepage section sits below the fold and stays lazy. */
+            eager={layout === "grid" && !limit && index < 4}
             className={
               layout === "rail"
                 ? "w-[70%] max-w-[17rem] shrink-0 snap-start sm:w-[calc(33.333%-11px)] sm:max-w-none lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
@@ -173,11 +177,13 @@ function Card({
   inches,
   panel,
   className,
+  eager = false,
 }: {
   product: ProductCardData;
   inches: number | null;
   panel: string | null;
   className?: string;
+  eager?: boolean;
 }) {
   const href = `/product/${product.slug}`;
   const model = modelFromTitle(product.title);
@@ -213,13 +219,23 @@ function Card({
               src={product.imageUrl}
               alt=""
               fill
-              className="object-contain"
+              /* Cover, not contain. Every photograph here is square, with the
+                 set across 86% of its width and 51–56% of its height (all 15
+                 measured, 16 November). Contained in a 16:10 frame the square
+                 shrank to the frame's height and the set came out 54% of the
+                 card's width; covering it fills the width and trims only the
+                 white above and below — the set, 56% tall at most, sits inside
+                 the frame's 62.5% with room to spare. */
+              className="object-cover"
+              loading={eager ? "eager" : "lazy"}
               sizes="(min-width: 1280px) 18vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 48vw"
               referrerPolicy="no-referrer"
             />
           )}
         </Link>
-        <FavoriteButton productId={product.id} className="absolute top-1 end-1" />
+        {/* At the start corner: with the set now filling the frame, the end
+            corner sat on the maker's logo printed on the screen. */}
+        <FavoriteButton productId={product.id} className="absolute top-1 start-1" />
       </div>
 
       <div className="flex flex-1 flex-col px-3 pt-2 pb-3">
