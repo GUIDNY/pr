@@ -30,6 +30,8 @@ export type ProductCardData = {
   ratingAvg: number;
   ratingCount: number;
   deliveryDays: number;
+  /** Black November cards only: televisionSpecFacts() of the set's own specs. */
+  tvFacts?: string[];
 };
 
 export function ProductCard({

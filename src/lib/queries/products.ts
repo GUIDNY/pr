@@ -11,7 +11,7 @@ import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 import { resolveIntent } from "@/lib/alfred/intent";
-import { BLACK_NOVEMBER_ROW_MARKS } from "@/lib/campaigns/black-november";
+import { BLACK_NOVEMBER_ROW_MARKS, TV_SPEC_KEYS, televisionSpecFacts } from "@/lib/campaigns/black-november";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -392,7 +392,26 @@ export async function getBlackNovemberProducts(take = 24) {
     take,
     orderBy: [{ price: "asc" }, { id: "asc" }],
   });
-  return rows.map((p) => ({ ...mapProductToCard(p), compareAtPrice: null }));
+  /* The few specs that tell one set from the next (refresh rate, Dolby
+     Vision, processor), in one query for the whole shelf. */
+  const specRows =
+    rows.length > 0
+      ? await db.productAttributeValue.findMany({
+          where: { productId: { in: rows.map((r) => r.id) }, attribute: { key: { in: [...TV_SPEC_KEYS] } } },
+          select: { productId: true, value: true, attribute: { select: { key: true } } },
+        })
+      : [];
+  const specsById = new Map<string, Record<string, string>>();
+  for (const s of specRows) {
+    const m = specsById.get(s.productId) ?? {};
+    m[s.attribute.key] = s.value;
+    specsById.set(s.productId, m);
+  }
+  return rows.map((p) => ({
+    ...mapProductToCard(p),
+    compareAtPrice: null,
+    tvFacts: televisionSpecFacts(specsById.get(p.id) ?? {}),
+  }));
 }
 
 export async function getDeals(take = 8) {

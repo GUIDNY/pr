@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { ProductCardData } from "@/components/product/product-card";
 import { BlackNovemberShelf } from "@/components/home/black-november-shelf";
-import { blackNovemberScope } from "@/lib/campaigns/black-november";
+import { BLACK_NOVEMBER_LIMITED, blackNovemberScope } from "@/lib/campaigns/black-november";
 import { formatPrice } from "@/lib/format";
 
 /**
@@ -63,7 +63,7 @@ export function BlackNovember({
             בלאק נובמבר
           </Heading>
           <p className="text-muted-foreground mt-1.5 text-sm font-medium sm:text-base">
-            {scope.subject} · {products.length.toLocaleString("he-IL")} דגמים · מ־{formatPrice(lowest)}
+            {scope.subject} · {products.length.toLocaleString("he-IL")} דגמים · מ־{formatPrice(lowest)} · {BLACK_NOVEMBER_LIMITED}
           </p>
         </div>
         {viewAllHref && (
