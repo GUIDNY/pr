@@ -1,37 +1,34 @@
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowLeft } from "lucide-react";
 import type { ProductCardData } from "@/components/product/product-card";
-import { FavoriteButton } from "@/components/product/favorite-button";
-import { AddToCartButton } from "@/components/product/add-to-cart-button";
-import { BLACK_NOVEMBER_LABEL, BLACK_NOVEMBER_LIMITED, blackNovemberScope } from "@/lib/campaigns/black-november";
-import { formatInstallment, formatPrice } from "@/lib/format";
-import { cn } from "@/lib/utils";
+import { BlackNovemberShelf } from "@/components/home/black-november-shelf";
+import { blackNovemberScope } from "@/lib/campaigns/black-november";
+import { formatPrice } from "@/lib/format";
 
 /**
- * "בלאק נובמבר" — the banner on the homepage and the whole of /black-november.
+ * "בלאק נובמבר" — on the homepage and the whole of /black-november.
  *
- * Built the way a shop prints a campaign, not the way a template draws one.
- * Two flat blocks side by side: black with the name of the sale set large in
- * white, and white with a photograph of one of the televisions and an orange
- * price sticker on its corner. Under them, the products on the page's own
- * white, in plain bordered cards.
+ * One black strip that says what the sale is, and under it the shelf.
  *
- * The version before this was a dark panel with an orange glow, gradient
- * lettering, an English strapline and two pills on every card, and the owner
- * said what it looked like: something generated. So the rules here are the
- * ones a print buyer would recognise — one black, one white, one orange, all
- * flat; square corners; a single heavy typeface doing the work; a product
- * photograph as the picture; nothing that glows, fades or floats.
+ * Three earlier versions put the weight in the wrong place. A rail of white
+ * cards on a gold-edged panel; a dark panel with a glow and gradient
+ * lettering, which the owner called generated; then two large flat blocks, a
+ * black one and a white one with a photograph, which on a phone filled more
+ * than a screen before the first price and still left fifteen cards looking
+ * alike. So the heading is now a strip — the name, one line of facts, a link
+ * — and the space goes to the products, arranged by screen size
+ * (black-november-shelf.tsx).
  *
- * What it says is still the owner's decision (lib/campaigns/black-november.ts):
- * the product's ordinary price, named as the campaign's and as temporary. No
- * struck-through number, no percentage, no countdown, and no free-delivery
- * tag — the terms keep that for ordinary courier, and a large television is
- * not one.
+ * Flat black, white and the brand's orange in one thin rule and one button.
+ * No gradient, no glow, no badge. The site's own typeface, heavy only in the
+ * name and in the size on each card.
  *
- * No client code beyond the cart and favourite buttons every card has, and
- * no image, font or library added: the photograph is one already in the row.
+ * What it says is the owner's decision (lib/campaigns/black-november.ts): the
+ * product's ordinary price, named as the campaign's and as temporary. No
+ * struck-through number, no percentage, no countdown, no free-delivery tag.
+ *
+ * The strip is server-rendered and every card is in the server's HTML, so
+ * the section has its full height when the page arrives.
  */
 export function BlackNovember({
   products,
@@ -49,143 +46,35 @@ export function BlackNovember({
   if (products.length === 0) return null;
 
   const scope = blackNovemberScope(products);
-  const lowest = products.reduce((a, b) => (b.price < a.price ? b : a));
-  /* The picture is of the product the sticker's price belongs to, so the two
-     halves of the banner are one true statement. */
-  const pictured = lowest.imageUrl ? lowest : (products.find((p) => p.imageUrl) ?? lowest);
+  const lowest = Math.min(...products.map((p) => p.price));
   const Heading = heading;
 
   return (
     <section aria-labelledby="black-november-title" className="mx-auto max-w-7xl px-4 py-5 sm:py-7">
-      <div className="grid overflow-hidden border-2 border-black md:grid-cols-2">
-        <div className="flex flex-col justify-center bg-black px-5 py-7 text-white sm:px-9 sm:py-10">
-          <p className="text-brand text-sm font-bold sm:text-base">{BLACK_NOVEMBER_LIMITED}</p>
+      <div className="border-brand flex flex-col gap-4 border-b-4 bg-black px-5 py-5 text-white sm:flex-row sm:items-center sm:justify-between sm:gap-8 sm:px-8 sm:py-6">
+        <div className="min-w-0">
           <Heading
             id="black-november-title"
-            className="mt-1 text-[clamp(2.6rem,13.5vw,3.6rem)] leading-[0.9] font-black tracking-tight md:text-[4.25rem] lg:text-[5.5rem]"
+            className="text-[clamp(2rem,10vw,2.5rem)] leading-none font-black tracking-tight sm:text-5xl"
           >
-            בלאק
-            <br />
-            נובמבר
+            בלאק נובמבר
           </Heading>
-          <span aria-hidden className="bg-brand mt-4 block h-1.5 w-20 sm:mt-5 sm:h-2 sm:w-28" />
-          <p className="mt-4 text-lg leading-snug font-bold sm:mt-5 sm:text-2xl">{scope.headline}</p>
-          {scope.note && <p className="mt-1 text-sm text-white/70 sm:text-base">{scope.note}</p>}
-          {viewAllHref && (
-            <Link
-              href={viewAllHref}
-              className="bg-brand text-brand-foreground hover:bg-brand-hover mt-6 inline-flex h-12 items-center gap-2 self-start px-6 text-base font-bold transition-colors"
-            >
-              לכל {products.length.toLocaleString("he-IL")} הדגמים
-              <ArrowLeft className="size-4" />
-            </Link>
-          )}
-        </div>
-
-        <Link
-          href={`/product/${pictured.slug}`}
-          className="relative block min-h-56 bg-white sm:min-h-72 md:min-h-0"
-          aria-label={pictured.title}
-        >
-          {pictured.imageUrl && (
-            <Image
-              src={pictured.imageUrl}
-              alt=""
-              fill
-              className="object-contain p-6 sm:p-10"
-              sizes="(min-width: 768px) 50vw, 100vw"
-              referrerPolicy="no-referrer"
-            />
-          )}
-          <span className="bg-brand text-brand-foreground absolute start-0 bottom-0 px-4 py-2.5 sm:px-5 sm:py-3">
-            <span className="block text-xs font-bold sm:text-sm">החל מ־</span>
-            <span className="block text-3xl leading-none font-black tabular-nums sm:text-4xl">
-              {formatPrice(lowest.price)}
-            </span>
-          </span>
-        </Link>
-      </div>
-
-      <div
-        className={cn(
-          "mt-4 sm:mt-5",
-          layout === "rail"
-            ? "-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:thin] sm:gap-4"
-            : "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5"
-        )}
-      >
-        {products.map((p) => (
-          <BlackNovemberCard
-            key={p.id}
-            product={p}
-            className={
-              layout === "rail"
-                ? "w-[62%] max-w-[16rem] shrink-0 snap-start sm:w-[calc(33.333%-11px)] sm:max-w-none lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
-                : undefined
-            }
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function BlackNovemberCard({ product, className }: { product: ProductCardData; className?: string }) {
-  const href = `/product/${product.slug}`;
-
-  return (
-    <article className={cn("bg-card text-foreground flex flex-col border border-black/15", className)}>
-      {/* The campaign's name as a printed strip across the top of the card —
-          one flat bar, the same on every card, in place of a badge. */}
-      <p className="bg-black px-3 py-1.5 text-xs font-bold text-white">{BLACK_NOVEMBER_LABEL}</p>
-
-      <div className="relative">
-        <Link href={href} className="relative block aspect-[4/3] bg-white">
-          {product.imageUrl && (
-            <Image
-              src={product.imageUrl}
-              // Empty for the reason the ordinary card gives: the title link
-              // below names the product, and a broken picture must not paint
-              // a paragraph where the photograph was.
-              alt=""
-              fill
-              className="object-contain p-3"
-              sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 62vw"
-              referrerPolicy="no-referrer"
-            />
-          )}
-        </Link>
-        <FavoriteButton productId={product.id} className="absolute top-2 end-2" />
-      </div>
-
-      <div className="flex flex-1 flex-col border-t border-black/10 p-3">
-        <span className="text-muted-foreground text-xs font-semibold">{product.brandName}</span>
-        <Link href={href} className="mt-0.5 line-clamp-2 min-h-10 text-sm leading-5 font-medium hover:underline">
-          {product.title}
-        </Link>
-
-        <div className="mt-2.5">
-          <div className="text-2xl leading-tight font-black tabular-nums sm:text-[1.7rem]">
-            {formatPrice(product.price)}
-          </div>
-          <p className="text-muted-foreground text-xs">
-            {BLACK_NOVEMBER_LIMITED}
-            {product.installmentMonths ? ` · ${formatInstallment(product.price, product.installmentMonths)}` : ""}
+          <p className="mt-2 text-sm font-medium text-white/85 sm:text-base">
+            {scope.subject} · {products.length.toLocaleString("he-IL")} דגמים · מ־{formatPrice(lowest)}
           </p>
         </div>
-
-        <div className="mt-auto pt-3">
-          <AddToCartButton
-            productId={product.id}
-            slug={product.slug}
-            price={product.price}
-            disabled={product.stockStatus === "OUT_OF_STOCK"}
-            size="sm"
-            className="h-10 w-full rounded-none text-sm font-bold"
-            label={product.stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : "הוספה לעגלה"}
-          />
-        </div>
+        {viewAllHref && (
+          <Link
+            href={viewAllHref}
+            className="bg-brand text-brand-foreground hover:bg-brand-hover inline-flex h-11 shrink-0 items-center gap-2 self-start px-5 text-sm font-bold transition-colors sm:self-auto"
+          >
+            לכל הדגמים
+            <ArrowLeft className="size-4" />
+          </Link>
+        )}
       </div>
-    </article>
+
+      <BlackNovemberShelf products={products} layout={layout} />
+    </section>
   );
 }
