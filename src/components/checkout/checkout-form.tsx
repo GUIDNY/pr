@@ -1154,7 +1154,7 @@ export function CheckoutForm({
                   כאן גבוה ממנה. אם התשלום ב־bit נדחה — זו התקרה ולא תקלה באתר, ואפשר לשלם בכרטיס אשראי.
                 </p>
               )}
-              <PaymentFrame src={payment.url} />
+              <PaymentFrame src={payment.url} orderNumber={payment.orderNumber} />
               {/* A way back out. Without it, finishing the address is a one-way
                   door: the fieldset above locks the moment a payment exists,
                   which is what stops the total moving under an open
