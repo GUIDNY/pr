@@ -1,5 +1,6 @@
 import "server-only";
 import { listingOrderBy } from "@/lib/queries/listing-order";
+import { BENCHMARK_MAX_AGE_DAYS, priceCompetitiveness } from "@/lib/feeds/google-merchant";
 import { MIN_PUBLIC_PRICE } from "@/lib/inventory/underpriced";
 import { ALWAYS_SELLABLE_BRANDS, STOCK_ONLY_SOURCE_KEYS } from "@/lib/inventory/availability";
 import { cache } from "react";
@@ -441,6 +442,75 @@ function categoryScope(category: { id: string; children: { id: string }[] }): st
   return [category.id, ...category.children.map((c) => c.id)];
 }
 
+/**
+ * Ids of the products in `where` that are in stock and priced clearly under
+ * the market — the same test the Merchant feed uses for custom_label_2
+ * ("competitive": 3% or more under Google's benchmark, read no more than
+ * BENCHMARK_MAX_AGE_DAYS ago). Returned in the listing's own order.
+ *
+ * Read only to ORDER the category page; the market price itself is never
+ * shown anywhere on the site. PriceBenchmark has no relation to Product (see
+ * the schema), so the join is by SKU here, on a table of a few hundred rows.
+ */
+async function competitiveIdsIn(where: Record<string, unknown>, orderBy: ReturnType<typeof listingOrderBy>) {
+  const benchmarks = await db.priceBenchmark.findMany({
+    where: { capturedAt: { gte: new Date(Date.now() - BENCHMARK_MAX_AGE_DAYS * 86_400_000) } },
+    select: { sku: true, benchmarkPrice: true },
+  });
+  if (benchmarks.length === 0) return [];
+  const bySku = new Map(benchmarks.map((b) => [b.sku, b.benchmarkPrice]));
+  const candidates = await db.product.findMany({
+    where: { ...where, stockQty: { gt: 0 }, sku: { in: [...bySku.keys()] } },
+    select: { id: true, sku: true, price: true },
+    orderBy,
+  });
+  return candidates
+    .filter((p) => priceCompetitiveness(p.price, bySku.get(p.sku)) === "competitive")
+    .map((p) => p.id);
+}
+
+/**
+ * One page of a category in its default order: the in-stock products priced
+ * clearly under the market first, then everything else, each part in the
+ * usual default order (listing-order.ts). Only the default changes — a sort
+ * the shopper picked is untouched.
+ *
+ * Paged over the two parts as one sequence, so the order stays total and
+ * stable across pages: every product appears on exactly one page, the same
+ * guarantee listing-order.ts exists for. The competitive part is small (a
+ * few to a few dozen products), so it is fetched whole and sliced.
+ */
+async function defaultOrderPage(
+  where: Record<string, unknown>,
+  orderBy: ReturnType<typeof listingOrderBy>,
+  page: number,
+  pageSize: number,
+) {
+  const first = await competitiveIdsIn(where, orderBy);
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize;
+  const headIds = first.slice(start, Math.min(end, first.length));
+
+  const restSkip = Math.max(0, start - first.length);
+  const restTake = end - Math.max(start, first.length);
+
+  const [head, rest] = await Promise.all([
+    headIds.length > 0
+      ? db.product.findMany({ where: { id: { in: headIds } }, select: cardSelect })
+      : Promise.resolve([]),
+    restTake > 0
+      ? db.product.findMany({
+          where: first.length > 0 ? { ...where, id: { notIn: first } } : where,
+          select: cardSelect,
+          orderBy,
+          skip: restSkip,
+          take: restTake,
+        })
+      : Promise.resolve([]),
+  ]);
+  return [...inRankedOrder(headIds, head), ...rest];
+}
+
 export async function getProductsByCategorySlug(
   categorySlug: string,
   opts: {
@@ -485,14 +555,18 @@ export async function getProductsByCategorySlug(
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 24;
 
+  const isDefaultSort = !opts.sort || opts.sort === "relevance";
+
   const [rows, total, brandsInCategory, priceAgg] = await Promise.all([
-    db.product.findMany({
-      where,
-      select: cardSelect,
-      orderBy,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
+    isDefaultSort
+      ? defaultOrderPage(where, orderBy, page, pageSize)
+      : db.product.findMany({
+          where,
+          select: cardSelect,
+          orderBy,
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
     db.product.count({ where }),
     db.brand.findMany({
       where: { products: { some: { categoryId: { in: categoryIds }, ...PUBLIC_PRODUCT_WHERE } } },
