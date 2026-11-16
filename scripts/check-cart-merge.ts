@@ -131,7 +131,15 @@ is("a line the price list has dropped is still capped by its stock", maxCartQuan
    it. The only difference between these two lines is which price list. */
 is("an electronics line is capped by its stock", maxCartQuantity(2, "ORDERABLE", "electronics"), 2);
 is("an empty electronics shelf still caps at one", maxCartQuantity(0, "ORDERABLE", "electronics"), 1);
-is("the same row in another workbook reaches the cap", maxCartQuantity(2, "ORDERABLE", "small-appliances"), 10);
+/* This line named small-appliances as the workbook that is NOT sold from the
+   shelf, and failed from the day that stopped being true: on 1 November the
+   owner narrowed ליין קטן to what has a number in "מלאי חדרה", and it joined
+   STOCK_ONLY_SOURCES. The cap of 2 it then reported was the rule working.
+   The contrast it was written for is kept with the one workbook still drawn
+   from the supplier, and ליין קטן gets the assertion that is now true of it. */
+is("the same row in the supplier-drawn workbook reaches the cap", maxCartQuantity(2, "ORDERABLE", "white-goods-screens"), 10);
+is("a ליין קטן line is capped by its stock", maxCartQuantity(2, "ORDERABLE", "small-appliances"), 2);
+is("an empty ליין קטן shelf still caps at one", maxCartQuantity(0, "ORDERABLE", "small-appliances"), 1);
 is(
   "a supplier-drawn guest line is carried across in full",
   planCartMerge([{ productId: "from-supplier", quantity: 4 }], [], stock),
