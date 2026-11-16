@@ -51,7 +51,7 @@ export function BlackNovember({
 
   return (
     <section aria-labelledby="black-november-title" className="mx-auto max-w-7xl px-4 py-5 sm:py-7">
-      {/* A white strip with a black name and the orange rule (version A, 17
+      {/* A white strip with a black name and the orange rule (version A, 16
           November). The black block was a screen's worth of ink on a phone
           before the first television; this is two lines. */}
       <div className="border-brand flex items-end justify-between gap-4 border-b-4 pb-3">
