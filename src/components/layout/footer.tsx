@@ -59,7 +59,7 @@ export async function Footer() {
               the shop in the footer, so an empty alt really would drop
               information rather than avoid repeating it. */}
           <Image
-            src="/brand/logo.png"
+            src="/brand/logo-sm.webp"
             alt="Buy Today"
             width={512}
             height={512}

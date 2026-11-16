@@ -92,7 +92,15 @@ export async function Header() {
         <div className="flex items-center gap-2 px-3 py-2 sm:hidden">
           <MobileNav departments={departments} />
           <Link href="/" aria-label="Buy Today — לדף הבית" className="shrink-0">
-            <Image src="/brand/logo.png" alt="" width={512} height={512} priority className="size-9 rounded-[22%]" />
+            {/* The small copies (logo-sm.webp, mascot/alfred-face-sm.webp), not
+                the 512px originals. Images are served as they are on this
+                site (images.unoptimized), so the header's 36px mark and
+                Alfred's 44px face were arriving as 116 KB and 355 KB files at
+                high priority on every page — 471 KB ahead of a product
+                photograph that is often under 20 KB. The originals stay for
+                the places that need them: emails, the share image, the
+                structured data. */}
+            <Image src="/brand/logo-sm.webp" alt="" width={512} height={512} priority className="size-9 rounded-[22%]" />
           </Link>
           <div className="min-w-0 flex-1">
             <SearchBar inputClassName="border-brand/40 focus-visible:border-brand h-10 border-2" />
@@ -117,7 +125,7 @@ export async function Header() {
               importer. */}
           <Link href="/" aria-label="Buy Today — לדף הבית" className="flex shrink-0 items-center gap-2.5">
             <Image
-              src="/brand/logo.png"
+              src="/brand/logo-sm.webp"
               alt=""
               width={512}
               height={512}

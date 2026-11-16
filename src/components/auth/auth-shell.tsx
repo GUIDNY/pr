@@ -42,7 +42,7 @@ export function AuthShell({ mode, children }: { mode: "login" | "register"; chil
           />
           <div className="relative flex h-full flex-col justify-between p-9">
             <div className="flex items-center gap-3">
-              <Image src="/brand/logo.png" alt="Buy Today" width={512} height={512} className="size-11 rounded-[22%]" />
+              <Image src="/brand/logo-sm.webp" alt="Buy Today" width={512} height={512} className="size-11 rounded-[22%]" />
               <div>
                 <p className="text-lg leading-tight font-black">Buy Today</p>
                 <p className="text-primary-foreground/70 text-xs">מוצרי חשמל · יבואן רשמי</p>
@@ -90,7 +90,7 @@ export function AuthShell({ mode, children }: { mode: "login" | "register"; chil
             {/* On a phone the mark sits small beside the switch; on a
                 desktop the panel already carries it. */}
             <div className="mb-4 flex items-center gap-3 lg:hidden">
-              <Image src="/brand/logo.png" alt="Buy Today" width={512} height={512} className="size-9 rounded-[22%]" />
+              <Image src="/brand/logo-sm.webp" alt="Buy Today" width={512} height={512} className="size-9 rounded-[22%]" />
               <p className="text-lg leading-tight font-black">{mode === "login" ? "ברוכים השבים" : "חשבון חדש"}</p>
             </div>
             <nav aria-label="התחברות או הרשמה" className="bg-muted mb-5 grid grid-cols-2 rounded-xl p-1 text-sm font-semibold">
