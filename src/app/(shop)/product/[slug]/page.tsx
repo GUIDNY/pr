@@ -5,6 +5,7 @@ import { ProductPageView } from "@/components/product/product-page-view";
 import {
   getProductBySlug,
   getCurrentSlugForLegacySlug,
+  getMostViewedProductSlugs,
   hiddenProductFallback,
   isOffCatalogue,
 } from "@/lib/queries/products";
@@ -26,9 +27,25 @@ import {
 // rendered on demand and never cached, whatever `revalidate` says — measured,
 // not assumed. With it and an empty list, a build does not walk 1,429
 // products, and each page is cached the first time it is asked for.
+//
+// "The first time it is asked for" turned out to be the expensive part. That
+// first request is rendered by the function in Sydney, beside the database,
+// for a visitor in Israel: measured on 16 November, 1.3–1.7 seconds before
+// the first byte, against 0.24 once the page is held at the edge. And every
+// deployment empties the cache — there were more than thirty in one night —
+// so the pages an advertisement lands on were cold again and again, each
+// time for a visitor who had just been paid for.
+//
+// So the pages that are actually opened are built with the deployment: the
+// most visited product addresses of the last fortnight, from the shop's own
+// page-view log. They arrive at the edge already rendered. Everything else is
+// still cached on first request, exactly as before, and a build still does
+// not walk the catalogue.
 export const revalidate = 300;
+const PREBUILT_PRODUCT_PAGES = 150;
 export async function generateStaticParams() {
-  return [];
+  const slugs = await getMostViewedProductSlugs(PREBUILT_PRODUCT_PAGES);
+  return slugs.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {

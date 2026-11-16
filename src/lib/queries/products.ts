@@ -394,6 +394,46 @@ export async function getBlackNovemberProducts(take = 24) {
   return rows.map((p) => ({ ...mapProductToCard(p), compareAtPrice: null }));
 }
 
+/**
+ * The product pages people actually open, for building ahead of time — see
+ * generateStaticParams in app/(shop)/product/[slug]/page.tsx.
+ *
+ * Read off the shop's own page-view log: real visits (no crawlers, no
+ * prefetches) to a product address over the last fortnight, most visited
+ * first. The slugs are what was requested, not what exists — a product that
+ * has since been renamed or hidden simply builds as the redirect or the 404
+ * it would be served as anyway.
+ *
+ * Never throws. This runs inside the build, and a page-view table that
+ * cannot be read is a reason to build nothing ahead of time, not a reason
+ * for the deploy to fail.
+ */
+export async function getMostViewedProductSlugs(take: number): Promise<string[]> {
+  try {
+    const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const rows = await db.pageView.groupBy({
+      by: ["path"],
+      where: { path: { startsWith: "/product/" }, isBot: false, isRsc: false, createdAt: { gte: since } },
+      _count: { path: true },
+      orderBy: { _count: { path: "desc" } },
+      take: take * 2,
+    });
+    const slugs: string[] = [];
+    for (const row of rows) {
+      const slug = row.path.slice("/product/".length);
+      /* One path segment, as a slug is written; anything else is a mistyped
+         or probing address and not a page to build. */
+      if (!/^[a-z0-9][a-z0-9-]*$/i.test(slug)) continue;
+      slugs.push(slug);
+      if (slugs.length >= take) break;
+    }
+    return slugs;
+  } catch (error) {
+    console.error("[build] most-viewed product slugs unavailable; building none ahead of time", error);
+    return [];
+  }
+}
+
 export async function getDeals(take = 8) {
   const rows = await db.product.findMany({
     where: { ...PUBLIC_PRODUCT_WHERE, compareAtPrice: { not: null } },
