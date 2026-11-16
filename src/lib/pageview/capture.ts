@@ -57,6 +57,14 @@ const SKIP_EXTENSIONS =
 /** Only these survive from the query string. */
 const KEPT_PARAMS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "srsltid", "gclid"];
 
+/* And these two, from a closed list only: which order shoppers pick on a
+   category page and how deep they page, which nothing else records (16
+   November). The sort values are ListingSort in queries/listing-order.ts,
+   repeated here so the proxy does not import the query layer;
+   check:pageview fails if the two drift. */
+export const KEPT_SORTS = ["relevance", "price-asc", "price-desc", "newest", "rating"] as const;
+const MAX_KEPT_PAGE = 50;
+
 /* Kept in step with lib/pageview/crawlers.ts, and check:crawlers fails if a
    crawler it can name is not also flagged here. Six were missing and the
    worst of them was Storebot-Google: Google's shopping crawler walks the
@@ -102,6 +110,14 @@ export function keptQuery(search: string): string | null {
     const value = params.get(key);
     if (value) kept.set(key, value.slice(0, 120));
   }
+  /* The listing's own controls, kept only when the value is one the shop
+     itself offers — so a hand-edited address cannot smuggle anything into
+     the log under these names. Never the search box's `q`: that is free
+     text a person typed. */
+  const sort = params.get("sort");
+  if (sort && (KEPT_SORTS as readonly string[]).includes(sort)) kept.set("sort", sort);
+  const page = params.get("page");
+  if (page && /^[1-9]\d?$/.test(page) && Number(page) <= MAX_KEPT_PAGE) kept.set("page", page);
   const out = kept.toString();
   return out ? out.slice(0, MAX_QUERY) : null;
 }
