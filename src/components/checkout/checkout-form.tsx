@@ -206,6 +206,15 @@ export function CheckoutForm({
      what to write to. */
   const paidOrderId = useRef<string | null>(null);
 
+  /* An order this checkout made, whose payment form it then closed because a
+     detail changed — and which can simply be paid for again once the details
+     are whole. Without it every such change made a NEW order and left the old
+     one in PAYMENT_PENDING for good: choose collection (the form opens at
+     once, no address being needed), change to home delivery, type the address
+     — two orders, one of them never to be paid. Cleared when the basket
+     itself changes, because an order's lines are not rewritten. */
+  const reusableOrder = useRef<{ orderId: string; orderNumber: string } | null>(null);
+
   /* Once this is set the order exists and the gateway's form is on the page.
      The checkout does not navigate anywhere to collect a card: step 3 stops
      being our fields and becomes Pelecard's, in the same place, so the
@@ -318,7 +327,23 @@ export function CheckoutForm({
          no address at all, so there is no address row to write a new one into;
          it has to be made again. The form goes, and the auto-open brings it
          back once the details are whole, against an order that has them. */
-      if (payment && !detailsCompleteFor(next)) {
+      /* It also goes when the edit moves the amount. The delivery method is
+         the one field here that can: collecting is free and home delivery
+         under the threshold is not, so the form on the page would be asking
+         for the old total. The order is kept (reusableOrder) and re-priced on
+         the server before a new form is opened against it. */
+      /* With a coupon the cart's own figure is not enough to tell: one that
+         waives delivery shows a charge of nothing here, while the order made
+         as a collection never recorded that it did. Close the form then too;
+         the server refuses to guess and a new order is priced from the cart. */
+      const movesTotal =
+        key === "deliveryMethod" &&
+        (cart.deliveryFee > 0 || Boolean(cart.couponCode)) &&
+        (f.deliveryMethod === "DELIVERY") !== (next.deliveryMethod === "DELIVERY");
+      if (payment && (!detailsCompleteFor(next) || movesTotal)) {
+        if (paidOrderId.current) {
+          reusableOrder.current = { orderId: paidOrderId.current, orderNumber: payment.orderNumber };
+        }
         setPayment(null);
         paidOrderId.current = null;
         autoOpened.current = false;
@@ -348,6 +373,8 @@ export function CheckoutForm({
           paidOrderId.current = null;
           autoOpened.current = false;
         }
+        /* A different basket is a different order. */
+        reusableOrder.current = null;
         setCart(summary);
       } catch {
         toast.error("לא הצלחנו לעדכן את ההזמנה, נסו שוב");
@@ -500,7 +527,23 @@ export function CheckoutForm({
         apartment: form.apartment,
         deliveryNotes: form.deliveryNotes,
         deliveryMethod,
-      }).catch(() => {});
+      })
+        .then((result) => {
+          /* The server would not follow the form because the change moves the
+             amount, and the card form on the page was opened for the old one.
+             update() closes the form for exactly this before it gets here; this
+             is for the change it cannot see — a delivery method picked in the
+             moment between the details being complete and the form opening,
+             when the order was already being made from the earlier choice. */
+          if (result.success || !("reason" in result) || result.reason !== "reprice") return;
+          const orderId = paidOrderId.current;
+          if (!orderId) return;
+          reusableOrder.current = { orderId, orderNumber: payment.orderNumber };
+          paidOrderId.current = null;
+          autoOpened.current = false;
+          setPayment(null);
+        })
+        .catch(() => {});
     }, 700);
     return () => clearTimeout(timer);
   }, [
@@ -536,6 +579,35 @@ export function CheckoutForm({
            Not personal data: two numbers GA4 minted for this browser. */
         ...gaIdsForOrder(readGaIds(process.env.NEXT_PUBLIC_GA_ID)),
       };
+      /* The order already exists and only its details moved: bring it up to
+         date, re-priced if the delivery method changed, and open a payment
+         against it again. If the server will not (the order was paid, or a
+         coupon makes the new charge unknowable from the order), fall through
+         and make a new one, as before. */
+      const reuse = reusableOrder.current;
+      if (reuse && payViaGateway && form.paymentMethod === "DEMO_CARD") {
+        reusableOrder.current = null;
+        const updated = await updatePendingOrderDetailsAction(
+          reuse.orderId,
+          {
+            fullName: form.fullName,
+            email: form.email,
+            phone: form.phone,
+            city: form.city,
+            street: form.street,
+            houseNo: form.houseNo,
+            apartment: form.apartment,
+            deliveryNotes: form.deliveryNotes,
+            deliveryMethod,
+          },
+          { reprice: true },
+        ).catch(() => ({ success: false as const }));
+        if (updated.success) {
+          await openPayment(reuse.orderId, reuse.orderNumber);
+          return;
+        }
+      }
+
       const result = await createOrderAction(payload as CheckoutInput);
       if (!result.success) {
         toast.error(result.error ?? "שגיאה בביצוע ההזמנה");
@@ -1016,7 +1088,7 @@ export function CheckoutForm({
                   The threshold is the published consumer cap, which is what a
                   shopper is most likely to be under. It is a hint, not a rule
                   — nothing here blocks anything. */}
-              {cart.total > BIT_DAILY_CAP && (
+              {orderTotal > BIT_DAILY_CAP && (
                 <p className="border-warning/40 bg-warning/10 rounded-md border px-2.5 py-2 text-xs leading-relaxed">
                   שימו לב: בתשלום ב־bit יש תקרה יומית (כ־{formatPrice(BIT_DAILY_CAP)} ברוב החשבונות), והסכום
                   כאן גבוה ממנה. אם התשלום ב־bit נדחה — זו התקרה ולא תקלה באתר, ואפשר לשלם בכרטיס אשראי.
@@ -1035,16 +1107,32 @@ export function CheckoutForm({
                   Pelecard has already been told the amount of, and an
                   abandoned order in the admin list is a smaller problem than a
                   charge that does not match its order. */}
-              <button
-                type="button"
-                onClick={() => {
-                  setPayment(null);
-                  autoOpened.current = false;
-                }}
-                className="text-muted-foreground hover:text-foreground self-start text-xs underline underline-offset-2"
-              >
-                לשנות את פרטי ההזמנה
-              </button>
+              {/* Only where the fields above are locked. Where they stay live
+                  (canEditWhilePaying) there is nothing for this to unlock: the
+                  details were already complete, so the card form came straight
+                  back 900ms later — against a brand-new order. Every press
+                  left one more order in PAYMENT_PENDING and changed nothing
+                  the customer could see. */}
+              {canEditWhilePaying ? (
+                <p className="text-muted-foreground text-xs">
+                  צריך לתקן משהו? אפשר לשנות את הפרטים למעלה גם עכשיו, וההזמנה תתעדכן.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (paidOrderId.current) {
+                      reusableOrder.current = { orderId: paidOrderId.current, orderNumber: payment.orderNumber };
+                    }
+                    setPayment(null);
+                    paidOrderId.current = null;
+                    autoOpened.current = false;
+                  }}
+                  className="text-muted-foreground hover:text-foreground self-start text-xs underline underline-offset-2"
+                >
+                  לשנות את פרטי ההזמנה
+                </button>
+              )}
             </div>
           ) : stranded ? (
             <div className="flex flex-col items-start gap-3">
@@ -1133,7 +1221,7 @@ export function CheckoutForm({
               </div>
               <div className="bg-muted flex items-baseline justify-between rounded-md px-3 py-2">
                 <span className="text-sm font-semibold">סה״כ לתשלום</span>
-                <span className="text-base font-bold tabular-nums">{formatPrice(cart.total)}</span>
+                <span className="text-base font-bold tabular-nums">{formatPrice(orderTotal)}</span>
               </div>
             </div>
           )}
@@ -1229,7 +1317,7 @@ export function CheckoutForm({
                   row between the card fields and the button, not a heading. */}
               <div className="bg-muted flex items-baseline justify-between rounded-md px-3 py-2">
                 <span className="text-sm font-semibold">סה״כ לתשלום</span>
-                <span className="text-base font-bold tabular-nums">{formatPrice(cart.total)}</span>
+                <span className="text-base font-bold tabular-nums">{formatPrice(orderTotal)}</span>
               </div>
             </div>
           )}
@@ -1401,7 +1489,7 @@ export function CheckoutForm({
               ? "מבצע הזמנה..."
               : payViaGateway && !detailsCompleteFor(form)
                 ? "מלאו את הפרטים — התשלום ייפתח מעצמו"
-                : `בצע הזמנה - ${formatPrice(cart.total)}`}
+                : `בצע הזמנה - ${formatPrice(orderTotal)}`}
           </Button>
         )}
         {/* The three things a first-time buyer on a phone checks before
