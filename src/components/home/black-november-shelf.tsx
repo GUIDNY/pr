@@ -100,7 +100,13 @@ export function BlackNovemberShelf({
               ? /* Four on the homepage: two rows of two on a phone, one row of
                    four from a tablet up, never a row with a gap in it. */
                 "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
-              : "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5",
+              : /* The campaign page's full grid. On a phone the accessibility
+                   launcher floats in the bottom-left corner (bottom-20, 44px
+                   high), and at the end of the grid it sat on the left
+                   card's cart button with no way to scroll it clear — seen
+                   16 November. The padding lets the last row rise above it;
+                   from lg: the launcher sits lower and the grid needs none. */
+                "grid grid-cols-2 gap-3 pb-36 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 lg:pb-0 xl:grid-cols-5",
           chips.length > 1 ? "" : "mt-3",
         )}
       >
