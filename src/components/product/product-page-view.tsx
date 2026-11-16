@@ -142,9 +142,10 @@ export async function ProductPageView({
 
   /* "מלאי אחרון" only where it is true. LOW_STOCK is the sync's "1 to 3 units
      on hand", but a product the supplier keeps supplying (ORDERABLE, outside
-     the stock-only workbook) is not running out — the owner's rule is that
-     the shop sells it as though the warehouse had it. 913 live pages said
-     "last stock" in amber beside a product anyone can order, while the card
+     the two stock-only workbooks) is not running out — the owner's rule is
+     that the shop sells it as though the warehouse had it. 622 live pages,
+     all white goods and screens, said "last stock" in amber beside a
+     product anyone can order, while the card
      that led there said "במלאי" and the feed and JSON-LD said InStock (16
      November). Rows marked gone or sold from stock only keep the warning:
      there the last units really are the last. */
