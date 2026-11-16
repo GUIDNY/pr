@@ -91,6 +91,12 @@ function detailsCompleteFor(f: {
   );
 }
 
+/* The contact and delivery fields kept across a round trip away from the page
+   — see the effect in CheckoutForm. Card fields are not here and must not be. */
+const TYPED_FIELDS_KEY = "bt_checkout_typed";
+const TYPED_FIELDS_TTL_MS = 2 * 60 * 60 * 1000;
+const TYPED_TEXT_FIELDS = ["fullName", "email", "phone", "city", "street", "houseNo", "apartment", "deliveryNotes"] as const;
+
 export function CheckoutForm({
   signedIn = false,
   googleEnabled = false,
@@ -279,6 +285,69 @@ export function CheckoutForm({
     whatsappOptIn: defaultWhatsappOptIn,
     marketingOptIn: defaultMarketingOptIn,
   });
+
+  /* What has been typed survives leaving the page.
+
+     The form was plain state, so anything typed was gone the moment the
+     shopper left — and the page itself sends them away: the optional sign-in
+     goes to Google or Apple and comes back, a policy link used to replace the
+     page. A recording shows a shopper typing their details, tapping "Google",
+     and never finishing; on return every field they had filled was empty
+     except the two the provider supplies.
+
+     sessionStorage, so it belongs to this tab and is gone when the tab closes,
+     and it expires after two hours regardless. Contact and delivery fields
+     ONLY: the card fields are deliberately not in the list, and nothing about
+     payment is ever written to storage.
+
+     A stored value only fills a field that is empty. What the account supplies
+     (name, email, a saved address) wins, because that is what the shopper
+     asked for by signing in. */
+  const restoredTyped = useRef(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const raw = sessionStorage.getItem(TYPED_FIELDS_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw) as { at?: number; fields?: Record<string, unknown> };
+          if (saved.fields && typeof saved.at === "number" && Date.now() - saved.at < TYPED_FIELDS_TTL_MS) {
+            const kept = saved.fields;
+            setForm((f) => {
+              const next = { ...f };
+              for (const key of TYPED_TEXT_FIELDS) {
+                const value = kept[key];
+                if (!f[key] && typeof value === "string" && value) next[key] = value.slice(0, 200);
+              }
+              const method = kept.deliveryMethod;
+              if (f.deliveryMethod === "DELIVERY" && (method === "PICKUP_POINT" || method === "PICKUP")) {
+                next.deliveryMethod = method;
+              }
+              return next;
+            });
+          }
+        }
+      } catch {
+        /* no storage, or not ours: the form simply starts empty */
+      }
+      restoredTyped.current = true;
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    // Not before the restore has run: the first render would overwrite what
+    // was kept with a form that is still empty.
+    if (!restoredTyped.current) return;
+    try {
+      const fields: Record<string, string> = { deliveryMethod: form.deliveryMethod };
+      for (const key of TYPED_TEXT_FIELDS) fields[key] = form[key];
+      sessionStorage.setItem(TYPED_FIELDS_KEY, JSON.stringify({ at: Date.now(), fields }));
+    } catch {
+      /* storage full or refused: nothing depends on it */
+    }
+    // The whole form as the dependency: a card field changing rewrites the
+    // same kept fields, which is harmless, and none of the card fields is
+    // ever among them.
+  }, [form]);
 
   /* Delivery is priced by the method, and the method is chosen on this screen
      — after the server built the summary. Derived rather than refetched: it
@@ -631,6 +700,11 @@ export function CheckoutForm({
 
       submitted.current = true;
       setCart({ ...cart, items: [], itemCount: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0, couponCode: null });
+      try {
+        sessionStorage.removeItem(TYPED_FIELDS_KEY);
+      } catch {
+        /* ignore */
+      }
       router.push(`/checkout/success/${result.orderNumber}`);
     });
   }
