@@ -205,6 +205,9 @@ export type FeedProduct = {
       (PriceBenchmark, at most BENCHMARK_MAX_AGE_DAYS old). Optional so a
       caller without benchmarks renders exactly the feed it did before. */
   benchmarkPrice?: number | null;
+  /** The lowest price zap.co.il lists for the model, when a fresh one is on
+      record (PriceBenchmark, source "zap"). Used for "competitive" only. */
+  zapMinPrice?: number | null;
 };
 
 // Split from the query on purpose: every rule Google can reject an item over
@@ -270,6 +273,15 @@ export function priceBand(price: number): string {
    worth excluding an item for. Everything between, and every item with no
    fresh benchmark, gets no label and stays in the campaign's catch-all.
 
+   "competitive" is measured against the LOWER of the two market readings we
+   hold: Google's benchmark and zap.co.il's minimum. On 16 November 12 of 30
+   items labelled competitive against Google alone were dearer than Zap's
+   cheapest offer — five of six Samsung Bespoke among them — and Zap is the
+   comparison Israeli shoppers and ChatGPT actually make. Paying 1.75 ₪ a
+   click to send a shopper to a price they can beat in one tab is the waste
+   this label exists to avoid. "overpriced" stays against Google's benchmark,
+   the rule as approved; without one, an item is never excluded on Zap alone.
+
    Compared against the price the item is listed at now, not the one on the
    day the benchmark was read, so a price change is reflected on the next
    fetch. A stale benchmark (older than BENCHMARK_MAX_AGE_DAYS) is not
@@ -278,11 +290,17 @@ export const COMPETITIVE_BELOW = 0.03;
 export const OVERPRICED_ABOVE = 0.05;
 export const BENCHMARK_MAX_AGE_DAYS = 14;
 
-export function priceCompetitiveness(price: number, benchmark: number | null | undefined): string | null {
-  if (!benchmark || benchmark <= 0 || !(price > 0)) return null;
-  const gap = (price - benchmark) / benchmark;
-  if (gap <= -COMPETITIVE_BELOW) return "competitive";
-  if (gap >= OVERPRICED_ABOVE) return "overpriced";
+export function priceCompetitiveness(
+  price: number,
+  benchmark: number | null | undefined,
+  zapMin?: number | null,
+): string | null {
+  if (!(price > 0)) return null;
+  const readings = [benchmark, zapMin].filter((v): v is number => typeof v === "number" && v > 0);
+  if (readings.length === 0) return null;
+  const lowest = Math.min(...readings);
+  if ((price - lowest) / lowest <= -COMPETITIVE_BELOW) return "competitive";
+  if (benchmark && benchmark > 0 && (price - benchmark) / benchmark >= OVERPRICED_ABOVE) return "overpriced";
   return null;
 }
 
@@ -442,7 +460,7 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
     const customLabel = CUSTOM_LABEL_0_BY_CATEGORY[p.category.slug];
     if (customLabel) lines.push(tag("g:custom_label_0", customLabel));
     lines.push(tag("g:custom_label_1", priceBand(p.price)));
-    const competitiveness = priceCompetitiveness(p.price, p.benchmarkPrice);
+    const competitiveness = priceCompetitiveness(p.price, p.benchmarkPrice, p.zapMinPrice);
     if (competitiveness) lines.push(tag("g:custom_label_2", competitiveness));
 
     items.push(`  <item>\n${lines.join("\n")}\n  </item>`);

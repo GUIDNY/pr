@@ -1423,8 +1423,11 @@ model CrawlerHit {
 // Google's market price for one of our items, as Merchant Center's pricing
 // report shows it (Analytics → Pricing: "benchmark"). Written by the paid
 // agent from that report, about weekly; nothing in the shop computes it.
-// Keyed by our SKU because that is the feed's g:id, which is what the report
-// is keyed by. No relation to Product on purpose: this table must never
+// Keyed by our SKU and the source: "merchant-center" (Google's benchmark) and,
+// from 16 November, "zap" (the lowest price zap.co.il lists for the model,
+// read by hand in a browser). Zap is where Israeli shoppers and ChatGPT
+// compare prices, and its minimum was below Google's benchmark on 12 of 30
+// items checked. No relation to Product on purpose: this table must never
 // reach into the catalogue, and a SKU that later leaves the feed simply has
 // a row nobody reads. Read by the Merchant feed, for custom_label_2 — see
 // lib/feeds/google-merchant.ts — and, by the same rule, to put competitive
@@ -1432,11 +1435,13 @@ model CrawlerHit {
 // The market price is never shown on the site. The data itself never goes
 // into the repo.
 model PriceBenchmark {
-  sku            String   @id
+  sku            String
   benchmarkPrice Float
   // Our price on the day the report was read, so a later reader can tell
   // whether the gap moved because of us or because of the market.
   ourPrice       Float
   capturedAt     DateTime
   source         String   @default("merchant-center")
+
+  @@id([sku, source])
 }

@@ -25,9 +25,13 @@ export const STATEMENTS = [
     "ourPrice" DOUBLE PRECISION NOT NULL,
     "capturedAt" TIMESTAMP(3) NOT NULL,
     "source" TEXT NOT NULL DEFAULT 'merchant-center',
-    CONSTRAINT "PriceBenchmark_pkey" PRIMARY KEY ("sku")
+    CONSTRAINT "PriceBenchmark_pkey" PRIMARY KEY ("sku", "source")
 )`,
   `ALTER TABLE "PriceBenchmark" ENABLE ROW LEVEL SECURITY`,
+  /* 16 November: the key became (sku, source) so a zap.co.il reading can sit
+     beside Merchant Center's. Idempotent for a table created either way. */
+  `ALTER TABLE "PriceBenchmark" DROP CONSTRAINT IF EXISTS "PriceBenchmark_pkey"`,
+  `ALTER TABLE "PriceBenchmark" ADD CONSTRAINT "PriceBenchmark_pkey" PRIMARY KEY ("sku", "source")`,
 ];
 
 async function main() {
