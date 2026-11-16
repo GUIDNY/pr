@@ -2,7 +2,7 @@
 // title and are never guessed — see lib/campaigns/black-november.ts.
 //
 // Run: npx tsx scripts/check-black-november.ts
-import { blackNovemberScope, televisionFacts, tvSizeBucket } from "../src/lib/campaigns/black-november";
+import { blackNovemberScope, televisionFacts, televisionSpecFacts, tvSizeBucket } from "../src/lib/campaigns/black-november";
 
 let failed = 0;
 let total = 0;
@@ -27,6 +27,15 @@ is("OLED as a word", televisionFacts("טלוויזיה LG OLED evo 65 אינץ'"
 is("no size in the title", televisionFacts("טלוויזיה LG NanoCell 65NU850B6"), { inches: null, panel: "NanoCell" });
 is("no panel in the title", televisionFacts("טלוויזיה 65 אינץ' 4K חכמה"), { inches: 65, panel: null });
 is("a model code is not a size", televisionFacts("מקרר 648 ליטר"), { inches: null, panel: null });
+
+// What sets one set apart — from the specs as the catalogue holds them, and
+// nothing when a spec is missing (16 November).
+is("75QNED85B6T", televisionSpecFacts({ refresh_rate_hz: "120", hdr: "Dolby Vision / HDR10 / HLG", processor: "α8 AI 4K Gen3" }), ["120Hz", "Dolby Vision", "מעבד α8"]);
+is("75NU850B6LA, no refresh rate recorded", televisionSpecFacts({ processor: "α7 AI Processor 4K Gen9" }), ["מעבד α7"]);
+is("55QNED8MB6T, HDR10 only", televisionSpecFacts({ refresh_rate_hz: "120", hdr: "HDR10 / HLG" }), ["120Hz"]);
+is("refresh rate written with Hz", televisionSpecFacts({ refresh_rate_hz: "60Hz" }), ["60Hz"]);
+is("no specs, no line", televisionSpecFacts({}), []);
+is("a value that is not a rate", televisionSpecFacts({ refresh_rate_hz: "עד 144Hz" }), []);
 
 is("55 → 55", tvSizeBucket(55), "55");
 is("86 → 85+", tvSizeBucket(86), "85");

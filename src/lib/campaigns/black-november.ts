@@ -80,6 +80,27 @@ export function televisionFacts(title: string): { inches: number | null; panel: 
   return { inches: inches !== null && inches >= 20 && inches <= 150 ? inches : null, panel };
 }
 
+/** The spec keys the card reads for what sets one television apart from the
+    next — the ones the catalogue actually fills for these sets. */
+export const TV_SPEC_KEYS = ["refresh_rate_hz", "hdr", "processor"] as const;
+
+/**
+ * What tells one set from the one beside it, from its recorded specs only
+ * (16 November). Two 55″ QNED Mini LED cards at 2,400 and 3,200 read the same
+ * on the shelf; the model codes said nothing to a shopper. Each fact appears
+ * only when the spec holds it — a missing value is left out, never inferred.
+ * "120Hz", "Dolby Vision", "מעבד α8", in that order.
+ */
+export function televisionSpecFacts(specs: Partial<Record<(typeof TV_SPEC_KEYS)[number], string>>): string[] {
+  const facts: string[] = [];
+  const hz = specs.refresh_rate_hz?.trim().match(/^(\d{2,3})(?:\s*hz)?$/i);
+  if (hz) facts.push(`${hz[1]}Hz`);
+  if (specs.hdr && /dolby\s*vision/i.test(specs.hdr)) facts.push("Dolby Vision");
+  const chip = specs.processor?.match(/α\s*(\d{1,2})/);
+  if (chip) facts.push(`מעבד α${chip[1]}`);
+  return facts;
+}
+
 /** The shelf's size filter. A set of 86 or 98 inches belongs with "85 and up". */
 export const TV_SIZE_BUCKETS = [
   { key: "50", label: "50″", min: 0, max: 52 },

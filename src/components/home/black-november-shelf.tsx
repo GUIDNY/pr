@@ -9,7 +9,6 @@ import { FavoriteButton } from "@/components/product/favorite-button";
 import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import {
   BLACK_NOVEMBER_LABEL,
-  BLACK_NOVEMBER_LIMITED,
   TV_SIZE_BUCKETS,
   televisionFacts,
   tvSizeBucket,
@@ -243,6 +242,13 @@ function Card({
           <span aria-hidden="true">{shortLine || product.title}</span>
           <span className="sr-only">{product.title}</span>
         </Link>
+        {/* What sets it apart, from its own specs only; nothing when none
+            is recorded. */}
+        {product.tvFacts && product.tvFacts.length > 0 && (
+          <p className="text-muted-foreground mt-0.5 truncate text-xs" dir="rtl">
+            {product.tvFacts.join(" · ")}
+          </p>
+        )}
 
         {/* Price and the button on one line; the campaign's wording under them. */}
         <div className="mt-auto flex items-center justify-between gap-2 pt-2">
@@ -261,7 +267,9 @@ function Card({
           />
         </div>
         <p className="text-muted-foreground mt-1.5 text-[11px] leading-tight">
-          {BLACK_NOVEMBER_LABEL} · {BLACK_NOVEMBER_LIMITED}
+          {/* "לזמן מוגבל" is said once, in the section's heading, rather than
+              on every card where it broke onto a second line at 375. */}
+          {BLACK_NOVEMBER_LABEL}
           {product.installmentMonths ? ` · ${formatInstallment(product.price, product.installmentMonths)}` : ""}
         </p>
       </div>
