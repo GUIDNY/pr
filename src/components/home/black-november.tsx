@@ -51,7 +51,7 @@ export function BlackNovember({
 
   return (
     <section aria-labelledby="black-november-title" className="mx-auto max-w-7xl px-4 py-5 sm:py-7">
-      {/* A low black strip (version B, 17 November): the name and the link on
+      {/* A low black strip (version B, 16 November): the name and the link on
           one line, the facts under them. The tall block before it filled half
           a phone screen before the first television. */}
       <div className="border-brand border-b-4 bg-black px-4 py-3 text-white sm:px-8 sm:py-6">
