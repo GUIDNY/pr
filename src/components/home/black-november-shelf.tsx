@@ -201,7 +201,7 @@ function Card({
       </div>
 
       <div className="flex flex-1 flex-col px-3 pt-2 pb-3">
-        <Link href={href} title={product.title} className="truncate text-sm font-medium hover:underline">
+        <Link href={href} title={product.title} className="relative truncate text-sm font-medium hover:underline">
           <span aria-hidden="true">{shortLine || product.title}</span>
           <span className="sr-only">{product.title}</span>
         </Link>
