@@ -96,7 +96,11 @@ export function BlackNovemberShelf({
         className={cn(
           layout === "rail"
             ? "-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:thin] sm:mx-0 sm:gap-4 sm:px-0"
-            : "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5",
+            : limit
+              ? /* Four on the homepage: two rows of two on a phone, one row of
+                   four from a tablet up, never a row with a gap in it. */
+                "grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
+              : "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5",
           chips.length > 1 ? "" : "mt-3",
         )}
       >
