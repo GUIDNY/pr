@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth";
 import { browserPlacedOrder } from "@/lib/order-receipts";
 import { orderShippingAddress, formatShippingAddress } from "@/lib/order-address";
 import { PaymentConfirmation } from "@/components/checkout/payment-confirmation";
+import { ForgetTypedCheckoutFields } from "@/components/checkout/forget-typed-fields";
 import { MetaPurchase } from "@/components/analytics/meta-events";
 import { GaPurchase } from "@/components/analytics/ga-events";
 import { ReportOrderToMall } from "@/components/layout/mall-bridge";
@@ -93,6 +94,8 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
           מספר הזמנה <span className="text-foreground font-semibold">{order.orderNumber}</span> · בוצעה ב-{formatDateTime(order.createdAt)}
         </p>
       </div>
+
+      <ForgetTypedCheckoutFields />
 
       {awaitingGateway && (
         <PaymentConfirmation
