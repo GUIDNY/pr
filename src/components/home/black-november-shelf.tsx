@@ -128,6 +128,24 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
   );
 }
 
+/* A quiet tint per panel kind, so fifteen sets that share one photograph
+   still read apart at a glance. Flat colours, no gradient. */
+const PANEL_TONE: Record<string, string> = {
+  OLED: "bg-black text-white",
+  "QNED Mini LED": "bg-orange-100 text-orange-900",
+  QNED: "bg-amber-100 text-amber-900",
+  NanoCell: "bg-sky-100 text-sky-900",
+  QLED: "bg-violet-100 text-violet-900",
+};
+
+/** The manufacturer's model code out of a title ("…דגם 55QNED8MB6T"): the last
+    Latin token of six or more characters that has both letters and digits. */
+function modelFromTitle(title: string): string | null {
+  const tokens = title.match(/[A-Za-z0-9][A-Za-z0-9-]{5,}/g) ?? [];
+  const codes = tokens.filter((t) => /\d/.test(t) && /[A-Za-z]/.test(t) && !/^\d+(hz|w)$/i.test(t));
+  return codes.length > 0 ? codes[codes.length - 1] : null;
+}
+
 function Card({
   product,
   inches,
@@ -140,68 +158,71 @@ function Card({
   className?: string;
 }) {
   const href = `/product/${product.slug}`;
+  const model = modelFromTitle(product.title);
+  /* One short line in place of the two-line title: the size and the panel are
+     already above, so what is left to say is whose it is and which model. The
+     full title stays for screen readers and in the link's tooltip. */
+  const shortLine = [product.brandName, model].filter(Boolean).join(" · ");
 
   return (
     <article className={cn("bg-card text-foreground flex flex-col border border-black/15", className)}>
       {/* What sets this set apart from the one beside it, first. */}
       {(inches !== null || panel) && (
-        <div className="flex items-baseline gap-2 px-3 pt-3">
+        <div className="flex items-center gap-2 px-3 pt-2.5">
           {inches !== null && (
-            <span dir="ltr" className="text-4xl leading-none font-black tracking-tight tabular-nums">
+            <span dir="ltr" className="text-3xl leading-none font-black tracking-tight tabular-nums">
               {inches}″
             </span>
           )}
-          {panel && <span className="text-muted-foreground text-xs font-semibold">{panel}</span>}
+          {panel && (
+            <span className={cn("px-1.5 py-0.5 text-[11px] leading-tight font-bold", PANEL_TONE[panel] ?? "bg-muted")}>
+              {panel}
+            </span>
+          )}
         </div>
       )}
 
-      <div className="relative">
-        <Link href={href} className="relative mx-3 mt-2 block aspect-[16/10] bg-white">
+      {/* The photograph at the card's full width. It sat inside a margin in a
+          16:10 box and came out a third of the card on a phone. */}
+      <div className="relative mt-2">
+        <Link href={href} className="relative block aspect-[16/10] bg-white" tabIndex={-1} aria-hidden="true">
           {product.imageUrl && (
             <Image
               src={product.imageUrl}
-              // Empty for the reason the ordinary card gives: the title link
-              // below names the product, and a broken picture must not paint
-              // a paragraph where the photograph was.
               alt=""
               fill
               className="object-contain"
-              sizes="(min-width: 1280px) 18vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 62vw"
+              sizes="(min-width: 1280px) 18vw, (min-width: 1024px) 22vw, (min-width: 640px) 30vw, 48vw"
               referrerPolicy="no-referrer"
             />
           )}
         </Link>
-        <FavoriteButton productId={product.id} className="absolute top-1 end-2" />
+        <FavoriteButton productId={product.id} className="absolute top-1 end-1" />
       </div>
 
-      <div className="flex flex-1 flex-col p-3">
-        <Link href={href} className="line-clamp-2 min-h-10 text-sm leading-5 font-medium hover:underline">
-          {product.title}
+      <div className="flex flex-1 flex-col px-3 pt-2 pb-3">
+        <Link href={href} title={product.title} className="truncate text-sm font-medium hover:underline">
+          <span aria-hidden="true">{shortLine || product.title}</span>
+          <span className="sr-only">{product.title}</span>
         </Link>
 
-        <div className="mt-2.5">
-          <div className="text-2xl leading-tight font-bold tabular-nums">{formatPrice(product.price)}</div>
-          <p className="text-muted-foreground text-xs">
-            {BLACK_NOVEMBER_LABEL} · {BLACK_NOVEMBER_LIMITED}
-          </p>
-          {product.installmentMonths && (
-            <p className="text-muted-foreground text-xs">
-              {formatInstallment(product.price, product.installmentMonths)}
-            </p>
-          )}
-        </div>
-
-        <div className="mt-auto pt-3">
+        {/* Price and the button on one line; the campaign's wording under them. */}
+        <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+          <span className="text-xl leading-none font-bold tabular-nums">{formatPrice(product.price)}</span>
           <AddToCartButton
             productId={product.id}
             slug={product.slug}
             price={product.price}
             disabled={product.stockStatus === "OUT_OF_STOCK"}
             size="sm"
-            className="h-10 w-full rounded-none text-sm font-bold"
-            label={product.stockStatus === "OUT_OF_STOCK" ? "אזל מהמלאי" : "הוספה לעגלה"}
+            className="h-10 shrink-0 rounded-none px-3 text-sm font-bold"
+            label={product.stockStatus === "OUT_OF_STOCK" ? "אזל" : "לעגלה"}
           />
         </div>
+        <p className="text-muted-foreground mt-1.5 text-[11px] leading-tight">
+          {BLACK_NOVEMBER_LABEL} · {BLACK_NOVEMBER_LIMITED}
+          {product.installmentMonths ? ` · ${formatInstallment(product.price, product.installmentMonths)}` : ""}
+        </p>
       </div>
     </article>
   );
