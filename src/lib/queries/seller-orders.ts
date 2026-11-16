@@ -15,7 +15,7 @@ import { channelReadiness } from "@/lib/notify";
 import { attributionFromJson, type Attribution } from "@/lib/attribution";
 import { orderProblems, type OrderProblem } from "@/lib/order-problems";
 import { undoTargetStatus } from "@/lib/order-undo";
-import { getPriorityStock, normalizeSku, type PriorityStock } from "@/lib/queries/priority-stock";
+import { getPriorityStockForItems, type PriorityLookup } from "@/lib/queries/priority-stock";
 
 /**
  * The orders queue as a salesperson needs it.
@@ -83,8 +83,9 @@ export type SellerOrderDetail = SellerOrderSummary & {
     price: number;
     cost: number | null;
     inStock: number | null;
-    /** Priority's own warehouse stock for this SKU; null when Priority has none at all. */
-    priority: PriorityStock | null;
+    /** Priority's own warehouse stock: by SKU, else by the product's model in
+        Priority's description; null when neither finds the item at all. */
+    priority: PriorityLookup;
   }[];
   /** When the Priority mirror was last refreshed; null if it could not be read. */
   prioritySyncedAt: Date | null;
@@ -211,7 +212,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
           quantity: true,
           priceSnap: true,
           costSnap: true,
-          product: { select: { stockQty: true } },
+          product: { select: { stockQty: true, model: true } },
         },
       },
       guestEmail: true,
@@ -247,7 +248,9 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
   if (!row) return null;
 
   const summary = toSummary(row);
-  const priority = await getPriorityStock(row.items.map((i) => i.skuSnap));
+  const priority = await getPriorityStockForItems(
+    row.items.map((i) => ({ sku: i.skuSnap, model: i.product?.model ?? null })),
+  );
   const live = row.payments.find((p) => p.status === "AUTHORIZED" || p.status === "CAPTURED");
 
   return {
@@ -289,14 +292,14 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
     },
     shippedAt: row.shippedAt,
     deliveredAt: row.deliveredAt,
-    items: row.items.map((item) => ({
+    items: row.items.map((item, i) => ({
       title: item.titleSnap,
       sku: item.skuSnap,
       quantity: item.quantity,
       price: item.priceSnap,
       cost: item.costSnap,
       inStock: item.product ? item.product.stockQty : null,
-      priority: priority.bySku.get(normalizeSku(item.skuSnap)) ?? null,
+      priority: priority.lookups[i] ?? null,
     })),
     prioritySyncedAt: priority.syncedAt,
     history: row.statusHistory.map((h) => ({
