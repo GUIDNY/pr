@@ -880,29 +880,60 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 /* Priority's warehouse stock, beside the price-sheet number above it. The
-   two come from different places and may disagree; this one is the shelf. */
+   two come from different places and may disagree; this one is the shelf.
+
+   Three answers, kept apart because PR-611513 showed what merging them
+   costs: "not found by SKU" is grey and says nothing about the shelf;
+   "found, nothing on the shelf" is red; a match found through the model
+   in Priority's description says so and names Priority's own SKU. */
+type PriorityStockShape = {
+  totalQty: number;
+  lines: { warehouse: string; warehouseName: string | null; status: string; qty: number }[];
+};
 function PriorityStockNote({
   stock,
   syncedAt,
 }: {
-  stock: { totalQty: number; lines: { warehouse: string; warehouseName: string | null; status: string; qty: number }[] } | null;
+  stock:
+    | { by: "sku"; stock: PriorityStockShape }
+    | { by: "model"; matches: { sku: string; stock: PriorityStockShape }[] }
+    | null;
   syncedAt: Date | null;
 }) {
   if (!syncedAt) return null;
   const when = syncedAt.toLocaleString("he-IL", { timeZone: "Asia/Jerusalem", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
-  if (!stock || stock.totalQty <= 0) {
+  const updated = <span className="text-muted-foreground font-normal">· עודכן {when}</span>;
+  if (!stock) {
     return (
-      <span className="block text-xs font-semibold text-red-600">
-        פריוריטי: אין במלאי באף מחסן <span className="text-muted-foreground font-normal">· עודכן {when}</span>
+      <span className="text-muted-foreground block text-xs">
+        פריוריטי: לא נמצא בפריוריטי לפי מק&quot;ט {updated}
       </span>
     );
   }
-  const parts = stock.lines
-    .filter((l) => l.qty !== 0)
-    .map((l) => `${l.warehouseName ?? `מחסן ${l.warehouse}`} (${l.warehouse}): ${l.qty}${l.status && l.status !== "טובים" ? ` (${l.status})` : ""}`);
+  const found =
+    stock.by === "sku"
+      ? [{ note: null as string | null, stock: stock.stock }]
+      : stock.matches.map((m) => ({ note: `(התאמה לפי דגם, מק"ט פריוריטי ${m.sku})`, stock: m.stock }));
   return (
-    <span className="block text-xs text-emerald-700">
-      פריוריטי: {stock.totalQty} במלאי · {parts.join(" · ")} <span className="text-muted-foreground">· עודכן {when}</span>
-    </span>
+    <>
+      {found.map(({ note, stock: s }, i) => {
+        if (s.totalQty <= 0) {
+          return (
+            <span key={i} className="block text-xs font-semibold text-red-600">
+              פריוריטי: נמצא, כמות 0 באף מחסן{note && ` ${note}`} {updated}
+            </span>
+          );
+        }
+        const parts = s.lines
+          .filter((l) => l.qty !== 0)
+          .map((l) => `${l.warehouseName ?? `מחסן ${l.warehouse}`} (${l.warehouse}): ${l.qty}${l.status && l.status !== "טובים" ? ` (${l.status})` : ""}`);
+        return (
+          <span key={i} className="block text-xs text-emerald-700">
+            פריוריטי: {s.totalQty} במלאי · {parts.join(" · ")}
+            {note && ` ${note}`} {updated}
+          </span>
+        );
+      })}
+    </>
   );
 }
