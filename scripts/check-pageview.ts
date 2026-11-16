@@ -8,6 +8,7 @@
 import {
   pageViewFromRequest,
   pageViewFromNavigation,
+  pageViewFromLanding,
   keptQuery,
   KEPT_SORTS,
   trimReferrer,
@@ -104,6 +105,21 @@ is("a path with a host in it is refused", pageViewFromNavigation({ path: "//evil
 is("a path that is not a path is refused", pageViewFromNavigation({ path: "javascript:alert(1)" }, headers({}), "h"), null);
 is("the back office is refused here too", pageViewFromNavigation({ path: "/admin/orders" }, headers({}), "h"), null);
 is("a junk 'from' is dropped, not stored", pageViewFromNavigation({ path: "/x", from: "https://x.y/z" }, headers({}), "h")?.referrer, null);
+
+console.log("\na landing the proxy never saw (16 November: a prefetched page, no visit cookie)");
+const land = pageViewFromLanding(
+  { path: "/product/x", search: "?utm_source=google&email=a%40b.c", referrer: "https://www.google.com/search?q=private" },
+  headers({ "user-agent": IPHONE, "x-vercel-ip-country": "il" }),
+  "buytoday.co.il",
+);
+is("the page is logged", land?.path, "/product/x");
+is("its query by the same allow-list", land?.query, "utm_source=google");
+is("the referrer is host and path, never its query", land?.referrer, "www.google.com/search");
+is("a junk referrer is dropped", pageViewFromLanding({ path: "/x", referrer: "javascript:alert(1)" }, headers({}), "h")?.referrer, null);
+is("no referrer is null", pageViewFromLanding({ path: "/x" }, headers({}), "h")?.referrer, null);
+is("a landing on /admin is refused", pageViewFromLanding({ path: "/admin/orders" }, headers({}), "h"), null);
+is("a path with a host in it is refused", pageViewFromLanding({ path: "//evil.com/x" }, headers({}), "h"), null);
+is("the same keys as every other row", Object.keys(land ?? {}).sort(), Object.keys(nav ?? {}).sort());
 
 console.log("\ncrawlers are kept and flagged");
 const bot = pageViewFromRequest({ pathname: "/product/x", search: "", headers: headers({ ...html, "user-agent": GOOGLEBOT }) });

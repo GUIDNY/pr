@@ -20,6 +20,15 @@ export const SID_IDLE_SECONDS = 30 * 60;
 /** And ends regardless after this long, even mid-browse. */
 export const SID_MAX_SECONDS = 24 * 60 * 60;
 
+/** How every route that issues or refreshes the cookie sets it. */
+export const SID_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: true,
+  sameSite: "lax",
+  path: "/",
+  maxAge: SID_IDLE_SECONDS,
+} as const;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type VisitSid = { id: string; startedAt: number };

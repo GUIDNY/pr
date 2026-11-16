@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { pageViewFromNavigation } from "@/lib/pageview/capture";
-import { resolveSid, serializeSid, SID_COOKIE, SID_IDLE_SECONDS } from "@/lib/pageview/sid";
+import { pageViewFromLanding, pageViewFromNavigation } from "@/lib/pageview/capture";
+import { resolveSid, serializeSid, SID_COOKIE, SID_COOKIE_OPTIONS } from "@/lib/pageview/sid";
 
 /**
  * Where the page reports an in-app navigation (components/analytics/
@@ -10,33 +10,44 @@ import { resolveSid, serializeSid, SID_COOKIE, SID_IDLE_SECONDS } from "@/lib/pa
  *
  * No shared secret here — the browser is the caller — so the body is
  * trusted for nothing but two paths and a query string, each checked in
- * pageViewFromNavigation, and a navigation with no visit cookie is dropped:
- * the proxy issues the cookie on the full load that must have come first,
- * and a beacon without one is not a visit this log knows. The cookie is
- * refreshed on the way out so the 30-minute idle clock restarts with the
- * page, as it does on a full load. 204 whatever happens.
+ * pageViewFromNavigation. 204 whatever happens.
+ *
+ * THE VISIT COOKIE. Until 16 November a beacon with no visit cookie was
+ * dropped, on the assumption that the proxy had issued one on the full load
+ * that must have come first. That assumption failed for a paying customer:
+ * a page the browser prefetched or prerendered reaches the screen without
+ * the proxy issuing anything, and then every navigation and every event of
+ * the visit was thrown away. So now:
+ *
+ *   - `landing: true` is the page's first render. With a cookie, the proxy
+ *     already logged this load and nothing is written. Without one, a visit
+ *     id is issued here and the page is logged (pageViewFromLanding).
+ *   - an ordinary navigation with no cookie (a prefetched landing whose
+ *     beacon was lost, or a visit that sat idle past 30 minutes) is logged
+ *     under a fresh id rather than dropped.
+ *
+ * The cookie is the same one the proxy issues — same name, same lifetime,
+ * same flags — and is refreshed on the way out so the 30-minute idle clock
+ * restarts with the page, as it does on a full load.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   const response = new NextResponse(null, { status: 204 });
-  const raw = request.cookies.get(SID_COOKIE)?.value;
-  const sid = resolveSid(raw);
-  if (sid.isNew) return response;
+  const sid = resolveSid(request.cookies.get(SID_COOKIE)?.value);
 
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const view = pageViewFromNavigation(body, request.headers, request.nextUrl.host);
+    const landing = body.landing === true;
+    if (landing && !sid.isNew) return response;
+
+    const view = landing
+      ? pageViewFromLanding(body, request.headers, request.nextUrl.host)
+      : pageViewFromNavigation(body, request.headers, request.nextUrl.host);
     if (view) {
       await db.pageView.create({ data: { sid: sid.id, ...view } });
-      response.cookies.set(SID_COOKIE, serializeSid(sid), {
-        httpOnly: true,
-        secure: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: SID_IDLE_SECONDS,
-      });
+      response.cookies.set(SID_COOKIE, serializeSid(sid), SID_COOKIE_OPTIONS);
     }
   } catch (error) {
     console.error("[pageview] navigation insert failed", error);
