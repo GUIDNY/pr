@@ -16,6 +16,7 @@ import {
 } from "@/lib/campaigns/black-november";
 import { formatInstallment, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
 
 /**
  * The shelf under the "בלאק נובמבר" strip: the size chips and the cards.
@@ -57,22 +58,31 @@ export function BlackNovemberShelf({
 
   return (
     <>
-      {chips.length > 1 && (
-        <div
-          role="group"
-          aria-label="סינון לפי גודל מסך"
-          className="-mx-4 flex gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] sm:mx-0 sm:px-0"
-        >
-          <Chip active={size === null} onClick={() => setSize(null)}>
-            הכול
-          </Chip>
-          {chips.map((b) => (
-            <Chip key={b.key} active={size === b.key} onClick={() => setSize(b.key)}>
-              <span dir="ltr">{b.label}</span>
-            </Chip>
-          ))}
-        </div>
-      )}
+      {chips.length > 1 &&
+        (() => {
+          const row = (
+            <div
+              role="group"
+              aria-label="סינון לפי גודל מסך"
+              className="-mx-4 flex gap-2 overflow-x-auto px-4 py-3 [scrollbar-width:none] sm:mx-0 sm:px-0"
+            >
+              <Chip active={size === null} onClick={() => setSize(null)}>
+                הכול
+              </Chip>
+              {chips.map((b) => (
+                <Chip key={b.key} active={size === b.key} onClick={() => setSize(b.key)}>
+                  <span dir="ltr">{b.label}</span>
+                </Chip>
+              ))}
+            </div>
+          );
+          /* On the /black-november page the grid is fifteen sets long — five
+             phone screens — and the chips were only at the top, so choosing
+             another size meant scrolling all the way back. There they stay
+             under the header (the same measured offset the product page's
+             tabs use). The homepage rail is one row high and needs nothing. */
+          return layout === "grid" ? <StickyTabsBar>{row}</StickyTabsBar> : row;
+        })()}
 
       <div
         className={cn(
@@ -107,7 +117,9 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "h-9 shrink-0 border px-4 text-sm font-semibold transition-colors",
+        /* 44px on a phone — the size a fingertip needs; 36 was a target to
+           aim for. Back to 36 from sm:, where it is a mouse. */
+        "h-11 shrink-0 border px-4 text-sm font-semibold transition-colors sm:h-9",
         active ? "border-black bg-black text-white" : "border-black/20 bg-white text-black hover:border-black",
       )}
     >
