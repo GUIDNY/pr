@@ -9,12 +9,14 @@ import {
   pageViewFromRequest,
   pageViewFromNavigation,
   keptQuery,
+  KEPT_SORTS,
   trimReferrer,
   deviceClass,
   isSkippedPath,
 } from "../src/lib/pageview/capture";
 import { parseSid, resolveSid, serializeSid, SID_IDLE_SECONDS, SID_MAX_SECONDS } from "../src/lib/pageview/sid";
 import { VISIT_EVENT_TYPES, isVisitEventType, sanitizeEventMeta } from "../src/lib/pageview/events";
+import type { ListingSort } from "../src/lib/queries/listing-order";
 
 let failures = 0;
 function is(name: string, got: unknown, want: unknown) {
@@ -56,6 +58,23 @@ is("a phone is mobile", deviceClass(IPHONE), "mobile");
 is("a tablet is tablet", deviceClass(IPAD), "tablet");
 is("a desktop is desktop", deviceClass(CHROME), "desktop");
 is("no query means null", keptQuery(""), null);
+
+console.log("\nsort and page, from a closed list only");
+is("a sort the shop offers is kept", keptQuery("?sort=price-asc"), "sort=price-asc");
+is("a page number is kept", keptQuery("?page=3"), "page=3");
+is("both, after the marketing ones", keptQuery("?page=2&sort=newest&utm_source=g"), "utm_source=g&sort=newest&page=2");
+is("an unknown sort is dropped", keptQuery("?sort=someone%40example.com"), null);
+is("page 0 is dropped", keptQuery("?page=0"), null);
+is("page 51 is dropped", keptQuery("?page=51"), null);
+is("page 50 is kept", keptQuery("?page=50"), "page=50");
+is("a page with anything but digits is dropped", keptQuery("?page=2abc"), null);
+is("a leading zero is dropped", keptQuery("?page=02"), null);
+is("the search box's q is never kept", keptQuery("?q=054-1234567&sort=rating"), "sort=rating");
+/* The list in capture.ts repeats ListingSort; this literal has to name every
+   member of the type or it does not compile, and the run fails if the two
+   lists then differ. */
+const EVERY_SORT: Record<ListingSort, true> = { relevance: true, "price-asc": true, "price-desc": true, newest: true, rating: true };
+is("KEPT_SORTS is exactly ListingSort", [...KEPT_SORTS].sort(), Object.keys(EVERY_SORT).sort());
 is("a junk referrer is null", trimReferrer("javascript:void(0)"), null);
 /* The key set, asserted rather than trusted, because the privacy page
    promises what is in it: "הרישום אינו כולל כתובת IP, מחרוזת דפדפן". A
