@@ -659,7 +659,7 @@ export async function ProductPageView({
                 <a href={BUSINESS.phoneHref} className="text-brand hover:underline">
                   {BUSINESS.phone}
                 </a>{" "}
-                כדי לברר מתי הוא צפוי לחזור, או לראות מוצרים דומים בהמשך העמוד.
+                כדי לברר מתי הוא צפוי לחזור, או לראות דגמים דומים שזמינים עכשיו, מיד כאן למטה.
               </p>
             </div>
           ) : (
@@ -779,7 +779,10 @@ export async function ProductPageView({
           scroll map says fewer than one visitor in ten arrives. From md up
           the rail stays where it was, at the foot of the page. Same data,
           rendered twice; only one is ever displayed. */}
-      <div className="md:hidden">
+      {/* A sold-out product has nothing else to offer above the fold, so there
+          the rail is up here on every screen: the next thing after "אזל
+          מהמלאי" and the phone number is what can be bought instead. */}
+      <div className={isSoldOut ? undefined : "md:hidden"}>
         <ProductRail title={relatedTitle} products={related} />
       </div>
 
@@ -1057,9 +1060,11 @@ export async function ProductPageView({
         </Tabs>
       </div>
 
-      <div className="max-md:hidden">
-        <ProductRail title={relatedTitle} products={related} />
-      </div>
+      {!isSoldOut && (
+        <div className="max-md:hidden">
+          <ProductRail title={relatedTitle} products={related} />
+        </div>
+      )}
 
       {!isSoldOut && (
         <MobileBuyBar productId={product.id} slug={product.slug} price={product.price} stockStatus={product.stockStatus as StockStatus} />
