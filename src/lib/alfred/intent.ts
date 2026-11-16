@@ -189,7 +189,17 @@ const LEXICON: LexiconEntry[] = [
   { slugs: ["ceiling-fans"], phrases: ["מאוורר תקרה", "מאווררי תקרה", "ceiling fan"] },
   {
     slugs: ["heaters", "heat-fans", "radiators"],
-    phrases: ["תנור חימום", "תנורי חימום", "מחמם", "חימום", "מקרן חום", "מקרן חימום", "מקרני חום", "heater", "מחמם חלל"],
+    /* "תנור" alone is an oven (the entry under תנורים וכיריים), and it
+       won every query that started with it: "תנור אמבטיה" returned six
+       built-in ovens, while the heaters it meant are what the Shopping ads
+       send people to. Two-word phrases beat the one-word one, so the
+       heater sense is spelled out here — the bathroom, the wall, the
+       element types — and "אמבטיה" alone means the heater too. */
+    phrases: [
+      "תנור חימום", "תנורי חימום", "מחמם", "חימום", "מקרן חום", "מקרן חימום", "מקרני חום", "heater", "מחמם חלל",
+      "תנור אמבטיה", "תנור לאמבטיה", "תנורי אמבטיה", "אמבטיה", "מחמם אמבטיה",
+      "תנור קיר", "תנורי קיר", "תנור קוורץ", "תנור הלוגן", "תנור שמן", "תנור רדיאטור", "תנור נפט",
+    ],
   },
   { slugs: ["heat-fans"], phrases: ["מפזר חום", "מפזרי חום", "fan heater"] },
   { slugs: ["radiators"], phrases: ["רדיאטור", "רדיאטורים", "radiator"] },
