@@ -1426,8 +1426,11 @@ model CrawlerHit {
 // Keyed by our SKU because that is the feed's g:id, which is what the report
 // is keyed by. No relation to Product on purpose: this table must never
 // reach into the catalogue, and a SKU that later leaves the feed simply has
-// a row nobody reads. Read only by the Merchant feed, for custom_label_2 —
-// see lib/feeds/google-merchant.ts. The data itself never goes into the repo.
+// a row nobody reads. Read by the Merchant feed, for custom_label_2 — see
+// lib/feeds/google-merchant.ts — and, by the same rule, to put competitive
+// in-stock products first in a category's default order (queries/products.ts).
+// The market price is never shown on the site. The data itself never goes
+// into the repo.
 model PriceBenchmark {
   sku            String   @id
   benchmarkPrice Float
