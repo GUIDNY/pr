@@ -42,6 +42,9 @@ export function AddToCartButton({
       variant="brand"
       size={size}
       disabled={disabled || isPending}
+      /* An icon-only button still needs a name for screen readers: the label. */
+      aria-label={size === "icon" ? label : undefined}
+      title={size === "icon" ? label : undefined}
       className={cn("gap-1.5", className)}
       onClick={(e) => {
         e.preventDefault();
