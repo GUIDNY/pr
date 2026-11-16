@@ -78,10 +78,10 @@ import { absoluteUrl } from "@/lib/site-url";
 import { structuredSpecs } from "@/lib/product-specs";
 import { colorInTitle } from "@/lib/catalog/variant-colors";
 import { formatDate, formatPrice } from "@/lib/format";
-import type { StockStatus } from "@/lib/enums";
+import type { SourceAvailability, StockStatus } from "@/lib/enums";
 import { BUSINESS } from "@/lib/business";
 import { maxCartQuantity } from "@/lib/cart-merge";
-import { isSellableNow } from "@/lib/inventory/availability";
+import { isSellableNow, sellableWithoutStock } from "@/lib/inventory/availability";
 import { needsPaidInstallation, INSTALLATION_NOT_INCLUDED, INSTALLATION_ARRANGED_SEPARATELY } from "@/lib/installation";
 
 /**
@@ -139,6 +139,31 @@ export async function ProductPageView({
     !isSellableNow({ ...product, sourceKey: product.source?.key ?? null }) ||
     product.missingFromSourceSince !== null ||
     product.stockStatus === "NEEDS_REVIEW";
+
+  /* "מלאי אחרון" only where it is true. LOW_STOCK is the sync's "1 to 3 units
+     on hand", but a product the supplier keeps supplying (ORDERABLE, outside
+     the two stock-only workbooks) is not running out — the owner's rule is
+     that the shop sells it as though the warehouse had it. 622 live pages,
+     all white goods and screens, said "last stock" in amber beside a
+     product anyone can order, while the card
+     that led there said "במלאי" and the feed and JSON-LD said InStock (16
+     November). Rows marked gone or sold from stock only keep the warning:
+     there the last units really are the last. */
+  const shownStockStatus: StockStatus = isSoldOut
+    ? "OUT_OF_STOCK"
+    : product.stockStatus === "LOW_STOCK" &&
+        sellableWithoutStock(
+          (product.sourceAvailability ?? "ORDERABLE") as SourceAvailability,
+          product.source?.key ?? null,
+          product.brand?.name,
+        )
+      ? "IN_STOCK"
+      : (product.stockStatus as StockStatus);
+
+  /* "תוך 3–7 ימי עסקים" for the national range; a product with its own
+     figure already reads "עד 5 ימי עסקים" and takes no "תוך". */
+  const promiseText = deliveryPromiseText(product);
+  const withinDays = promiseText.startsWith("עד ") ? promiseText : `תוך ${promiseText}`;
 
   // A regular visitor still gets a 404 for anything unpublished, and for
   // anything with no photograph — the two conditions PUBLIC_PRODUCT_WHERE
@@ -629,7 +654,7 @@ export async function ProductPageView({
           <ColorVariantPicker variants={colorVariants} />
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 max-md:-order-1">
-            <StockBadge status={isSoldOut ? "OUT_OF_STOCK" : (product.stockStatus as StockStatus)} />
+            <StockBadge status={shownStockStatus} />
             {/* The delivery cost said at the price, where the decision is
                 made — the one fee shoppers most often first meet at checkout. */}
             {!isSoldOut && deliveryFee === 0 ? (
@@ -644,8 +669,8 @@ export async function ProductPageView({
               <span className="text-muted-foreground flex items-center gap-1 text-sm">
                 <Truck className="size-4" />
                 {deliveryFee === 0
-                  ? `עד הבית · ${deliveryPromiseText(product)}`
-                  : `משלוח ${formatPrice(deliveryFee)} · ${deliveryPromiseText(product)}`}
+                  ? /* The "משלוח חינם" chip is right beside it. */ `עד הבית ${withinDays}`
+                  : `משלוח ${formatPrice(deliveryFee)} · ${withinDays}`}
               </span>
             )}
           </div>
