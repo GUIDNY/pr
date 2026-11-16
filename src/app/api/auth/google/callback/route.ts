@@ -12,7 +12,23 @@ import { GOOGLE_PURPOSE_COOKIE, GOOGLE_RETURN_COOKIE, GOOGLE_STATE_COOKIE } from
 
 export const dynamic = "force-dynamic";
 
-function fail(reason: string) {
+/**
+ * Where a failed or cancelled sign-in goes.
+ *
+ * To the login page, with the reason — except when the shopper set out from
+ * the checkout. There the sign-in was an optional shortcut on a page they
+ * were in the middle of, and sending them to /login instead took the checkout
+ * away for declining it: "cancel" on the provider's screen ended on a login
+ * form with no way back to the order.
+ *
+ * Exactly "/checkout" and nothing derived from the cookie: the destination is
+ * a constant in this file, so this cannot be turned into a redirect to
+ * anywhere else. The reason rides along as a query the page ignores.
+ */
+function fail(reason: string, returnTo?: string) {
+  if (returnTo === "/checkout") {
+    return NextResponse.redirect(`${SITE_URL}/checkout?signin=${reason}`);
+  }
   return NextResponse.redirect(`${SITE_URL}/login?error=${reason}`);
 }
 
@@ -64,16 +80,16 @@ export async function GET(request: Request) {
   jar.delete(GOOGLE_PURPOSE_COOKIE);
 
   // Somebody pressed "cancel" on Google's screen.
-  if (url.searchParams.get("error")) return fail("google_cancelled");
+  if (url.searchParams.get("error")) return fail("google_cancelled", returnTo);
 
   const state = url.searchParams.get("state");
   const code = url.searchParams.get("code");
-  if (!state || !expected || !sameState(state, expected)) return fail("google_state");
-  if (!code) return fail("google_code");
+  if (!state || !expected || !sameState(state, expected)) return fail("google_state", returnTo);
+  if (!code) return fail("google_code", returnTo);
 
   const profile = await exchangeCodeForProfile(code);
-  if (!profile) return fail("google_exchange");
-  if (!profile.emailVerified) return fail("google_unverified");
+  if (!profile) return fail("google_exchange", returnTo);
+  if (!profile.emailVerified) return fail("google_unverified", returnTo);
 
   /* Proving who you already are, rather than signing in — the twin of the
      branch in the Apple callback, and it stops in the same place. Nothing
@@ -84,7 +100,7 @@ export async function GET(request: Request) {
   const reauthFor = await readReauthIntent(purpose ?? undefined);
   if (reauthFor) {
     const me = await db.user.findUnique({ where: { id: reauthFor }, select: { email: true } });
-    if (!me || me.email.toLowerCase() !== profile.email) return fail("reauth_mismatch");
+    if (!me || me.email.toLowerCase() !== profile.email) return fail("reauth_mismatch", returnTo);
 
     await grantReauth(reauthFor);
     return NextResponse.redirect(`${SITE_URL}${returnTo}?reauth=ok`);
