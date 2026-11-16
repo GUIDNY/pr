@@ -60,6 +60,7 @@ import { PDP_TABS_ID, pdpTabTriggerId } from "@/lib/pdp-tabs";
 import {
   getProductBySlug,
   getRelatedProducts,
+  SIMILAR_PRICE_BAND,
   getCategoryAttributesFor,
   getProductsByBrandSlug,
   getColorVariants,
@@ -150,11 +151,18 @@ export async function ProductPageView({
   if (offSiteForVisitors && !isAdminViewer) notFound();
 
   const [related, brandProductsResult, colorVariants] = await Promise.all([
-    getRelatedProducts(product.categoryId, product.id, 4),
+    getRelatedProducts(product.categoryId, product.id, 6, product.price),
     getProductsByBrandSlug(product.brand.slug, { pageSize: 8 }),
     getColorVariants(product),
   ]);
   const brandProducts = brandProductsResult.products.filter((p) => p.id !== product.id);
+  /* The rail says "same price range" only when every card in it is: a short
+     category is topped up from outside the band (see getRelatedProducts). */
+  const relatedTitle = related.every(
+    (p) => Math.abs(p.price - product.price) <= product.price * SIMILAR_PRICE_BAND
+  )
+    ? "דגמים דומים באותו טווח מחיר"
+    : "מוצרים דומים";
   // Only fetched for admins — every other visitor never needs the full
   // attribute list, just whichever ones already have a value.
   const categoryAttributes = isAdminViewer ? await getCategoryAttributesFor(product.categoryId) : [];
@@ -765,6 +773,16 @@ export async function ProductPageView({
         </div>
       </div>
 
+      {/* On a phone the similar models come here, straight after the buy
+          block, instead of under the description, the spec table, the
+          delivery terms and the reviews — about ten screens down, where the
+          scroll map says fewer than one visitor in ten arrives. From md up
+          the rail stays where it was, at the foot of the page. Same data,
+          rendered twice; only one is ever displayed. */}
+      <div className="md:hidden">
+        <ProductRail title={relatedTitle} products={related} />
+      </div>
+
       {/* info tabs */}
       <div id={PDP_TABS_ID} className="mt-6 scroll-mt-28">
         <Tabs defaultValue="overview">
@@ -1039,7 +1057,9 @@ export async function ProductPageView({
         </Tabs>
       </div>
 
-      <ProductRail title="מוצרים דומים" products={related} />
+      <div className="max-md:hidden">
+        <ProductRail title={relatedTitle} products={related} />
+      </div>
 
       {!isSoldOut && (
         <MobileBuyBar productId={product.id} slug={product.slug} price={product.price} stockStatus={product.stockStatus as StockStatus} />
