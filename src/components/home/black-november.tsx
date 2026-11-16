@@ -51,27 +51,30 @@ export function BlackNovember({
 
   return (
     <section aria-labelledby="black-november-title" className="mx-auto max-w-7xl px-4 py-5 sm:py-7">
-      <div className="border-brand flex flex-col gap-4 border-b-4 bg-black px-5 py-5 text-white sm:flex-row sm:items-center sm:justify-between sm:gap-8 sm:px-8 sm:py-6">
-        <div className="min-w-0">
+      {/* A low black strip (version B, 17 November): the name and the link on
+          one line, the facts under them. The tall block before it filled half
+          a phone screen before the first television. */}
+      <div className="border-brand border-b-4 bg-black px-4 py-3 text-white sm:px-8 sm:py-6">
+        <div className="flex items-center justify-between gap-3">
           <Heading
             id="black-november-title"
-            className="text-[clamp(2rem,10vw,2.5rem)] leading-none font-black tracking-tight sm:text-5xl"
+            className="text-[clamp(1.5rem,7vw,2rem)] leading-none font-black tracking-tight sm:text-5xl"
           >
             בלאק נובמבר
           </Heading>
-          <p className="mt-2 text-sm font-medium text-white/85 sm:text-base">
-            {scope.subject} · {products.length.toLocaleString("he-IL")} דגמים · מ־{formatPrice(lowest)}
-          </p>
+          {viewAllHref && (
+            <Link
+              href={viewAllHref}
+              className="bg-brand text-brand-foreground hover:bg-brand-hover inline-flex h-10 shrink-0 items-center gap-1.5 px-3 text-sm font-bold transition-colors sm:h-11 sm:px-5"
+            >
+              לכל הדגמים
+              <ArrowLeft className="size-4" />
+            </Link>
+          )}
         </div>
-        {viewAllHref && (
-          <Link
-            href={viewAllHref}
-            className="bg-brand text-brand-foreground hover:bg-brand-hover inline-flex h-11 shrink-0 items-center gap-2 self-start px-5 text-sm font-bold transition-colors sm:self-auto"
-          >
-            לכל הדגמים
-            <ArrowLeft className="size-4" />
-          </Link>
-        )}
+        <p className="mt-1.5 text-sm font-medium text-white/85 sm:text-base">
+          {scope.subject} · {products.length.toLocaleString("he-IL")} דגמים · מ־{formatPrice(lowest)}
+        </p>
       </div>
 
       <BlackNovemberShelf products={products} layout={layout} />

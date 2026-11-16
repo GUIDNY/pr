@@ -100,7 +100,7 @@ export function BlackNovemberShelf({
             panel={panel}
             className={
               layout === "rail"
-                ? "w-[70%] max-w-[17rem] shrink-0 snap-start sm:w-[calc(33.333%-11px)] sm:max-w-none lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
+                ? "w-[44%] max-w-[12rem] shrink-0 snap-start sm:w-[calc(33.333%-11px)] sm:max-w-none lg:w-[calc(25%-12px)] xl:w-[calc(20%-13px)]"
                 : undefined
             }
           />
