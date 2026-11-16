@@ -75,7 +75,7 @@ export function FinderWizard({ config }: { config: FinderConfig }) {
       <div>
         {header}
         <div className="flex flex-col items-center gap-4 py-16 text-center">
-          <Image src="/mascot/alfred-face.png" alt="" width={72} height={72} className="size-18 animate-pulse rounded-full object-cover" />
+          <Image src="/mascot/alfred-face-sm.webp" alt="" width={72} height={72} className="size-18 animate-pulse rounded-full object-cover" />
           <p className="text-lg font-bold">אלפרד בודק את המדפים...</p>
           <p className="text-muted-foreground text-sm">רק דגמים במלאי, בתקציב שלכם</p>
         </div>
@@ -112,7 +112,7 @@ export function FinderWizard({ config }: { config: FinderConfig }) {
 
         {results.length === 0 ? (
           <div className="border-border bg-card mx-auto max-w-lg rounded-2xl border p-8 text-center">
-            <Image src="/mascot/alfred-face.png" alt="" width={64} height={64} className="mx-auto mb-3 size-16 rounded-full object-cover" />
+            <Image src="/mascot/alfred-face-sm.webp" alt="" width={64} height={64} className="mx-auto mb-3 size-16 rounded-full object-cover" />
             <h2 className="text-xl font-bold">אין דגם במלאי שעונה על הכול</h2>
             <p className="text-muted-foreground mt-2 text-sm">
               לרוב זה התקציב או צבע ספציפי. שנו תשובה אחת למעלה, או בחרו &quot;לא משנה&quot;.
@@ -131,7 +131,7 @@ export function FinderWizard({ config }: { config: FinderConfig }) {
         ) : (
           <>
             <div className="mb-5 flex items-start gap-3">
-              <Image src="/mascot/alfred-face.png" alt="" width={44} height={44} className="size-11 shrink-0 rounded-full object-cover" />
+              <Image src="/mascot/alfred-face-sm.webp" alt="" width={44} height={44} className="size-11 shrink-0 rounded-full object-cover" />
               <div>
                 <h2 className="text-xl font-bold sm:text-2xl">
                   {results.length === 1 ? "מצאתי דגם אחד שמתאים לכם" : `מצאתי ${results.length} דגמים שמתאימים לכם`}
@@ -183,7 +183,7 @@ export function FinderWizard({ config }: { config: FinderConfig }) {
 
       <div className="mx-auto max-w-xl">
         <div className="mb-6 flex items-start gap-3">
-          <Image src="/mascot/alfred-face.png" alt="" width={48} height={48} className="size-12 shrink-0 rounded-full object-cover" />
+          <Image src="/mascot/alfred-face-sm.webp" alt="" width={48} height={48} className="size-12 shrink-0 rounded-full object-cover" />
           <div className="bg-card relative rounded-2xl rounded-ss-sm px-4 py-3 shadow-[0_1px_2px_rgb(0_0_0/0.05),0_0_0_1px_rgb(0_0_0/0.05)]">
             <h2 className="text-lg font-bold sm:text-xl">{question.question}</h2>
             {question.type === "budget" && <p className="text-muted-foreground mt-0.5 text-xs">אפשר לשנות אחר כך בלחיצה אחת</p>}

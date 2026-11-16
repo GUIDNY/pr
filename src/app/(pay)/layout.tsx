@@ -24,7 +24,7 @@ export default function PaymentLayout({ children }: { children: React.ReactNode 
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <Link href="/" aria-label="Buy Today — לעמוד הבית" className="shrink-0">
             <Image
-              src="/brand/logo.png"
+              src="/brand/logo-sm.webp"
               alt="Buy Today"
               width={120}
               height={120}

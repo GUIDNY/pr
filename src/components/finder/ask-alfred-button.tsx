@@ -16,7 +16,7 @@ export function AskAlfredButton({ className, children }: { className?: string; c
         className
       )}
     >
-      <Image src="/mascot/alfred-face.png" alt="" width={40} height={40} className="size-10 shrink-0 rounded-full object-cover" />
+      <Image src="/mascot/alfred-face-sm.webp" alt="" width={40} height={40} className="size-10 shrink-0 rounded-full object-cover" />
       <span className="min-w-0 flex-1">{children}</span>
       <MessageCircle className="text-brand size-5 shrink-0" />
     </button>
