@@ -1000,6 +1000,11 @@ const PUBLIC_PRODUCT_SQL = `
           WHERE src.id = p."sourceId" AND src."isActive" AND src."sourceType" = 'EXCEL'
         )`;
 
+/** Leaves that a department word reaches but that are not what the word
+    usually means — see the shelf score in rankedSearchIds. Short on purpose:
+    add one only when a department query is visibly led by it. */
+export const SIDE_SHELVES = new Set(["mini-fridge", "wine-fridge", "freezers"]);
+
 export async function rankedSearchIds(query: string, take: number): Promise<string[]> {
   if (!query.trim()) return [];
   const { text, maxPrice } = parseShoppingQuery(query);
@@ -1031,11 +1036,29 @@ export async function rankedSearchIds(query: string, take: number): Promise<stri
   const intentSlugs = resolveIntent({ userMessages: [query] }).categorySlugs;
   let shelfScore = "0";
   if (intentSlugs.length > 0) {
-    const list = intentSlugs.map((slug) => {
-      params.push(slug);
-      return `$${params.length}`;
-    });
-    shelfScore = `(CASE WHEN c.slug IN (${list.join(", ")}) OR pc.slug IN (${list.join(", ")}) THEN 50 ELSE 0 END)`;
+    /* A department word reaches its side shelves too, and they should not
+       lead. "מקרר" names every leaf of מקררים וקירור, ties broke on price,
+       and the first suggestions were a 490 ₪ office fridge and wine
+       coolers. When the query also reached the main shelves, the side ones
+       score a little less, so they follow. Asked for by name ("מקרר יין",
+       "מקרר משרדי") they are the only shelf and nothing changes. */
+    const core = intentSlugs.filter((slug) => !SIDE_SHELVES.has(slug));
+    const side = core.length > 0 ? intentSlugs.filter((slug) => SIDE_SHELVES.has(slug)) : [];
+    const main = core.length > 0 ? core : intentSlugs;
+    const bind = (slugs: string[]) =>
+      slugs
+        .map((slug) => {
+          params.push(slug);
+          return `$${params.length}`;
+        })
+        .join(", ");
+    const mainList = bind(main);
+    shelfScore = `(CASE WHEN c.slug IN (${mainList}) OR pc.slug IN (${mainList}) THEN 50`;
+    if (side.length > 0) {
+      const sideList = bind(side);
+      shelfScore += ` WHEN c.slug IN (${sideList}) THEN 40`;
+    }
+    shelfScore += ` ELSE 0 END)`;
   }
 
   let priceClause = "";

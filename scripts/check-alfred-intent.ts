@@ -63,6 +63,16 @@ is("מקרני קול too", resolve("אילו מקרני קול יש?").category
 is("the phrase ranks soundbars above plain speakers", resolve("מקרני קול עד 2000").phraseWords, ["מקרן", "קול"]);
 is("a plain-word phrase is still handed over", resolve("מקרן").phraseWords, ["מקרן"]);
 is("מקרן חום is a heater", resolve("מקרן חום לחצר").categorySlugs, ["heaters", "heat-fans", "radiators"]);
+const HEATER = ["heaters", "heat-fans", "radiators"];
+is("תנור אמבטיה is a heater, not an oven", resolve("תנור אמבטיה").categorySlugs, HEATER);
+is("…with the prefix", resolve("תנור לאמבטיה").categorySlugs, HEATER);
+is("תנור קיר is a heater", resolve("תנור קיר").categorySlugs, HEATER);
+is("תנור קוורץ is a heater", resolve("תנור קוורץ לאמבטיה").categorySlugs, HEATER);
+is("אמבטיה alone is a heater", resolve("אמבטיה").categorySlugs, HEATER);
+is("תנור חימום still a heater", resolve("תנור חימום").categorySlugs, HEATER);
+is("תנור alone is still an oven", resolve("תנור").categorySlugs, ["built-in-oven", "combi-oven"]);
+is("תנור בנוי is still a built-in oven", resolve("תנור בנוי").categorySlugs, ["built-in-oven"]);
+is("מקרר יין stays wine fridges", resolve("מקרר יין").categorySlugs, ["wine-fridge"]);
 
 console.log("\nthe cheapest fridge, asked after the projector");
 const fridge = resolve("אני רוצה את המקרר הכי זול שלכם", "אני מחפש מקרן לסרטים בתקציב של 1,990 ₪");
