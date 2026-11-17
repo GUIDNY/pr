@@ -39,6 +39,7 @@
     "check:duplicate-payment": "tsx scripts/check-duplicate-payment.ts",
     "check:instalments": "tsx scripts/check-instalments.ts",
     "check:payments": "tsx scripts/check-payments-table.tsx",
+    "check:prior-payment": "tsx scripts/check-prior-payment.ts",
     "check:payment-notice": "tsx scripts/check-payment-notice.ts",
     "check:paid-poll": "tsx scripts/check-paid-status-poll.ts",
     "check:lane": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-payment-lane.ts",

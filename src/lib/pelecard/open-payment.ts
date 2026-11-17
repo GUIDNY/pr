@@ -4,6 +4,7 @@ import { initPayment, SUPPORTED_CARDS, paymentPageStyle, holdThenCapture } from 
 import { pelecardConfig, pelecardConfigured, paymentLaneFor, toAgorot, siteUrl, callbackSecret } from "./config";
 import type { CheckoutViewer } from "./config";
 import { maxPaymentsFor } from "./instalments";
+import { checkPriorPayments } from "./prior-payment";
 import { customerHasPaid } from "@/lib/order-signal";
 
 type InitResult = Awaited<ReturnType<typeof initPayment>>;
@@ -47,7 +48,7 @@ function initAccepted(result: InitResult | undefined): result is InitResult & { 
 
 export type OpenPaymentResult =
   | { ok: true; redirectUrl: string; orderId: string }
-  | { ok: false; status: number; error: string };
+  | { ok: false; status: number; error: string; paidOrderNumber?: string };
 
 export type PaymentLane = "customer" | "test";
 
@@ -79,6 +80,30 @@ export async function openPelecardPayment(
   const order = await db.order.findUnique({ where: { id: orderId } });
   if (!order) return { ok: false, status: 404, error: "order not found" };
   if (customerHasPaid(order.paymentStatus)) return { ok: false, status: 409, error: "already paid" };
+
+  /* An earlier form for this order, or this visit, may already have been
+     paid — the callback can be late, and a success on an already-paid order
+     is a no-op there, so a second form here is a second authorisation with
+     one record. Ask Pelecard first (read-only); see prior-payment.ts. The
+     staff ₪1 lane is exempt: it is opened deliberately, one at a time. */
+  if (lane === "customer") {
+    const prior = await checkPriorPayments({ id: order.id, visitSid: order.visitSid });
+    if (prior.verdict === "PAID") {
+      return {
+        ok: false,
+        status: 409,
+        error: `התשלום על הזמנה ${prior.orderNumber} כבר אושר. אין צורך לשלם שוב.`,
+        paidOrderNumber: prior.orderNumber,
+      };
+    }
+    if (prior.verdict === "WAIT") {
+      return {
+        ok: false,
+        status: 409,
+        error: "ייתכן שהתשלום הקודם עוד מעובד. המתינו דקה ונסו שוב, או התקשרו אלינו — כדי שלא תחויבו פעמיים.",
+      };
+    }
+  }
 
   const amountAgorot = toAgorot(order.total);
 
