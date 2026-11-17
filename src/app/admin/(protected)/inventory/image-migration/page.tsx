@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { isSiteAdmin } from "@/lib/permissions";
-import { countImagesToMigrate, HOSTS_THAT_REFUSE_US } from "@/lib/inventory/image-migration";
+import { countImagesToMigrate, HOSTS_THAT_REFUSE_US, migrationQueueCounts } from "@/lib/inventory/image-migration";
 import { InventoryTabs } from "@/components/admin/inventory-tabs";
 import { ImageMigrationPanel } from "@/components/admin/image-migration-panel";
 import { ImageReadiness } from "@/components/admin/image-readiness";
@@ -21,7 +21,7 @@ export default async function ImageMigrationPage() {
   const [prec, electrolux, everything, readiness] = await Promise.all([
     countImagesToMigrate(["prec.co.il"]),
     countImagesToMigrate(["electrolux-medialibrary.com"]),
-    countImagesToMigrate(undefined, HOSTS_THAT_REFUSE_US),
+    migrationQueueCounts(undefined, HOSTS_THAT_REFUSE_US),
     getImageReadiness(),
   ]);
 
@@ -34,7 +34,12 @@ export default async function ImageMigrationPage() {
           {
             key: "all",
             label: "כל השאר",
-            note: `${everything} תמונות חיצוניות. מארחים חסומים לא נכללים, וגם לא prec.co.il — הוא מסרב לבקשות שלנו.`,
+            /* Ready and cooling down said apart: on 17 November this read
+               "212" while a run found nothing, because all 212 had failed in
+               the last three days and were benched. */
+            note: `${everything.ready} תמונות חיצוניות מוכנות להעברה עכשיו${
+              everything.coolingDown > 0 ? `, ועוד ${everything.coolingDown} שנכשלו בשלושת הימים האחרונים ויינסו שוב אחר כך` : ""
+            }. מארחים חסומים לא נכללים, וגם לא prec.co.il — הוא מסרב לבקשות שלנו.`,
           },
           {
             key: "electrolux",

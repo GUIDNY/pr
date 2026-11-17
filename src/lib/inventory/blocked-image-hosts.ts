@@ -219,4 +219,25 @@ export function blockedImageRefusal(image: {
   return null;
 }
 
+/**
+ * May the image migration copy this picture to our own storage?
+ *
+ * The migration asked only `isBlockedImageHost(url)`, and that answers the
+ * wrong question for a shared CDN in both directions (17 November). It
+ * refused every cdn.shopify.com image — including the 12 that are ישפאר's
+ * own photographs of Elica hoods, which the note on SHARED_IMAGE_CDNS above
+ * says are ours to use — and it would have copied the 79 that came from
+ * Electra's benefits shop (ovd.ecp.co.il) and the 63 with no recorded page,
+ * had the host not been listed. The rule for writing an image already
+ * existed in blockedImageRefusal; copying one is the same decision.
+ */
+export function migrationMayCopy(image: {
+  url: string;
+  sourcePageUrl?: string | null;
+  sourceImageUrl?: string | null;
+  sourceDomain?: string | null;
+}): boolean {
+  return blockedImageRefusal(image) === null;
+}
+
 export const BLOCKED_IMAGE_HOST_COUNT = BLOCKED_HOSTS.length;

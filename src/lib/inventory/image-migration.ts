@@ -2,7 +2,7 @@ import "server-only";
 import sharp from "sharp";
 import { db } from "@/lib/db";
 import { uploadProductImage, isProductImageStorageConfigured } from "@/lib/product-image-storage";
-import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
+import { blockedImageRefusal, migrationMayCopy } from "@/lib/inventory/blocked-image-hosts";
 import { mayFetch } from "@/lib/inventory/robots-txt";
 
 /**
@@ -269,6 +269,9 @@ export type MigrationCandidate = {
       fetchHeaders: a request refered from the site root is what a hotlink
       rule is written to block, and the real page is what a browser sends. */
   sourcePageUrl: string | null;
+  /** Bare host the enrichment agent recorded, if any — one more field the
+      blocked-host rule asks (migrationMayCopy). */
+  sourceDomain: string | null;
 };
 
 /**
@@ -343,7 +346,10 @@ export async function findImagesToMigrate(opts: {
       // `contains` matches anywhere in the URL, so a host filter can still
       // catch a path; check the host itself.
       if (isSelfHosted(row.url)) continue;
-      if (isBlockedImageHost(row.url)) continue;
+      /* The same rule that decides whether an image may be written at all
+         (blockedImageRefusal): a retailer's host, or a shared CDN whose
+         source page is missing or a retailer's, is never copied. */
+      if (!migrationMayCopy(row)) continue;
       const host = hostOf(row.url);
       if (opts.excludeHosts?.some((h) => host.includes(h.toLowerCase()))) continue;
       if (opts.hosts?.length && !opts.hosts.some((h) => host.includes(h.toLowerCase()))) continue;
@@ -376,7 +382,7 @@ async function fetchPage(
         ? { OR: opts.hosts.map((h) => ({ url: { contains: h, mode: "insensitive" as const } })) }
         : {}),
     },
-    select: { id: true, url: true, productId: true, sourceImageUrl: true, sourcePageUrl: true },
+    select: { id: true, url: true, productId: true, sourceImageUrl: true, sourcePageUrl: true, sourceDomain: true },
     /* Primary images first, across the whole catalogue.
       
        The queue used to run in id order, which spends the same budget on a
@@ -397,16 +403,40 @@ async function fetchPage(
 }
 
 export async function countImagesToMigrate(hosts?: string[], excludeHosts?: string[]): Promise<number> {
-  const rows = await db.productImage.findMany({ select: { url: true } });
+  return (await migrationQueueCounts(hosts, excludeHosts)).ready;
+}
+
+/**
+ * What is left, split the way a run will see it.
+ *
+ * The count used to skip the failure cooldown that the selection applies, so
+ * on 17 November the page said "212 תמונות" and a run found nothing: every
+ * one of the 212 had failed within the last three days (c100.co.il 82,
+ * Electrolux 27, wahl.com 17 …) and was correctly benched. `ready` is what a
+ * run will try now; `coolingDown` is what failed recently and will be tried
+ * again when its cooldown ends.
+ */
+export async function migrationQueueCounts(
+  hosts?: string[],
+  excludeHosts?: string[],
+): Promise<{ ready: number; coolingDown: number }> {
+  const rows = await db.productImage.findMany({
+    select: { url: true, sourcePageUrl: true, sourceImageUrl: true, sourceDomain: true, migrationFailedAt: true },
+  });
   const wanted = hosts?.map((h) => h.toLowerCase());
   const unwanted = excludeHosts?.map((h) => h.toLowerCase());
-  return rows.filter((r) => {
-    if (isSelfHosted(r.url) || isBlockedImageHost(r.url)) return false;
-    const host = r.url.replace(/^https?:\/\//i, "").split("/")[0].toLowerCase();
-    if (unwanted?.some((h) => host.includes(h))) return false;
-    if (!wanted) return true;
-    return wanted.some((h) => host.includes(h));
-  }).length;
+  const cutoff = failureCutoff();
+  let ready = 0;
+  let coolingDown = 0;
+  for (const r of rows) {
+    if (isSelfHosted(r.url) || !migrationMayCopy(r)) continue;
+    const host = hostOf(r.url);
+    if (unwanted?.some((h) => host.includes(h))) continue;
+    if (wanted && !wanted.some((h) => host.includes(h))) continue;
+    if (r.migrationFailedAt && r.migrationFailedAt >= cutoff) coolingDown++;
+    else ready++;
+  }
+  return { ready, coolingDown };
 }
 
 export type MigrationOutcome =
@@ -554,8 +584,9 @@ export async function migrateOneImage(image: MigrationCandidate): Promise<Migrat
 }
 
 async function attemptMigration(image: MigrationCandidate): Promise<MigrationOutcome> {
-  if (isBlockedImageHost(image.url)) {
-    return { id: image.id, ok: false, from: image.url, reason: "מארח חסום — לא מועתק" };
+  const refusal = blockedImageRefusal(image);
+  if (refusal) {
+    return { id: image.id, ok: false, from: image.url, reason: refusal };
   }
 
   const host = hostOf(image.url);
