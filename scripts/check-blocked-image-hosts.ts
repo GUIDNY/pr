@@ -11,6 +11,7 @@ import {
   blockedImageRefusal,
   imageIsFromBlockedHost,
   isBlockedImageHost,
+  migrationMayCopy,
 } from "../src/lib/inventory/blocked-image-hosts";
 
 // Real hosts, taken from the backup written when those images were deleted.
@@ -195,7 +196,64 @@ for (const [label, image] of WRITE_MUST_ACCEPT) {
   }
 }
 
+/* The image migration asks the same question as a write (17 November): a
+   shared CDN is judged by the page the photograph came from. The rows below
+   are the real ones from cdn.shopify.com. */
+type MigrationRow = Parameters<typeof migrationMayCopy>[0];
+const MIGRATE_MUST_COPY: [string, MigrationRow][] = [
+  [
+    "Elica 194006, ישפאר's own store (the official importer)",
+    {
+      url: "https://cdn.shopify.com/s/files/1/0723/4971/2691/files/PRF0177408_TAMAYA_RAIL_2.0_CRBR_60_DOWN.png?v=1719810419",
+      sourcePageUrl: "https://www.isfar.co.il/products/tamayarl60",
+      sourceDomain: "www.isfar.co.il",
+    },
+  ],
+  [
+    "Elica 194009, ישפאר's own store",
+    {
+      url: "https://cdn.shopify.com/s/files/1/0723/4971/2691/files/PRF0177406_TAMAYARAIL2.0_ANBR_90_DOWN.png?v=1719810862",
+      sourcePageUrl: "https://www.isfar.co.il/products/tamayarl90",
+      sourceDomain: "www.isfar.co.il",
+    },
+  ],
+  ["a manufacturer's own host", { url: "https://www.lg.com/content/dam/channel/wcms/il/images/x.jpg" }],
+];
+const MIGRATE_MUST_SKIP: [string, MigrationRow][] = [
+  [
+    "cdn.shopify.com from Electra's benefits shop",
+    {
+      url: "https://cdn.shopify.com/s/files/1/0000/0000/files/tcl.jpg",
+      sourcePageUrl: "https://ovd.ecp.co.il/products/tcl-c780",
+    },
+  ],
+  ["cdn.shopify.com with no source page", { url: "https://cdn.shopify.com/s/files/1/0000/0000/files/faber.jpg" }],
+  [
+    "cdn.shopify.com with a blank source page",
+    { url: "https://cdn.shopify.com/s/files/1/0000/0000/files/x.jpg", sourcePageUrl: "  " },
+  ],
+  ["a retailer's own host", { url: "https://www.payngo.co.il/media/catalog/product/x.jpg" }],
+  [
+    "a manufacturer's URL whose recorded page is a retailer's",
+    { url: "https://example-maker.com/x.jpg", sourcePageUrl: "https://www.savoy.co.il/item/1" },
+  ],
+];
+for (const [label, image] of MIGRATE_MUST_COPY) {
+  if (!migrationMayCopy(image)) {
+    console.log(`FAIL  the migration should copy: ${label}\n      refused with: ${blockedImageRefusal(image)}`);
+    failed++;
+  }
+}
+for (const [label, image] of MIGRATE_MUST_SKIP) {
+  if (migrationMayCopy(image)) {
+    console.log(`FAIL  the migration should skip: ${label}`);
+    failed++;
+  }
+}
+
 const total =
+  MIGRATE_MUST_COPY.length +
+  MIGRATE_MUST_SKIP.length +
   MUST_BLOCK.length +
   MUST_ALLOW.length +
   IMAGE_MUST_BLOCK.length +
@@ -205,6 +263,7 @@ const total =
 console.log(
   `${total - failed}/${total} passed  (${MUST_BLOCK.length} urls blocked, ${MUST_ALLOW.length} urls allowed, ` +
     `${IMAGE_MUST_BLOCK.length} images blocked, ${IMAGE_MUST_ALLOW.length} images allowed, ` +
-    `${WRITE_MUST_REFUSE.length} writes refused, ${WRITE_MUST_ACCEPT.length} writes accepted)`,
+    `${WRITE_MUST_REFUSE.length} writes refused, ${WRITE_MUST_ACCEPT.length} writes accepted, ` +
+    `${MIGRATE_MUST_COPY.length} migrations copied, ${MIGRATE_MUST_SKIP.length} migrations skipped)`,
 );
 process.exit(failed === 0 ? 0 : 1);
