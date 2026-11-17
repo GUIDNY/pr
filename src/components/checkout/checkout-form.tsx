@@ -52,7 +52,7 @@ import {
 } from "@/lib/delivery";
 import { canonicalLocality, deliveryPromiseTextForCity } from "@/lib/delivery-zones";
 import type { CheckoutInput } from "@/lib/order-schema";
-import { TYPED_FIELDS_KEY, TYPED_FIELDS_TTL_MS } from "@/lib/checkout-resume";
+import { TYPED_FIELDS_KEY, TYPED_FIELDS_TTL_MS, markCheckoutOpened, clearCheckoutResume } from "@/lib/checkout-resume";
 
 /** Everything an order needs before one can be created from this form. Asked
     in both directions: to open the card form, and to take it away again. */
@@ -247,6 +247,7 @@ export function CheckoutForm({
     openedAt.current = Date.now();
     const snapshot = { itemCount: cart.itemCount, total: cart.total };
     trackVisit("checkout_start", snapshot);
+    markCheckoutOpened();
     const onLeave = () => {
       if (submitted.current) return;
       trackVisit("checkout_abandon", {
@@ -701,7 +702,7 @@ export function CheckoutForm({
       submitted.current = true;
       setCart({ ...cart, items: [], itemCount: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0, couponCode: null });
       try {
-        sessionStorage.removeItem(TYPED_FIELDS_KEY);
+        clearCheckoutResume();
       } catch {
         /* ignore */
       }

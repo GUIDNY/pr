@@ -10,14 +10,40 @@ import { useSyncExternalStore } from "react";
 export const TYPED_FIELDS_KEY = "bt_checkout_typed";
 export const TYPED_FIELDS_TTL_MS = 2 * 60 * 60 * 1000;
 
+/* Set when the checkout mounts (next to its checkout_start event): the typed
+   key is only written once something changes in the form, so on its own it
+   misses a shopper who opened the checkout, typed nothing and left. */
+export const CHECKOUT_OPENED_KEY = "bt_checkout_opened";
+
+export function markCheckoutOpened() {
+  try {
+    sessionStorage.setItem(CHECKOUT_OPENED_KEY, String(Date.now()));
+  } catch {
+    /* storage refused: the cart keeps its usual label */
+  }
+}
+
+export function clearCheckoutResume() {
+  try {
+    sessionStorage.removeItem(TYPED_FIELDS_KEY);
+    sessionStorage.removeItem(CHECKOUT_OPENED_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 export type CheckoutResume = "none" | "opened" | "saved";
 
 function read(): CheckoutResume {
   try {
+    const opened = Number(sessionStorage.getItem(CHECKOUT_OPENED_KEY) ?? 0);
+    const openedRecently = opened > 0 && Date.now() - opened < TYPED_FIELDS_TTL_MS;
     const raw = sessionStorage.getItem(TYPED_FIELDS_KEY);
-    if (!raw) return "none";
+    if (!raw) return openedRecently ? "opened" : "none";
     const saved = JSON.parse(raw) as { at?: number; fields?: Record<string, unknown> };
-    if (typeof saved.at !== "number" || Date.now() - saved.at >= TYPED_FIELDS_TTL_MS) return "none";
+    if (typeof saved.at !== "number" || Date.now() - saved.at >= TYPED_FIELDS_TTL_MS) {
+      return openedRecently ? "opened" : "none";
+    }
     const typed = Object.entries(saved.fields ?? {}).some(
       ([k, v]) => k !== "deliveryMethod" && typeof v === "string" && v.trim() !== "",
     );
