@@ -58,25 +58,28 @@ export async function checkPriorPayments(order: {
     });
     const touched = new Set(touches.map((t) => (t.meta as { orderNumber?: string } | null)?.orderNumber).filter(Boolean));
 
-    const verdicts: { verdict: PriorVerdict; orderNumber: string }[] = [];
-    for (const p of priors) {
-      let answer: ReturnType<typeof readValidation> | null = null;
-      try {
-        answer = readValidation(
-          await validateByUniqueKey({
-            ConfirmationKey: p.confirmationKey!,
-            UniqueKey: p.order.id,
-            TotalX100: String(p.amountAgorot),
-          }),
-        );
-      } catch (error) {
-        console.error("[pelecard] prior-form check threw", { orderNumber: p.order.orderNumber, error });
-      }
-      verdicts.push({
-        verdict: verdictFor(answer, p.createdAt, now, touched.has(p.order.orderNumber)),
-        orderNumber: p.order.orderNumber,
-      });
-    }
+    /* In parallel, so a slow Pelecard holds checkout for one call's timeout,
+       not one per earlier form. */
+    const verdicts: { verdict: PriorVerdict; orderNumber: string }[] = await Promise.all(
+      priors.map(async (p) => {
+        let answer: ReturnType<typeof readValidation> | null = null;
+        try {
+          answer = readValidation(
+            await validateByUniqueKey({
+              ConfirmationKey: p.confirmationKey!,
+              UniqueKey: p.order.id,
+              TotalX100: String(p.amountAgorot),
+            }),
+          );
+        } catch (error) {
+          console.error("[pelecard] prior-form check threw", { orderNumber: p.order.orderNumber, error });
+        }
+        return {
+          verdict: verdictFor(answer, p.createdAt, now, touched.has(p.order.orderNumber)),
+          orderNumber: p.order.orderNumber,
+        };
+      }),
+    );
 
     const overall = combine(verdicts.map((v) => v.verdict));
     console.info("[pelecard] prior-form check", { orderId: order.id, overall, verdicts });
