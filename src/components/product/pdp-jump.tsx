@@ -70,7 +70,14 @@ export function ProductTitle({ title }: { title: string }) {
         if (selection && !selection.isCollapsed) return;
         openTab("overview");
       }}
-      className="mt-1 cursor-pointer text-xl leading-snug font-bold sm:text-3xl sm:leading-tight md:text-2xl lg:text-3xl"
+      /* Two lines on a phone (17 November). The catalogue's titles run to
+         three or four lines at 375px — brand, Hebrew and English name,
+         wattage, a list of features — and pushed the price and the stock
+         line under the buy bar on the pages paid traffic lands on. The
+         whole title stays in the DOM for search and screen readers, in the
+         tooltip, and in full from md: up. */
+      title={title}
+      className="mt-1 cursor-pointer text-xl leading-snug font-bold max-md:line-clamp-2 sm:text-3xl sm:leading-tight md:text-2xl lg:text-3xl"
     >
       {title}
     </h1>
