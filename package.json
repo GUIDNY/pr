@@ -38,6 +38,7 @@
     "check:notify": "tsx scripts/check-notifications.ts",
     "check:instalments": "tsx scripts/check-instalments.ts",
     "check:payments": "tsx scripts/check-payments-table.tsx",
+    "check:payment-notice": "tsx scripts/check-payment-notice.ts",
     "check:paid-poll": "tsx scripts/check-paid-status-poll.ts",
     "check:lane": "NODE_OPTIONS=--conditions=react-server tsx scripts/check-payment-lane.ts",
     "check:pelecard": "NODE_OPTIONS=--conditions=react-server tsx scripts/pelecard-scenarios.mts",
