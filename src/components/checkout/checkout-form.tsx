@@ -188,6 +188,10 @@ export function CheckoutForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   /* Set when the server says this basket was just paid as another order. */
   const [alreadyPaid, setAlreadyPaid] = useState<string | null>(null);
+  /* Set when SOME of the basket was paid as another order a few minutes ago:
+     the checkout stops and asks before charging those products again. */
+  const [paidOverlap, setPaidOverlap] = useState<string | null>(null);
+  const confirmPaidOverlap = useRef(false);
   /* The coupon field in the summary. The server answers with the whole
      summary — discount, delivery, total — and the store takes it as is, so
      the numbers on this page are never computed twice. */
@@ -560,6 +564,7 @@ export function CheckoutForm({
     !isEditingCart &&
     !payment &&
     !stranded &&
+    !paidOverlap &&
     form.paymentMethod === "DEMO_CARD" &&
     detailsCompleteFor(form);
 
@@ -651,6 +656,7 @@ export function CheckoutForm({
            the browser's and GA4 counts the sale once — see lib/analytics/ga.ts.
            Not personal data: two numbers GA4 minted for this browser. */
         ...gaIdsForOrder(readGaIds(process.env.NEXT_PUBLIC_GA_ID)),
+        confirmPaidOverlap: confirmPaidOverlap.current,
       };
       /* The order already exists and only its details moved: bring it up to
          date, re-priced if the delivery method changed, and open a payment
@@ -692,6 +698,10 @@ export function CheckoutForm({
           setCart({ ...cart, items: [], itemCount: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0, couponCode: null });
           return;
         }
+        if ("paidOverlapOrderNumber" in result && result.paidOverlapOrderNumber) {
+          setPaidOverlap(result.paidOverlapOrderNumber);
+          return;
+        }
         toast.error(result.error ?? "שגיאה בביצוע ההזמנה");
         return;
       }
@@ -719,6 +729,33 @@ export function CheckoutForm({
       }
       router.push(`/checkout/success/${result.orderNumber}`);
     });
+  }
+
+  if (paidOverlap) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-3 px-4 py-24 text-center">
+        <h1 className="text-xl font-bold">חלק מהמוצרים כבר שולמו</h1>
+        <p className="text-muted-foreground text-sm">
+          חלק מהמוצרים בסל שולמו לפני כמה דקות בהזמנה {paidOverlap}. כדי שלא תחויבו פעמיים על אותו מוצר, בדקו את ההזמנה
+          לפני שממשיכים.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button variant="brand" asChild>
+            <Link href={`/checkout/success/${paidOverlap}`}>לפרטי ההזמנה ששולמה</Link>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              confirmPaidOverlap.current = true;
+              setPaidOverlap(null);
+              submit();
+            }}
+          >
+            אני רוצה להזמין שוב, ביודעין
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   if (alreadyPaid) {
