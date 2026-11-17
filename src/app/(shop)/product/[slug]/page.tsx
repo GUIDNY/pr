@@ -73,7 +73,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     if (renamed && isHidden(renamed)) {
       const fallback = await hiddenProductFallback(renamed);
       if (fallback.kind === "product") permanentRedirect(`/product/${fallback.slug}`);
-      if (fallback.slug) redirect(`/category/${fallback.slug}`);
+      if (fallback.slug) redirect(goneCategoryUrl(fallback.slug, renamed));
     }
     permanentRedirect(`/product/${current}`);
   }
@@ -108,11 +108,24 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   if (isHidden(product)) {
     const fallback = await hiddenProductFallback(product);
     if (fallback.kind === "product") permanentRedirect(`/product/${fallback.slug}`);
-    if (fallback.slug) redirect(`/category/${fallback.slug}`);
+    if (fallback.slug) redirect(goneCategoryUrl(fallback.slug, product));
     notFound();
   }
 
   return <ProductPageView slug={slug} isAdminViewer={false} />;
+}
+
+/** The category a hidden product falls back to, carrying the model it was
+    asked for so the shelf can say why the visitor is there (see
+    components/category/gone-product-notice.tsx). `gone` is not a filter, so
+    the request still gets the cached category page. */
+function goneCategoryUrl(
+  categorySlug: string,
+  product: { model: string | null; title: string; brand: { name: string } | null },
+): string {
+  const model = product.model?.trim();
+  const label = (model ? [product.brand?.name, model].filter(Boolean).join(" ") : product.title).slice(0, 60).trim();
+  return label ? `/category/${categorySlug}?gone=${encodeURIComponent(label)}` : `/category/${categorySlug}`;
 }
 
 /** Off the site, by the rules spelled out above: the page redirects instead of rendering. */

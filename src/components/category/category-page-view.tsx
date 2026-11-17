@@ -21,6 +21,8 @@ import { findCategoryBySlug } from "@/lib/category-tree";
 import { PackageSearch, BookOpen, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GuideIntro } from "@/components/category/guide-intro";
+import { GoneProductNotice } from "@/components/category/gone-product-notice";
+import { Suspense } from "react";
 import { JsonLd } from "@/components/seo/json-ld";
 import { GaViewItemList } from "@/components/analytics/ga-events";
 import { breadcrumbSchema, itemListSchema } from "@/lib/schema";
@@ -200,6 +202,9 @@ export async function CategoryPageView({
       </Breadcrumb>
 
       <h1 className="mt-3 text-2xl font-bold sm:text-3xl">{category.name}</h1>
+      <Suspense fallback={null}>
+        <GoneProductNotice />
+      </Suspense>
       {/* The buying guide belongs to the shelf, not to every page of it.
           Page 2 onward is self-canonical on purpose — it is how a crawler
           that walks links reaches the products past the first thirty — so
