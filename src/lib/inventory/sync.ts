@@ -2524,10 +2524,15 @@ export type { SyncTrigger };
 // action and the scheduled Vercel Cron endpoint call. Swapping Excel for
 // Priority ERP later means replacing how bytes are fetched here; the parse
 // -> normalize -> diff -> apply pipeline underneath doesn't change.
-/* How long a run may be in flight before the next one may assume it died.
-   Long enough that a real 1,700-row sync is never interrupted, short enough
-   that one killed invocation does not block the schedule all day. */
-export const STALE_SYNC_MINUTES = 10;
+/* How long a run may be in flight before the next one may assume it died —
+   and, since 17 November, before it is closed as FAILED (see runFullSync).
+   It has to stay above the longest a run is allowed to live, or a run that
+   is still working gets declared dead and a second one starts beside it.
+   That ceiling is maxDuration: 800 s (13⅓ min) on /admin/inventory and on
+   /api/inventory/sync. 15 leaves a margin over it, and is still short
+   enough that one killed invocation does not block the schedule all day.
+   Raise both together. */
+export const STALE_SYNC_MINUTES = 15;
 
 /**
  * Whether this run re-reads a source whose file has not changed.
