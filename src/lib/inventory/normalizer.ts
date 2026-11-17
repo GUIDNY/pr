@@ -3,7 +3,7 @@ import { extractBrand, extractBrandFromDivider, cleanBrandCell } from "./brand-e
 import type { ClassifiedColumn, NormalizedProductRow, ParsedRow, RowIssue, StockLine } from "./types";
 import { looksLikeStockPhrase } from "./import-guards";
 import { sourceAvailability } from "./availability";
-import { parseWarranty } from "./warranty-parser";
+import { parseWarranty, warrantyFromNotes } from "./warranty-parser";
 import { splitImporterFromBrand, rowImportChannel } from "./import-channel";
 import type { ImportChannel } from "@/lib/enums";
 
@@ -173,12 +173,12 @@ export function normalizeRow(
     (modelCell && !looksLikeStockPhrase(modelCell) ? modelCell : null) ??
     modelFromDescription(description);
   const color = firstString(row.values.COLOR) ?? firstColorLike(row.values.VARIANT_TEXT);
-  const warranty = firstString(row.values.WARRANTY);
+  const warrantyCell = firstString(row.values.WARRANTY);
   // A sheet can have two warranty-headed columns — `אחריות` and
   // `אחריות/הערות למבצע` — and the second mostly holds accessory text ("קערה
   // 2.1 ליטר"). Take the first value that actually parses as a warranty rather
   // than the first value, so a bowl's capacity never shadows a real term.
-  const parsedWarranty = (() => {
+  const fromColumn = (() => {
     const values = row.values.WARRANTY ?? [];
     for (const v of values) {
       const parsed = parseWarranty(String(v));
@@ -186,6 +186,16 @@ export function normalizeRow(
     }
     return parseWarranty(values.length ? String(values[0]) : null);
   })();
+  /* "האחריות היא מה שכתוב במחירון" (the owner, 17 November): on rows whose
+     warranty column is empty or names no term, the term is often in the
+     notes — "אחריות 2 שנים פוקס טק" on 0931, 701504, 701041, 702712 and
+     840682, which therefore showed the 12-month default. The clause that
+     names אחריות becomes the source text and the parsed term, exactly as
+     if it had been typed in the warranty column. Nothing else is read from
+     the notes here. */
+  const fromNotes = fromColumn.recognised ? null : warrantyFromNotes(row.values.NOTES);
+  const parsedWarranty = fromNotes ? fromNotes.parsed : fromColumn;
+  const warranty = fromNotes ? fromNotes.text : warrantyCell;
   const imageUrlRaw = firstString(row.values.IMAGE_URL);
   const imageUrl = imageUrlRaw && /^https?:\/\//i.test(imageUrlRaw) ? imageUrlRaw : null;
 

@@ -286,3 +286,27 @@ export function warrantySentence(w: ParsedWarranty): string | null {
 
   return parts.length ? parts.join(". ") + "." : null;
 }
+
+/**
+ * A warranty written in the row's notes column instead of its warranty
+ * column — "אחריות 2 שנים פוקס טק", "5 שנים אחריות מלאה". The owner's rule
+ * (17 November): the warranty is what the price list says, wherever on the
+ * row it says it. Only the clause that names אחריות is taken, and only when
+ * parseWarranty recognises it as a term; a note that does not mention
+ * warranty yields nothing, so nothing else on the row is ever read as one.
+ */
+export function warrantyFromNotes(
+  notes: (string | number)[] | undefined,
+): { text: string; parsed: ParsedWarranty } | null {
+  for (const cell of notes ?? []) {
+    const clauses = String(cell)
+      .split(/\n|[|;•]|\s[-–]\s|,\s|\.\s/)
+      .map((c) => c.trim())
+      .filter((c) => c.includes("אחריות"));
+    for (const text of clauses) {
+      const parsed = parseWarranty(text);
+      if (parsed.recognised) return { text, parsed };
+    }
+  }
+  return null;
+}

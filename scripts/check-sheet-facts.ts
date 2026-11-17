@@ -9,7 +9,8 @@
 // under a brand called "ASKO י שלום".
 //
 //   npm run check:sheet-facts
-import { parseWarranty, warrantySentence } from "../src/lib/inventory/warranty-parser";
+import { parseWarranty, warrantySentence, warrantyFromNotes } from "../src/lib/inventory/warranty-parser";
+import { normalizeRow } from "../src/lib/inventory/normalizer";
 import { readFileSync } from "fs";
 import { sourceAvailability, sellableWithoutStock, isSellableNow } from "../src/lib/inventory/availability";
 import { splitImporterFromBrand, rowImportChannel } from "../src/lib/inventory/import-channel";
@@ -244,6 +245,39 @@ for (const row of ORDERABLE) {
   if (!sellableWithoutStock(got, "white-goods-screens")) bad(`${JSON.stringify(row)} must sell without stock`, false, true);
 }
 
+// ------------------------------------------------- warranty in the notes --
+// "האחריות היא מה שכתוב במחירון" (the owner, 17 November). 0931, 701504,
+// 701041, 702712 and 840682 state their warranty in the notes column, with
+// the warranty column empty, and showed the 12-month default. The first two
+// cells are the ones quoted from the sheet; the rest pin the boundaries.
+type NotesCase = { name: string; warranty?: string; notes?: string; text: string | null; years: number | null };
+const NOTES_CASES: NotesCase[] = [
+  { name: "quoted: provider after the term", notes: "אחריות 2 שנים פוקס טק", text: "אחריות 2 שנים פוקס טק", years: 2 },
+  { name: "quoted: term before the word", notes: "5 שנים אחריות מלאה", text: "5 שנים אחריות מלאה", years: 5 },
+  { name: "clause among other notes", notes: "התקנה דרך הספק בתשלום נפרד, אחריות 3 שנים", text: "אחריות 3 שנים", years: 3 },
+  { name: "spelled years", notes: "אחריות שנתיים", text: "אחריות שנתיים", years: 2 },
+  { name: "warranty column wins over notes", warranty: "1 שנה", notes: "אחריות 5 שנים", text: "1 שנה", years: 1 },
+  // A warranty-headed column holding a bowl's capacity names no term; the
+  // notes' term is the warranty.
+  { name: "unrecognised column, notes term", warranty: "קערה 2.1 ליטר", notes: "אחריות שנתיים", text: "אחריות שנתיים", years: 2 },
+  // Negative: notes that do not say אחריות change nothing.
+  { name: "negative: installation note", notes: "התקנה בבית לקוח -180שח", text: null, years: null },
+  { name: "negative: availability note", notes: "אזל זמנית", text: null, years: null },
+  { name: "negative: a year count without the word", notes: "דגם 2 שנים בשוק", text: null, years: null },
+  { name: "negative: no notes", text: null, years: null },
+];
+for (const c of NOTES_CASES) {
+  const values: Record<string, string[]> = { DESCRIPTION: ["מוצר לבדיקה ABC123"] };
+  if (c.warranty) values.WARRANTY = [c.warranty];
+  if (c.notes) values.NOTES = [c.notes];
+  const row = normalizeRow("PREC", "בדיקה", { rowIndex: 0, values, raw: {}, sectionLabel: null, inheritedBrand: null }, []);
+  const got = { text: row.warranty, years: row.parsedWarranty.baseYears };
+  const want = { text: c.text, years: c.years };
+  if (JSON.stringify(got) !== JSON.stringify(want)) bad(`notes warranty — ${c.name}`, got, want);
+}
+const notesDirect = warrantyFromNotes(["אין כאן כלום"]);
+if (notesDirect !== null) bad("warrantyFromNotes on a note with no אחריות", notesDirect, null);
+
 // ----------------------------------------------------------- import channel --
 
 // The eleven brand cells that minted importer-named brands, verbatim.
@@ -395,7 +429,8 @@ const total =
   ROW_OFFICIAL.length +
   SELLABILITY.length +
   BOTH_COPIES.length +
-  SYNC_OWNED.length;
+  SYNC_OWNED.length +
+  NOTES_CASES.length + 1;
 console.log(
   `${total - failed}/${total} passed  ` +
     `(${WARRANTY.length} warranty shapes, ${PROVIDERS.length} providers, ` +
@@ -403,6 +438,6 @@ console.log(
     `${AVAILABILITY.length} availability markers, ${ORDERABLE.length} orderable rows, ` +
     `${BRAND_CELLS.length} brand cells, ${ROW_PARALLEL.length} parallel rows, ${ROW_OFFICIAL.length} official rows, ` +
     `${SELLABILITY.length} sellability cases, ${BOTH_COPIES.length} copies of the rule, ` +
-    `${SYNC_OWNED.length} sync-owned fields)`,
+    `${SYNC_OWNED.length} sync-owned fields, ${NOTES_CASES.length + 1} notes-warranty cases)`,
 );
 process.exitCode = failed > 0 ? 1 : 0;
