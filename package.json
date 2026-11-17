@@ -52,6 +52,7 @@
     "check:delivery-reprice": "tsx scripts/check-delivery-reprice.ts",
     "check:black-november": "tsx scripts/check-black-november.ts",
     "check:delivery": "tsx scripts/check-delivery-promise.ts",
+    "check:delivery-eta": "tsx scripts/check-delivery-eta.ts",
     "check:alfred": "tsx scripts/check-alfred-intent.ts",
     "check:seo": "tsx scripts/check-product-seo-live.ts",
     "check:category-seo": "tsx scripts/check-category-seo.ts",
