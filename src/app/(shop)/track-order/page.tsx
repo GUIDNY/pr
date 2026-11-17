@@ -2,7 +2,9 @@
 
 import { useState, useTransition, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { CalendarDays, PackageSearch, Search } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock, PackageSearch, Search, XCircle } from "lucide-react";
+import { paymentNotice } from "@/lib/checkout/payment-notice";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +14,35 @@ import { formatPrice, formatDate, formatDateTime } from "@/lib/format";
 import type { OrderStatus } from "@/lib/enums";
 
 type TrackedOrder = NonNullable<Awaited<ReturnType<typeof trackOrderAction>>["order"]>;
+
+function PaymentNoticeBox({ order }: { order: TrackedOrder }) {
+  const notice = paymentNotice(order);
+  if (!notice) return null;
+  const Icon = notice.tone === "paid" ? CheckCircle2 : notice.tone === "failed" ? XCircle : Clock;
+  return (
+    <div
+      role="status"
+      className={cn(
+        "mb-4 flex items-start gap-3 rounded-lg border p-3.5",
+        notice.tone === "paid" && "border-success/40 bg-success/10",
+        notice.tone === "pending" && "border-warning/40 bg-warning/10",
+        notice.tone === "failed" && "border-destructive/40 bg-destructive/10",
+      )}
+    >
+      <Icon
+        className={cn(
+          "mt-0.5 size-5 shrink-0",
+          notice.tone === "paid" ? "text-success" : notice.tone === "failed" ? "text-destructive" : "text-warning-foreground",
+        )}
+        aria-hidden
+      />
+      <div>
+        <p className="font-bold">{notice.title}</p>
+        <p className="text-muted-foreground mt-0.5 text-sm">{notice.body}</p>
+      </div>
+    </div>
+  );
+}
 
 function TrackOrderForm() {
   const searchParams = useSearchParams();
@@ -66,6 +97,7 @@ function TrackOrderForm() {
               <span className="font-semibold">הזמנה {order.orderNumber}</span>
               <span className="text-muted-foreground text-sm">{formatDateTime(order.createdAt)}</span>
             </div>
+            <PaymentNoticeBox order={order} />
             <OrderTimeline status={order.status as OrderStatus} />
             {/* The date the shop set on the order. It was already being sent
                 to this page and never shown, so "מתי זה מגיע" — the one

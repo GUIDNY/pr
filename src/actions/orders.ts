@@ -387,6 +387,11 @@ export async function trackOrderAction(orderNumber: string, contact: string) {
     order: {
       orderNumber: order.orderNumber,
       status: order.status,
+      /* The payment's state, so the page can say plainly whether the money
+         went through — a customer who saw no confirmation (17 November) came
+         back and paid again. Status only: no amounts, card or approval data. */
+      paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
       createdAt: order.createdAt.toISOString(),
       deliveryMethod: order.deliveryMethod,
       total: order.total,
