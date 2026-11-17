@@ -55,7 +55,7 @@ import { ColorVariantPicker } from "@/components/product/color-variant-picker";
 import { ConsultSection } from "@/components/product/consult-section";
 import { ProductRail } from "@/components/home/product-rail";
 import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
-import { SpecChips, ProductTitle } from "@/components/product/pdp-jump";
+import { SpecChips, ProductTitle, ModelWithCopy } from "@/components/product/pdp-jump";
 import { PDP_TABS_ID, pdpTabTriggerId } from "@/lib/pdp-tabs";
 import {
   getProductBySlug,
@@ -590,7 +590,7 @@ export async function ProductPageView({
             )}
             <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-3 text-sm">
               <span>מק&quot;ט: {product.sku}</span>
-              {product.model && <span>דגם: {product.model}</span>}
+              {product.model && <ModelWithCopy model={product.model} />}
               {product.ratingCount > 0 && (
                 <span className="flex items-center gap-1">
                   <Star className="fill-warning text-warning size-4" />
