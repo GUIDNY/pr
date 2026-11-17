@@ -1,6 +1,7 @@
 "use client";
 
 import { formatPrice } from "@/lib/format";
+import { BUSINESS } from "@/lib/business";
 import { computeDeliveryFee } from "@/lib/delivery";
 import { maxPaymentsFor } from "@/lib/pelecard/instalments";
 import { AddToCartButton } from "@/components/product/add-to-cart-button";
@@ -67,7 +68,9 @@ export function MobileBuyBar({
             {/* Collecting from the branch is free for every product, so the
                 fee above is not the only way to get it. On a phone this bar
                 is the first and often the only place the cost is read. */}
-            <span className="text-success text-[11px] font-medium whitespace-nowrap">או איסוף חינם</span>
+            {/* Where, too (17 November): a free collection is only an answer
+                to the fee for someone who knows the branch is in reach. */}
+            <span className="text-success text-[11px] font-medium whitespace-nowrap">או איסוף חינם ב{BUSINESS.city}</span>
           </>
         )}
       </span>
