@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type DragEvent } from "react";
 import Image from "next/image";
-import { Plus, X, Star, ImagePlus, Upload, Link as LinkIcon, ShieldCheck } from "lucide-react";
+import { Plus, X, Star, ImagePlus, Upload, Link as LinkIcon, ShieldCheck, Images } from "lucide-react";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { FavoriteButton } from "@/components/product/favorite-button";
 import { GalleryLightbox } from "@/components/product/gallery-lightbox";
@@ -209,6 +209,19 @@ export function ProductGallery({
         )}
         <FavoriteButton productId={productId} className="absolute top-4 end-4" />
 
+        {/* On a phone the thumbnail strip is gone (below), so the count says
+            there is more than one photograph; a tap on the photo opens them
+            all. Shoppers only — an admin keeps the strip and its controls. */}
+        {!isAdmin && localImages.length > 1 && (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-3 end-3 flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white tabular-nums md:hidden"
+          >
+            <Images className="size-3.5" />
+            {activeIndex + 1}/{localImages.length}
+          </span>
+        )}
+
         {warrantyMonths > 0 && (
           <div className="bg-brand text-brand-foreground absolute top-4 start-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold shadow-lg">
             <ShieldCheck className="size-3.5" />
@@ -309,7 +322,11 @@ export function ProductGallery({
           be isAdmin-only entirely, which meant a customer visiting the site
           could only ever see a product's first image, never its others. */}
       {(isAdmin || localImages.length > 1) && (
-        <div className="mt-3 flex flex-wrap gap-2">
+        /* Not on a shopper's phone (17 November): the strip took about 80px
+           of the first screen on the pages paid traffic lands on, between
+           the photo and the price. The count on the photo and the
+           full-screen viewer behind a tap carry the same information. */
+        <div className={cn("mt-3 flex flex-wrap gap-2", !isAdmin && "max-md:hidden")}>
           {localImages.map((img, i) => (
             <div
               key={img.id}
