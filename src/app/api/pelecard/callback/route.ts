@@ -21,6 +21,7 @@ import { pelecardConfig, callbackSecret } from "@/lib/pelecard/config";
 import { customerHasPaid } from "@/lib/order-signal";
 import { notifyOrder } from "@/lib/notify";
 import { notifyOwnerOfNewOrder } from "@/lib/notify/owner-alert";
+import { notifyIfDuplicatePayment } from "@/lib/notify/duplicate-payment-alert";
 import { declineText, notifyPaymentFailed } from "@/lib/notify/payment-alert";
 import { paymentForFeedback } from "@/lib/pelecard/callback-match";
 
@@ -460,6 +461,9 @@ export async function POST(req: Request) {
      clearing is the moment the order is real. */
   await notifyOrder(orderId, "ORDER_RECEIVED");
   await notifyOwnerOfNewOrder(orderId);
+  /* And whether this is the same customer paying twice — see
+     lib/notify/duplicate-payment-alert.ts. Never throws. */
+  await notifyIfDuplicatePayment(orderId);
 
   return NextResponse.json({ ok: true });
 }
