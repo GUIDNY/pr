@@ -30,6 +30,7 @@
     "fix:category-names": "tsx scripts/sync-category-names.ts",
     "check:api": "tsx scripts/check-integration-api.ts",
     "check:cart": "tsx scripts/check-cart-merge.ts",
+    "check:paid-cart": "tsx scripts/check-paid-cart.ts",
     "check:game": "tsx scripts/check-game-profile.ts",
     "check:mall": "tsx scripts/check-mall-access.ts",
     "db:game-profile": "tsx scripts/create-game-profile-table.ts",

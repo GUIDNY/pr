@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { rememberAddress } from "@/lib/address-book";
 import { retireGameCoupon } from "@/lib/game-wheel";
 import { awardPurchase } from "@/lib/game-levels";
+import { emptyPaidOrderFromCart } from "@/lib/paid-cart";
 import { sendPurchaseToGa4 } from "@/lib/analytics/ga4-purchase";
 import { sendPurchaseToOpenAiAds } from "@/lib/analytics/openai-ads-purchase";
 import { recordOrderVisitEvent } from "@/lib/pageview/record.server";
@@ -418,6 +419,11 @@ export async function POST(req: Request) {
   });
   // the club: cashback on this order, and any level gift it reaches
   await awardPurchase(orderId);
+  /* The cart is emptied here, on the server, and not only by the
+     confirmation page: a customer who goes back to /checkout before that
+     page has polled the payment through would otherwise find the same items
+     and be sent into a second order (PR-280912). See lib/paid-cart.ts. */
+  await emptyPaidOrderFromCart(order);
   // GA4's revenue, from the server, whatever the visitor said to the banner.
   // A hold is not a purchase yet; it is reported when it is captured.
   if (!held) {

@@ -23,6 +23,9 @@ export const checkoutSchema = z.object({
   whatsappOptIn: z.boolean().optional(),
   /** Consent to advertising — the unticked box under the phone field. */
   marketingOptIn: z.boolean().optional(),
+  /* The customer was told some of these products were paid for a few minutes
+     ago (lib/paid-cart.ts) and chose to order them again anyway. */
+  confirmPaidOverlap: z.boolean().optional(),
   /** GA4's client and session ids from its cookies (lib/analytics/ga.ts),
       present only when the visitor consented to measurement. */
   gaClientId: z.string().max(64).regex(/^[\d.]+$/).nullable().optional(),
