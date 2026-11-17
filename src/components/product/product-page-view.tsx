@@ -4,7 +4,7 @@ import { MetaViewContent } from "@/components/analytics/meta-events";
 import { GaViewItem } from "@/components/analytics/ga-events";
 import { ORGANIZATION_ID, SITE_NAME, breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
-import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench, CreditCard } from "lucide-react";
+import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench, CreditCard, Store } from "lucide-react";
 import {
   FREE_DELIVERY_THRESHOLD,
   computeDeliveryFee,
@@ -674,6 +674,24 @@ export async function ProductPageView({
               </span>
             )}
           </div>
+
+          {/* A real shop with a real phone, said where a stranger from an ad
+              decides (17 November). The ten most-clicked paid pages are all
+              heaters at 80–390 ₪, where a 40 ₪ delivery is 10–50% of the
+              price, and nothing on the first phone screen said there is a
+              free way round it or a person to call — both were further down.
+              Only facts the site already states: the branch, free collection
+              from it, the service line. */}
+          {!isSoldOut && (
+            <p className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm max-md:-order-1">
+              <Store className="size-4 shrink-0" aria-hidden="true" />
+              <span>איסוף חינם מהסניף ב{BUSINESS.city}</span>
+              <span aria-hidden="true">·</span>
+              <a href={BUSINESS.phoneHref} className="text-foreground font-medium underline-offset-2 hover:underline" dir="ltr">
+                {BUSINESS.phone}
+              </a>
+            </p>
+          )}
 
           {isSoldOut ? (
             <div className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
