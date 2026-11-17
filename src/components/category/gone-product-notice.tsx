@@ -30,7 +30,9 @@ export function GoneProductNotice() {
     <p className="bg-muted text-foreground mt-3 flex items-start gap-2 rounded-lg px-3 py-2 text-sm" role="status">
       <Info className="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden />
       <span>
-        <bdi className="font-medium">{label}</bdi> כבר לא נמכר אצלנו. אלה הדגמים שיש לנו עכשיו בקטגוריה. רוצים המלצה על
+        {/* "לא זמין כרגע", not "לא נמכר": many of these are only out of the
+            price list for now and come back to the same address. */}
+        <bdi className="font-medium">{label}</bdi> לא זמין כרגע אצלנו. אלה הדגמים שיש לנו עכשיו בקטגוריה. רוצים המלצה על
         חלופה?{" "}
         <a href={BUSINESS.phoneHref} className="text-primary font-medium underline-offset-2 hover:underline">
           {BUSINESS.phone}
