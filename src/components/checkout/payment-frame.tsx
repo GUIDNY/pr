@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { trackVisit } from "@/lib/pageview/track";
+import { startPaidStatusPoll } from "@/lib/checkout/paid-status-poll";
 
 /**
  * Pelecard's Apple Pay bridge, and the reason a script of theirs runs on our
@@ -133,6 +134,32 @@ export function PaymentFrame({ src, orderNumber }: { src: string; orderNumber?: 
       onClose();
     };
   }, [orderNumber, src]);
+
+  /* LEAVING FOR THE CONFIRMATION WITHOUT WAITING FOR THE FRAME.
+     The frame is supposed to end on Pelecard's GoodURL, our frame-return page,
+     which breaks out of the frame to /checkout/success. On 17 November it did
+     not, twice in a row: the callback recorded a successful authorisation
+     (000) at 22:21, the customer sat in front of the form for fourteen minutes
+     with no confirmation, came back to a checkout whose cart had not been
+     emptied, and paid again — 7,700 ₪ twice, and a third order opened.
+
+     So the page asks the server, every few seconds, what it already knows —
+     the same status endpoint the success page polls — and goes to the
+     confirmation the moment the payment is taken or held, whether or not the
+     frame ever came back. It only reads a status; the callback and the order
+     are untouched, and a declined or pending payment changes nothing here. */
+  useEffect(() => {
+    if (!orderNumber) return;
+    return startPaidStatusPoll(orderNumber, {
+      fetchStatus: async (order) => {
+        const res = await fetch(`/api/pelecard/status?order=${encodeURIComponent(order)}`, { cache: "no-store" });
+        if (!res.ok) return null;
+        const data = (await res.json()) as { paymentStatus?: string };
+        return data.paymentStatus ?? null;
+      },
+      onPaid: (path) => window.location.assign(path),
+    });
+  }, [orderNumber]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
