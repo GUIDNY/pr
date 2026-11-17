@@ -12,6 +12,7 @@ import { useCartStore } from "@/stores/cart-store";
 import { formatPrice } from "@/lib/format";
 import { freeCollectionNote } from "@/lib/delivery";
 import { cartHasBulky } from "@/lib/bulky";
+import { CheckoutCta } from "@/components/cart/checkout-cta";
 import {
   updateCartItemAction,
   removeCartItemAction,
@@ -179,9 +180,7 @@ export default function CartPage() {
             <span className="tabular-nums">{formatPrice(cart.deliveryFee > 0 ? cart.total - cart.deliveryFee : cart.total)}</span>
           </div>
 
-          <Button variant="brand" size="lg" className="mt-4 w-full" asChild>
-            <Link href="/checkout">המשך לתשלום</Link>
-          </Button>
+          <CheckoutCta className="mt-4" />
           <Button variant="ghost" className="mt-1 w-full" asChild>
             <Link href="/">
               <ArrowLeft className="size-4" /> המשך בקניות

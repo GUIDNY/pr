@@ -52,6 +52,7 @@ import {
 } from "@/lib/delivery";
 import { canonicalLocality, deliveryPromiseTextForCity } from "@/lib/delivery-zones";
 import type { CheckoutInput } from "@/lib/order-schema";
+import { TYPED_FIELDS_KEY, TYPED_FIELDS_TTL_MS, markCheckoutOpened, clearCheckoutResume } from "@/lib/checkout-resume";
 
 /** Everything an order needs before one can be created from this form. Asked
     in both directions: to open the card form, and to take it away again. */
@@ -94,8 +95,6 @@ function detailsCompleteFor(f: {
 
 /* The contact and delivery fields kept across a round trip away from the page
    — see the effect in CheckoutForm. Card fields are not here and must not be. */
-const TYPED_FIELDS_KEY = "bt_checkout_typed";
-const TYPED_FIELDS_TTL_MS = 2 * 60 * 60 * 1000;
 const TYPED_TEXT_FIELDS = ["fullName", "email", "phone", "city", "street", "houseNo", "apartment", "deliveryNotes"] as const;
 
 export function CheckoutForm({
@@ -248,6 +247,7 @@ export function CheckoutForm({
     openedAt.current = Date.now();
     const snapshot = { itemCount: cart.itemCount, total: cart.total };
     trackVisit("checkout_start", snapshot);
+    markCheckoutOpened();
     const onLeave = () => {
       if (submitted.current) return;
       trackVisit("checkout_abandon", {
@@ -702,7 +702,7 @@ export function CheckoutForm({
       submitted.current = true;
       setCart({ ...cart, items: [], itemCount: 0, subtotal: 0, discount: 0, deliveryFee: 0, total: 0, couponCode: null });
       try {
-        sessionStorage.removeItem(TYPED_FIELDS_KEY);
+        clearCheckoutResume();
       } catch {
         /* ignore */
       }
@@ -900,20 +900,11 @@ export function CheckoutForm({
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="email" className="mb-1.5">אימייל</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                value={form.email}
-                onChange={(e) => update("email", e.target.value)}
-                onBlur={rememberContact}
-                required
-              />
-            </div>
+            {/* Phone before email (17 November). A shopper who leaves after the
+                first field or two is someone we can only reach by phone: the
+                7,700 ₪ cart that day left with a name and nothing else. Same
+                fields, same names and autocomplete tokens, same validation —
+                only the order moved, so browser autofill is unaffected. */}
             <div>
               <Label htmlFor="phone" className="mb-1.5">טלפון</Label>
               <Input
@@ -965,6 +956,20 @@ export function CheckoutForm({
                   </span>
                 </span>
               </label>
+            </div>
+            <div>
+              <Label htmlFor="email" className="mb-1.5">אימייל</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={form.email}
+                onChange={(e) => update("email", e.target.value)}
+                onBlur={rememberContact}
+                required
+              />
             </div>
           </div>
         </section>

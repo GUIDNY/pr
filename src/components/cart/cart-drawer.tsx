@@ -28,6 +28,7 @@ import { ProductImagePlaceholder } from "@/components/product/product-image-plac
 import { pushEcommerce, toAnalyticsItem, itemsValue } from "@/lib/analytics/ga";
 import { trackVisit } from "@/lib/pageview/track";
 import { useSwipeDismiss } from "@/lib/swipe-dismiss";
+import { CheckoutCta } from "@/components/cart/checkout-cta";
 
 export function CartDrawer() {
   const { cart, isDrawerOpen, closeDrawer, setCart, setPending, isPending } = useCartStore();
@@ -250,9 +251,7 @@ export function CartDrawer() {
             </div>
 
             <SheetFooter className="border-t px-5 py-4">
-              <Button variant="brand" size="lg" className="w-full" asChild onClick={closeDrawer}>
-                <Link href="/checkout">המשך לתשלום</Link>
-              </Button>
+              <CheckoutCta onClick={closeDrawer} />
               <Button variant="ghost" className="w-full" asChild onClick={closeDrawer}>
                 <Link href="/cart">צפייה בעגלה המלאה</Link>
               </Button>
