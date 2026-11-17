@@ -694,7 +694,23 @@ export async function ProductPageView({
           )}
 
           {isSoldOut ? (
-            <div className="border-border bg-muted/40 mt-4 rounded-xl border p-4">
+            <>
+            {/* On a phone the paragraph below and the rail after it put the
+                first alternative at ~1,030px on a 844px screen, and 77% of
+                ChatGPT's sold-out landings left from the first screen
+                (30 days to 17 November). So on a phone: one line and the
+                phone number, then the alternatives right here. From md up
+                the full paragraph and the rail under the buy block stand. */}
+            <p className="border-border bg-muted/40 mt-2 rounded-xl border px-3 py-2 text-sm md:hidden">
+              <span className="font-semibold">המוצר אזל מהמלאי.</span> לבירור מתי יחזור:{" "}
+              <a href={BUSINESS.phoneHref} className="text-brand font-medium hover:underline" dir="ltr">
+                {BUSINESS.phone}
+              </a>
+            </p>
+            <div className="-mx-4 -mt-4 md:hidden">
+              <ProductRail title={relatedTitle} products={related} />
+            </div>
+            <div className="border-border bg-muted/40 mt-4 rounded-xl border p-4 max-md:hidden">
               <p className="text-foreground text-sm font-semibold">המוצר אזל מהמלאי</p>
               <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
                 לא ניתן להזמין אותו כרגע. הדף נשאר כאן כדי שתוכלו לחזור אליו — ברגע שהמוצר יחזור למלאי הוא יהיה זמין
@@ -705,6 +721,7 @@ export async function ProductPageView({
                 כדי לברר מתי הוא צפוי לחזור, או לראות דגמים דומים שזמינים עכשיו, מיד כאן למטה.
               </p>
             </div>
+            </>
           ) : (
             <>
             {/* Installation is extra and arranged by phone — said here, above
@@ -825,7 +842,7 @@ export async function ProductPageView({
       {/* A sold-out product has nothing else to offer above the fold, so there
           the rail is up here on every screen: the next thing after "אזל
           מהמלאי" and the phone number is what can be bought instead. */}
-      <div className={isSoldOut ? undefined : "md:hidden"}>
+      <div className={isSoldOut ? "max-md:hidden" : "md:hidden"}>
         <ProductRail title={relatedTitle} products={related} />
       </div>
 
