@@ -21,7 +21,16 @@ import { db } from "@/lib/db";
  *   the last half hour, so the answer is "already paid", not a new order.
  */
 
-import { matchPaidOrder, PAID_RECENTLY_MS, SETTLED_PAYMENT_STATUSES, type Line } from "@/lib/paid-cart-rules";
+import {
+  matchPaidOrder,
+  matchPaidOverlap,
+  normaliseEmail,
+  normalisePhone,
+  sameCustomer,
+  PAID_RECENTLY_MS,
+  SETTLED_PAYMENT_STATUSES,
+  type Line,
+} from "@/lib/paid-cart-rules";
 
 export { matchPaidOrder, sameItems, PAID_RECENTLY_MS, SETTLED_PAYMENT_STATUSES } from "@/lib/paid-cart-rules";
 
@@ -32,17 +41,20 @@ export { matchPaidOrder, sameItems, PAID_RECENTLY_MS, SETTLED_PAYMENT_STATUSES }
 export async function findRecentlyPaidOrder(params: {
   userId?: string | null;
   visitSid?: string | null;
+  /** What was typed into the checkout — the customer on another device or
+      browser is still recognised by phone or email (gap 2). */
+  phone?: string | null;
+  email?: string | null;
   items: Line[];
-}): Promise<string | null> {
-  const who = [
-    ...(params.userId ? [{ userId: params.userId }] : []),
-    ...(params.visitSid ? [{ visitSid: params.visitSid }] : []),
-  ];
-  if (who.length === 0 || params.items.length === 0) return null;
+}): Promise<{ exact: string | null; overlap: { orderNumber: string; productIds: string[] } | null }> {
+  const none = { exact: null, overlap: null };
+  const hasIdentity = params.userId || params.visitSid || normalisePhone(params.phone) || normaliseEmail(params.email);
+  if (!hasIdentity || params.items.length === 0) return none;
   const now = new Date();
-  const orders = await db.order.findMany({
+  /* Every settled order in the window, matched in memory: a handful an hour,
+     and phone spellings differ too much to compare in SQL. */
+  const recent = await db.order.findMany({
     where: {
-      OR: who,
       paymentStatus: { in: [...SETTLED_PAYMENT_STATUSES] },
       createdAt: { gte: new Date(now.getTime() - PAID_RECENTLY_MS) },
       deletedAt: null,
@@ -51,12 +63,23 @@ export async function findRecentlyPaidOrder(params: {
       orderNumber: true,
       paymentStatus: true,
       createdAt: true,
+      userId: true,
+      visitSid: true,
+      guestPhone: true,
+      guestEmail: true,
       items: { select: { productId: true, quantity: true } },
     },
     orderBy: { createdAt: "desc" },
-    take: 5,
+    take: 200,
   });
-  return matchPaidOrder(params.items, orders, now);
+  const mine = recent.filter(
+    (o) =>
+      (params.userId && o.userId === params.userId) ||
+      (params.visitSid && o.visitSid === params.visitSid) ||
+      sameCustomer({ phone: params.phone, email: params.email }, o),
+  );
+  const exact = matchPaidOrder(params.items, mine, now);
+  return { exact, overlap: exact ? null : matchPaidOverlap(params.items, mine, now) };
 }
 
 /**
