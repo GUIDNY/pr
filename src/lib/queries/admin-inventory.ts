@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import type { StockStatus } from "@/lib/enums";
 import { imageIsFromBlockedHost } from "@/lib/inventory/blocked-image-hosts";
 import { isSelfHosted } from "@/lib/inventory/image-migration";
+import { STALE_SYNC_MINUTES } from "@/lib/inventory/sync";
 import type { Prisma } from "@/generated/prisma/client";
 
 /* From a price list, and only from a price list.
@@ -59,6 +60,34 @@ export async function getInventorySummary() {
     orderBy: { startedAt: "desc" },
   });
 
+  /* "סונכרן" used to be the start of the last SUCCESS or NO_CHANGES run, and
+     on 17 November it read "15 בנוב׳" while two manual runs that day had
+     imported two whole sources each before being cut off at the server's
+     time limit. Each source's lastSyncedAt is written when that source has
+     been applied in full, so the newest of them is when the catalogue last
+     really took data from a sheet, whatever became of the run around it. */
+  const lastImport = await db.inventorySource.aggregate({
+    where: { isActive: true },
+    _max: { lastSyncedAt: true },
+  });
+  const lastImportAt = lastImport._max.lastSyncedAt ?? latestRun?.startedAt ?? null;
+
+  /* And the run itself, said plainly when it did not end: FAILED, or RUNNING
+     for longer than any run can (the next sync closes those, but the screen
+     should not wait for it). */
+  const latestAttempt = await db.inventorySyncRun.findFirst({
+    where: { status: { not: "SKIPPED" } },
+    orderBy: { startedAt: "desc" },
+    select: { status: true, startedAt: true, errorMessage: true },
+  });
+  const interruptedRun =
+    latestAttempt &&
+    (latestAttempt.status === "FAILED" ||
+      (latestAttempt.status === "RUNNING" &&
+        latestAttempt.startedAt.getTime() < Date.now() - STALE_SYNC_MINUTES * 60_000))
+      ? { startedAt: latestAttempt.startedAt, errorMessage: latestAttempt.errorMessage }
+      : null;
+
   const [
     totalProducts,
     sellable,
@@ -100,6 +129,8 @@ export async function getInventorySummary() {
     changedToday,
     unresolvedAlerts,
     latestRun,
+    lastImportAt,
+    interruptedRun,
     productsAddedLastSync: latestRun?.productsAdded ?? 0,
     productsMissingLastSync: latestRun?.productsMissing ?? 0,
   };

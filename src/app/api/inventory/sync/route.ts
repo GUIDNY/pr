@@ -11,7 +11,7 @@ import { canManageCatalog } from "@/lib/permissions";
 // which matters because this runs server-side, co-located with the database
 // — orders of magnitude faster than driving the same sync from a developer
 // machine on the other side of the network.
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 export async function GET(request: Request) {
   const auth = request.headers.get("authorization");

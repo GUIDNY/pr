@@ -20,6 +20,14 @@ import type { StockStatus } from "@/lib/enums";
 
 export const metadata = { title: "מרכז המלאי | Buy Today Admin" };
 
+/* The "סנכרן מלאי עכשיו" button is a server action invoked from this
+   segment, so this is what caps it. At the platform default of 300 seconds
+   a manual run — which reads all three sources, unlike a scheduled one —
+   was killed twice on 17 November: ~3,150 rows at ~11 a second, electronics
+   in 53 s and small appliances in 71 s, and white goods did not fit in what
+   was left. 800 is the ceiling with Fluid Compute on Pro. */
+export const maxDuration = 800;
+
 const PAGE_SIZE = 30;
 
 function timeAgo(date: Date) {
@@ -109,9 +117,15 @@ export default async function AdminInventoryPage({
           <p className="text-muted-foreground mt-1 text-sm">ניהול מוצרים, מלאי, מחירים וסנכרון מקורות הנתונים</p>
         </div>
         <div className="flex flex-col items-end gap-1">
-          {summary.latestRun && (
+          {summary.interruptedRun && (
+            <p className="text-destructive text-xs font-semibold">
+              הריצה האחרונה נקטעה ({timeAgo(summary.interruptedRun.startedAt)})
+              {summary.interruptedRun.errorMessage ? ` — ${summary.interruptedRun.errorMessage}` : ""}
+            </p>
+          )}
+          {summary.lastImportAt && (
             <p className="text-muted-foreground text-xs">
-              סונכרן {timeAgo(summary.latestRun.startedAt)} ·{" "}
+              סונכרן {timeAgo(summary.lastImportAt)} ·{" "}
               {/* Two different facts, and conflating them is what cost a
                   working day. "סונכרן" is the last run that imported
                   something, and it stands still for as long as the supplier
