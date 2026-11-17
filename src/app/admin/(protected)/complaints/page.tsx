@@ -69,12 +69,34 @@ function ago(date: Date): string {
   return `לפני ${days} ימים`;
 }
 
-function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: string }) {
+/* On a phone the six cards stacked into three rows pushed the list to
+   ~650px. There they become one strip that scrolls sideways, compact, with
+   the three that ask for action first (waiting on us, open, potential
+   sale); from sm: up it is the grid it was. */
+function Kpi({
+  label,
+  value,
+  sub,
+  tone,
+  first,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: string;
+  first?: 1 | 2 | 3;
+}) {
   return (
-    <div className={cn("border-border bg-card rounded-xl border p-3.5", tone)}>
-      <p className="text-muted-foreground text-xs font-medium">{label}</p>
-      <p className="mt-1 text-2xl leading-tight font-bold">{value}</p>
-      {sub && <p className="text-muted-foreground mt-0.5 text-xs">{sub}</p>}
+    <div
+      className={cn(
+        "border-border bg-card rounded-xl border p-3.5 max-sm:w-36 max-sm:shrink-0 max-sm:snap-start max-sm:p-2.5",
+        first === 1 ? "max-sm:-order-3" : first === 2 ? "max-sm:-order-2" : first === 3 ? "max-sm:-order-1" : undefined,
+        tone,
+      )}
+    >
+      <p className="text-muted-foreground truncate text-xs font-medium">{label}</p>
+      <p className="mt-1 text-2xl leading-tight font-bold max-sm:text-xl">{value}</p>
+      {sub && <p className="text-muted-foreground mt-0.5 truncate text-xs max-sm:hidden">{sub}</p>}
     </div>
   );
 }
@@ -172,14 +194,20 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
         </div>
       </div>
 
-      <div className={cn("mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6", selected && "max-lg:hidden")}>
+      <div
+        className={cn(
+          "mb-4 gap-3 max-sm:-mx-4 max-sm:flex max-sm:snap-x max-sm:gap-2 max-sm:overflow-x-auto max-sm:px-4 max-sm:pb-1 sm:grid sm:grid-cols-3 xl:grid-cols-6",
+          selected && "max-lg:hidden",
+        )}
+      >
         <Kpi label="פניות" value={String(stats.last30)} sub={`ב־30 יום · ${stats.today} היום`} />
-        <Kpi label="פתוחות" value={String(stats.open)} sub={`${metrics.critical} קריטיות`} />
+        <Kpi label="פתוחות" value={String(stats.open)} sub={`${metrics.critical} קריטיות`} first={2} />
         <Kpi
           label="מחכות לתשובה מאיתנו"
           value={String(stats.awaitingUs)}
           sub="הלקוח כתב אחרון"
           tone={stats.awaitingUs > 0 ? "border-warning/50 bg-warning/5" : undefined}
+          first={1}
         />
         <Kpi label="נסגרו" value={String(stats.closed30)} sub="ב־30 יום" tone="border-success/40" />
         <Kpi
@@ -187,7 +215,7 @@ export default async function ComplaintsPage({ searchParams }: { searchParams: P
           value={firstResponse}
           sub={metrics.firstResponseSample ? `ממוצע של ${metrics.firstResponseSample} פניות` : "אין עדיין תשובות"}
         />
-        <Kpi label="מכירה פוטנציאלית" value={String(stats.potentialSale)} sub="מזכירות דגם שאנחנו מוכרים" />
+        <Kpi label="מכירה פוטנציאלית" value={String(stats.potentialSale)} sub="מזכירות דגם שאנחנו מוכרים" first={3} />
       </div>
 
       <div className={cn("mb-3 flex flex-wrap items-center gap-2", selected && "max-lg:hidden")}>
