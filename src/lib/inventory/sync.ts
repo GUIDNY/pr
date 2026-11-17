@@ -2524,10 +2524,15 @@ export type { SyncTrigger };
 // action and the scheduled Vercel Cron endpoint call. Swapping Excel for
 // Priority ERP later means replacing how bytes are fetched here; the parse
 // -> normalize -> diff -> apply pipeline underneath doesn't change.
-/* How long a run may be in flight before the next one may assume it died.
-   Long enough that a real 1,700-row sync is never interrupted, short enough
-   that one killed invocation does not block the schedule all day. */
-const STALE_SYNC_MINUTES = 10;
+/* How long a run may be in flight before the next one may assume it died —
+   and, since 17 November, before it is closed as FAILED (see runFullSync).
+   It has to stay above the longest a run is allowed to live, or a run that
+   is still working gets declared dead and a second one starts beside it.
+   That ceiling is maxDuration: 800 s (13⅓ min) on /admin/inventory and on
+   /api/inventory/sync. 15 leaves a margin over it, and is still short
+   enough that one killed invocation does not block the schedule all day.
+   Raise both together. */
+export const STALE_SYNC_MINUTES = 15;
 
 /**
  * Whether this run re-reads a source whose file has not changed.
@@ -2591,6 +2596,22 @@ export async function runFullSync(
      Refused, not queued. A skipped sync costs nothing — the next one reads
      the same file and reaches the same place. An interleaved one costs a
      catalogue nobody can explain. */
+  /* A run older than STALE_SYNC_MINUTES that still says RUNNING was killed:
+     Vercel stops a function at its maxDuration and nothing after that line
+     runs, so the row is never closed. On 17 November two manual runs (13:44,
+     13:57) were cut at 300 seconds after importing two of three sources and
+     sat at RUNNING with no finish time — the history showed them as still
+     going and nothing anywhere said they had failed. Closed here, at the
+     start of the next run, with the reason, so the record is true. */
+  await db.inventorySyncRun.updateMany({
+    where: { status: "RUNNING", startedAt: { lte: new Date(Date.now() - STALE_SYNC_MINUTES * 60_000) } },
+    data: {
+      status: "FAILED",
+      finishedAt: new Date(),
+      errorMessage: `נקטעה: הריצה לא הסתיימה תוך ${STALE_SYNC_MINUTES} דקות — כנראה הגיעה למגבלת הזמן של השרת. מקורות שעודכנו עד אז נשמרו.`,
+    },
+  });
+
   const inFlight = await db.inventorySyncRun.findFirst({
     where: {
       status: "RUNNING",
