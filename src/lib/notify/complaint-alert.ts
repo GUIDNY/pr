@@ -58,8 +58,17 @@ export async function notifyOwnerOfComplaint(
   const recipients = ownerAlertRecipients();
   const mail = recipients.length > 0 && emailChannel.configured();
   const push = ownerPushConfigured();
-  const waTo = process.env.OWNER_WHATSAPP?.trim() || null;
-  const wa = waTo !== null && whatsappChannel.configured();
+  /* The owner, plus anyone else who answers complaints (COMPLAINT_WHATSAPP_TO,
+     comma-separated). Each gets the same approved template. */
+  const waTo = [
+    ...new Set(
+      [process.env.OWNER_WHATSAPP, process.env.COMPLAINT_WHATSAPP_TO]
+        .flatMap((v) => (v ?? "").split(","))
+        .map((v) => v.trim())
+        .filter(Boolean),
+    ),
+  ];
+  const wa = waTo.length > 0 && whatsappChannel.configured();
   if (!mail && !push && !wa) return;
 
   const complaint = await db.complaint.findUnique({
@@ -117,9 +126,9 @@ export async function notifyOwnerOfComplaint(
         ).catch(() => undefined)
       : null,
     mail ? mailOwner() : null,
-    wa
-      ? whatsappChannel
-          .send(waTo!, {
+    ...(wa ? waTo : []).map((to) =>
+      whatsappChannel
+          .send(to, {
             subject: heading,
             // Never sent: WhatsApp uses the template below. It is here
             // because a Message without a body is a Message that breaks the
@@ -131,8 +140,8 @@ export async function notifyOwnerOfComplaint(
               params: [String(complaint.ticketNumber), severity, who, phone, summary],
             },
           })
-          .catch(() => undefined)
-      : null,
+          .catch(() => undefined),
+    ),
   ]);
 
   async function mailOwner() {
