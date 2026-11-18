@@ -523,14 +523,7 @@ export function CheckoutForm({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ orderId }),
       });
-      const data = (await res.json().catch(() => ({}))) as { redirectUrl?: string; error?: string; paidOrderNumber?: string };
-      /* An earlier form was already paid (see lib/pelecard/prior-payment.ts):
-         no second form — straight to that order's confirmation. */
-      if (data.paidOrderNumber) {
-        submitted.current = true;
-        router.push(`/checkout/success/${encodeURIComponent(data.paidOrderNumber)}`);
-        return;
-      }
+      const data = (await res.json().catch(() => ({}))) as { redirectUrl?: string; error?: string };
       if (!res.ok || !data.redirectUrl) {
         setStranded({ orderId, orderNumber, reason: data.error ?? "לא הצלחנו לפתוח את טופס התשלום" });
         return;
