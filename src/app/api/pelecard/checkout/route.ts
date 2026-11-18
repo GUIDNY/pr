@@ -21,12 +21,7 @@ export async function POST(req: Request) {
      address could name one on the live list. */
   const viewer = await getCurrentUser();
   const result = await openPelecardPayment(body.orderId, { viewer });
-  if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error, ...(result.paidOrderNumber ? { paidOrderNumber: result.paidOrderNumber } : {}) },
-      { status: result.status },
-    );
-  }
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
   return NextResponse.json({ redirectUrl: result.redirectUrl, orderId: result.orderId });
 }
