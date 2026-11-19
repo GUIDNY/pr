@@ -1,4 +1,5 @@
 import "server-only";
+import { bitHoldFrom, type BitHold } from "@/lib/pelecard/bit-hold";
 import { db } from "@/lib/db";
 import type { OrderStatus, PaymentStatus } from "@/lib/enums";
 import { ORDER_STAGES, statusesInStage, TRASH_STAGE, type OrderStage } from "@/lib/order-stage";
@@ -72,6 +73,10 @@ export type SellerOrderDetail = SellerOrderSummary & {
     cardExpiry: string | null;
     approvalNo: string | null;
     clearerName: string | null;
+    /** Set when the payment was bit, which this back office cannot complete
+        (lib/pelecard/bit-hold.ts). Its holdExpiresAt is a card default and
+        is not shown. */
+    bit: BitHold | null;
   } | null;
   courier: { name: string | null; trackingNumber: string | null; trackingUrl: string | null };
   shippedAt: Date | null;
@@ -280,6 +285,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
           cardExpiry: live.cardExpiry,
           approvalNo: live.approvalNo,
           clearerName: live.clearerName,
+          bit: live.provider === "PELECARD" ? bitHoldFrom(live.rawResponse) : null,
         }
       : null,
     courier: {

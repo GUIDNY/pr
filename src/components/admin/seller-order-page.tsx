@@ -84,6 +84,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
     });
   }
 
+  const bitHold = order.paid?.bit ?? null;
   const needsApproval = stage === "open" && (order.paymentStatus === "AUTHORIZED" || order.paymentStatus === "CAPTURED");
   const canShip = stage === "processing" && order.status !== "SHIPPED" && order.paymentStatus === "CAPTURED";
   const canClose = stage === "processing" && order.paymentStatus === "CAPTURED";
@@ -120,7 +121,26 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
 
         <p className="text-muted-foreground mt-2 text-sm">{signal.hint}</p>
 
-        {order.paid?.holdExpiresAt && order.paymentStatus === "AUTHORIZED" && (
+        {/* bit: completed in Pelecard's interface, not by the button below.
+            How long bit keeps a temporary approval is not in anything
+            Pelecard sent us, so no date is shown for it (lib/pelecard/bit-hold.ts). */}
+        {bitHold && order.paymentStatus === "AUTHORIZED" && (
+          <div className="bg-warning/10 text-warning-foreground mt-3 rounded-lg px-3 py-2 text-sm font-medium">
+            <p className="font-bold">תשלום ביט – יש להשלים בממשק פלאקארד.</p>
+            {bitHold.transactionNumber && (
+              <p>
+                מספר עסקה בפלאקארד: <span dir="ltr" className="font-mono">{bitHold.transactionNumber}</span>
+              </p>
+            )}
+            <p>
+              הלקוח אישר בביט ב-{formatDateTime(order.createdAt)}. כמה זמן ביט מחזיקה אישור זמני לא מופיע בתשובה של
+              פלאקארד, ולכן אין כאן תאריך תפוגה. אם בממשק פלאקארד העסקה כבר לא ניתנת להשלמה, צריך לבקש מהלקוח לשלם מחדש.
+            </p>
+            <p>אחרי שהשלמת את העסקה בפלאקארד, לחץ על „השלמתי בפלאקארד – אשר הזמנה”.</p>
+          </div>
+        )}
+
+        {!bitHold && order.paid?.holdExpiresAt && order.paymentStatus === "AUTHORIZED" && (
           <p className="bg-warning/10 text-warning-foreground mt-3 rounded-lg px-3 py-2 text-sm font-medium">
             התפיסה תקפה עד {formatDateTime(order.paid.holdExpiresAt)}. אחרי זה הכסף משתחרר ללקוח וצריך לגבות מחדש.
           </p>
@@ -139,11 +159,22 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
             <button
               type="button"
               disabled={pending}
-              onClick={() => run(() => approveOrderAction(order.orderNumber))}
+              onClick={() => {
+                if (bitHold && order.paymentStatus === "AUTHORIZED") {
+                  if (!window.confirm("לאשר רק אם העסקה כבר הושלמה בממשק פלאקארד. הכפתור לא גובה כסף – הוא רק רושם שהושלם.")) return;
+                  run(() => approveOrderAction(order.orderNumber, { bitCompletedInPelecard: true }));
+                  return;
+                }
+                run(() => approveOrderAction(order.orderNumber));
+              }}
               className="bg-brand text-brand-foreground hover:bg-brand-hover flex w-full items-center justify-center gap-1.5 rounded-lg px-5 py-3 text-sm font-bold disabled:opacity-60 sm:w-auto sm:py-2.5"
             >
               {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-              {order.paymentStatus === "AUTHORIZED" ? "אשר תשלום וגבה" : "אשר הזמנה"}
+              {order.paymentStatus === "AUTHORIZED"
+                ? bitHold
+                  ? "השלמתי בפלאקארד – אשר הזמנה"
+                  : "אשר תשלום וגבה"
+                : "אשר הזמנה"}
             </button>
           )}
           {canMarkPaid && !manualOpen && (
