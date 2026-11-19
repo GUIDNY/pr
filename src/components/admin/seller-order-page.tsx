@@ -134,7 +134,13 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
           </div>
         </div>
 
-        <p className="text-muted-foreground mt-2 text-sm">{signal.hint}</p>
+        {/* The generic hint for AUTHORIZED speaks of a card hold; a bit
+            payment is not one (lib/pelecard/bit-hold.ts). */}
+        <p className="text-muted-foreground mt-2 text-sm">
+          {bitHold && order.paymentStatus === "AUTHORIZED"
+            ? "הלקוח אישר תשלום בביט והכסף עדיין לא נגבה. משלימים אותו בממשק פלאקארד, לא מכאן."
+            : signal.hint}
+        </p>
 
         {/* bit: completed in Pelecard's interface, not by the button below.
             How long bit keeps a temporary approval is not in anything
