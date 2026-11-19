@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireBackOffice } from "@/lib/auth";
 import { logAudit } from "@/lib/audit";
 import { completeDebitByUid } from "@/lib/pelecard/client";
+import { bitHoldFrom, bitHoldMessage } from "@/lib/pelecard/bit-hold";
 import { notifyOrder } from "@/lib/notify";
 import type { NotifyEvent } from "@/lib/notify/types";
 import { removalRule, binActionAllowed, type BinDirection } from "@/lib/queries/seller-orders";
@@ -46,7 +47,10 @@ type Result = { success: boolean; error: string | null; note?: string };
  * than approved with a warning. A queue where the red ones can be waved
  * through is a queue where the red ones get waved through.
  */
-export async function approveOrderAction(orderNumber: string): Promise<Result> {
+export async function approveOrderAction(
+  orderNumber: string,
+  opts: { bitCompletedInPelecard?: boolean } = {},
+): Promise<Result> {
   const session = await requireBackOffice();
   const order = await db.order.findUnique({
     where: { orderNumber },
@@ -83,8 +87,17 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
        the very flow it exists to rehearse. The provider column decides, not
        the reference string, so nothing typed into a form can route a real
        payment down this branch. */
+    /* bit is not a card hold and CompleteDebitByUid cannot complete it —
+       PR-577373 came back 510 "Record not found" (lib/pelecard/bit-hold.ts).
+       Nothing is sent to Pelecard for it. The owner completes it in
+       Pelecard's own interface and then presses the second button, which
+       only records here that he did. */
+    const bit = hold.provider === "PELECARD" ? bitHoldFrom(hold.rawResponse) : null;
+    if (bit && !opts.bitCompletedInPelecard) {
+      return { success: false, error: bitHoldMessage(bit) };
+    }
     const captured =
-      hold.provider === "DEMO"
+      hold.provider === "DEMO" || bit
         ? ({ ok: true } as const)
         : await completeDebitByUid({
             uid: hold.authorizationUid,
@@ -100,7 +113,9 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
         data: { status: "CAPTURED", capturedAt: new Date() },
       }),
     ]);
-    note = "הדפוזיט נגבה ואושר לטיפול";
+    note = bit
+      ? `תשלום ביט סומן כהושלם בממשק פלאקארד${bit.transactionNumber ? ` (עסקה ${bit.transactionNumber})` : ""} ואושר לטיפול`
+      : "הדפוזיט נגבה ואושר לטיפול";
     await awardPurchase(order.id);
     await sendPurchaseToGa4(order.id);
     await sendPurchaseToOpenAiAds(order.id);
@@ -124,7 +139,11 @@ export async function approveOrderAction(orderNumber: string): Promise<Result> {
     action: "ORDER_APPROVED",
     entityType: "Order",
     entityId: order.id,
-    metadata: { from: order.status, paymentStatus: order.paymentStatus },
+    metadata: {
+      from: order.status,
+      paymentStatus: order.paymentStatus,
+      ...(opts.bitCompletedInPelecard ? { bitCompletedInPelecard: true } : {}),
+    },
   });
 
   /* NOT NOTIFIED HERE. The shop's owner asked, on 26 October, that nothing
