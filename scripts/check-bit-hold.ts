@@ -114,5 +114,7 @@ check(
 check("the list shows the badge", readFileSync(join(root, "src/components/admin/seller-order-row.tsx"), "utf8").includes("PAID_WITH_LABELS"));
 check("a bit order says to ask Pelecard", page.includes("יש לברר מול פלאקארד את מצב העסקה"));
 
+check("a bit order does not say the hold is on a card", page.includes("הלקוח אישר תשלום בביט והכסף עדיין לא נגבה"));
+
 console.log(failures ? `\n${failures} failed.` : "\nA bit payment is not sent to the card capture call.");
 process.exit(failures ? 1 : 0);
