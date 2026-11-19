@@ -1,5 +1,5 @@
 import "server-only";
-import { bitHoldFrom, type BitHold } from "@/lib/pelecard/bit-hold";
+import { bitHoldFrom, paidWith, paidWithFrom, type BitHold, type PaidWith } from "@/lib/pelecard/bit-hold";
 import { db } from "@/lib/db";
 import type { OrderStatus, PaymentStatus } from "@/lib/enums";
 import { ORDER_STAGES, statusesInStage, TRASH_STAGE, type OrderStage } from "@/lib/order-stage";
@@ -49,6 +49,9 @@ export type SellerOrderSummary = {
   /** Stricter: a cancelled order may sit in the bin with a live hold on the
       card, and may not be destroyed until that hold lapses. */
   canPurge: boolean;
+  /** How the customer paid — bit, card, Apple Pay — when Pelecard said so
+      (lib/pelecard/bit-hold.ts). Null when unknown or not a gateway payment. */
+  paidWith: PaidWith | null;
 };
 
 export type SellerOrderDetail = SellerOrderSummary & {
@@ -73,6 +76,8 @@ export type SellerOrderDetail = SellerOrderSummary & {
     cardExpiry: string | null;
     approvalNo: string | null;
     clearerName: string | null;
+    /** When the customer approved — for "how long ago" on a bit payment. */
+    authorizedAt: Date | null;
     /** Set when the payment was bit, which this back office cannot complete
         (lib/pelecard/bit-hold.ts). Its holdExpiresAt is a card default and
         is not shown. */
@@ -191,7 +196,31 @@ export async function getSellerOrdersByStage(stage: OrderStage): Promise<SellerO
     take: 200,
     select: LIST_SELECT,
   });
-  return rows.map(toSummary);
+  const how = await paidWithByOrder(rows.map((r) => r.id));
+  return rows.map((row) => ({ ...toSummary(row), paidWith: how.get(row.id) ?? null }));
+}
+
+/**
+ * How each order was paid, read out of Pelecard's reply by two JSON paths
+ * rather than by loading rawResponse — it runs to several kilobytes a row,
+ * and this list loads two hundred of them.
+ */
+async function paidWithByOrder(orderIds: string[]): Promise<Map<string, PaidWith>> {
+  const out = new Map<string, PaidWith>();
+  if (orderIds.length === 0) return out;
+  const rows = await db.$queryRaw<{ orderId: string; source: string | null; description: string | null }[]>`
+    select "orderId",
+           "rawResponse"->'details'->>'RecordSource' as source,
+           "rawResponse"->'details'->>'RecordSourceDescription' as description
+      from "Payment"
+     where "orderId" = any(${orderIds})
+       and provider = 'PELECARD'
+       and status in ('AUTHORIZED', 'CAPTURED')`;
+  for (const r of rows) {
+    const how = paidWith(r.source, r.description);
+    if (how) out.set(r.orderId, how);
+  }
+  return out;
 }
 
 export async function getSellerStageCounts(): Promise<Record<OrderStage, number>> {
@@ -260,6 +289,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
 
   return {
     ...summary,
+    paidWith: live?.provider === "PELECARD" ? paidWithFrom(live.rawResponse) : null,
     customerEmail: row.user?.email ?? row.guestEmail ?? null,
     attribution: attributionFromJson(row.attribution),
     customerNote: row.customerNote,
@@ -285,6 +315,7 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
           cardExpiry: live.cardExpiry,
           approvalNo: live.approvalNo,
           clearerName: live.clearerName,
+          authorizedAt: live.authorizedAt,
           bit: live.provider === "PELECARD" ? bitHoldFrom(live.rawResponse) : null,
         }
       : null,
@@ -469,6 +500,7 @@ function toSummary(row: ListRow): SellerOrderSummary {
        one that is always allowed. */
     canBin: removalRule(row).canBin,
     canPurge: removalRule(row).canPurge,
+    paidWith: null,
   };
 }
 

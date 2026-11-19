@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Truck, Store, AlertTriangle, ChevronLeft } from "lucide-react";
 import type { SellerOrderSummary } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
+import { PAID_WITH_LABELS } from "@/lib/pelecard/bit-hold";
 import { ORDER_STATUS_LABELS } from "@/lib/enums";
 import { formatPrice, formatDateTime } from "@/lib/format";
 
@@ -52,6 +53,20 @@ export function SellerOrderRow({ order }: { order: SellerOrderSummary }) {
           <span>{order.itemCount} פריטים</span>
           <span>·</span>
           <span>{ORDER_STATUS_LABELS[order.status]}</span>
+          {order.paidWith && (
+            <>
+              <span>·</span>
+              <span
+                className={
+                  order.paidWith === "BIT"
+                    ? "rounded-full bg-sky-100 px-2 py-0.5 font-bold text-sky-900 dark:bg-sky-950 dark:text-sky-100"
+                    : ""
+                }
+              >
+                {PAID_WITH_LABELS[order.paidWith]}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
