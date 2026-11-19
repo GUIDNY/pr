@@ -13,7 +13,8 @@
 
 import { readFileSync } from "fs";
 import { join } from "path";
-import { bitHoldFrom, bitHoldMessage } from "../src/lib/pelecard/bit-hold";
+import { bitHoldFrom, bitHoldMessage, daysSince, paidWith, paidWithFrom } from "../src/lib/pelecard/bit-hold";
+import { readPelecardStatus } from "../src/lib/pelecard/transaction-status";
 
 let failures = 0;
 function check(label: string, ok: boolean) {
@@ -79,6 +80,39 @@ check("bit never reaches completeDebitByUid", /hold\.provider === "DEMO" \|\| bi
 const page = readFileSync(join(root, "src/components/admin/seller-order-page.tsx"), "utf8");
 check("the order page shows the bit explanation", page.includes("תשלום ביט – יש להשלים בממשק פלאקארד"));
 check("the order page does not show the card expiry for bit", page.includes("!bitHold && order.paid?.holdExpiresAt"));
+
+console.log("\nThe badge: how the customer paid (codes from our own rows)");
+check("104 / Gama Bit → bit", paidWith("104", "Gama Bit") === "BIT");
+check("PR-577373's whole reply → bit", paidWithFrom(pr577373) === "BIT");
+check("103 / Apple Pay → Apple Pay", paidWith("103", "Apple Pay") === "APPLE_PAY");
+check("4 with no description → card", paidWith("4", "") === "CARD");
+check("101 / Regular → card", paidWith("101", "Regular") === "CARD");
+check("Google Pay by its description", paidWith(null, "Google Pay") === "GOOGLE_PAY");
+check("an unknown code shows no badge", paidWith("999", "") === null);
+check("nothing at all shows no badge", paidWithFrom(null) === null);
+
+console.log("\nThe status check reads, and only reads");
+const gamaAnswer = readPelecardStatus({
+  StatusCode: "000",
+  ErrorMessage: "bit operation success",
+  ResultData: { TransactionUpdateTime: "09/11/2026 19:27:38" },
+  GamaData: { GamaLastStatus: "approved_temporary" },
+});
+check("approved_temporary reads as a temporary approval, not charged", gamaAnswer.summary === "ביט: אישור זמני – עוד לא נגבה");
+check("…with Pelecard's update time", gamaAnswer.updatedAt === "09/11/2026 19:27:38");
+check("an unknown Gama status is shown as it came", readPelecardStatus({ GamaData: { GamaLastStatus: "xyz" } }).summary === "ביט: xyz");
+check("a card answer shows Pelecard's own code", readPelecardStatus({ StatusCode: "000", ErrorMessage: "ok" }).summary === "פלאקארד: 000 – ok");
+check("an empty answer claims nothing", readPelecardStatus({}).summary === null);
+check("9 November to 19 November is 10 days", daysSince(new Date("2026-11-09T17:27:40Z"), new Date("2026-11-19T18:00:00Z")) === 10);
+
+const statusAction = readFileSync(join(root, "src/actions/pelecard-status.ts"), "utf8");
+check("the status button calls GetTransaction", statusAction.includes("getTransaction("));
+check(
+  "…and nothing that moves money",
+  !/completeDebitByUid|DebitRegularType|DeleteIshur|Reversal|DeleteTran|payment\.update|order\.update/.test(statusAction),
+);
+check("the list shows the badge", readFileSync(join(root, "src/components/admin/seller-order-row.tsx"), "utf8").includes("PAID_WITH_LABELS"));
+check("a bit order says to ask Pelecard", page.includes("יש לברר מול פלאקארד את מצב העסקה"));
 
 console.log(failures ? `\n${failures} failed.` : "\nA bit payment is not sent to the card capture call.");
 process.exit(failures ? 1 : 0);

@@ -29,6 +29,8 @@ import {
 } from "@/actions/seller-orders";
 import { COURIERS } from "@/lib/couriers";
 import { describeTouch } from "@/lib/attribution";
+import { PAID_WITH_LABELS, daysSince } from "@/lib/pelecard/bit-hold";
+import { checkPelecardStatusAction, type StatusResult } from "@/actions/pelecard-status";
 
 /**
  * One order, everything about it, and the one action it is actually waiting
@@ -65,6 +67,10 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
      one-click button, because it is the one action on this page that
      invents money — the panel is the second look. */
   const [manualOpen, setManualOpen] = useState(false);
+  /* "בדוק סטטוס בפלאקארד": a read-only GetTransaction. Its own pending flag,
+     so a slow answer from Pelecard does not grey out the order's buttons. */
+  const [statusPending, startStatus] = useTransition();
+  const [pelecardStatus, setPelecardStatus] = useState<StatusResult | null>(null);
   const [manualMethod, setManualMethod] = useState<ManualPaymentMethod>("PHONE_CARD");
   const [manualRef, setManualRef] = useState("");
 
@@ -109,6 +115,15 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
             <span className={`size-3 rounded-full ${SIGNAL_DOT[signal.colour]}`} aria-hidden="true" />
             {signal.label}
           </span>
+          {order.paidWith && (
+            <span
+              className={`rounded-full px-3 py-1.5 text-sm font-black ${
+                order.paidWith === "BIT" ? "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-100" : "bg-muted text-foreground"
+              }`}
+            >
+              {PAID_WITH_LABELS[order.paidWith]}
+            </span>
+          )}
           <div>
             <div className="text-xl font-black">{order.orderNumber}</div>
             <div className="text-muted-foreground text-sm">הוזמן {formatDateTime(order.createdAt)}</div>
@@ -133,9 +148,12 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               </p>
             )}
             <p>
-              הלקוח אישר בביט ב-{formatDateTime(order.createdAt)}. כמה זמן ביט מחזיקה אישור זמני לא מופיע בתשובה של
-              פלאקארד, ולכן אין כאן תאריך תפוגה. אם בממשק פלאקארד העסקה כבר לא ניתנת להשלמה, צריך לבקש מהלקוח לשלם מחדש.
+              הלקוח אישר בביט ב-{formatDateTime(order.paid?.authorizedAt ?? order.createdAt)} (לפני{" "}
+              {daysSince(new Date(order.paid?.authorizedAt ?? order.createdAt))} ימים). כמה זמן ביט מחזיקה אישור זמני לא
+              מופיע בתשובה של פלאקארד, ולכן אין כאן תאריך תפוגה.
             </p>
+            <p className="font-bold">יש לברר מול פלאקארד את מצב העסקה לפני שמשלימים או שולחים את הסחורה.</p>
+            <p>אם בפלאקארד העסקה כבר לא ניתנת להשלמה, צריך לבקש מהלקוח לשלם מחדש.</p>
             <p>אחרי שהשלמת את העסקה בפלאקארד, לחץ על „השלמתי בפלאקארד – אשר הזמנה”.</p>
           </div>
         )}
@@ -144,6 +162,46 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
           <p className="bg-warning/10 text-warning-foreground mt-3 rounded-lg px-3 py-2 text-sm font-medium">
             התפיסה תקפה עד {formatDateTime(order.paid.holdExpiresAt)}. אחרי זה הכסף משתחרר ללקוח וצריך לגבות מחדש.
           </p>
+        )}
+
+        {order.paymentMethod === "PELECARD" && order.paid && (
+          <div className="mt-3 flex flex-col gap-2">
+            <button
+              type="button"
+              disabled={statusPending}
+              onClick={() =>
+                startStatus(async () => {
+                  try {
+                    setPelecardStatus(await checkPelecardStatusAction(order.orderNumber));
+                  } catch {
+                    setPelecardStatus({ ok: false, error: "אין הרשאה לבדוק מול פלאקארד" });
+                  }
+                })
+              }
+              className="border-border hover:bg-muted flex w-full items-center justify-center gap-1.5 rounded-lg border px-4 py-2.5 text-sm font-bold disabled:opacity-60 sm:w-fit"
+            >
+              {statusPending ? <Loader2 className="size-4 animate-spin" /> : <Eye className="size-4" />}
+              בדוק סטטוס בפלאקארד
+            </button>
+            {pelecardStatus && !pelecardStatus.ok && (
+              <p className="bg-destructive/10 text-destructive rounded-lg px-3 py-2 text-sm font-medium">{pelecardStatus.error}</p>
+            )}
+            {pelecardStatus?.ok && (
+              <div className="bg-muted rounded-lg px-3 py-2 text-sm">
+                <p className="font-bold">{pelecardStatus.status.summary ?? "פלאקארד ענו, אבל בלי סטטוס שאפשר לקרוא – ראו את התשובה המלאה."}</p>
+                {pelecardStatus.status.updatedAt && (
+                  <p className="text-muted-foreground">עודכן אצלם: {pelecardStatus.status.updatedAt}</p>
+                )}
+                <p className="text-muted-foreground text-xs">בדיקה בלבד – שום דבר לא נגבה, בוטל או שוחרר.</p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-xs">התשובה המלאה</summary>
+                  <pre dir="ltr" className="mt-1 max-h-64 overflow-auto text-[11px] whitespace-pre-wrap">
+                    {JSON.stringify(pelecardStatus.status.raw, null, 2)}
+                  </pre>
+                </details>
+              </div>
+            )}
+          </div>
         )}
 
         {error && (

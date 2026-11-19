@@ -72,3 +72,45 @@ export function bitHoldFrom(rawResponse: unknown): BitHold | null {
 export function bitHoldMessage(hold: BitHold): string {
   return `תשלום ביט – יש להשלים בממשק פלאקארד${hold.transactionNumber ? ` (עסקה ${hold.transactionNumber})` : ""}. אי אפשר לגבות ביט מהכפתור הזה.`;
 }
+
+/**
+ * How the customer paid, as Pelecard recorded it — so the back office can see
+ * "שולם בביט" at a glance (the owner's request, 19 November).
+ *
+ * The codes are the ones in our own Payment rows, not a published list:
+ * 4 and 101 ("Regular") are card payments, 103 is Apple Pay, 104 is bit.
+ * Google Pay has never been paid with here, so it is recognised by its
+ * description only. Anything else returns null and nothing is shown —
+ * a missing badge is better than a wrong one.
+ */
+export type PaidWith = "BIT" | "APPLE_PAY" | "GOOGLE_PAY" | "CARD";
+
+export const PAID_WITH_LABELS: Record<PaidWith, string> = {
+  BIT: "שולם בביט",
+  APPLE_PAY: "Apple Pay",
+  GOOGLE_PAY: "Google Pay",
+  CARD: "כרטיס אשראי",
+};
+
+export function paidWith(recordSource: string | null | undefined, description: string | null | undefined): PaidWith | null {
+  const source = (recordSource ?? "").trim();
+  const text = (description ?? "").trim().toLowerCase();
+  if (source === "104" || /\bbit\b/.test(text)) return "BIT";
+  if (source === "103" || text.includes("apple")) return "APPLE_PAY";
+  if (text.includes("google")) return "GOOGLE_PAY";
+  if (source === "4" || source === "101" || text === "regular") return "CARD";
+  return null;
+}
+
+export function paidWithFrom(rawResponse: unknown): PaidWith | null {
+  const raw = asObject(rawResponse);
+  if (!raw) return null;
+  if (bitHoldFrom(raw)) return "BIT";
+  const details = asObject(raw.details) ?? asObject(asObject(raw.feedback)?.ResultData) ?? {};
+  return paidWith(str(details.RecordSource), str(details.RecordSourceDescription));
+}
+
+/** Whole days since the customer approved, for the "ask Pelecard" line. */
+export function daysSince(at: Date, now = new Date()): number {
+  return Math.max(0, Math.floor((now.getTime() - at.getTime()) / 86_400_000));
+}
