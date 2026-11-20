@@ -400,6 +400,34 @@ function blackNovemberRank(p: { title: string; price: number; brand: { name: str
   return [sizeRank, brandRank, p.price];
 }
 
+/**
+ * Black November televisions close in size to the one on the page, for the
+ * row under a television's buy block. Only the supplier-marked sets, so the
+ * row never offers something the campaign does not include; nearest size
+ * first, then the campaign's own ranking. Nothing is shown for a set whose
+ * title states no size — "similar" would be a guess.
+ */
+export async function getBlackNovemberTvsNear(title: string, excludeId: string, take = 6) {
+  const inches = televisionFacts(title).inches;
+  if (inches === null) return [];
+  const all = await db.product.findMany({
+    where: { ...BLACK_NOVEMBER_WHERE, id: { not: excludeId }, category: { slug: "tvs" } },
+    select: cardSelect,
+    take: 300,
+  });
+  return all
+    .map((p) => ({ p, size: televisionFacts(p.title).inches, rank: blackNovemberRank(p) }))
+    .filter((r) => r.size !== null && Math.abs(r.size - inches) <= 10)
+    .sort(
+      (a, b) =>
+        Math.abs((a.size as number) - inches) - Math.abs((b.size as number) - inches) ||
+        a.rank[1] - b.rank[1] ||
+        a.p.price - b.p.price,
+    )
+    .slice(0, take)
+    .map((r) => ({ ...mapProductToCard(r.p), compareAtPrice: null }));
+}
+
 /* The whole campaign for the shelf's line ("161 דגמים · מ־690 ₪") when the
    row itself shows only the first 24. */
 export async function getBlackNovemberSummary() {
