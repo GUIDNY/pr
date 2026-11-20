@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { shareMetadata } from "@/lib/seo/share-metadata";
+import { productSearchSnippet } from "@/lib/seo/product-seo";
 import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { ProductPageView } from "@/components/product/product-page-view";
 import {
@@ -43,9 +44,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   // Always the product's own slug, never the requested one: a legacy
   // address renders nothing here (the page redirects before this matters),
   // and the live page must never point a canonical at a URL that 301s.
+  const snippet = productSearchSnippet(product);
   return shareMetadata({
-    title: product.title,
-    description: product.shortDescription ?? product.description ?? undefined,
+    title: snippet.title,
+    description: snippet.description,
     path: `/product/${product.slug}`,
     image: product.images[0]?.url,
   });
