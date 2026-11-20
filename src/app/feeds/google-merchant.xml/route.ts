@@ -3,6 +3,7 @@ import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import { renderGoogleMerchantFeed, BENCHMARK_MAX_AGE_DAYS } from "@/lib/feeds/google-merchant";
 import { specRowsFor, structuredSpecs } from "@/lib/product-specs";
 import { TEST_PRODUCT_SKUS } from "@/lib/test-products";
+import { isBlackNovemberRow } from "@/lib/campaigns/black-november";
 
 // Served from /feeds/, not /api/, on purpose: robots.ts disallows /api for
 // every crawler, and Merchant Center's fetcher honours robots.txt — a feed
@@ -45,6 +46,8 @@ export async function GET() {
       // For product_detail — the same rows the product page's spec table
       // and JSON-LD are built from. See lib/product-specs.ts.
       extraSpecsRaw: true,
+      // The price-list row snapshot, for the Black Friday mark (custom_label_3).
+      stockBreakdown: true,
       attributeValues: {
         select: { value: true, attribute: { select: { label: true, unit: true, sortOrder: true } } },
       },
@@ -66,6 +69,7 @@ export async function GET() {
     specs: structuredSpecs(specRowsFor(p).all),
     benchmarkPrice: benchmarkBySku.get(p.sku) ?? null,
     zapMinPrice: zapMinBySku.get(p.sku) ?? null,
+    blackNovember: isBlackNovemberRow(p.stockBreakdown),
   }));
 
   return new Response(renderGoogleMerchantFeed(rows), {
