@@ -4,23 +4,27 @@ let fail = 0;
 function eq(name: string, got: unknown, want: unknown) {
   if (got !== want) { fail++; console.error(`FAIL ${name}: ${JSON.stringify(got)} !== ${JSON.stringify(want)}`); }
 }
-const base = { title: "טלוויזיה Samsung 65S90H 65 אינץ' OLED", model: "QE65S90HAEXXH", seoTitle: null as string | null, seoDesc: null as string | null, shortDescription: "קצר", description: "<p>ארוך</p>" };
-// No seoTitle → the plain title and short description.
-eq("no seo", productSearchSnippet(base).title, base.title);
-eq("no seo desc", productSearchSnippet(base).description, "קצר");
-// seoTitle naming the model → used, with its description.
-const ok = { ...base, model: "65S90H", seoTitle: "Samsung 65S90H טלוויזיית OLED 65 אינץ'", seoDesc: "תיאור" };
-eq("seo used", productSearchSnippet(ok).title, ok.seoTitle);
-eq("seo desc used", productSearchSnippet(ok).description, "תיאור");
-// Model written with spaces or dots on one side only still matches.
-eq("squash", productSearchSnippet({ ...base, model: "KWL91.224.SI", seoTitle: "Kenwood KWL91224SI מיקסר" }).title, "Kenwood KWL91224SI מיקסר");
-// seoTitle missing the model → stale, fall back entirely.
-const stale = { ...base, model: "LG77C6", seoTitle: "Samsung 65U8000H", seoDesc: "Samsung" };
-eq("stale title", productSearchSnippet(stale).title, base.title);
-eq("stale desc", productSearchSnippet(stale).description, "קצר");
-// No model at all → seoTitle trusted.
-eq("no model", productSearchSnippet({ ...base, model: null, seoTitle: "כותרת" }).title, "כותרת");
-// Empty seoDesc → short description.
-eq("empty seoDesc", productSearchSnippet({ ...ok, seoDesc: "  " }).description, "קצר");
+const p = (title: string, seoTitle: string | null, seoDesc: string | null = "seo") =>
+  productSearchSnippet({ title, seoTitle, seoDesc, shortDescription: "קצר", description: "<p>ארוך</p>" });
+
+// No seoTitle → plain title and short description.
+eq("no seo", p("טלוויזיה Samsung 65S90H", null).title, "טלוויזיה Samsung 65S90H");
+eq("no seo desc", p("טלוויזיה Samsung 65S90H", null).description, "קצר");
+// The founding case: title code, search title leads with it.
+eq("model first", p("טלוויזיה Samsung 65S90H 65 אינץ' OLED", "Samsung 65S90H טלוויזיית OLED 65 אינץ'").title, "Samsung 65S90H טלוויזיית OLED 65 אינץ'");
+eq("desc travels", p("טלוויזיה Samsung 65S90H", "Samsung 65S90H").description, "seo");
+// Dots and spaces don't matter.
+eq("dots", p("מיקסר Kenwood KWL91.224.SI", "Kenwood KWL91224SI מיקסר").title, "Kenwood KWL91224SI מיקסר");
+// Shortened code (colour suffix dropped) still counts.
+eq("prefix", p("קומקום SMEG KLF03RDEU 1.7 ליטר", "קומקום SMEG KLF03 1.7 ליטר").title, "קומקום SMEG KLF03 1.7 ליטר");
+// Units are not model codes: 2400W in both must not make a stale title pass.
+eq("unit", p("קומקום SMEG KLF03RDEU 2400W", "קומקום Bosch TWK3A011 2400W").title, "קומקום SMEG KLF03RDEU 2400W");
+// Stale: search title names another product → plain title and description.
+eq("stale", p("טלוויזיה LG OLED77C6 77 אינץ'", "Samsung 65U8000H", "Samsung").title, "טלוויזיה LG OLED77C6 77 אינץ'");
+eq("stale desc", p("טלוויזיה LG OLED77C6 77 אינץ'", "Samsung 65U8000H", "Samsung").description, "קצר");
+// Title with no code at all → search title trusted.
+eq("no code", p("סט סכו\"ם 24 חלקים שחור", "סט סכו\"ם לשישה סועדים").title, "סט סכו\"ם לשישה סועדים");
+// Blank seoDesc → short description.
+eq("blank desc", p("Samsung 65S90H", "Samsung 65S90H", "  ").description, "קצר");
 if (fail) process.exit(1);
 console.log("check-product-seo: all passed");
