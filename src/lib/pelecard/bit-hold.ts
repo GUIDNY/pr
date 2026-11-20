@@ -1,7 +1,7 @@
 /**
  * A held payment that was made with bit, not with a card.
  *
- * PR-577373, 9 November: the customer paid 1,079 ₪ with bit inside
+ * A bit order from 9 November: the customer paid with bit inside
  * Pelecard's form (RecordSource 104, "Gama Bit", GamaLastStatus
  * "approved_temporary"). On 18 November the owner pressed "אשר תשלום וגבה"
  * and Pelecard answered 510 — Record not found.

@@ -1,7 +1,7 @@
 /**
  * A bit payment is not sent to the card capture call.
  *
- * PR-577373 (9 November, 1,079 ₪, bit through Pelecard): "אשר תשלום וגבה"
+ * A bit order from 9 November (bit through Pelecard): "אשר תשלום וגבה"
  * sent it to /services/CompleteDebitByUid and Pelecard answered 510 — Record
  * not found. That call completes a card J5 hold; bit has no card hold to
  * complete. The rawResponse shapes below are cut down from real rows.
@@ -22,32 +22,32 @@ function check(label: string, ok: boolean) {
   if (!ok) failures++;
 }
 
-const pr577373 = {
+const bitOrder = {
   details: {
     RecordSource: "104",
     RecordSourceDescription: "Gama Bit",
     CreditCardNumber: "***GAMA***",
     Token: "0123456789",
-    TransactionPelecardId: "3184961557",
-    DebitTotal: "107900",
+    TransactionPelecardId: "1234567890",
+    DebitTotal: "100000",
     JParam: "5",
   },
   rawBody: JSON.stringify({
     StatusCode: "000",
     ErrorMessage: "bit operation success",
-    ResultData: { TransactionPelecardId: "3184961557", RecordSource: "104" },
+    ResultData: { TransactionPelecardId: "1234567890", RecordSource: "104" },
     GamaData: { GamaPaymentNetwork: "bit", GamaLastStatus: "approved_temporary" },
   }),
-  feedback: { PelecardTransactionNumber: "3184961557", PelecardStatusCode: "000" },
+  feedback: { PelecardTransactionNumber: "1234567890", PelecardStatusCode: "000" },
   validation: 1,
 };
 
 console.log("\nThe founding case");
-const bit = bitHoldFrom(pr577373);
-check("PR-577373 is recognised as bit", bit !== null);
-check("…with its Pelecard transaction number", bit?.transactionNumber === "3184961557");
+const bit = bitHoldFrom(bitOrder);
+check("the 9 November bit order is recognised as bit", bit !== null);
+check("…with its Pelecard transaction number", bit?.transactionNumber === "1234567890");
 check("…and Gama's status", bit?.gamaStatus === "approved_temporary");
-check("the message names the transaction", !!bit && bitHoldMessage(bit).includes("3184961557"));
+check("the message names the transaction", !!bit && bitHoldMessage(bit).includes("1234567890"));
 check("the message says to finish it in Pelecard", !!bit && bitHoldMessage(bit).includes("יש להשלים בממשק פלאקארד"));
 
 console.log("\nOnly one of the signals is enough");
@@ -57,7 +57,7 @@ check(
   "Gama's network alone",
   bitHoldFrom({ details: {}, rawBody: JSON.stringify({ GamaData: { GamaPaymentNetwork: "bit" } }) }) !== null,
 );
-check("a rawResponse stored as a string", bitHoldFrom(JSON.stringify(pr577373)) !== null);
+check("a rawResponse stored as a string", bitHoldFrom(JSON.stringify(bitOrder)) !== null);
 
 console.log("\nWhat is not bit, and must still go to the card capture");
 check("a regular card", bitHoldFrom({ details: { RecordSource: "101", RecordSourceDescription: "Regular" } }) === null);
@@ -83,7 +83,7 @@ check("the order page does not show the card expiry for bit", page.includes("!bi
 
 console.log("\nThe badge: how the customer paid (codes from our own rows)");
 check("104 / Gama Bit → bit", paidWith("104", "Gama Bit") === "BIT");
-check("PR-577373's whole reply → bit", paidWithFrom(pr577373) === "BIT");
+check("the bit order's whole reply → bit", paidWithFrom(bitOrder) === "BIT");
 check("103 / Apple Pay → Apple Pay", paidWith("103", "Apple Pay") === "APPLE_PAY");
 check("4 with no description → card", paidWith("4", "") === "CARD");
 check("101 / Regular → card", paidWith("101", "Regular") === "CARD");

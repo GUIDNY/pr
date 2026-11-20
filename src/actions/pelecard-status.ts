@@ -11,7 +11,7 @@ import { readPelecardStatus, type PelecardStatus } from "@/lib/pelecard/transact
  * "בדוק סטטוס בפלאקארד" — asks Pelecard what it holds for this order's
  * payment, and shows it. Read only.
  *
- * The owner asked for it on 19 November after PR-577373, a bit payment from
+ * The owner asked for it on 19 November after a bit payment from
  * 9 November whose temporary approval nobody could date. GetTransaction is a
  * lookup: it charges, completes, cancels and releases nothing. Like the
  * reconcile action beside it, IT REPORTS AND IT DOES NOT SETTLE — the answer
