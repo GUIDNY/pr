@@ -88,7 +88,7 @@ export async function approveOrderAction(
        the reference string, so nothing typed into a form can route a real
        payment down this branch. */
     /* bit is not a card hold and CompleteDebitByUid cannot complete it —
-       PR-577373 came back 510 "Record not found" (lib/pelecard/bit-hold.ts).
+       a bit order from 9 November came back 510 "Record not found" (lib/pelecard/bit-hold.ts).
        Nothing is sent to Pelecard for it. The owner completes it in
        Pelecard's own interface and then presses the second button, which
        only records here that he did. */
