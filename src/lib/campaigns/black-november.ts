@@ -19,8 +19,11 @@
 
 /* Every spelling the mark could arrive in. Matched case-insensitively
    against the row snapshot. Deliberately not "BF": two letters turn up
-   inside model codes. */
-export const BLACK_NOVEMBER_ROW_MARKS = ["BLACK FRIDAY", "בלאק פריידי", "בלאק פרייד"] as const;
+   inside model codes, and not a bare "BLACK" either: it is a colour in
+   half the model strings. On 20.11 the supplier started marking rows
+   "מבצע BLACK" in the המלצה column, which none of the old spellings
+   matched, so ~170 live products never reached the shelf. */
+export const BLACK_NOVEMBER_ROW_MARKS = ["BLACK FRIDAY", "בלאק פריידי", "בלאק פרייד", "מבצע BLACK"] as const;
 
 export const BLACK_NOVEMBER_LABEL = "מחיר בלאק נובמבר";
 export const BLACK_NOVEMBER_LIMITED = "לזמן מוגבל";

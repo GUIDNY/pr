@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 export default async function BlackNovemberPage() {
-  const products = await getBlackNovemberProducts(60);
+  const products = await getBlackNovemberProducts(200);
 
   if (products.length === 0) {
     return (
