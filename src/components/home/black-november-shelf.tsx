@@ -16,6 +16,7 @@ import {
 } from "@/lib/campaigns/black-november";
 import { formatInstallment, formatPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { FREE_DELIVERY_THRESHOLD } from "@/lib/delivery";
 import { StickyTabsBar } from "@/components/product/sticky-tabs-bar";
 
 /**
@@ -51,16 +52,32 @@ export function BlackNovemberShelf({
           const facts = televisionFacts(product.title);
           return { product, ...facts, bucket: tvSizeBucket(facts.inches) };
         })
-        /* Smallest first, cheapest first within a size; a product whose title
-           states no size goes last rather than being placed by a guess. */
-        .sort((a, b) => (a.inches ?? 999) - (b.inches ?? 999) || a.product.price - b.product.price),
+        /* The order the query gave — the campaign's own ranking
+           (getBlackNovemberProducts: the living-room sizes from the brands
+           people search for first). This used to re-sort smallest first,
+           which undid that ranking and opened the campaign on a 27" monitor
+           and the 32" sets. */
+        .map((item, rank) => ({ ...item, rank })),
     [products],
   );
 
   /* Only the sizes that are actually on the shelf. */
   const chips = TV_SIZE_BUCKETS.filter((b) => items.some((i) => i.bucket === b.key));
   const [size, setSize] = useState<TvSizeBucketKey | null>(null);
-  const matching = size ? items.filter((i) => i.bucket === size) : items;
+  /* Brands and sorting on the campaign page only — the homepage shows four. */
+  const full = layout === "grid" && !limit;
+  const brands = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const i of items) if (i.product.brandName) counts.set(i.product.brandName, (counts.get(i.product.brandName) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name);
+  }, [items]);
+  const [brand, setBrand] = useState<string | null>(null);
+  const [sort, setSort] = useState<SortKey>("recommended");
+
+  const matching = items
+    .filter((i) => (size ? i.bucket === size : true))
+    .filter((i) => (brand ? i.product.brandName === brand : true))
+    .sort(SORTS[sort].compare);
   const shown = limit ? matching.slice(0, limit) : matching;
 
   return (
@@ -90,6 +107,46 @@ export function BlackNovemberShelf({
              tabs use). The homepage rail is one row high and needs nothing. */
           return layout === "grid" && !limit ? <StickyTabsBar>{row}</StickyTabsBar> : row;
         })()}
+
+      {full && (brands.length > 1 || items.length > 8) && (
+        <div className="flex flex-col gap-2 pb-3">
+          {brands.length > 1 && (
+            <div
+              role="group"
+              aria-label="סינון לפי מותג"
+              className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:px-0"
+            >
+              <Chip active={brand === null} onClick={() => setBrand(null)}>
+                כל המותגים
+              </Chip>
+              {brands.map((name) => (
+                <Chip key={name} active={brand === name} onClick={() => setBrand(brand === name ? null : name)}>
+                  {name}
+                </Chip>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-muted-foreground" aria-live="polite">
+              {matching.length.toLocaleString("he-IL")} דגמים
+            </span>
+            <label className="flex items-center gap-2">
+              <span className="text-muted-foreground">מיון:</span>
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as SortKey)}
+                className="h-11 border border-black/20 bg-white px-2 text-sm font-semibold sm:h-9"
+              >
+                {(Object.keys(SORTS) as SortKey[]).map((key) => (
+                  <option key={key} value={key}>
+                    {SORTS[key].label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+      )}
 
       <div
         className={cn(
@@ -134,6 +191,16 @@ export function BlackNovemberShelf({
     </>
   );
 }
+
+type ShelfItem = { product: ProductCardData; inches: number | null; rank: number };
+type SortKey = "recommended" | "priceAsc" | "priceDesc" | "sizeDesc";
+const SORTS: Record<SortKey, { label: string; compare: (a: ShelfItem, b: ShelfItem) => number }> = {
+  recommended: { label: "מומלץ", compare: (a, b) => a.rank - b.rank },
+  priceAsc: { label: "מחיר: מהנמוך לגבוה", compare: (a, b) => a.product.price - b.product.price || a.rank - b.rank },
+  priceDesc: { label: "מחיר: מהגבוה לנמוך", compare: (a, b) => b.product.price - a.product.price || a.rank - b.rank },
+  /* A product whose title states no size goes last, never placed by a guess. */
+  sizeDesc: { label: "מסך: מהגדול לקטן", compare: (a, b) => (b.inches ?? -1) - (a.inches ?? -1) || a.rank - b.rank },
+};
 
 function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -270,6 +337,9 @@ function Card({
           {/* "לזמן מוגבל" is said once, in the section's heading, rather than
               on every card where it broke onto a second line at 375. */}
           {BLACK_NOVEMBER_LABEL}
+          {/* From the shop's own threshold (lib/delivery), the same constant
+              the top strip reads — never typed here. */}
+          {product.price >= FREE_DELIVERY_THRESHOLD ? " · משלוח חינם" : ""}
           {product.installmentMonths ? ` · ${formatInstallment(product.price, product.installmentMonths)}` : ""}
         </p>
       </div>
