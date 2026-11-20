@@ -61,6 +61,7 @@ import { PDP_TABS_ID, pdpTabTriggerId } from "@/lib/pdp-tabs";
 import {
   getProductBySlug,
   getRelatedProducts,
+  getBlackNovemberTvsNear,
   SIMILAR_PRICE_BAND,
   getCategoryAttributesFor,
   getProductsByBrandSlug,
@@ -176,10 +177,13 @@ export async function ProductPageView({
   const offSiteForVisitors = !product.isPublished || product.images.length === 0;
   if (offSiteForVisitors && !isAdminViewer) notFound();
 
-  const [related, brandProductsResult, colorVariants] = await Promise.all([
+  const [related, brandProductsResult, colorVariants, blackNovemberNear] = await Promise.all([
     getRelatedProducts(product.categoryId, product.id, 6, product.price),
     getProductsByBrandSlug(product.brand.slug, { pageSize: 8 }),
     getColorVariants(product),
+    /* A television's page offers the campaign's sets of a similar size
+       (lib/campaigns/black-november.ts) — the campaign is televisions only. */
+    product.category.slug === "tvs" ? getBlackNovemberTvsNear(product.title, product.id) : Promise.resolve([]),
   ]);
   const brandProducts = brandProductsResult.products.filter((p) => p.id !== product.id);
   /* The rail says "same price range" only when every card in it is: a short
@@ -861,6 +865,12 @@ export async function ProductPageView({
       {/* A sold-out product has nothing else to offer above the fold, so there
           the rail is up here on every screen: the next thing after "אזל
           מהמלאי" and the phone number is what can be bought instead. */}
+      {/* Before the similar models: Black November sets close in size, on a
+          television's page. Two or more, or nothing — one card is not a row. */}
+      {blackNovemberNear.length >= 2 && (
+        <ProductRail title="טלוויזיות בגודל דומה במחיר בלאק נובמבר" products={blackNovemberNear} />
+      )}
+
       <div className={isSoldOut ? "max-md:hidden" : "md:hidden"}>
         <ProductRail title={relatedTitle} products={related} />
       </div>
