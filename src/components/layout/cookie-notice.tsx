@@ -108,14 +108,14 @@ export function CookieNotice() {
   useEffect(() => {
     if (!open || shownLogged.current) return;
     shownLogged.current = true;
-    trackVisit("consent_shown", { variant: BANNER_VARIANT });
+    trackVisit("consent_shown", { variant: bannerVariant() });
   }, [open]);
   const accept = useCallback(() => {
-    trackVisit("consent_choice", { choice: "granted", variant: BANNER_VARIANT });
+    trackVisit("consent_choice", { choice: "granted", variant: bannerVariant() });
     setConsent("granted");
   }, []);
   const decline = useCallback(() => {
-    trackVisit("consent_choice", { choice: "denied", variant: BANNER_VARIANT });
+    trackVisit("consent_choice", { choice: "denied", variant: bannerVariant() });
     setConsent("denied");
   }, []);
 
@@ -170,21 +170,30 @@ export function CookieNotice() {
           stays on the phone too: the question, the purpose (measurement
           and advertising), which tools, that it can be changed, the policy
           link, and two equal one-tap buttons. */}
-      <div className="bg-background border-border mx-auto flex max-w-3xl flex-col gap-2 rounded-2xl border p-3 shadow-[0_8px_40px_rgb(0_0_0/0.18)] sm:flex-row sm:items-center sm:gap-5 sm:p-5">
+      {/* Phone (card-3, 20 November, owner's approval): one short line and
+          the two buttons side by side — about 100px instead of ~170, under
+          15% of a 375×812 screen. What makes the consent valid all stays:
+          the purpose (measurement and advertising), which tools, that it
+          can be changed, the policy link, and two buttons of the same size,
+          the same weight and one tap each — refusing is exactly as easy as
+          agreeing, and there is no ✕ that could be read as either. Nothing
+          loads before a choice, as before. From sm up nothing changed. */}
+      <div className="bg-background border-border mx-auto flex max-w-3xl flex-col gap-2 rounded-2xl border p-2.5 shadow-[0_8px_40px_rgb(0_0_0/0.18)] sm:flex-row sm:items-center sm:gap-5 sm:p-5">
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <span className="bg-brand/10 text-brand hidden size-10 shrink-0 items-center justify-center rounded-full sm:flex" aria-hidden="true">
             <Cookie className="size-5" />
           </span>
           <div className="min-w-0">
-            <p className="text-[14px] font-bold leading-snug sm:text-base">מאשרים לנו ללמוד מהגלישה באתר?</p>
-            <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug sm:hidden">
-              לשיפור האתר ולפרסום מותאם. בלי אישור — לא נטען שום כלי מדידה.
+            <p className="text-[13px] font-bold leading-snug sm:text-base">
+              <span className="sm:hidden">מאשרים עוגיות למדידה ולפרסום מותאם?</span>
+              <span className="hidden sm:inline">מאשרים לנו ללמוד מהגלישה באתר?</span>
             </p>
             <p className="text-muted-foreground mt-0.5 hidden text-sm leading-snug sm:block">
               זה עוזר לנו לשפר את האתר ולהציג לכם פרסומות רלוונטיות. בלי אישור — לא נטען שום כלי מדידה.
             </p>
             <p className="text-muted-foreground/80 mt-0.5 text-[11px] leading-snug sm:mt-1 sm:text-xs">
-              Google Analytics, Microsoft Clarity ו־Meta Pixel · אפשר לשנות בכל רגע ·{" "}
+              <span className="sm:hidden">Google Analytics, Clarity, Meta Pixel · לשינוי בכל רגע ·{" "}</span>
+              <span className="hidden sm:inline">Google Analytics, Microsoft Clarity ו־Meta Pixel · אפשר לשנות בכל רגע ·{" "}</span>
               <Link href="/privacy" className="text-brand underline underline-offset-2">
                 מדיניות פרטיות
               </Link>
@@ -192,20 +201,23 @@ export function CookieNotice() {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2 sm:flex-col sm:items-stretch">
+          {/* Same height, width, weight and border on a phone; only the
+              colour of the yes is the brand's. */}
           <button
             type="button"
             onClick={accept}
-            className="bg-brand text-brand-foreground hover:bg-brand-hover flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl px-5 text-[15px] font-bold shadow-sm sm:h-11 transition sm:w-36 sm:flex-none"
+            className="bg-brand text-brand-foreground hover:bg-brand-hover border-brand flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border px-5 text-[14px] font-bold shadow-sm transition sm:h-11 sm:w-36 sm:flex-none sm:text-[15px]"
           >
-            <Check className="size-4" strokeWidth={3} aria-hidden="true" />
+            <Check className="hidden size-4 sm:block" strokeWidth={3} aria-hidden="true" />
             מאשר/ת
           </button>
           <button
             type="button"
             onClick={decline}
-            className="bg-muted text-foreground hover:bg-muted/70 border-border flex h-10 flex-1 items-center justify-center rounded-xl border px-5 text-[15px] font-semibold sm:h-11 transition sm:w-36 sm:flex-none"
+            className="bg-foreground text-background hover:bg-foreground/85 border-foreground flex h-9 flex-1 items-center justify-center rounded-xl border px-5 text-[14px] font-bold transition sm:bg-muted sm:text-foreground sm:hover:bg-muted/70 sm:border-border sm:h-11 sm:w-36 sm:flex-none sm:text-[15px] sm:font-semibold"
           >
-            לא, תודה
+            <span className="sm:hidden">לא מאשר/ת</span>
+            <span className="hidden sm:inline">לא, תודה</span>
           </button>
         </div>
       </div>
@@ -216,4 +228,11 @@ export function CookieNotice() {
 /* Bump when the wording or the look changes, so the log can tell the two
    apart. "strip-1" is everything before 6 November; "card-1" is the card
    until the compact phone layout of 16 November. */
-const BANNER_VARIANT = "card-2";
+
+/* "card-3-phone" is the compact phone layout of 20 November; the desktop
+   card is unchanged and keeps logging "card-2", so the two phone versions
+   can be compared on consent_choice / consent_shown by variant. */
+function bannerVariant(): string {
+  if (typeof window === "undefined") return "card-2";
+  return window.matchMedia("(max-width: 639px)").matches ? "card-3-phone" : "card-2";
+}
