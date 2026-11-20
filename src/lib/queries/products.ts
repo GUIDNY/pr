@@ -11,7 +11,7 @@ import type { ProductCardData } from "@/components/product/product-card";
 import type { StockStatus } from "@/lib/enums";
 import { parseShoppingQuery, splitSearchWords } from "@/lib/shopping-query";
 import { resolveIntent } from "@/lib/alfred/intent";
-import { BLACK_NOVEMBER_ROW_MARKS, TV_SPEC_KEYS, televisionSpecFacts } from "@/lib/campaigns/black-november";
+import { BLACK_NOVEMBER_ROW_MARKS, TV_SPEC_KEYS, televisionFacts, televisionSpecFacts } from "@/lib/campaigns/black-november";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -378,20 +378,45 @@ export async function getCatalogSize() {
  * compareAtPrice is blanked on the way out. The owner asked for a temporary
  * price with no struck-through number, and a product that happens to carry a
  * deal of its own must not bring one into this section by the back door.
- * Cheapest first, so the row opens on the prices most people can reach.
+ * Ordered to sell, not cheapest first (owner, 20.11): cheapest-first opened
+ * the homepage row on a 27" monitor and three 32" sets once the price list
+ * marked ~160 rows. The living-room sizes (55–77") from the brands people
+ * search for lead, then the big screens, then the rest — cheapest first
+ * within each group.
  */
+const BLACK_NOVEMBER_WHERE = {
+  ...PUBLIC_PRODUCT_WHERE,
+  OR: BLACK_NOVEMBER_ROW_MARKS.map((mark) => ({
+    stockBreakdown: { contains: mark, mode: "insensitive" as const },
+  })),
+};
+
+const LEAD_BRANDS = ["samsung", "lg", "sony"];
+
+function blackNovemberRank(p: { title: string; price: number; brand: { name: string } | null }): [number, number, number] {
+  const inches = televisionFacts(p.title).inches;
+  const sizeRank = inches == null ? 4 : inches >= 55 && inches <= 77 ? 0 : inches > 77 ? 1 : inches >= 43 ? 2 : 3;
+  const brandRank = LEAD_BRANDS.includes((p.brand?.name ?? "").toLowerCase()) ? 0 : 1;
+  return [sizeRank, brandRank, p.price];
+}
+
+/* The whole campaign for the shelf's line ("161 דגמים · מ־690 ₪") when the
+   row itself shows only the first 24. */
+export async function getBlackNovemberSummary() {
+  const agg = await db.product.aggregate({ where: BLACK_NOVEMBER_WHERE, _count: true, _min: { price: true } });
+  return { total: agg._count, lowestPrice: agg._min.price ?? undefined };
+}
+
 export async function getBlackNovemberProducts(take = 24) {
-  const rows = await db.product.findMany({
-    where: {
-      ...PUBLIC_PRODUCT_WHERE,
-      OR: BLACK_NOVEMBER_ROW_MARKS.map((mark) => ({
-        stockBreakdown: { contains: mark, mode: "insensitive" as const },
-      })),
-    },
+  const all = await db.product.findMany({
+    where: BLACK_NOVEMBER_WHERE,
     select: cardSelect,
-    take,
+    take: 300,
     orderBy: [{ price: "asc" }, { id: "asc" }],
   });
+  const ranked = all.map((p) => ({ p, k: blackNovemberRank(p) }));
+  ranked.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2]);
+  const rows = ranked.slice(0, take).map((r) => r.p);
   /* The few specs that tell one set from the next (refresh rate, Dolby
      Vision, processor), in one query for the whole shelf. */
   const specRows =

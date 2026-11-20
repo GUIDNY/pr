@@ -35,8 +35,13 @@ export function BlackNovember({
   layout = "rail",
   heading = "h2",
   viewAllHref,
+  total,
+  lowestPrice,
 }: {
   products: ProductCardData[];
+  /* The whole campaign, when the row shows only part of it. */
+  total?: number;
+  lowestPrice?: number;
   /* "rail": one row that scrolls sideways, for the homepage. "grid": all of
      them, for the campaign's own page. */
   layout?: "rail" | "grid";
@@ -46,7 +51,7 @@ export function BlackNovember({
   if (products.length === 0) return null;
 
   const scope = blackNovemberScope(products);
-  const lowest = Math.min(...products.map((p) => p.price));
+  const lowest = lowestPrice ?? Math.min(...products.map((p) => p.price));
   const Heading = heading;
 
   return (
@@ -63,7 +68,7 @@ export function BlackNovember({
             בלאק נובמבר
           </Heading>
           <p className="text-muted-foreground mt-1.5 text-sm font-medium sm:text-base">
-            {scope.subject} · {products.length.toLocaleString("he-IL")} דגמים · מ־{formatPrice(lowest)} · {BLACK_NOVEMBER_LIMITED}
+            {scope.subject} · {(total ?? products.length).toLocaleString("he-IL")} דגמים · מ־{formatPrice(lowest)} · {BLACK_NOVEMBER_LIMITED}
           </p>
         </div>
         {viewAllHref && (

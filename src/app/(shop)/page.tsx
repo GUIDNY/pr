@@ -9,6 +9,7 @@ import { BrandStrip } from "@/components/home/brand-strip";
 import { WhyPrec } from "@/components/home/why-prec";
 import {
   getBlackNovemberProducts,
+  getBlackNovemberSummary,
   getDeals,
   getBestSellers,
   getFeaturedProducts,
@@ -54,6 +55,7 @@ export default async function HomePage() {
     departmentCounts,
     banners,
     blackNovember,
+    blackNovemberSummary,
   ] = await Promise.all([
       getHomepageSection("hero"),
       getDeals(8),
@@ -67,6 +69,7 @@ export default async function HomePage() {
       getDepartmentCounts(),
       getPromoBanners(),
       getBlackNovemberProducts(),
+      getBlackNovemberSummary(),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
@@ -135,7 +138,7 @@ export default async function HomePage() {
             straight under the banner at every width. Renders nothing when
             no row carries the mark, so it ends when the price list says so. */}
         <div className="order-1">
-          <BlackNovember products={blackNovember} viewAllHref="/black-november" />
+          <BlackNovember products={blackNovember} viewAllHref="/black-november" total={blackNovemberSummary.total} lowestPrice={blackNovemberSummary.lowestPrice} />
         </div>
 
         <div className="order-5">
