@@ -654,13 +654,12 @@ export async function ProductPageView({
               {isBlackNovemberRow(product.stockBreakdown) && (
                 <Link
                   href="/black-november"
-                  className="-mt-2 flex w-fit items-center gap-2 text-sm hover:underline"
+                  aria-label={`${BLACK_NOVEMBER_LABEL}, ${BLACK_NOVEMBER_LIMITED} — לכל הדגמים במבצע`}
+                  className="-mt-2 flex w-fit flex-wrap items-center gap-x-2 gap-y-1 text-sm hover:underline"
                 >
-                  <span className="bg-black px-2 py-0.5 text-xs font-black text-white">בלאק נובמבר</span>
-                  <span className="font-medium">
-                    {BLACK_NOVEMBER_LABEL} · {BLACK_NOVEMBER_LIMITED}
-                  </span>
-                  <span className="text-brand inline-flex items-center gap-0.5 font-bold">
+                  <span className="bg-black px-2 py-0.5 text-xs font-black whitespace-nowrap text-white">בלאק נובמבר</span>
+                  <span className="font-medium whitespace-nowrap">מחיר {BLACK_NOVEMBER_LIMITED}</span>
+                  <span className="text-brand inline-flex items-center gap-0.5 font-bold whitespace-nowrap">
                     לכל הדגמים
                     <ArrowLeft className="size-3.5" aria-hidden="true" />
                   </span>
