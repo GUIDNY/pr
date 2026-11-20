@@ -208,6 +208,10 @@ export type FeedProduct = {
   /** The lowest price zap.co.il lists for the model, when a fresh one is on
       record (PriceBenchmark, source "zap"). Used for "competitive" only. */
   zapMinPrice?: number | null;
+  /** The supplier marked the item's price-list row for the Black Friday /
+      Black November offer (lib/campaigns/black-november). Optional, like
+      the benchmarks: a caller without it renders the feed it did before. */
+  blackNovember?: boolean;
 };
 
 // Split from the query on purpose: every rule Google can reject an item over
@@ -462,6 +466,14 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
     lines.push(tag("g:custom_label_1", priceBand(p.price)));
     const competitiveness = priceCompetitiveness(p.price, p.benchmarkPrice, p.zapMinPrice);
     if (competitiveness) lines.push(tag("g:custom_label_2", competitiveness));
+    /* custom_label_3: "black-friday" on an item the supplier marked for the
+       offer AND that is "competitive" above — cheaper than the market by the
+       same rule. Approved 20 November as a zero-cost step: it changes no bid
+       and no budget by itself, it only lets the Shopping campaign and its
+       reports single these items out. A marked item that is not cheaper than
+       the market is not labelled: the offer is the supplier's word, the
+       label is ours, and it means "worth paying a click for". */
+    if (p.blackNovember && competitiveness === "competitive") lines.push(tag("g:custom_label_3", "black-friday"));
 
     items.push(`  <item>\n${lines.join("\n")}\n  </item>`);
   }

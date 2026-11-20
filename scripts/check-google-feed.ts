@@ -325,6 +325,21 @@ check("overpriced still against MC", priceCompetitiveness(1100, 1000, 1200) === 
   check("no benchmark sends no custom_label_2", none !== "" && !none.includes("custom_label_2"));
 }
 
+// custom_label_3 "black-friday": marked by the supplier AND competitive.
+{
+  const bf = renderGoogleMerchantFeed([
+    product({ sku: "BFCHEAP", price: 900, benchmarkPrice: 1000, blackNovember: true }),
+    product({ sku: "BFDEAR", price: 1100, benchmarkPrice: 1000, blackNovember: true }),
+    product({ sku: "BFNOBENCH", price: 1000, blackNovember: true }),
+    product({ sku: "CHEAPNOMARK", price: 900, benchmarkPrice: 1000 }),
+  ]);
+  const item = (sku: string) => new RegExp(`<item>(?:(?!</item>)[\\s\\S])*<g:id>${sku}</g:id>[\\s\\S]*?</item>`).exec(bf)?.[0] ?? "";
+  check("marked and competitive carries black-friday", item("BFCHEAP").includes("<g:custom_label_3>black-friday</g:custom_label_3>"));
+  check("marked but overpriced carries no custom_label_3", item("BFDEAR") !== "" && !item("BFDEAR").includes("custom_label_3"));
+  check("marked without a benchmark carries no custom_label_3", item("BFNOBENCH") !== "" && !item("BFNOBENCH").includes("custom_label_3"));
+  check("competitive but unmarked carries no custom_label_3", item("CHEAPNOMARK") !== "" && !item("CHEAPNOMARK").includes("custom_label_3"));
+}
+
 console.log(
   failed === 0
     ? `OK  ${items.size} items rendered from ${rows.length} products, ${rows.length - items.size} correctly withheld`

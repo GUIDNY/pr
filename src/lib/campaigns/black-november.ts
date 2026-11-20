@@ -25,6 +25,15 @@
    matched, so ~170 live products never reached the shelf. */
 export const BLACK_NOVEMBER_ROW_MARKS = ["BLACK FRIDAY", "בלאק פריידי", "בלאק פרייד", "מבצע BLACK"] as const;
 
+/** Whether a price-list row snapshot (Product.stockBreakdown) carries the
+    supplier's mark — the same test the homepage shelf's query makes, for
+    callers that already hold the row, like the Merchant feed. */
+export function isBlackNovemberRow(snapshot: string | null | undefined): boolean {
+  if (!snapshot) return false;
+  const s = snapshot.toLowerCase();
+  return BLACK_NOVEMBER_ROW_MARKS.some((mark) => s.includes(mark.toLowerCase()));
+}
+
 export const BLACK_NOVEMBER_LABEL = "מחיר בלאק נובמבר";
 export const BLACK_NOVEMBER_LIMITED = "לזמן מוגבל";
 
