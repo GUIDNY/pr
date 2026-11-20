@@ -17,9 +17,9 @@
  * A shortened code counts (`KLF03` for `KLF03RDEU`): the supplier suffix is
  * colour, and the search title drops it on purpose.
  *
- * Measured on the 2,734 live products: 2,232 name a code the title names,
- * 413 titles carry no code at all (the SEO title is used), 89 fall back —
- * most of those to a title that is fine anyway.
+ * Measured on the 2,734 live products: 2,262 name a code the title names,
+ * 413 titles carry no code at all (the SEO title is used), 59 fall back to
+ * the plain title.
  *
  * The description travels with the title: one is not trusted without the
  * other.
