@@ -1,10 +1,11 @@
 import { notFound } from "next/navigation";
+import { BLACK_NOVEMBER_LABEL, BLACK_NOVEMBER_LIMITED, isBlackNovemberRow } from "@/lib/campaigns/black-november";
 import { JsonLd } from "@/components/seo/json-ld";
 import { MetaViewContent } from "@/components/analytics/meta-events";
 import { GaViewItem } from "@/components/analytics/ga-events";
 import { ORGANIZATION_ID, SITE_NAME, breadcrumbSchema } from "@/lib/schema";
 import Link from "next/link";
-import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench, CreditCard, Store } from "lucide-react";
+import { Star, Truck, ShieldCheck, PackageCheck, Pencil, RotateCcw, Wrench, CreditCard, Store, ArrowLeft } from "lucide-react";
 import {
   FREE_DELIVERY_THRESHOLD,
   computeDeliveryFee,
@@ -646,6 +647,24 @@ export async function ProductPageView({
                 </p>
               )}
               <FriendPriceLine price={product.price} />
+              {/* The supplier marked this row for the campaign
+                  (lib/campaigns/black-november.ts). Said at the price, in
+                  the campaign's own words — the price is the ordinary one,
+                  named as temporary; no percentage, no struck-through number. */}
+              {isBlackNovemberRow(product.stockBreakdown) && (
+                <Link
+                  href="/black-november"
+                  aria-label={`${BLACK_NOVEMBER_LABEL}, ${BLACK_NOVEMBER_LIMITED} — לכל הדגמים במבצע`}
+                  className="-mt-2 flex w-fit flex-wrap items-center gap-x-2 gap-y-1 text-sm hover:underline"
+                >
+                  <span className="bg-black px-2 py-0.5 text-xs font-black whitespace-nowrap text-white">בלאק נובמבר</span>
+                  <span className="font-medium whitespace-nowrap">מחיר {BLACK_NOVEMBER_LIMITED}</span>
+                  <span className="text-brand inline-flex items-center gap-0.5 font-bold whitespace-nowrap">
+                    לכל הדגמים
+                    <ArrowLeft className="size-3.5" aria-hidden="true" />
+                  </span>
+                </Link>
+              )}
             </div>
           )}
 
