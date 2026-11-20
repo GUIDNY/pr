@@ -14,6 +14,8 @@ import { FavoritesLink } from "@/components/layout/favorites-link";
 import { BackOfficeLink } from "@/components/layout/back-office-link";
 import { HeaderMallButton } from "@/components/layout/mall-link";
 import { getNavigableCategoryTree } from "@/lib/queries/categories";
+import { getBlackNovemberSummary } from "@/lib/queries/products";
+import { BlackNovemberBar } from "@/components/layout/black-november-bar";
 
 export async function Header() {
   // Deliberately no visitor lookup here. This header is on every page in the
@@ -21,7 +23,7 @@ export async function Header() {
   // uncacheable — a server cannot prepare a page in advance for someone it
   // has to recognise first. Googlebot, which always arrives cold, paid 2.4
   // seconds for a greeting. AccountButton fills it in from the browser.
-  const departments = await getNavigableCategoryTree();
+  const [departments, blackNovember] = await Promise.all([getNavigableCategoryTree(), getBlackNovemberSummary()]);
 
   return (
     <>
@@ -81,6 +83,9 @@ export async function Header() {
           </div>
         </div>
       </div>
+
+      {/* The campaign, from every page — see BlackNovemberBar for why. */}
+      <BlackNovemberBar total={blackNovember.total} lowestPrice={blackNovember.lowestPrice ?? null} />
 
       <header data-site-chrome className="bg-background sticky top-0 z-30 border-b">
         {/* Phone: one row, 56px, and that is the whole sticky header —
