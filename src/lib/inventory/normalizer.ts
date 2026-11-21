@@ -17,6 +17,34 @@ function firstNumber(values?: (string | number)[]): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * What may be believed as the supplier's SKU.
+ *
+ * The SKU column is free text, and the supplier uses it for more than SKUs.
+ * Four products carry what was typed there instead: ";" (a Premier freezer),
+ * ";;" (a Ninja food processor), "חדש" (a speaker) and a service note with
+ * two phone numbers in it. Each was taken as a real SKU — the one identifier
+ * the importer believes outright — so it became the product's public id in
+ * the Google feed and in the ChatGPT catalogue, and any second row with the
+ * same mark would have been matched to the same product.
+ *
+ * Every real SKU in the catalogue is Latin letters and digits, with at least
+ * one digit (2,151 are all digits; the rest are like O151251). A cell that is
+ * not is treated as no SKU, which is the well-trodden path for the 577 rows
+ * that have none: the row is identified by position, model and alias, and a
+ * new product gets a temporary SKU of its own.
+ *
+ * Existing products keep the SKU they have — the sync never rewrites one —
+ * so this changes nothing about the four above; it stops a fifth.
+ */
+export function plausibleSku(value: string | null): string | null {
+  if (!value) return null;
+  const v = value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]{0,29}$/.test(v)) return null;
+  if (!/\d/.test(v)) return null;
+  return v;
+}
+
 function firstString(values?: (string | number)[]): string | null {
   if (!values || values.length === 0) return null;
   const v = String(values[0]).trim();
@@ -161,7 +189,7 @@ export function normalizeRow(
   const sheetName = rawSheetName.trim();
   const issues: RowIssue[] = [];
 
-  const realSku = firstString(row.values.SKU);
+  const realSku = plausibleSku(firstString(row.values.SKU));
   const description = joinStrings(row.values.DESCRIPTION) ?? fallbackTitleFromUnknownColumns(row, columns);
   // A dedicated דגם column is the most trustworthy source and wins; the
   // sheets that lack one still name the model inline in the description.
