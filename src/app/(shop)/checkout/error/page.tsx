@@ -97,11 +97,11 @@ export default async function CheckoutErrorPage({
 
       <div className="mt-8 flex flex-col gap-2 sm:flex-row">
         {allowRetry && (
-          <Button variant="brand" asChild className="h-12 flex-1 text-base">
+          <Button variant="brand" asChild className="h-12 w-full shrink-0 text-base sm:w-auto sm:flex-1">
             <Link href="/checkout">נסו שוב, אפשר גם בביט</Link>
           </Button>
         )}
-        <Button variant="outline" asChild className="h-12 flex-1">
+        <Button variant="outline" asChild className="h-12 w-full shrink-0 sm:w-auto sm:flex-1">
           <Link href={order ? `/track-order?order=${order.orderNumber}` : "/track-order"}>מעקב אחר ההזמנה</Link>
         </Button>
       </div>
