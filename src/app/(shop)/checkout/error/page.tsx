@@ -69,7 +69,7 @@ export default async function CheckoutErrorPage({
   const allowRetry = expired || !statusCode || !NO_RETRY_STATUS_CODES.includes(statusCode);
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-16">
+    <div className="mx-auto max-w-lg px-4 pt-16 pb-44 lg:pb-16">
       <div className="flex flex-col items-center gap-3 text-center">
         <XCircle className="text-destructive size-14" strokeWidth={1.5} />
         <h1 className="text-2xl font-bold">התשלום לא הושלם</h1>
@@ -97,11 +97,11 @@ export default async function CheckoutErrorPage({
 
       <div className="mt-8 flex flex-col gap-2 sm:flex-row">
         {allowRetry && (
-          <Button variant="brand" asChild className="flex-1">
+          <Button variant="brand" asChild className="h-12 flex-1 text-base">
             <Link href="/checkout">נסו שוב, אפשר גם בביט</Link>
           </Button>
         )}
-        <Button variant="outline" asChild className="flex-1">
+        <Button variant="outline" asChild className="h-12 flex-1">
           <Link href={order ? `/track-order?order=${order.orderNumber}` : "/track-order"}>מעקב אחר ההזמנה</Link>
         </Button>
       </div>

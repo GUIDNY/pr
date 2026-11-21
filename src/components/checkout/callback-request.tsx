@@ -30,7 +30,7 @@ export function CallbackRequest({ order, needsPhone }: { order: string; needsPho
           className="border-input bg-background h-11 w-full rounded-lg border px-3 text-base"
         />
       )}
-      <Button type="submit" variant="outline" disabled={pending} className="h-11 w-full">
+      <Button type="submit" variant="outline" disabled={pending} className="h-12 w-full">
         {pending ? "שולח…" : "רוצים שנחזור אליכם?"}
       </Button>
       {state.status === "error" && (
