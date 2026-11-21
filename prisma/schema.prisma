@@ -1445,3 +1445,29 @@ model PriceBenchmark {
 
   @@id([sku, source])
 }
+
+/// One organic Instagram post, queued for the daily 19:00 (Asia/Jerusalem)
+/// publisher at /api/cron/instagram-publish. Nothing goes out unless
+/// `approved` was set by a person; a post tied to a product is re-checked
+/// against the live catalogue (price, stock, published) at publish time.
+/// type: IMAGE | CAROUSEL | REELS | STORY. status: queued | publishing |
+/// published | skipped | failed. DDL: scripts/create-instagram-post-table.ts.
+model InstagramPost {
+  id            String    @id @default(cuid())
+  scheduledFor  DateTime  @db.Date
+  type          String
+  mediaUrls     String[]
+  caption       String
+  productSlug   String?
+  expectedPrice Float?
+  approved      Boolean   @default(false)
+  status        String    @default("queued")
+  igMediaId     String?
+  permalink     String?
+  error         String?
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([scheduledFor, status])
+}
