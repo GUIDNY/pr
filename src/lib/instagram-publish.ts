@@ -71,6 +71,6 @@ export async function publishToInstagram(post: Post) {
 
 /** Read-only token test: no container, no publish. */
 export async function checkInstagramAccount() {
-  const r = await graph(IG_USER_ID, { fields: "username,account_type,media_count" }, "GET");
-  return { username: r.username, account_type: r.account_type, media_count: r.media_count };
+  const r = await graph(IG_USER_ID, { fields: "username,media_count,followers_count" }, "GET");
+  return { username: r.username, media_count: r.media_count, followers_count: r.followers_count };
 }
