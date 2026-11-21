@@ -1447,8 +1447,8 @@ model PriceBenchmark {
 }
 
 /// One organic Instagram post, queued for the daily 19:00 (Asia/Jerusalem)
-/// publisher at /api/cron/instagram-publish. Nothing goes out unless
-/// `approved` was set by a person; a post tied to a product is re-checked
+/// publisher at /api/cron/instagram-publish. A queued post goes out unless
+/// the owner set `rejected`; a post tied to a product is re-checked
 /// against the live catalogue (price, stock, published) at publish time.
 /// type: IMAGE | CAROUSEL | REELS | STORY. status: queued | publishing |
 /// published | skipped | failed. DDL: scripts/create-instagram-post-table.ts.
@@ -1460,7 +1460,9 @@ model InstagramPost {
   caption       String
   productSlug   String?
   expectedPrice Float?
-  approved      Boolean   @default(false)
+  approved      Boolean   @default(true)
+  /// Owner veto: a queued post goes out at 19:00 unless rejected = true.
+  rejected      Boolean   @default(false)
   status        String    @default("queued")
   igMediaId     String?
   permalink     String?

@@ -11,6 +11,7 @@ export type InstagramPostRow = {
   productSlug: string | null;
   expectedPrice: number | null;
   approved: boolean;
+  rejected: boolean;
   status: string;
   createdAt: Date;
 };
@@ -44,7 +45,7 @@ export type Plan =
 
 /**
  * Which post goes out now. `ignoreHour` is for dry runs only; `date` lets a
- * dry run ask about another day. Unapproved and non-queued posts never go out.
+ * dry run ask about another day. Rejected and non-queued posts never go out.
  */
 export function planTodayPost(
   now: Date,
@@ -57,9 +58,9 @@ export function planTodayPost(
     return { action: "wait", reason: "not 19:00 in Asia/Jerusalem", now: j };
   const date = opts.date ?? j.date;
   const post = posts
-    .filter((p) => p.scheduledFor.toISOString().slice(0, 10) === date && p.approved && p.status === "queued")
+    .filter((p) => p.scheduledFor.toISOString().slice(0, 10) === date && !p.rejected && p.status === "queued")
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
-  if (!post) return { action: "none", reason: `no approved queued post for ${date}` };
+  if (!post) return { action: "none", reason: `no queued, non-rejected post for ${date}` };
   const reason = guardProduct(post, post.productSlug ? products[post.productSlug] : undefined);
   return reason ? { action: "skip", post, reason } : { action: "publish", post };
 }

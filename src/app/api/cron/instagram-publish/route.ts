@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { describePlan, publishToInstagram } from "@/lib/instagram-publish";
+import { checkInstagramAccount, describePlan, publishToInstagram } from "@/lib/instagram-publish";
 import { jerusalemNow, planTodayPost, type ProductFacts } from "@/lib/instagram-plan";
 
 /**
@@ -9,7 +9,8 @@ import { jerusalemNow, planTodayPost, type ProductFacts } from "@/lib/instagram-
  * the other is a no-op. Decision logic: lib/instagram-plan.ts (pure, tested).
  *
  * ?dryRun=1 never calls Graph and never writes: it returns the post that would
- * go out (?date=YYYY-MM-DD, ?includeUnapproved=1 to preview an unapproved one).
+ * go out (?date=YYYY-MM-DD, ?includeUnapproved=1 to preview a rejected one).
+ * ?check=1 only asks Graph for username/account_type/media_count (token test).
  * Everything requires CRON_SECRET.
  */
 export const runtime = "nodejs";
@@ -20,14 +21,14 @@ async function load(date: string, includeUnapproved: boolean) {
   const rows = await db.instagramPost.findMany({
     where: { scheduledFor: new Date(`${date}T00:00:00Z`), status: "queued" },
   });
-  const posts = includeUnapproved ? rows.map((r) => ({ ...r, approved: true })) : rows;
+  const posts = includeUnapproved ? rows.map((r) => ({ ...r, rejected: false })) : rows;
   const slugs = [...new Set(posts.map((p) => p.productSlug).filter((s): s is string => !!s))];
   const products: Record<string, ProductFacts> = {};
   if (slugs.length) {
     const found = await db.product.findMany({ where: { slug: { in: slugs } }, select: { slug: true, price: true, stockQty: true, isPublished: true } });
     for (const p of found) products[p.slug] = p;
   }
-  return { posts, products, rawApproved: Object.fromEntries(rows.map((r) => [r.id, r.approved])) };
+  return { posts, products, rawRejected: Object.fromEntries(rows.map((r) => [r.id, r.rejected])) };
 }
 
 export async function GET(request: Request) {
@@ -36,6 +37,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const url = new URL(request.url);
+  if (url.searchParams.get("check") === "1") {
+    try { return NextResponse.json({ ok: true, check: await checkInstagramAccount() }); }
+    catch (e) { return NextResponse.json({ ok: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 500) }, { status: 502 }); }
+  }
   const dryRun = url.searchParams.get("dryRun") === "1";
   const nowD = new Date();
   const now = jerusalemNow(nowD);
@@ -43,7 +48,7 @@ export async function GET(request: Request) {
 
   if (!dryRun && now.hour !== 19) return NextResponse.json({ ok: true, skipped: "not 19:00 in Asia/Jerusalem", now });
 
-  const { posts, products, rawApproved } = await load(date, dryRun && url.searchParams.get("includeUnapproved") === "1");
+  const { posts, products, rawRejected } = await load(date, dryRun && url.searchParams.get("includeUnapproved") === "1");
   const plan = planTodayPost(nowD, posts, products, { ignoreHour: dryRun, date });
 
   if (dryRun) {
@@ -52,7 +57,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       dryRun: true, now, date, action: plan.action,
       reason: plan.action === "skip" ? plan.reason : null,
-      approvedInDb: rawApproved[post.id],
+      rejectedInDb: rawRejected[post.id],
       post: { id: post.id, type: post.type, mediaUrls: post.mediaUrls, caption: post.caption, productSlug: post.productSlug, expectedPrice: post.expectedPrice },
       graphPlan: describePlan(post),
     });
