@@ -12,7 +12,7 @@ import { jerusalemNow, planTodayPost, type ProductFacts } from "@/lib/instagram-
  *
  * ?dryRun=1 never calls Graph and never writes: it returns the post that would
  * go out (?date=YYYY-MM-DD, ?includeUnapproved=1 to preview a rejected one).
- * ?check=1 only asks Graph for username/account_type/media_count (token test).
+ * ?check=1 only asks Graph for username,media_count,followers_count (token test).
  * Publishing requires Bearer CRON_SECRET; check/dryRun also accept an admin session.
  */
 export const runtime = "nodejs";
