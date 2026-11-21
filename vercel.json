@@ -26,6 +26,14 @@
     {
       "path": "/api/internal/ads-conversions",
       "schedule": "7,22,37,52 * * * *"
+    },
+    {
+      "path": "/api/cron/instagram-publish",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/cron/instagram-publish",
+      "schedule": "0 17 * * *"
     }
   ]
 }
