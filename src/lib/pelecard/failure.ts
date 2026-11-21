@@ -42,3 +42,40 @@ export function gatewayErrorMessage(rawResponse: unknown): string | null {
   const message = (feedback as { ErrorMessage?: unknown }).ErrorMessage;
   return typeof message === "string" ? message : null;
 }
+
+/**
+ * Whether a 650 (3D Secure did not complete) was the card issuer saying no,
+ * rather than a check the customer simply did not finish.
+ *
+ * The 650 message says "the card is fine, try again and approve the message
+ * we send you" — right when the SMS never arrived or the app timed out. It is
+ * wrong when the issuer rejected the authentication outright (EMV 3DS
+ * transStatus "R", e.g. reason 11 "suspected fraud"): the same card is refused
+ * again a minute later. On 21 November a customer met exactly that at four in
+ * the morning, retried twice in seconds on our advice, and left.
+ *
+ * Pelecard put the result in ResultData.Auth3DSTranStatus. We keep the
+ * exchange either as a parsed `feedback` object or, on the error-feedback
+ * path, as the raw `rawBody` string — read both, defensively.
+ */
+export function issuerRejected3DS(rawResponse: unknown): boolean {
+  if (!rawResponse || typeof rawResponse !== "object") return false;
+  const status = (source: unknown): unknown => {
+    if (!source || typeof source !== "object") return undefined;
+    const resultData = (source as { ResultData?: unknown }).ResultData;
+    if (!resultData || typeof resultData !== "object") return undefined;
+    return (resultData as { Auth3DSTranStatus?: unknown }).Auth3DSTranStatus;
+  };
+  const fromFeedback = status((rawResponse as { feedback?: unknown }).feedback);
+  if (fromFeedback !== undefined) return fromFeedback === "R";
+  const rawBody = (rawResponse as { rawBody?: unknown }).rawBody;
+  if (typeof rawBody !== "string") return false;
+  try {
+    return status(JSON.parse(rawBody)) === "R";
+  } catch {
+    return false;
+  }
+}
+
+export const ISSUER_REJECTED_3DS_MESSAGE =
+  "חברת האשראי שהנפיקה את הכרטיס לא אישרה את העסקה בשלב האימות. זה לא קרה בגלל משהו באתר, ולא בוצע חיוב. אפשר לנסות כרטיס אחר, או להתקשר לחברת האשראי, לאשר את העסקה ולנסות שוב.";
