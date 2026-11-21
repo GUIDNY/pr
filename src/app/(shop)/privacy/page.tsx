@@ -169,9 +169,15 @@ export default function PrivacyPage() {
               <strong className="text-foreground">Meta Pixel</strong> — מדידת פעולות מסחר באתר (צפייה במוצר, הוספה
               לעגלה, רכישה) והתאמת פרסום ברשתות של Meta. לא נשלחים אליו שם, אימייל, טלפון או כתובת
             </li>
+            <li>
+              <strong className="text-foreground">ביקורות לקוחות של Google</strong> — בדף אישור ההזמנה, אחרי תשלום
+              שאושר, מוצגת הצעה של Google להשתתף בסקר שביעות רצון. לשם כך מועברים ל־Google כתובת האימייל, מספר
+              ההזמנה, מדינת המשלוח ותאריך המסירה המשוער — ולא שם, טלפון, כתובת, פרטי מוצרים או סכומים. רק מי
+              שמאשר בחלון של Google יקבל ממנה אימייל עם הסקר; השימוש במידע כפוף למדיניות הפרטיות של Google
+            </li>
           </ul>
           {/* Stated here because this page is where somebody checking goes —
-              App Review among them. The three services above describe the
+              App Review among them. The services above describe the
               website; inside the iOS app none of them is ever loaded, and the
               app therefore shows no consent bar at all (see
               components/layout/cookie-notice.tsx). Saying so is not a
@@ -179,7 +185,7 @@ export default function PrivacyPage() {
               pages, and a policy that omitted it would read as a description
               of the app too. */}
           <p className="mt-3 mb-2">
-            <strong className="text-foreground">באפליקציה ל־iOS</strong> — שלושת השירותים האלה אינם נטענים
+            <strong className="text-foreground">באפליקציה ל־iOS</strong> — השירותים האלה אינם נטענים
             כלל, ולכן גם אינה מוצגת בה בקשת הסכמה. האפליקציה משתמשת אך ורק בשלוש העוגיות ההכרחיות שלנו
             (התחברות לחשבון, עגלת קניות וגישת אורח להזמנה), אינה משתפת מידע עם רשתות פרסום ואינה מבצעת מעקב
             — לרבות מעקב כהגדרתו במדיניות השקיפות של Apple.

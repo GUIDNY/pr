@@ -19,6 +19,9 @@ import { customerHasPaid } from "@/lib/order-signal";
 import { referralCodeFor, referralProgress } from "@/lib/referral";
 import { ReferralCard } from "@/components/referral/referral-card";
 import { SITE_URL } from "@/lib/site-url";
+import { db } from "@/lib/db";
+import { estimatedDeliveryDate } from "@/lib/delivery-eta";
+import { GoogleCustomerReviewsOptIn } from "@/components/checkout/google-customer-reviews-optin";
 
 export default async function CheckoutSuccessPage({ params }: { params: Promise<{ orderNumber: string }> }) {
   const { orderNumber } = await params;
@@ -61,6 +64,21 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
   const payment = order.paymentMethod === "PELECARD" ? await getLatestPaymentForOrder(order.id) : null;
   const awaitingGateway = order.paymentMethod === "PELECARD";
 
+  /* Google Customer Reviews is offered only on a card payment — paid now, or
+     confirmed by the gateway while the customer watches. A cash or transfer
+     order that has not been paid is not asked to rate anything. */
+  const reviewEta =
+    awaitingGateway && order.guestEmail
+      ? estimatedDeliveryDate(
+          order.createdAt,
+          order.deliveryMethod,
+          await db.product.findMany({
+            where: { id: { in: order.items.map((i) => i.productId) } },
+            select: { deliveryDays: true },
+          }),
+        )
+      : null;
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
       {/* Only a paid order is a purchase. A gateway order that has not been
@@ -85,6 +103,14 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
         total={order.total}
         paid={!awaitingGateway || customerHasPaid(order.paymentStatus)}
       />
+      {reviewEta && order.guestEmail && (
+        <GoogleCustomerReviewsOptIn
+          orderNumber={order.orderNumber}
+          email={order.guestEmail}
+          estimatedDeliveryDate={reviewEta}
+          paid={customerHasPaid(order.paymentStatus)}
+        />
+      )}
       <div className="mb-8 flex flex-col items-center gap-3 text-center">
         <CheckCircle2 className="text-success size-16" strokeWidth={1.5} />
         <h1 className="text-2xl font-bold">
