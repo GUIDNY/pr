@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSession } from "@/lib/auth";
+import { canManageCatalog } from "@/lib/permissions";
 import { checkInstagramAccount, describePlan, publishToInstagram } from "@/lib/instagram-publish";
 import { jerusalemNow, planTodayPost, type ProductFacts } from "@/lib/instagram-plan";
 
@@ -11,7 +13,7 @@ import { jerusalemNow, planTodayPost, type ProductFacts } from "@/lib/instagram-
  * ?dryRun=1 never calls Graph and never writes: it returns the post that would
  * go out (?date=YYYY-MM-DD, ?includeUnapproved=1 to preview a rejected one).
  * ?check=1 only asks Graph for username/account_type/media_count (token test).
- * Everything requires CRON_SECRET.
+ * Publishing requires Bearer CRON_SECRET; check/dryRun also accept an admin session.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,11 +34,17 @@ async function load(date: string, includeUnapproved: boolean) {
 }
 
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!(secret && request.headers.get("authorization") === `Bearer ${secret}`))
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-
   const url = new URL(request.url);
+  const readOnly = url.searchParams.get("check") === "1" || url.searchParams.get("dryRun") === "1";
+  const secret = process.env.CRON_SECRET;
+  if (!(secret && request.headers.get("authorization") === `Bearer ${secret}`)) {
+    // Real publishing is the cron's alone. The two read-only modes also accept
+    // an admin session, same gate as /admin.
+    const session = readOnly ? await getSession() : null;
+    if (!session || !canManageCatalog(session.role))
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
   if (url.searchParams.get("check") === "1") {
     try { return NextResponse.json({ ok: true, check: await checkInstagramAccount() }); }
     catch (e) { return NextResponse.json({ ok: false, error: (e instanceof Error ? e.message : String(e)).slice(0, 500) }, { status: 502 }); }
