@@ -171,7 +171,20 @@ function pick<T>(value: unknown, path: string[]): T | null {
 
 type Flavour = "FAILED" | "STUCK";
 
-export function renderPaymentAlert(order: AlertableOrder, flavour: Flavour): { subject: string; html: string; text: string } {
+/**
+ * `paidLater` is the order number the same customer went on to pay, when a
+ * stuck order has one. That combination is the dangerous one: the first
+ * attempt may have been approved at Pelecard with the answer lost on its way
+ * to us (PR-401619, 16 November — two callbacks refused by an exhausted
+ * database), in which case the customer is now holding two charges. It is
+ * not "they gave up and came back", and it is worth one look in the
+ * reconcile panel.
+ */
+export function renderPaymentAlert(
+  order: AlertableOrder,
+  flavour: Flavour,
+  paidLater: string | null = null,
+): { subject: string; html: string; text: string } {
   const name = order.guestName?.trim() || order.user?.name?.trim() || "לקוח ללא שם";
   const phone = order.guestPhone?.trim() || order.user?.phone?.trim() || null;
   const email = order.guestEmail?.trim() || order.user?.email?.trim() || null;
@@ -179,7 +192,8 @@ export function renderPaymentAlert(order: AlertableOrder, flavour: Flavour): { s
   const feedback = payment ? pick<Record<string, unknown>>(payment.rawResponse, ["feedback"]) : null;
   const result = feedback ? pick<Record<string, unknown>>(feedback, ["ResultData"]) : null;
 
-  const headline = flavour === "FAILED" ? "כישלון תשלום" : "תשלום תקוע 45 דק'";
+  const headline =
+    flavour === "FAILED" ? "כישלון תשלום" : paidLater ? "לבדוק חיוב כפול" : "תשלום תקוע 45 דק'";
   /* Amount and phone in the subject on purpose: the owner reads this on a
      lock screen and can act without opening anything. */
   const subject = [headline, money(order.total), name, phone].filter(Boolean).join(" · ");
@@ -187,7 +201,9 @@ export function renderPaymentAlert(order: AlertableOrder, flavour: Flavour): { s
   const why =
     flavour === "FAILED"
       ? declineText(payment?.pelecardStatusCode)
-      : "ההזמנה נפתחה ושום תשובה לא חזרה משער הסליקה";
+      : paidLater
+        ? `לא חזרה תשובה משער הסליקה, והלקוח שילם אחר כך בהזמנה ${paidLater}. לבדוק בפאנל ההתאמה של פלאקארד באדמין שההזמנה הזו לא חויבה גם היא.`
+        : "ההזמנה נפתחה ושום תשובה לא חזרה משער הסליקה";
   const advice = flavour === "FAILED" ? DECLINE_REASONS[payment?.pelecardStatusCode ?? ""]?.say ?? null : null;
 
   const method = (result?.["RecordSourceDescription"] as string | undefined)?.trim() || null;
@@ -268,7 +284,12 @@ export function renderPaymentAlert(order: AlertableOrder, flavour: Flavour): { s
  * constraint and returns. No new column, and the same idiom the owner push
  * already uses.
  */
-async function sendOnce(order: AlertableOrder, flavour: Flavour, recipients: string[]): Promise<boolean> {
+async function sendOnce(
+  order: AlertableOrder,
+  flavour: Flavour,
+  recipients: string[],
+  paidLater: string | null = null,
+): Promise<boolean> {
   const event = flavour === "FAILED" ? "PAYMENT_FAILED_ALERT" : "PAYMENT_STUCK_ALERT";
   try {
     await db.orderNotification.create({
@@ -277,7 +298,7 @@ async function sendOnce(order: AlertableOrder, flavour: Flavour, recipients: str
   } catch {
     return false; // already sent, or already being sent
   }
-  const { subject, html, text } = renderPaymentAlert(order, flavour);
+  const { subject, html, text } = renderPaymentAlert(order, flavour, paidLater);
   const results = await Promise.all(
     recipients.map((to) => emailChannel.send(to, { subject, body: text, html }).catch(() => null)),
   );
@@ -313,6 +334,9 @@ export async function notifyPaymentFailed(orderId: string): Promise<void> {
 
 /** How long a customer may plausibly still be at the gateway. */
 export const STUCK_AFTER_MINUTES = 45;
+
+/** A later order in one of these was paid, as far as the gateway told us. */
+const SETTLED_STATUSES = ["AUTHORIZED", "CAPTURED"];
 
 /**
  * Trigger B — the order was opened and the gateway never answered.
@@ -363,22 +387,33 @@ export async function alertStuckPayments(now: Date = new Date()): Promise<{ scan
        refused with a 650 — trigger A has already reported that one, and
        the abandoned first attempt is not a second thing to telephone her
        about. Matched on whichever contact detail the order carries. */
-    const laterAttempt = await db.order.findFirst({
-      where: {
-        id: { not: order.id },
-        createdAt: { gt: order.createdAt },
-        OR: [
-          order.guestEmail ? { guestEmail: { equals: order.guestEmail, mode: "insensitive" as const } } : {},
-          order.guestPhone ? { guestPhone: order.guestPhone } : {},
-        ].filter((clause) => Object.keys(clause).length > 0),
-      },
-      select: { id: true },
+    const sameCustomerLater = {
+      id: { not: order.id },
+      createdAt: { gt: order.createdAt },
+      OR: [
+        order.guestEmail ? { guestEmail: { equals: order.guestEmail, mode: "insensitive" as const } } : {},
+        order.guestPhone ? { guestPhone: order.guestPhone } : {},
+      ].filter((clause) => Object.keys(clause).length > 0),
+    };
+    /* …unless a later attempt was PAID. Then the silence on this one is not
+       necessarily an abandoned form: it can be an approval whose callback we
+       failed to record, and the customer holding two charges. That is
+       reported, worded as the check it is. Looked for first, so a refusal
+       in between does not hide it. */
+    const paidLaterOrder = await db.order.findFirst({
+      where: { ...sameCustomerLater, paymentStatus: { in: SETTLED_STATUSES } },
+      orderBy: { createdAt: "asc" },
+      select: { orderNumber: true },
     });
-    if (laterAttempt) {
-      skipped++;
-      continue;
+    const paidLater = paidLaterOrder?.orderNumber ?? null;
+    if (!paidLater) {
+      const laterAttempt = await db.order.findFirst({ where: sameCustomerLater, select: { id: true } });
+      if (laterAttempt) {
+        skipped++;
+        continue;
+      }
     }
-    if (await sendOnce(order, "STUCK", recipients)) sent++;
+    if (await sendOnce(order, "STUCK", recipients, paidLater)) sent++;
   }
   return { scanned: candidates.length, sent, skipped };
 }
