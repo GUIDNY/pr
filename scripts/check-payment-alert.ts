@@ -8,7 +8,7 @@
 // below is a row that is in the database today, not an invented string.
 //
 // Run: npx tsx scripts/check-payment-alert.ts
-import { declineText, isBotOrder, DECLINE_REASONS } from "../src/lib/notify/payment-alert";
+import { declineText, isBotOrder, DECLINE_REASONS, renderPaymentAlert } from "../src/lib/notify/payment-alert";
 
 let failed = 0;
 const fail = (message: string) => {
@@ -80,7 +80,36 @@ for (const [code, entry] of Object.entries(DECLINE_REASONS)) {
   if (!entry.say.trim()) fail(`${code} says nothing about what to offer`);
 }
 
-const total = BOTS.length + HUMANS.length + DECLINES.length + Object.keys(DECLINE_REASONS).length;
+/* A stuck order whose customer went on to pay. PR-401619, 16 November:
+   both its callbacks were refused by an exhausted database and the customer
+   paid again as PR-200999 — the first may be a second charge. The mail must
+   say "check for a double charge", not "stuck", and name the paid order. */
+const stuckOrder = {
+  id: "o1",
+  orderNumber: "PR-401619",
+  total: 1200,
+  status: "PAYMENT_PENDING",
+  createdAt: new Date("2026-11-16T14:48:48Z"),
+  guestName: "לקוח",
+  guestEmail: null,
+  guestPhone: "0500000000",
+  shipCity: null,
+  shipStreet: null,
+  shipHouseNo: null,
+  whatsappOptIn: false,
+  attribution: null,
+  user: null,
+  items: [],
+  payments: [{ pelecardStatusCode: null, cardLast4: null, clearerName: null, rawResponse: null }],
+};
+const doubled = renderPaymentAlert(stuckOrder, "STUCK", "PR-200999");
+if (!doubled.subject.startsWith("לבדוק חיוב כפול")) fail(`paid-later subject: ${doubled.subject}`);
+if (!doubled.text.includes("PR-200999")) fail("paid-later mail does not name the paid order");
+const plain = renderPaymentAlert(stuckOrder, "STUCK");
+if (!plain.subject.startsWith("תשלום תקוע")) fail(`plain stuck subject changed: ${plain.subject}`);
+const RENDER_CASES = 3;
+
+const total = BOTS.length + HUMANS.length + DECLINES.length + Object.keys(DECLINE_REASONS).length + RENDER_CASES;
 console.log(
   `${total - failed}/${total} passed  (${BOTS.length} crawlers filtered, ${HUMANS.length} customers kept, ` +
     `${DECLINES.length} decline phrasings, ${Object.keys(DECLINE_REASONS).length} codes with advice)`,
