@@ -4,7 +4,13 @@ import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { PELECARD_STATUS_MESSAGES, NO_RETRY_STATUS_CODES, TRY_ANOTHER_CARD_CODES } from "@/lib/pelecard/client";
 import { BUSINESS } from "@/lib/business";
-import { gatewayErrorMessage, paymentPageExpired, PAYMENT_PAGE_EXPIRED_MESSAGE } from "@/lib/pelecard/failure";
+import {
+  gatewayErrorMessage,
+  issuerRejected3DS,
+  ISSUER_REJECTED_3DS_MESSAGE,
+  paymentPageExpired,
+  PAYMENT_PAGE_EXPIRED_MESSAGE,
+} from "@/lib/pelecard/failure";
 
 export const metadata = { title: "התשלום לא הושלם" };
 export const dynamic = "force-dynamic";
@@ -51,11 +57,16 @@ export default async function CheckoutErrorPage({
     transactionId: payment?.pelecardTransactionId,
     errorMessage: gatewayErrorMessage(payment?.rawResponse),
   });
+  /* A 650 the issuer rejected (not one the customer left unfinished) gets the
+     decline wording and the "another card" button — see issuerRejected3DS. */
+  const issuerRejected = statusCode === "650" && issuerRejected3DS(payment?.rawResponse);
   const message = expired
     ? PAYMENT_PAGE_EXPIRED_MESSAGE
-    : ((statusCode && PELECARD_STATUS_MESSAGES[statusCode]) ?? "התשלום לא הושלם. לא בוצע חיוב, וניתן לנסות שוב.");
+    : issuerRejected
+      ? ISSUER_REJECTED_3DS_MESSAGE
+      : ((statusCode && PELECARD_STATUS_MESSAGES[statusCode]) ?? "התשלום לא הושלם. לא בוצע חיוב, וניתן לנסות שוב.");
   const allowRetry = expired || !statusCode || !NO_RETRY_STATUS_CODES.includes(statusCode);
-  const anotherCard = !!statusCode && TRY_ANOTHER_CARD_CODES.includes(statusCode);
+  const anotherCard = issuerRejected || (!!statusCode && TRY_ANOTHER_CARD_CODES.includes(statusCode));
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16">
