@@ -9,7 +9,7 @@ function is(name: string, got: unknown, want: unknown) {
 }
 const post = (o: Partial<InstagramPostRow> = {}): InstagramPostRow => ({
   id: "p1", scheduledFor: new Date("2026-11-26T00:00:00Z"), type: "IMAGE", mediaUrls: ["u"], caption: "c",
-  productSlug: "tv", expectedPrice: 2500, approved: true, status: "queued", createdAt: new Date("2026-11-21T00:00:00Z"), ...o,
+  productSlug: "tv", expectedPrice: 2500, approved: true, rejected: false, status: "queued", createdAt: new Date("2026-11-21T00:00:00Z"), ...o,
 });
 const prod = { tv: { price: 2500, stockQty: 1, isPublished: true } };
 // 26.11.2026 19:00 IST (winter, UTC+2) = 17:00 UTC
@@ -28,7 +28,8 @@ is("price changed skips", (planTodayPost(winter, [post()], { tv: { ...prod.tv, p
 is("stock 0 skips", planTodayPost(winter, [post()], { tv: { ...prod.tv, stockQty: 0 } }).action, "skip");
 is("unpublished product skips", planTodayPost(winter, [post()], { tv: { ...prod.tv, isPublished: false } }).action, "skip");
 is("missing product skips", planTodayPost(winter, [post()], {}).action, "skip");
-is("unapproved does not go", planTodayPost(winter, [post({ approved: false })], prod).action, "none");
+is("rejected does not go", planTodayPost(winter, [post({ rejected: true })], prod).action, "none");
+is("approved=false but not rejected still goes", planTodayPost(winter, [post({ approved: false })], prod).action, "publish");
 is("already published does not go", planTodayPost(winter, [post({ status: "published" })], prod).action, "none");
 is("other day does not go", planTodayPost(winter, [post({ scheduledFor: new Date("2026-11-27T00:00:00Z") })], prod).action, "none");
 is("no product slug needs no guard", planTodayPost(winter, [post({ productSlug: null, expectedPrice: null })], {}).action, "publish");

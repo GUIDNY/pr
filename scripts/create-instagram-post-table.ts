@@ -19,7 +19,8 @@ export const STATEMENTS = [
     "caption" TEXT NOT NULL,
     "productSlug" TEXT,
     "expectedPrice" DOUBLE PRECISION,
-    "approved" BOOLEAN NOT NULL DEFAULT false,
+    "approved" BOOLEAN NOT NULL DEFAULT true,
+    "rejected" BOOLEAN NOT NULL DEFAULT false,
     "status" TEXT NOT NULL DEFAULT 'queued',
     "igMediaId" TEXT,
     "permalink" TEXT,
@@ -30,6 +31,7 @@ export const STATEMENTS = [
     CONSTRAINT "InstagramPost_pkey" PRIMARY KEY ("id")
 )`,
   `CREATE INDEX IF NOT EXISTS "InstagramPost_scheduledFor_status_idx" ON "InstagramPost"("scheduledFor", "status")`,
+  `ALTER TABLE "InstagramPost" ADD COLUMN IF NOT EXISTS "rejected" BOOLEAN NOT NULL DEFAULT false`,
   `ALTER TABLE "InstagramPost" ENABLE ROW LEVEL SECURITY`,
 ];
 
