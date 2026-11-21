@@ -29,30 +29,25 @@ export const HOME_DELIVERY_FEE = 40;
 /**
  * How long a normal parcel takes, in business days — by where it is going.
  *
- * THE NUMBERS THE SHOP PUBLISHES, from 14 October 2026. The shop is in
- * Hadera and the carrier's own routes run the coastal strip, so an address
- * between Herzliya and Zichron Yaakov is reached inside three business
- * days; anywhere else in the country is three to seven. /shipping states
- * both as a promise, so every other place that quotes a delivery time has
- * to quote these and not its own figure — which is exactly what went wrong
+ * THE NUMBER THE SHOP PUBLISHES, from 21 November 2026: three to seven
+ * business days, anywhere in the country. Until then the coastal strip
+ * between Herzliya and Zichron Yaakov was promised "up to 3"; the owner
+ * withdrew that distinction on 21 November, so there is one range and no
+ * faster local one. /shipping states it as a promise, so every other place
+ * that quotes a delivery time has to quote this and not its own figure — which is exactly what went wrong
  * before: the product card and the product page read Product.deliveryDays,
  * and that column is 7 on every row because 7 is its schema default and
  * nothing has ever written to it.
  *
- * The site does not know where a shopper is until the checkout, so the
- * figure a product page, a card, the feed and the structured data state is
- * the NATIONAL range — the worst case, the one every address is inside —
- * and the faster local promise is said next to it in words. Promising the
- * local figure to a shopper in Eilat is the kind of claim Merchant Center
- * reads as a misrepresented delivery estimate.
+ * The same range is stated by a product page, a card, the checkout, the
+ * feed and the structured data.
  *
  * Large items are the exception /shipping already names: a fridge goes by
  * carrier or straight from the importer, on its own terms, said on the
  * product page rather than here.
  */
 export const DELIVERY_ZONES = {
-  local: { label: "מהרצליה ועד זכרון יעקב", min: 1, max: 3 },
-  national: { label: "שאר הארץ", min: 3, max: 7 },
+  national: { label: "כל הארץ", min: 3, max: 7 },
 } as const;
 
 /** The published promise for any address: the national maximum. */
@@ -90,10 +85,6 @@ export function deliveryPromiseText(product: { deliveryDays: number }): string {
   const { min, max } = deliveryPromiseFor(product);
   return min === max ? `עד ${max} ימי עסקים` : `${min}–${max} ימי עסקים`;
 }
-
-/** The faster promise for the coastal strip, said beside the national
-    one wherever there is room for a second clause. */
-export const LOCAL_DELIVERY_NOTE = `עד ${DELIVERY_ZONES.local.max} ימי עסקים ${DELIVERY_ZONES.local.label}`;
 
 /**
  * Large-item carriage: what is included and what costs extra, from the

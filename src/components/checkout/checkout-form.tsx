@@ -1051,8 +1051,8 @@ export function CheckoutForm({
               <Link href="/shipping" target="_blank" className="text-brand font-medium underline underline-offset-2">
                 מדיניות המשלוחים והאספקה
               </Link>{" "}
-              של האתר: עד {DELIVERY_ZONES.local.max} ימי עסקים {DELIVERY_ZONES.local.label},{" "}
-              {DELIVERY_ZONES.national.min}–{DELIVERY_ZONES.national.max} ימי עסקים בשאר הארץ. מוצרים גדולים מסופקים
+              של האתר: {DELIVERY_ZONES.national.min}–{DELIVERY_ZONES.national.max} ימי עסקים בכל הארץ.
+              מוצרים גדולים מסופקים
               במוביל או מהיבואן בתיאום מראש.
             </span>
           </p>

@@ -13,7 +13,6 @@ import {
   TRANSIT_DAYS,
   BUSINESS_DAY_NAMES,
   deliveryPromiseText,
-  LOCAL_DELIVERY_NOTE,
   freeCollectionNote,
 } from "@/lib/delivery";
 import { isBulkyCategory } from "@/lib/bulky";
@@ -808,7 +807,7 @@ export async function ProductPageView({
                       <span className="font-semibold">משלוח עד הבית חינם</span>
                       <span className="text-muted-foreground">
                         {" "}
-                        · {deliveryPromiseText(product)} · {LOCAL_DELIVERY_NOTE}
+                        · {deliveryPromiseText(product)}
                       </span>
                     </>
                   ) : (
@@ -816,7 +815,7 @@ export async function ProductPageView({
                       <span className="font-semibold">משלוח עד הבית {formatPrice(deliveryFee)}</span>
                       <span className="text-muted-foreground">
                         {" "}
-                        · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · {deliveryPromiseText(product)} · {LOCAL_DELIVERY_NOTE}
+                        · חינם מעל {formatPrice(FREE_DELIVERY_THRESHOLD)} · {deliveryPromiseText(product)}
                       </span>
                       {/* The fee is the door's; collecting is free, and a
                           product under the threshold is the one whose buyer
@@ -1046,7 +1045,7 @@ export async function ProductPageView({
               <div>
                 <p className="font-bold">משלוח עד הבית</p>
                 <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
-                  {deliveryPromiseText(product)} בכל הארץ, ו{LOCAL_DELIVERY_NOTE}. ניתן גם לאסוף עצמאית מהסניף בחדרה.
+                  {deliveryPromiseText(product)} בכל הארץ. ניתן גם לאסוף עצמאית מהסניף בחדרה.
                 </p>
               </div>
             </div>
