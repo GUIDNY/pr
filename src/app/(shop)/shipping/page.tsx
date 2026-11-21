@@ -98,11 +98,8 @@ export default function ShippingPage() {
 
         <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">זמני אספקה</h2>
-          {/* Two figures, by where the parcel goes. The shop is in Hadera and
-              the carrier's routes run the coastal strip, so the local promise
-              is the faster one; the national range is what every product page
-              and the Merchant Center feed state, because neither knows the
-              address yet. */}
+          {/* One figure for the whole country, the same one every product page
+              and the Merchant Center feed state. */}
           <div className="border-border overflow-hidden rounded-xl border">
             <table className="w-full text-start">
               <thead className="bg-muted/50 text-foreground">
@@ -112,10 +109,6 @@ export default function ShippingPage() {
                 </tr>
               </thead>
               <tbody>
-                <tr className="border-border border-t">
-                  <td className="px-3 py-2">{DELIVERY_ZONES.local.label}</td>
-                  <td className="text-foreground px-3 py-2 font-medium">עד {DELIVERY_ZONES.local.max} ימי עסקים</td>
-                </tr>
                 <tr className="border-border border-t">
                   <td className="px-3 py-2">{DELIVERY_ZONES.national.label}</td>
                   <td className="text-foreground px-3 py-2 font-medium">

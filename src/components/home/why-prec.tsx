@@ -23,8 +23,8 @@ import { formatPrice } from "@/lib/format";
 const FACTS: { lead: string; rest: string }[] = [
   { lead: "משלוח חינם", rest: `בהזמנה מעל ${formatPrice(FREE_DELIVERY_THRESHOLD)}, לכל הארץ` },
   {
-    lead: `עד ${DELIVERY_ZONES.local.max} ימי עסקים`,
-    rest: `${DELIVERY_ZONES.local.label}, ${DELIVERY_ZONES.national.min}–${DELIVERY_ZONES.national.max} בשאר הארץ`,
+    lead: `${DELIVERY_ZONES.national.min}–${DELIVERY_ZONES.national.max} ימי עסקים`,
+    rest: "בכל הארץ",
   },
   // "רוב", not "כל": 45 live products are parallel imports, each saying so
   // on its page, with the importer's warranty rather than the official one.

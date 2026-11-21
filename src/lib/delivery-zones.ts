@@ -3,10 +3,11 @@
  *
  * lib/delivery.ts states the policy; this answers "and for *this* city?",
  * which only the checkout can ask, because only there has the shopper said
- * where they are. The list of places and the local-zone membership come from
+ * where they are. The list of places comes from
  * data/localities.json, written by scripts/update-localities.ts from the
- * state's localities register — the rule for what counts as "between
- * Herzliya and Zichron Yaakov" lives in that script and nowhere else.
+ * state's localities register. Since 21 November 2026 every place gets the
+ * same 3–7 business days; the register's old "local" membership is no
+ * longer read.
  *
  * No server imports: the checkout form is a client component.
  */
@@ -50,7 +51,6 @@ export const MAJOR_LOCALITIES: readonly string[] = [
 ];
 const MAJOR_RANK = new Map(MAJOR_LOCALITIES.map((n, i) => [n, i] as const));
 
-const LOCAL = new Set(localities.local.map(normalizeLocality));
 const KNOWN = new Map(localities.names.map((n) => [normalizeLocality(n), n] as const));
 
 /** The register's spelling of what the shopper typed, or null if it names
@@ -64,15 +64,15 @@ export function canonicalLocality(name: string): string | null {
 export function deliveryZoneFor(city: string): DeliveryZone | null {
   const key = normalizeLocality(city);
   if (!KNOWN.has(key)) return null;
-  return LOCAL.has(key) ? "local" : "national";
+  return "national";
 }
 
-/** "עד 3 ימי עסקים" / "3–7 ימי עסקים" for a chosen city; the national
-    range for one the register does not know. */
+/** "3–7 ימי עסקים" for a chosen city: one range for the whole country,
+    whether or not the register knows the place. */
 export function deliveryPromiseTextForCity(city: string): string {
   const zone = deliveryZoneFor(city) ?? "national";
   const { min, max } = DELIVERY_ZONES[zone];
-  return zone === "local" ? `עד ${max} ימי עסקים` : `${min}–${max} ימי עסקים`;
+  return `${min}–${max} ימי עסקים`;
 }
 
 /** Up to `limit` localities for what the shopper has typed so far. A name

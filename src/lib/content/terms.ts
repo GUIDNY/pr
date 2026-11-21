@@ -21,7 +21,7 @@ import type { ArticleBlock } from "@/lib/queries/articles";
  * are the ones that component understands: heading, subheading, paragraph,
  * list, quote. **bold** and [text](href) work inside any of them.
  */
-export const TERMS_UPDATED_AT = "14 באוקטובר 2026";
+export const TERMS_UPDATED_AT = "21 בנובמבר 2026";
 
 /** The same day as a Date, for the sitemap. It used to date this URL with
     RETURNS_POLICY_UPDATED — a different document's timestamp — so a revision
@@ -238,7 +238,7 @@ export const TERMS_BLOCKS: ArticleBlock[] = [
   },
   {
     "type": "paragraph",
-    "text": "מוצרים המתאימים למשלוח חבילות רגיל יסופקו בדרך כלל בתוך **3 עד 7 ימי עסקים** בכל הארץ, ובאזור שבין הרצליה לזכרון יעקב בדרך כלל בתוך **עד 3 ימי עסקים**, אלא אם נכתב אחרת בדף המוצר או במהלך ההזמנה. כאשר דף המוצר נוקב במועד אספקה אחר, המועד שבדף המוצר הוא הקובע."
+    "text": "מוצרים המתאימים למשלוח חבילות רגיל יסופקו בדרך כלל בתוך **3 עד 7 ימי עסקים** בכל הארץ, אלא אם נכתב אחרת בדף המוצר או במהלך ההזמנה. כאשר דף המוצר נוקב במועד אספקה אחר, המועד שבדף המוצר הוא הקובע."
   },
   {
     "type": "paragraph",
