@@ -169,7 +169,7 @@ function pick<T>(value: unknown, path: string[]): T | null {
   return (cursor ?? null) as T | null;
 }
 
-type Flavour = "FAILED" | "STUCK";
+type Flavour = "FAILED" | "STUCK" | "CALLBACK";
 
 /**
  * `paidLater` is the order number the same customer went on to pay, when a
@@ -184,27 +184,33 @@ export function renderPaymentAlert(
   order: AlertableOrder,
   flavour: Flavour,
   paidLater: string | null = null,
+  /* The number the customer typed on the failure page, when the order had none. */
+  phoneOverride: string | null = null,
 ): { subject: string; html: string; text: string } {
   const name = order.guestName?.trim() || order.user?.name?.trim() || "לקוח ללא שם";
-  const phone = order.guestPhone?.trim() || order.user?.phone?.trim() || null;
+  const phone = phoneOverride || order.guestPhone?.trim() || order.user?.phone?.trim() || null;
   const email = order.guestEmail?.trim() || order.user?.email?.trim() || null;
   const payment = order.payments[0] ?? null;
   const feedback = payment ? pick<Record<string, unknown>>(payment.rawResponse, ["feedback"]) : null;
   const result = feedback ? pick<Record<string, unknown>>(feedback, ["ResultData"]) : null;
 
   const headline =
-    flavour === "FAILED" ? "כישלון תשלום" : paidLater ? "לבדוק חיוב כפול" : "תשלום תקוע 45 דק'";
+    flavour === "CALLBACK"
+      ? "הלקוח מבקש שיחזרו אליו"
+      : flavour === "FAILED" ? "כישלון תשלום" : paidLater ? "לבדוק חיוב כפול" : "תשלום תקוע 45 דק'";
   /* Amount and phone in the subject on purpose: the owner reads this on a
      lock screen and can act without opening anything. */
   const subject = [headline, money(order.total), name, phone].filter(Boolean).join(" · ");
 
   const why =
-    flavour === "FAILED"
+    flavour === "CALLBACK"
+      ? `הלקוח לחץ "רוצים שנחזור אליכם?" בעמוד הכישלון. מצב התשלום: ${declineText(payment?.pelecardStatusCode)}`
+      : flavour === "FAILED"
       ? declineText(payment?.pelecardStatusCode)
       : paidLater
         ? `לא חזרה תשובה משער הסליקה, והלקוח שילם אחר כך בהזמנה ${paidLater}. לבדוק בפאנל ההתאמה של פלאקארד באדמין שההזמנה הזו לא חויבה גם היא.`
         : "ההזמנה נפתחה ושום תשובה לא חזרה משער הסליקה";
-  const advice = flavour === "FAILED" ? DECLINE_REASONS[payment?.pelecardStatusCode ?? ""]?.say ?? null : null;
+  const advice = flavour !== "STUCK" ? DECLINE_REASONS[payment?.pelecardStatusCode ?? ""]?.say ?? null : null;
 
   const method = (result?.["RecordSourceDescription"] as string | undefined)?.trim() || null;
   const card = [result?.["CardHebrewName"] as string | undefined, payment?.cardLast4 ? `•${payment.cardLast4}` : null]
@@ -289,8 +295,10 @@ async function sendOnce(
   flavour: Flavour,
   recipients: string[],
   paidLater: string | null = null,
+  phoneOverride: string | null = null,
 ): Promise<boolean> {
-  const event = flavour === "FAILED" ? "PAYMENT_FAILED_ALERT" : "PAYMENT_STUCK_ALERT";
+  const event =
+    flavour === "CALLBACK" ? "CALLBACK_REQUEST" : flavour === "FAILED" ? "PAYMENT_FAILED_ALERT" : "PAYMENT_STUCK_ALERT";
   try {
     await db.orderNotification.create({
       data: { orderId: order.id, channel: "EMAIL", event, recipient: recipients.join(",") },
@@ -298,7 +306,7 @@ async function sendOnce(
   } catch {
     return false; // already sent, or already being sent
   }
-  const { subject, html, text } = renderPaymentAlert(order, flavour, paidLater);
+  const { subject, html, text } = renderPaymentAlert(order, flavour, paidLater, phoneOverride);
   const results = await Promise.all(
     recipients.map((to) => emailChannel.send(to, { subject, body: text, html }).catch(() => null)),
   );
@@ -329,6 +337,34 @@ export async function notifyPaymentFailed(orderId: string): Promise<void> {
     await sendOnce(order, "FAILED", recipients);
   } catch (error) {
     console.error("[payment-alert] could not report the failed payment", { orderId, error });
+  }
+}
+
+/**
+ * The customer asked, on the failure page, to be called back.
+ *
+ * Same mail channel and recipients as the failed-payment alert, headed
+ * "הלקוח מבקש שיחזרו אליו". Once per order (the OrderNotification row is
+ * the lock), and nothing is ever sent to the customer. Returns false when
+ * the order is unknown, paid, a crawler's, or the request was already made.
+ */
+export async function notifyCallbackRequested(orderNumber: string, phone: string | null): Promise<boolean> {
+  try {
+    const order = (await db.order.findUnique({ where: { orderNumber }, select: SELECT })) as AlertableOrder | null;
+    if (!order || isBotOrder(order)) return false;
+    if (!["PAYMENT_FAILED", "PAYMENT_PENDING"].includes(order.status)) return false;
+    const recipients = teamAlertRecipients();
+    if (recipients.length === 0 || !emailChannel.configured()) return false;
+    const sent = await sendOnce(order, "CALLBACK", recipients, null, phone);
+    if (sent) {
+      await db.orderNote.create({
+        data: { orderId: order.id, isInternal: true, body: `הלקוח ביקש שיחזרו אליו מעמוד הכישלון${phone ? ` · טלפון ${phone}` : ""}` },
+      });
+    }
+    return sent;
+  } catch (error) {
+    console.error("[payment-alert] could not report the callback request", { orderNumber, error });
+    return false;
   }
 }
 

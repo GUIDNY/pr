@@ -107,7 +107,10 @@ if (!doubled.subject.startsWith("לבדוק חיוב כפול")) fail(`paid-late
 if (!doubled.text.includes("PR-200999")) fail("paid-later mail does not name the paid order");
 const plain = renderPaymentAlert(stuckOrder, "STUCK");
 if (!plain.subject.startsWith("תשלום תקוע")) fail(`plain stuck subject changed: ${plain.subject}`);
-const RENDER_CASES = 3;
+const cb = renderPaymentAlert(stuckOrder, "CALLBACK", null, "0501234567");
+if (!cb.subject.startsWith("הלקוח מבקש שיחזרו אליו")) fail(`callback subject: ${cb.subject}`);
+if (!cb.subject.includes("0501234567")) fail("callback subject lacks the typed phone");
+const RENDER_CASES = 5;
 
 const total = BOTS.length + HUMANS.length + DECLINES.length + Object.keys(DECLINE_REASONS).length + RENDER_CASES;
 console.log(
