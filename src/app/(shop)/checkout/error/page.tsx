@@ -2,7 +2,8 @@ import Link from "next/link";
 import { XCircle, Phone, MessageCircle, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
-import { PELECARD_STATUS_MESSAGES, NO_RETRY_STATUS_CODES, TRY_ANOTHER_CARD_CODES } from "@/lib/pelecard/client";
+import { PELECARD_STATUS_MESSAGES, NO_RETRY_STATUS_CODES } from "@/lib/pelecard/client";
+import { CallbackRequest } from "@/components/checkout/callback-request";
 import { BUSINESS } from "@/lib/business";
 import {
   gatewayErrorMessage,
@@ -36,7 +37,7 @@ export default async function CheckoutErrorPage({
   const order = orderNumber
     ? await db.order.findUnique({
         where: { orderNumber },
-        select: { id: true, orderNumber: true, paymentStatus: true },
+        select: { id: true, orderNumber: true, paymentStatus: true, guestPhone: true, user: { select: { phone: true } } },
       })
     : null;
 
@@ -66,13 +67,17 @@ export default async function CheckoutErrorPage({
       ? ISSUER_REJECTED_3DS_MESSAGE
       : ((statusCode && PELECARD_STATUS_MESSAGES[statusCode]) ?? "התשלום לא הושלם. לא בוצע חיוב, וניתן לנסות שוב.");
   const allowRetry = expired || !statusCode || !NO_RETRY_STATUS_CODES.includes(statusCode);
-  const anotherCard = issuerRejected || (!!statusCode && TRY_ANOTHER_CARD_CODES.includes(statusCode));
 
   return (
     <div className="mx-auto max-w-lg px-4 py-16">
       <div className="flex flex-col items-center gap-3 text-center">
         <XCircle className="text-destructive size-14" strokeWidth={1.5} />
         <h1 className="text-2xl font-bold">התשלום לא הושלם</h1>
+        {/* Only where it is true: after a timeout (301) a charge may have gone
+            through, so that case says nothing of the kind. */}
+        {allowRetry && (
+          <p className="bg-muted w-full rounded-lg px-4 py-3 text-base font-semibold">לא בוצע חיוב.</p>
+        )}
         <p className="text-muted-foreground text-sm leading-relaxed">{message}</p>
         {order && (
           <p className="text-muted-foreground text-sm">
@@ -93,13 +98,22 @@ export default async function CheckoutErrorPage({
       <div className="mt-8 flex flex-col gap-2 sm:flex-row">
         {allowRetry && (
           <Button variant="brand" asChild className="flex-1">
-            <Link href="/checkout">{anotherCard ? "נסו כרטיס אחר" : "ניסיון נוסף"}</Link>
+            <Link href="/checkout">נסו שוב, אפשר גם בביט</Link>
           </Button>
         )}
         <Button variant="outline" asChild className="flex-1">
           <Link href={order ? `/track-order?order=${order.orderNumber}` : "/track-order"}>מעקב אחר ההזמנה</Link>
         </Button>
       </div>
+
+      {order && (
+        <div className="mt-3">
+          <CallbackRequest
+            order={order.orderNumber}
+            needsPhone={!(order.guestPhone?.trim() || order.user?.phone?.trim())}
+          />
+        </div>
+      )}
 
       {/* A person, not only a button. Someone whose bank just refused them
           wants to talk to someone, and WhatsApp is where this shop answers. */}
