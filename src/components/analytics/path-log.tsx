@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
+import { whenVisitReady } from "@/lib/pageview/visit-ready";
 
 /**
  * Reports in-app navigations to the first-party path log.
@@ -19,8 +20,10 @@ import { usePathname } from "next/navigation";
  * within a day, and loads no third party. See lib/pageview/capture.ts for
  * what the server keeps of it.
  *
- * The first render is not reported — the proxy logged that load — and
- * /admin is refused server-side as well as skipped here.
+ * The first render sends the landing beacon (lib/pageview/visit-ready.ts):
+ * the server ignores it when the proxy already logged that load, and logs
+ * it and issues the visit cookie when the proxy never saw it — a page that
+ * arrived prefetched. /admin is refused server-side as well as skipped here.
  */
 export function PathLog() {
   const pathname = usePathname();
@@ -29,6 +32,7 @@ export function PathLog() {
   useEffect(() => {
     if (last.current === null) {
       last.current = pathname;
+      if (!pathname.startsWith("/admin")) void whenVisitReady();
       return;
     }
     if (last.current === pathname) return;
@@ -37,14 +41,18 @@ export function PathLog() {
     if (pathname.startsWith("/admin")) return;
 
     const body = JSON.stringify({ path: pathname, search: window.location.search, from });
-    try {
-      if (!navigator.sendBeacon?.("/api/internal/pv/nav", new Blob([body], { type: "application/json" }))) {
-        void fetch("/api/internal/pv/nav", { method: "POST", body, keepalive: true, headers: { "content-type": "application/json" } }).catch(() => {});
-      }
-    } catch {
-      /* a log line is never worth an error in the page */
-    }
+    void whenVisitReady().then(() => beacon(body));
   }, [pathname]);
 
   return null;
+}
+
+function beacon(body: string) {
+  try {
+    if (!navigator.sendBeacon?.("/api/internal/pv/nav", new Blob([body], { type: "application/json" }))) {
+      void fetch("/api/internal/pv/nav", { method: "POST", body, keepalive: true, headers: { "content-type": "application/json" } }).catch(() => {});
+    }
+  } catch {
+    /* a log line is never worth an error in the page */
+  }
 }

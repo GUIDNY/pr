@@ -90,6 +90,23 @@ export function isPrefetch(headers: HeaderReader): boolean {
   return purpose.includes("prefetch") || purpose.includes("prerender");
 }
 
+/**
+ * A document the browser is fetching ahead of a click — Chrome's prefetch
+ * or prerender of a Google result (`Sec-Purpose: prefetch;prerender`) — as
+ * opposed to the App Router's own RSC prefetch. Not a page view (nobody has
+ * opened it yet), but if it becomes one, the proxy will never see the
+ * request, so this is the proxy's only chance to issue the visit cookie.
+ * Measured on the live site, 16 November: none of the three prefetch
+ * headers got a cookie back.
+ */
+export function isDocumentPrefetch(req: { pathname: string; headers: HeaderReader }): boolean {
+  const { pathname, headers } = req;
+  if (isSkippedPath(pathname)) return false;
+  if (headers.get("next-router-prefetch") === "1" || headers.get("rsc") === "1") return false;
+  if (!(headers.get("accept") ?? "").includes("text/html")) return false;
+  return isPrefetch(headers);
+}
+
 export function isBotAgent(userAgent: string | null): boolean {
   return !!userAgent && BOT_AGENTS.test(userAgent);
 }
@@ -204,4 +221,35 @@ export function pageViewFromNavigation(
     country: countryFrom(headers),
     device: deviceClass(ua),
   };
+}
+
+/**
+ * A full load the proxy never saw, as the page reported it on its first
+ * render (components/analytics/path-log.tsx, through api/internal/pv/nav with
+ * `landing: true`).
+ *
+ * WHY THIS EXISTS, measured on 16 November: a buyer browsed, added to the
+ * cart and opened a payment form for fourteen minutes and none of it was
+ * logged, because the browser never held a visit cookie. The proxy issues
+ * the cookie only on a full document load that is not a prefetch, and a
+ * page the browser had already prefetched or prerendered (Chrome does this
+ * from a Google results page, and the in-app browsers of social apps do it
+ * on their own) reaches the screen without that request ever being made.
+ * Every beacon after that carried no cookie and was dropped. The server
+ * answers the landing beacon by writing nothing when the cookie is already
+ * there — the proxy logged that load — and by issuing one and logging the
+ * page when it is not.
+ *
+ * Same rules as a navigation, with the document's referrer standing in for
+ * `from`, trimmed exactly as the proxy trims the Referer header.
+ */
+export function pageViewFromLanding(
+  body: { path?: unknown; search?: unknown; referrer?: unknown },
+  headers: HeaderReader,
+  host: string,
+): PageViewInput | null {
+  const view = pageViewFromNavigation({ path: body.path, search: body.search }, headers, host);
+  if (!view) return null;
+  const referrer = typeof body.referrer === "string" && body.referrer.length <= 2000 ? trimReferrer(body.referrer) : null;
+  return { ...view, referrer };
 }
