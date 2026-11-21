@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { adClickOf, type AdClick } from "@/lib/attribution";
 
 /**
  * Paid orders reported to Google Ads as click conversions, from the server.
@@ -29,7 +30,10 @@ import { db } from "@/lib/db";
  * counted twice when both paths, or a browser tag as well, report it.
  *
  * Which orders: paid (AUTHORIZED or CAPTURED), not cancelled or refunded,
- * with a gclid, placed within the 90 days Google accepts. Never inside the
+ * with a Google Ads click id, placed within the 90 days Google accepts. The
+ * click id is the gclid column, or — for the iPhone clicks that carry none —
+ * the gbraid or wbraid kept on the order's attribution: see adClickOf in
+ * lib/attribution.ts and AD_CLICK_CLAUSE below. Never inside the
  * payment request — a slow or failing Google must cost a report, never an
  * order. Each attempt is counted and the last error kept on the order, so a
  * stuck upload is visible rather than silent, and it stops after
@@ -73,10 +77,33 @@ export function adsApiConfig(): AdsConfig | null {
   return Object.values(required).every(Boolean) ? cfg : null;
 }
 
-/** Orders that are owed a report. Shared by the API uploader and the feed. */
+/* Where an order's other two click ids live: on a touch of its attribution
+   JSON, never in a column. Listed once, because the where-clause below and
+   adClickOf have to agree on where to look. */
+const BRAID_PATHS = [
+  ["last", "gbraid"],
+  ["last", "wbraid"],
+  ["first", "gbraid"],
+  ["first", "wbraid"],
+];
+
+/* "Has a Google Ads click id", asked of the database so that an order with
+   none is never fetched: the gclid column, or a gbraid / wbraid string on
+   either touch. string_starts_with "" is Prisma's way of saying "there is a
+   string at this path" — a missing key, a null and a number all fail it. */
+const AD_CLICK_CLAUSE = {
+  OR: [
+    { gclid: { not: null } },
+    ...BRAID_PATHS.map((path) => ({ attribution: { path, string_starts_with: "" } })),
+  ],
+};
+
+/** Orders that are owed a report. Shared by the API uploader and the feed.
+    The click-id condition sits under AND so that a caller spreading this
+    next to an OR of its own cannot silently replace it. */
 export function pendingConversionWhere(now = new Date()) {
   return {
-    gclid: { not: null },
+    AND: [AD_CLICK_CLAUSE],
     paymentStatus: { in: PAID },
     status: { notIn: EXCLUDED_STATUSES },
     createdAt: { gte: new Date(now.getTime() - LOOKBACK_DAYS * 86_400_000) },
@@ -107,10 +134,12 @@ export function adsDateTime(date: Date): string {
   return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}${offset}`;
 }
 
-/** What is sent for one order — the same numbers on both paths. */
-export function conversionRow(order: { gclid: string; createdAt: Date; total: number; orderNumber: string }) {
+/** What is sent for one order — the same numbers on both paths. The click
+    is spread first, so the row carries exactly one of gclid, gbraid and
+    wbraid under the name Google's API uses for it. */
+export function conversionRow(order: { click: AdClick; createdAt: Date; total: number; orderNumber: string }) {
   return {
-    gclid: order.gclid,
+    ...order.click,
     conversionDateTime: adsDateTime(order.createdAt),
     conversionValue: Number(order.total.toFixed(2)),
     currencyCode: "ILS",
@@ -144,7 +173,7 @@ export async function uploadPendingAdsConversions(): Promise<{
   const cfg = adsApiConfig();
   const orders = await db.order.findMany({
     where: { ...pendingConversionWhere(), adsConversionSentAt: null, adsConversionAttempts: { lt: MAX_ATTEMPTS } },
-    select: { id: true, gclid: true, createdAt: true, total: true, orderNumber: true },
+    select: { id: true, gclid: true, attribution: true, createdAt: true, total: true, orderNumber: true },
     orderBy: { createdAt: "asc" },
     take: 50,
   });
@@ -166,7 +195,12 @@ export async function uploadPendingAdsConversions(): Promise<{
      indexes that have to be mapped back; at a handful of orders a day the
      simple loop is the one whose failures are unambiguous. */
   for (const order of orders) {
-    const row = { ...conversionRow({ ...order, gclid: order.gclid! }), conversionAction };
+    /* The where-clause already promised a click id; this is the same
+       question asked of the row that came back, and an order that somehow
+       has none is left for the next run rather than sent without one. */
+    const click = adClickOf(order.gclid, order.attribution);
+    if (!click) continue;
+    const row = { ...conversionRow({ ...order, click }), conversionAction };
     let error: string | null = null;
     try {
       const res = await fetch(

@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { conversionRow, pendingConversionWhere } from "@/lib/analytics/google-ads-conversions";
+import { adClickOf } from "@/lib/attribution";
 
 /**
  * The paid orders that came from a Google Ads click, as the file Google Ads
@@ -30,11 +31,28 @@ import { conversionRow, pendingConversionWhere } from "@/lib/analytics/google-ad
  *
  * Under /feeds/ and not /api/, for the reason the Merchant feed is: robots.txt
  * disallows /api.
+ *
+ * gbraid and wbraid: an ad click from an iPhone often carries one of these
+ * and no gclid, and an order that came from such a click has nothing to put
+ * in "Google Click ID". It is listed only when GOOGLE_ADS_FEED_BRAID_COLUMNS
+ * is "1", which adds two columns, GBRAID and WBRAID, to every row. Off by
+ * default and it has to stay off until the two columns are mapped in the
+ * Data Manager source: the schema is re-read on every run, the mapping there
+ * was made against six columns, and a file that grows two unmapped ones is
+ * the kind of change that took the connection red on 13 November. With the
+ * switch off the file is byte for byte what it was, and a gbraid-only order
+ * is left out of it — which is where such an order already was.
  */
 export const runtime = "nodejs";
 
 /** See the comment above: always present, always last, never counted. */
 const SCHEMA_ROW = ["INVALID_GCLID_PLACEHOLDER", "רכישה", "2026-11-12 00:00:00+02:00", 0, "ILS", "SCHEMA-ROW"];
+/* The placeholder's two extra cells when the braid columns are on. Filled,
+   not empty, for the reason the row exists at all: a column with no value in
+   any row is a column whose type cannot be determined. */
+const SCHEMA_ROW_BRAIDS = ["INVALID_GBRAID_PLACEHOLDER", "INVALID_WBRAID_PLACEHOLDER"];
+const HEADER = ["Google Click ID", "Conversion Name", "Conversion Time", "Conversion Value", "Conversion Currency", "Order ID"];
+const HEADER_BRAIDS = ["GBRAID", "WBRAID"];
 export const dynamic = "force-dynamic";
 
 function authorised(request: Request, password: string): boolean {
@@ -58,19 +76,30 @@ export async function GET(request: Request) {
   }
 
   const name = process.env.GOOGLE_ADS_CONVERSION_NAME || "רכישה";
+  const braids = process.env.GOOGLE_ADS_FEED_BRAID_COLUMNS === "1";
   const orders = await db.order.findMany({
     where: pendingConversionWhere(),
-    select: { gclid: true, createdAt: true, total: true, orderNumber: true },
+    select: { gclid: true, attribution: true, createdAt: true, total: true, orderNumber: true },
     orderBy: { createdAt: "asc" },
   });
 
+  const rows: (string | number)[][] = [];
+  for (const o of orders) {
+    const click = adClickOf(o.gclid, o.attribution);
+    if (!click) continue;
+    const gclid = "gclid" in click ? click.gclid : "";
+    /* No gclid and nowhere to put the other id: not in this file. */
+    if (!gclid && !braids) continue;
+    const r = conversionRow({ ...o, click });
+    const row: (string | number)[] = [gclid, name, r.conversionDateTime, r.conversionValue, r.currencyCode, r.orderId];
+    if (braids) row.push("gbraid" in click ? click.gbraid : "", "wbraid" in click ? click.wbraid : "");
+    rows.push(row);
+  }
+
   const lines = [
-    "Google Click ID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency,Order ID",
-    ...orders.map((o) => {
-      const r = conversionRow({ ...o, gclid: o.gclid! });
-      return [r.gclid, name, r.conversionDateTime, r.conversionValue, r.currencyCode, r.orderId].map(csvCell).join(",");
-    }),
-    SCHEMA_ROW.map(csvCell).join(","),
+    [...HEADER, ...(braids ? HEADER_BRAIDS : [])].join(","),
+    ...rows.map((row) => row.map(csvCell).join(",")),
+    [...SCHEMA_ROW, ...(braids ? SCHEMA_ROW_BRAIDS : [])].map(csvCell).join(","),
   ];
   return new Response(`${lines.join("\n")}\n`, {
     headers: { "content-type": "text/csv; charset=utf-8", "cache-control": "no-store" },
