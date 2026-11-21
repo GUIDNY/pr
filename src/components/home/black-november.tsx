@@ -89,6 +89,7 @@ export function BlackNovember({
         layout={layout === "rail" ? "grid" : layout}
         limit={layout === "rail" ? 4 : undefined}
         viewAllHref={layout === "rail" ? viewAllHref : undefined}
+        total={total}
       />
     </section>
   );

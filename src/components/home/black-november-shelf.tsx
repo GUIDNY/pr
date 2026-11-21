@@ -37,9 +37,13 @@ export function BlackNovemberShelf({
   layout,
   limit,
   viewAllHref,
+  total,
 }: {
   products: ProductCardData[];
   layout: "rail" | "grid";
+  /* The whole campaign. The homepage loads only the first few dozen, so the
+     link must not count what it loaded ("לכל 24 הדגמים" under "161 דגמים"). */
+  total?: number;
   /* With a limit the grid shows that many and then a link to the rest — the
      homepage: four sets on a phone screen, then "לכל 15 הדגמים". */
   limit?: number;
@@ -179,12 +183,12 @@ export function BlackNovemberShelf({
         ))}
       </div>
 
-      {limit && viewAllHref && products.length > shown.length && (
+      {limit && viewAllHref && (total ?? products.length) > shown.length && (
         <Link
           href={viewAllHref}
           className="mt-3 flex h-11 items-center justify-center gap-2 border border-black text-sm font-bold hover:bg-black hover:text-white"
         >
-          לכל {products.length.toLocaleString("he-IL")} הדגמים
+          לכל {Math.max(total ?? 0, products.length).toLocaleString("he-IL")} הדגמים
           <ArrowLeft className="size-4" />
         </Link>
       )}
