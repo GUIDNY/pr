@@ -1,0 +1,65 @@
+/** Pure decision logic for the daily Instagram post. No I/O, so it is testable. */
+export const PUBLISH_HOUR = 19;
+const TZ = "Asia/Jerusalem";
+
+export type InstagramPostRow = {
+  id: string;
+  scheduledFor: Date;
+  type: string;
+  mediaUrls: string[];
+  caption: string;
+  productSlug: string | null;
+  expectedPrice: number | null;
+  approved: boolean;
+  status: string;
+  createdAt: Date;
+};
+export type ProductFacts = { price: number; stockQty: number; isPublished: boolean };
+
+export function jerusalemNow(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", hourCycle: "h23",
+  }).formatToParts(now);
+  const g = (t: string) => parts.find((p) => p.type === t)!.value;
+  return { date: `${g("year")}-${g("month")}-${g("day")}`, hour: Number(g("hour")) };
+}
+
+/** Skip reason, or null when the product is still as promised. */
+export function guardProduct(post: Pick<InstagramPostRow, "productSlug" | "expectedPrice">, p: ProductFacts | undefined): string | null {
+  if (!post.productSlug) return null;
+  if (!p) return `product ${post.productSlug} not found`;
+  if (!p.isPublished) return "product is not published";
+  if (!(p.stockQty > 0)) return `out of stock (stockQty=${p.stockQty})`;
+  if (post.expectedPrice != null && p.price !== post.expectedPrice)
+    return `price changed: site ${p.price}, expected ${post.expectedPrice}`;
+  return null;
+}
+
+export type Plan =
+  | { action: "wait"; reason: string; now: ReturnType<typeof jerusalemNow> }
+  | { action: "none"; reason: string }
+  | { action: "publish"; post: InstagramPostRow }
+  | { action: "skip"; post: InstagramPostRow; reason: string };
+
+/**
+ * Which post goes out now. `ignoreHour` is for dry runs only; `date` lets a
+ * dry run ask about another day. Unapproved and non-queued posts never go out.
+ */
+export function planTodayPost(
+  now: Date,
+  posts: InstagramPostRow[],
+  products: Record<string, ProductFacts>,
+  opts: { ignoreHour?: boolean; date?: string } = {},
+): Plan {
+  const j = jerusalemNow(now);
+  if (!opts.ignoreHour && j.hour !== PUBLISH_HOUR)
+    return { action: "wait", reason: "not 19:00 in Asia/Jerusalem", now: j };
+  const date = opts.date ?? j.date;
+  const post = posts
+    .filter((p) => p.scheduledFor.toISOString().slice(0, 10) === date && p.approved && p.status === "queued")
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0];
+  if (!post) return { action: "none", reason: `no approved queued post for ${date}` };
+  const reason = guardProduct(post, post.productSlug ? products[post.productSlug] : undefined);
+  return reason ? { action: "skip", post, reason } : { action: "publish", post };
+}

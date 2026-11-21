@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+import type { InstagramPostRow } from "@/lib/instagram-plan";
 
 /**
  * Daily Instagram publisher (Graph API). The token lives only in
@@ -7,33 +7,7 @@ import { db } from "@/lib/db";
 const GRAPH = "https://graph.facebook.com/v21.0";
 const IG_USER_ID = process.env.IG_USER_ID || "17841466400735667";
 const TZ = "Asia/Jerusalem";
-export const PUBLISH_HOUR = 19;
-
-export function jerusalemNow(now = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", hourCycle: "h23",
-  }).formatToParts(now);
-  const g = (t: string) => parts.find((p) => p.type === t)!.value;
-  return { date: `${g("year")}-${g("month")}-${g("day")}`, hour: Number(g("hour")) };
-}
-
-type Post = NonNullable<Awaited<ReturnType<typeof db.instagramPost.findFirst>>>;
-
-/** Returns a skip reason, or null when the product is still as promised. */
-export async function productGuard(post: Post): Promise<string | null> {
-  if (!post.productSlug) return null;
-  const p = await db.product.findUnique({
-    where: { slug: post.productSlug },
-    select: { price: true, stockQty: true, isPublished: true },
-  });
-  if (!p) return `product ${post.productSlug} not found`;
-  if (!p.isPublished) return "product is not published";
-  if (!(p.stockQty > 0)) return `out of stock (stockQty=${p.stockQty})`;
-  if (post.expectedPrice != null && p.price !== post.expectedPrice)
-    return `price changed: site ${p.price}, expected ${post.expectedPrice}`;
-  return null;
-}
+type Post = InstagramPostRow;
 
 async function graph(path: string, params: Record<string, string>, method: "POST" | "GET" = "POST") {
   const token = process.env.IG_ACCESS_TOKEN;
