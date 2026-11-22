@@ -25,7 +25,15 @@ export type NotifyEvent = (typeof NOTIFY_EVENTS)[number];
  * appearing there is a button somebody eventually presses at a customer.
  */
 export const INTERNAL_TEMPLATE_EVENTS = ["COMPLAINT_ALERT"] as const;
-export type TemplateEvent = NotifyEvent | (typeof INTERNAL_TEMPLATE_EVENTS)[number];
+
+/** A one-off marketing template the owner sends by hand from the order page
+    (thank_you_coupon_he). Like COMPLAINT_ALERT it is not one of the four
+    order messages and has no resend row. */
+export const MARKETING_TEMPLATE_EVENTS = ["THANK_COUPON"] as const;
+export type TemplateEvent =
+  | NotifyEvent
+  | (typeof INTERNAL_TEMPLATE_EVENTS)[number]
+  | (typeof MARKETING_TEMPLATE_EVENTS)[number];
 
 export const NOTIFY_CHANNELS = ["EMAIL", "SMS", "WHATSAPP"] as const;
 export type NotifyChannel = (typeof NOTIFY_CHANNELS)[number];

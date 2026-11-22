@@ -2,11 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Gift, MessageCircle, TriangleAlert } from "lucide-react";
+import { Bot, Gift, MessageCircle, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { createThanksCouponAction, recordThanksCouponSentAction } from "@/actions/admin-thanks-coupon";
+import { createThanksCouponAction, recordThanksCouponSentAction, sendThanksCouponFromBotAction } from "@/actions/admin-thanks-coupon";
 import { waHref } from "@/lib/notify/whatsapp-link";
 import { firstNameOf, productPhrase } from "@/lib/notify/wa-reminder";
 import { thanksText } from "@/lib/thanks-coupon";
@@ -27,6 +27,8 @@ export function ThanksCoupon({
   titles,
   existingCode,
   alreadySent,
+  botSent,
+  botReady,
 }: {
   orderId: string;
   name: string | null;
@@ -35,6 +37,8 @@ export function ThanksCoupon({
   titles: string[];
   existingCode: string | null;
   alreadySent: boolean;
+  botSent: boolean;
+  botReady: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -48,6 +52,25 @@ export function ThanksCoupon({
       if (!r.success) return void toast.error(r.error);
       setCoupon({ code: r.code, endsAt: r.endsAt });
       setText(thanksText(firstNameOf(name), productPhrase(titles), r.code, untilLabel(r.endsAt)));
+    });
+  }
+
+  /* Marketing message: only to a customer who agreed to WhatsApp, and only
+     once Meta has approved the template. */
+  const botBlocked = botSent
+    ? "כבר נשלח קופון מהבוט להזמנה הזאת"
+    : !botReady
+      ? "ממתין לאישור Meta"
+      : optIn !== true
+        ? "הלקוח לא אישר וואטסאפ"
+        : null;
+
+  function sendFromBot() {
+    startTransition(async () => {
+      const r = await sendThanksCouponFromBotAction(orderId);
+      if (!r.success) return void toast.error(r.error);
+      toast.success(`נשלח קופון ${r.code} מהבוט`);
+      router.refresh();
     });
   }
 
@@ -76,14 +99,25 @@ export function ThanksCoupon({
           הלקוח לא אישר וואטסאפ, עדיף להתקשר
         </p>
       )}
+      <Button
+        type="button"
+        onClick={sendFromBot}
+        disabled={pending || botBlocked !== null}
+        className="h-12 w-full gap-2 bg-green-600 text-base text-white hover:bg-green-700 disabled:bg-muted disabled:text-muted-foreground sm:w-auto"
+      >
+        <Bot className="size-5" /> {pending ? "שולח…" : "שלח מהבוט"}
+      </Button>
+      {botBlocked && <p className="text-muted-foreground text-xs">{botBlocked}</p>}
+      <p className="text-muted-foreground mt-1 text-xs">או ידנית, מהוואטסאפ שלך:</p>
       {!coupon ? (
         <Button
           type="button"
           onClick={make}
           disabled={pending}
-          className="h-12 w-full gap-2 bg-green-600 text-base text-white hover:bg-green-700 sm:w-auto"
+          className="h-12 w-full gap-2 sm:w-auto"
+          variant="outline"
         >
-          <Gift className="size-5" /> {pending ? "יוצר…" : "צור קופון ושלח"}
+          <Gift className="size-5" /> {pending ? "יוצר…" : "צור קופון ושלח (ידני)"}
         </Button>
       ) : !href ? (
         <span className="text-muted-foreground text-xs">מספר טלפון לא תקין לוואטסאפ. הקופון {coupon.code} נוצר.</span>
