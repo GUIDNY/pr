@@ -67,6 +67,12 @@ export type Message = {
    */
   html?: string;
   /**
+   * Files that ride along with an email. Only the email channel reads this;
+   * the two that reach a phone ignore it. Used by the daily price-sheet mail,
+   * the first message here that carries a file. Content is the raw bytes.
+   */
+  attachments?: { filename: string; content: Buffer; contentType?: string }[];
+  /**
    * The WhatsApp form of the same message: which approved template says
    * it, and the values for its numbered slots, in order. Meta lets a
    * business open a conversation only with a template it approved in

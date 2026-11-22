@@ -102,6 +102,14 @@ async function sendViaResend(to: string, message: Message): Promise<SendResult> 
         text: message.body,
         ...(message.html ? { html: message.html } : {}),
         ...(replyTo ? { reply_to: replyTo } : {}),
+        ...(message.attachments?.length
+          ? {
+              attachments: message.attachments.map((a) => ({
+                filename: a.filename,
+                content: a.content.toString("base64"),
+              })),
+            }
+          : {}),
       }),
     });
     if (!res.ok) return { ok: false, error: `${res.status} ${await res.text()}`.slice(0, 300) };
@@ -133,6 +141,15 @@ async function sendViaGmail(to: string, message: Message): Promise<SendResult> {
       text: message.body,
       ...(message.html ? { html: message.html } : {}),
       ...(env("ORDER_EMAIL_REPLY_TO") ? { replyTo: env("ORDER_EMAIL_REPLY_TO")! } : {}),
+      ...(message.attachments?.length
+        ? {
+            attachments: message.attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content,
+              ...(a.contentType ? { contentType: a.contentType } : {}),
+            })),
+          }
+        : {}),
     });
     return { ok: true };
   } catch (error) {
