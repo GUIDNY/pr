@@ -23,9 +23,16 @@ export async function addToCartAction(productId: string, quantity: number = 1) {
   if (!product) throw new Error("מוצר לא נמצא");
   if (product.stockStatus === "OUT_OF_STOCK") throw new Error("המוצר אזל מהמלאי");
 
+  /* A product already in the cart is not added to: pressing "add" again used
+     to bump the line (PR-596643 went from one oven to two, 6,200 ₪). The
+     quantity is changed only inside the cart, by updateCartItemAction. */
+  if (cart.items.some((i) => i.productId === productId)) {
+    return { ...(await currentSummary()), alreadyInCart: true as const };
+  }
+
   await addLineToCart(cart, { ...product, sourceKey: product.source?.key ?? null }, quantity);
 
-  return currentSummary();
+  return { ...(await currentSummary()), alreadyInCart: false as const };
 }
 
 export async function updateCartItemAction(itemId: string, quantity: number) {

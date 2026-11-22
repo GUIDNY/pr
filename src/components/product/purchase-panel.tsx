@@ -4,6 +4,7 @@ import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Minus, Plus, ShoppingCart, Zap } from "lucide-react";
 import { toast } from "sonner";
+import { toastAlreadyInCart } from "@/lib/already-in-cart";
 import { Button } from "@/components/ui/button";
 import { addToCartReported } from "@/lib/cart-client";
 import { useCartStore } from "@/stores/cart-store";
@@ -44,6 +45,10 @@ export function PurchasePanel({
       try {
         const summary = await addToCartReported(productId, qty, { slug, price });
         setCart(summary);
+        if (summary.alreadyInCart && then !== "checkout") {
+          toastAlreadyInCart(() => router.push("/cart"));
+          return;
+        }
         // Nothing unless this page is inside the 3D mall's frame — then the
         // game hears what was added. See lib/mall.ts.
         reportAddedToMall(summary, productId);
