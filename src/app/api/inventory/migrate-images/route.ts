@@ -58,6 +58,25 @@ export const dynamic = "force-dynamic";
 const TIME_BUDGET_MS = 45_000;
 const BATCH = 4;
 
+/* ?hosts=a.co.il,b.co.il — HOST MODE, for an owner or the cron secret and for
+   nobody else, and only ever narrower than the nightly run:
+     - it migrates just those hosts, including ones HOSTS_THAT_REFUSE_US keeps
+       out of the nightly pass, which is how a host that has stopped refusing us
+       is found out without waiting for the owner to press a button;
+     - blocked hosts stay blocked — that rule lives in the library, where no
+       caller can opt out;
+     - ?max=N stops after N attempts, so asking a host that still says 403
+       costs a dozen requests and not a night's budget;
+     - the answer lists why each failure failed, per reason, and the re-framing
+       pass is skipped so the numbers are about the hosts and nothing else.
+   Failures are written down exactly as in the nightly run (a three-day cooldown
+   on the image, the original URL untouched). */
+const HOST = /^[a-z0-9][a-z0-9.-]{2,80}$/;
+
+function hostOfUrl(url: string): string {
+  try { return new URL(url).hostname.toLowerCase(); } catch { return "(unparseable)"; }
+}
+
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET;
   const auth = request.headers.get("authorization");
@@ -70,6 +89,16 @@ export async function GET(request: Request) {
     }
   }
 
+  const params = new URL(request.url).searchParams;
+  const onlyHosts = (params.get("hosts") ?? "")
+    .split(",")
+    .map((h) => h.trim().toLowerCase())
+    .filter((h) => HOST.test(h))
+    .slice(0, 8);
+  const hostMode = onlyHosts.length > 0;
+  const maxAttempts = hostMode ? Math.min(Math.max(Number(params.get("max")) || 12, 1), 200) : Infinity;
+  const reasons: Record<string, number> = {};
+
   const startedAt = Date.now();
   let migrated = 0;
   let failed = 0;
@@ -80,9 +109,10 @@ export async function GET(request: Request) {
   const tried: string[] = [];
 
   while (Date.now() - startedAt < TIME_BUDGET_MS) {
+    if (tried.length >= maxAttempts) break;
     const result = await migrateImageBatch({
-      size: BATCH,
-      excludeHosts: HOSTS_THAT_REFUSE_US,
+      size: Math.min(BATCH, maxAttempts - tried.length),
+      ...(hostMode ? { hosts: onlyHosts } : { excludeHosts: HOSTS_THAT_REFUSE_US }),
       skipIds: tried,
     });
     if (!result.configured) {
@@ -93,7 +123,11 @@ export async function GET(request: Request) {
     failed += result.failed.length;
     tried.push(...result.attemptedIds);
     for (const f of result.failed) {
-      if ("reason" in f) console.log(`[image-migration cron] FAILED ${f.reason} :: ${f.from}`);
+      if ("reason" in f) {
+        console.log(`[image-migration cron] FAILED ${f.reason} :: ${f.from}`);
+        const key = `${hostOfUrl(f.from)} :: ${f.reason.slice(0, 90)}`;
+        reasons[key] = (reasons[key] ?? 0) + 1;
+      }
     }
     // Nothing matched: the queue is empty. Anything else means there is
     // more to try, whether or not this batch managed any of it.
@@ -112,7 +146,7 @@ export async function GET(request: Request) {
      though the other one is more visible. */
   let reframed = 0;
   let reframeFailed = 0;
-  if (configured) {
+  if (configured && !hostMode) {
     const reframeTried: string[] = [];
     while (Date.now() - startedAt < TIME_BUDGET_MS) {
       const r = await renormaliseBatch({
@@ -140,7 +174,12 @@ export async function GET(request: Request) {
     failed,
     reframed,
     reframeFailed,
-    remaining: configured ? await countImagesToMigrate(undefined, HOSTS_THAT_REFUSE_US) : null,
+    ...(hostMode ? { hosts: onlyHosts, attempted: tried.length, reasons } : {}),
+    remaining: configured
+      ? hostMode
+        ? await countImagesToMigrate(onlyHosts, undefined)
+        : await countImagesToMigrate(undefined, HOSTS_THAT_REFUSE_US)
+      : null,
     remainingToReframe: configured ? await countImagesToRenormalise() : null,
     tookMs: Date.now() - startedAt,
   });
