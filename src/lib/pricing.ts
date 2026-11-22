@@ -59,7 +59,10 @@ export async function resolveCoupon(
   if (!code) return NONE;
 
   const promo = await db.promotion.findUnique({ where: { code: code.trim().toUpperCase() } });
-  if (!promo || !promo.isActive) return refuse("קוד קופון לא תקין");
+  if (!promo) return refuse("קוד קופון לא תקין");
+  /* A thank-you coupon is switched off once it is used (retireGameCoupon):
+     say so, rather than call a real code invalid. */
+  if (!promo.isActive) return refuse(promo.code?.startsWith("TODAY5-") ? "הקופון כבר נוצל" : "קוד קופון לא תקין");
 
   const now = new Date();
   if (promo.startsAt && now < promo.startsAt) return refuse("הקופון עדיין לא פעיל");

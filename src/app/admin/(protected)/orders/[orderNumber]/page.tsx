@@ -23,6 +23,8 @@ import {
 import { requireBackOffice } from "@/lib/auth";
 import { ReferralInvitePanel } from "@/components/admin/referral-invite-panel";
 import { canManageCatalog } from "@/lib/permissions";
+import { ThanksCoupon } from "@/components/admin/thanks-coupon";
+import { thanksContext } from "@/lib/queries/thanks-coupons";
 import { OrderWhatsapp } from "@/components/admin/order-whatsapp";
 import { paymentReminderContext } from "@/lib/queries/order-whatsapp";
 import { internalNotesFor } from "@/lib/queries/order-notes";
@@ -38,6 +40,26 @@ async function WhatsappBox({ orderNumber }: { orderNumber: string }) {
     <div className="border-border bg-card rounded-xl border p-5">
       <h2 className="mb-3 font-semibold">הודעת וואטסאפ ללקוח</h2>
       <OrderWhatsapp orderId={ctx.orderId} name={ctx.name} phone={ctx.phone} optIn={ctx.optIn} titles={ctx.titles} />
+    </div>
+  );
+}
+
+/* Only for an order that has been sent to the customer. */
+async function ThanksBox({ orderNumber }: { orderNumber: string }) {
+  const ctx = await thanksContext(orderNumber);
+  if (!ctx || !ctx.phone) return null;
+  return (
+    <div className="border-border bg-card rounded-xl border p-5">
+      <h2 className="mb-3 font-semibold">תודה + קופון ללקוח</h2>
+      <ThanksCoupon
+        orderId={ctx.orderId}
+        name={ctx.name}
+        phone={ctx.phone}
+        optIn={ctx.optIn}
+        titles={ctx.titles}
+        existingCode={ctx.existingCode}
+        alreadySent={ctx.alreadySent}
+      />
     </div>
   );
 }
@@ -71,6 +93,7 @@ export default async function AdminOrderDetailPage({
         )}
         <SellerOrderPage order={detail} />
         <WhatsappBox orderNumber={orderNumber} />
+        <ThanksBox orderNumber={orderNumber} />
         <div className="border-border bg-card rounded-xl border p-5">
           <h2 className="mb-3 font-semibold">הערות פנימיות</h2>
           <OrderNotes orderId={detail.id} initialNotes={await internalNotesFor(detail.id)} />
@@ -152,6 +175,7 @@ export default async function AdminOrderDetailPage({
           </div>
 
           <WhatsappBox orderNumber={order.orderNumber} />
+          <ThanksBox orderNumber={order.orderNumber} />
 
           <div className="border-border bg-card rounded-xl border p-5">
             <h2 className="mb-3 font-semibold">הערות פנימיות</h2>
