@@ -1,3 +1,4 @@
+import { latestInternalNotes } from "@/lib/queries/order-notes";
 import "server-only";
 import { db } from "@/lib/db";
 import { ORDER_STALE_AFTER_HOURS, type OrderStatus } from "@/lib/enums";
@@ -70,12 +71,14 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
   // about the table that displays it. Measured from the last change, not from
   // when the order was placed — an order moved forward this morning is being
   // handled, however old it is.
+  const notes = await latestInternalNotes(orders.map((o) => o.id));
   const now = Date.now();
   const withAge = orders.map((order) => {
     const hoursInStatus = (now - order.updatedAt.getTime()) / 3_600_000;
     const staleAfter = ORDER_STALE_AFTER_HOURS[order.status as OrderStatus] ?? null;
     return {
       ...order,
+      lastNote: notes.get(order.id) ?? null,
       hoursInStatus,
       isStale: staleAfter !== null && hoursInStatus > staleAfter,
       /* Both, for the same reason as the seller list: the bin view of this

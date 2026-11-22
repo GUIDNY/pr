@@ -1,60 +1,73 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { addOrderNoteAction } from "@/actions/admin-orders";
 import { formatDateTime } from "@/lib/format";
 
-type Note = { id: string; body: string; isInternal: boolean; createdAt: string; authorName: string | null };
+type Note = { id: string; body: string; createdAt: string; authorName: string | null };
 
+/** The notes the owner writes most. A tap fills the field, so "טופל על ידי"
+    can be finished by hand before it is saved. */
+const QUICK = ["יצאה קבלה", "לא יצאה קבלה", "טופל", "טופל על ידי "];
+
+/**
+ * Internal notes on an order. Never shown to the customer: the action stores
+ * every note as internal, and the customer's own queries read only the
+ * others.
+ */
 export function OrderNotes({ orderId, initialNotes }: { orderId: string; initialNotes: Note[] }) {
-  const [notes, setNotes] = useState(initialNotes);
+  const router = useRouter();
   const [body, setBody] = useState("");
-  const [isInternal, setIsInternal] = useState(true);
   const [isPending, startTransition] = useTransition();
 
   function submit() {
     if (!body.trim()) return;
     startTransition(async () => {
-      const result = await addOrderNoteAction(orderId, body, isInternal);
+      const result = await addOrderNoteAction(orderId, body);
       if (!result.success) {
         toast.error(result.error ?? "שגיאה בהוספת הערה");
         return;
       }
-      setNotes((n) => [{ id: Math.random().toString(), body, isInternal, createdAt: new Date().toISOString(), authorName: "אני" }, ...n]);
       setBody("");
+      router.refresh();
     });
   }
 
   return (
     <div className="flex flex-col gap-4">
+      <p className="text-muted-foreground text-xs">פנימי בלבד. הלקוח לא רואה את ההערות האלה.</p>
       <div className="flex flex-col gap-2">
-        <Textarea placeholder="הוסיפו הערה..." value={body} onChange={(e) => setBody(e.target.value)} rows={2} />
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Checkbox id="internal" checked={isInternal} onCheckedChange={(v) => setIsInternal(Boolean(v))} />
-            <Label htmlFor="internal" className="text-sm font-normal">הערה פנימית (לא גלויה ללקוח)</Label>
-          </div>
-          <Button size="sm" variant="brand" onClick={submit} disabled={isPending || !body.trim()}>
-            הוספה
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          {QUICK.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => setBody(q)}
+              className="border-border bg-muted/40 hover:bg-muted min-h-10 rounded-full border px-3 text-sm"
+            >
+              {q.trim()}
+            </button>
+          ))}
         </div>
+        <Textarea placeholder="כתבו הערה פנימית…" value={body} onChange={(e) => setBody(e.target.value)} rows={2} className="text-base" />
+        <Button variant="brand" onClick={submit} disabled={isPending || !body.trim()} className="h-12 w-full text-base">
+          {isPending ? "שומר…" : "הוסף הערה"}
+        </Button>
       </div>
 
       <ul className="flex flex-col gap-3">
-        {notes.length === 0 && <li className="text-muted-foreground text-sm">אין הערות עדיין</li>}
-        {notes.map((note) => (
+        {initialNotes.length === 0 && <li className="text-muted-foreground text-sm">אין הערות עדיין</li>}
+        {initialNotes.map((note) => (
           <li key={note.id} className="border-border rounded-lg border p-3 text-sm">
-            <div className="mb-1 flex items-center justify-between">
+            <div className="mb-1 flex items-center justify-between gap-2">
               <span className="font-medium">{note.authorName ?? "מערכת"}</span>
               <span className="text-muted-foreground text-xs">{formatDateTime(note.createdAt)}</span>
             </div>
-            <p>{note.body}</p>
-            {note.isInternal && <span className="text-muted-foreground mt-1 inline-block text-xs">פנימי</span>}
+            <p className="whitespace-pre-wrap">{note.body}</p>
           </li>
         ))}
       </ul>

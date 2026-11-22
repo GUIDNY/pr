@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Truck, Store, AlertTriangle, ChevronLeft } from "lucide-react";
+import { Truck, Store, AlertTriangle, ChevronLeft, StickyNote } from "lucide-react";
 import type { SellerOrderSummary } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
 import { PAID_WITH_LABELS } from "@/lib/pelecard/bit-hold";
@@ -68,6 +68,12 @@ export function SellerOrderRow({ order }: { order: SellerOrderSummary }) {
             </>
           )}
         </div>
+        {order.lastNote && (
+          <div className="mt-1 flex items-center gap-1 text-xs text-amber-800 dark:text-amber-300">
+            <StickyNote className="size-3.5 shrink-0" />
+            <span className="truncate">{order.lastNote.body}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex shrink-0 flex-col items-end gap-1">

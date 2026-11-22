@@ -66,15 +66,18 @@ export async function assignOrderAction(orderId: string, employeeId: string | nu
   return { success: true, error: null };
 }
 
-export async function addOrderNoteAction(orderId: string, body: string, isInternal: boolean) {
+/* Every note written here is internal, always: the customer's own queries read
+   only the non-internal ones, and nothing in the admin creates those. */
+export async function addOrderNoteAction(orderId: string, body: string) {
   const session = await requireBackOffice();
   if (!body.trim()) return { success: false, error: "יש להזין תוכן להערה" };
 
   const order = await db.order.findUniqueOrThrow({ where: { id: orderId } });
-  await db.orderNote.create({ data: { orderId, authorId: session.sub, body: body.trim(), isInternal } });
+  await db.orderNote.create({ data: { orderId, authorId: session.sub, body: body.trim().slice(0, 1000), isInternal: true } });
   await logAudit({ actorId: session.sub, action: "ORDER_NOTE_ADDED", entityType: "Order", entityId: orderId });
 
   revalidatePath(`/admin/orders/${order.orderNumber}`);
+  revalidatePath("/admin/orders");
   return { success: true, error: null };
 }
 
