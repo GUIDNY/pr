@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Phone } from "lucide-react";
+import { AlertTriangle, Phone, StickyNote } from "lucide-react";
 import { OrderStatusSelect } from "./order-status-select";
 import { OrdersBulkBar } from "./orders-bulk-bar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -143,6 +143,12 @@ export function AdminOrdersTable({
                           <Phone className="size-3" />
                           {phone}
                         </a>
+                      )}
+                      {order.lastNote && (
+                        <div className="mt-1 flex max-w-48 items-center gap-1 text-xs text-amber-800 dark:text-amber-300" title={order.lastNote.body}>
+                          <StickyNote className="size-3 shrink-0" />
+                          <span className="truncate">{order.lastNote.body}</span>
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm whitespace-nowrap">

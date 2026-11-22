@@ -1,3 +1,4 @@
+import { latestInternalNotes } from "@/lib/queries/order-notes";
 import "server-only";
 import { bitHoldFrom, paidWith, paidWithFrom, type BitHold, type PaidWith } from "@/lib/pelecard/bit-hold";
 import { db } from "@/lib/db";
@@ -52,6 +53,8 @@ export type SellerOrderSummary = {
   /** How the customer paid — bit, card, Apple Pay — when Pelecard said so
       (lib/pelecard/bit-hold.ts). Null when unknown or not a gateway payment. */
   paidWith: PaidWith | null;
+  /** Newest internal note, for the list. */
+  lastNote?: { body: string; createdAt: Date } | null;
 };
 
 export type SellerOrderDetail = SellerOrderSummary & {
@@ -196,8 +199,9 @@ export async function getSellerOrdersByStage(stage: OrderStage): Promise<SellerO
     take: 200,
     select: LIST_SELECT,
   });
-  const how = await paidWithByOrder(rows.map((r) => r.id));
-  return rows.map((row) => ({ ...toSummary(row), paidWith: how.get(row.id) ?? null }));
+  const ids = rows.map((r) => r.id);
+  const [how, notes] = await Promise.all([paidWithByOrder(ids), latestInternalNotes(ids)]);
+  return rows.map((row) => ({ ...toSummary(row), paidWith: how.get(row.id) ?? null, lastNote: notes.get(row.id) ?? null }));
 }
 
 /**

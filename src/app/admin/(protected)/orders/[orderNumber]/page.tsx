@@ -23,6 +23,7 @@ import {
 import { requireBackOffice } from "@/lib/auth";
 import { ReferralInvitePanel } from "@/components/admin/referral-invite-panel";
 import { canManageCatalog } from "@/lib/permissions";
+import { internalNotesFor } from "@/lib/queries/order-notes";
 import { getSellerOrderDetail } from "@/lib/queries/seller-orders";
 import { SellerOrderPage } from "@/components/admin/seller-order-page";
 import { OrdersViewSwitch, ordersViewFor } from "@/components/admin/orders-view-switch";
@@ -55,6 +56,10 @@ export default async function AdminOrderDetailPage({
           </div>
         )}
         <SellerOrderPage order={detail} />
+        <div className="border-border bg-card rounded-xl border p-5">
+          <h2 className="mb-3 font-semibold">הערות פנימיות</h2>
+          <OrderNotes orderId={detail.id} initialNotes={await internalNotesFor(detail.id)} />
+        </div>
         <ReferralInvitePanel orderNumber={orderNumber} />
       </div>
     );
@@ -132,13 +137,12 @@ export default async function AdminOrderDetailPage({
           </div>
 
           <div className="border-border bg-card rounded-xl border p-5">
-            <h2 className="mb-3 font-semibold">הערות ותקשורת</h2>
+            <h2 className="mb-3 font-semibold">הערות פנימיות</h2>
             <OrderNotes
               orderId={order.id}
               initialNotes={order.notes.map((n) => ({
                 id: n.id,
                 body: n.body,
-                isInternal: n.isInternal,
                 createdAt: n.createdAt.toISOString(),
                 authorName: n.author?.name ?? null,
               }))}
