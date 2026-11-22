@@ -38,3 +38,12 @@ export function thanksText(firstName: string, product: string, code: string, unt
     `עידן | צוות Buy Today 💙`,
   ].join("\n");
 }
+
+/** The product slot of the template: at most 60 characters, cut with "…",
+    and "ועוד N" when the order had more than one. */
+export function shortProduct(title: string, extra = 0): string {
+  const t = title.trim();
+  const cut = t.length > 60 ? `${t.slice(0, 59).trimEnd()}…` : t;
+  if (!cut) return "ההזמנה";
+  return extra > 0 ? `${cut.length > 48 ? `${cut.slice(0, 47).trimEnd()}…` : cut} ועוד ${extra}` : cut;
+}

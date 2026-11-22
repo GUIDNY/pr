@@ -59,6 +59,8 @@ async function ThanksBox({ orderNumber }: { orderNumber: string }) {
         titles={ctx.titles}
         existingCode={ctx.existingCode}
         alreadySent={ctx.alreadySent}
+        botSent={ctx.botSent}
+        botReady={ctx.botReady}
       />
     </div>
   );

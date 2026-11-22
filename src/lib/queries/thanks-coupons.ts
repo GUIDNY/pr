@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { thanksTemplateReady } from "@/lib/notify/channels";
 import { THANKS_PREFIX, orderNumberFromThanksName, thanksName } from "@/lib/thanks-coupon";
 
 const PAID = ["AUTHORIZED", "CAPTURED"];
@@ -17,6 +18,7 @@ export async function thanksContext(orderNumber: string) {
       user: { select: { name: true, phone: true } },
       items: { select: { titleSnap: true } },
       notes: { where: { body: { startsWith: "נשלח קופון" } }, select: { body: true }, take: 1 },
+      notifications: { where: { channel: "WHATSAPP", event: "THANK_COUPON", status: "SENT" }, select: { id: true }, take: 1 },
     },
   });
   if (!order || !["SHIPPED", "DELIVERED"].includes(order.status)) return null;
@@ -29,6 +31,8 @@ export async function thanksContext(orderNumber: string) {
     titles: order.items.map((i) => i.titleSnap),
     existingCode: promo?.code ?? null,
     alreadySent: order.notes.length > 0,
+    botSent: order.notifications.length > 0,
+    botReady: thanksTemplateReady(),
   };
 }
 

@@ -192,7 +192,17 @@ const WHATSAPP_TEMPLATE_DEFAULTS: Record<string, string> = {
   DELIVERED: "order_delivered",
   // Not a customer message: the shop telling itself a complaint came in.
   COMPLAINT_ALERT: "complaint_alert",
+  // Marketing (it carries a coupon): sent only to a customer who agreed to
+  // WhatsApp, and only once Meta has approved the template.
+  THANK_COUPON: "thank_you_coupon_he",
 };
+
+/** Has Meta approved thank_you_coupon_he? Switched on by setting
+    WHATSAPP_THANKS_TEMPLATE_APPROVED=1 once WhatsApp Manager says so; until
+    then the order page's "send from the bot" button stays off. */
+export function thanksTemplateReady(): boolean {
+  return env("WHATSAPP_THANKS_TEMPLATE_APPROVED") === "1";
+}
 
 /** An Israeli number as the API wants it: digits only, country code first. */
 export function whatsappRecipient(phone: string): string | null {
