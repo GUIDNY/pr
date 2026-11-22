@@ -23,10 +23,24 @@ import {
 import { requireBackOffice } from "@/lib/auth";
 import { ReferralInvitePanel } from "@/components/admin/referral-invite-panel";
 import { canManageCatalog } from "@/lib/permissions";
+import { OrderWhatsapp } from "@/components/admin/order-whatsapp";
+import { paymentReminderContext } from "@/lib/queries/order-whatsapp";
 import { internalNotesFor } from "@/lib/queries/order-notes";
 import { getSellerOrderDetail } from "@/lib/queries/seller-orders";
 import { SellerOrderPage } from "@/components/admin/seller-order-page";
 import { OrdersViewSwitch, ordersViewFor } from "@/components/admin/orders-view-switch";
+
+/* Only for an order whose payment did not finish; nothing otherwise. */
+async function WhatsappBox({ orderNumber }: { orderNumber: string }) {
+  const ctx = await paymentReminderContext(orderNumber);
+  if (!ctx || !ctx.phone) return null;
+  return (
+    <div className="border-border bg-card rounded-xl border p-5">
+      <h2 className="mb-3 font-semibold">הודעת וואטסאפ ללקוח</h2>
+      <OrderWhatsapp orderId={ctx.orderId} name={ctx.name} phone={ctx.phone} optIn={ctx.optIn} titles={ctx.titles} />
+    </div>
+  );
+}
 
 export default async function AdminOrderDetailPage({
   params,
@@ -56,6 +70,7 @@ export default async function AdminOrderDetailPage({
           </div>
         )}
         <SellerOrderPage order={detail} />
+        <WhatsappBox orderNumber={orderNumber} />
         <div className="border-border bg-card rounded-xl border p-5">
           <h2 className="mb-3 font-semibold">הערות פנימיות</h2>
           <OrderNotes orderId={detail.id} initialNotes={await internalNotesFor(detail.id)} />
@@ -135,6 +150,8 @@ export default async function AdminOrderDetailPage({
               </div>
             </div>
           </div>
+
+          <WhatsappBox orderNumber={order.orderNumber} />
 
           <div className="border-border bg-card rounded-xl border p-5">
             <h2 className="mb-3 font-semibold">הערות פנימיות</h2>
