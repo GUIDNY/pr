@@ -1,8 +1,7 @@
 import { db } from "@/lib/db";
-import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
+import { FEED_PRODUCT_WHERE } from "@/lib/feeds/feed-where";
 import { renderGoogleMerchantFeed, BENCHMARK_MAX_AGE_DAYS } from "@/lib/feeds/google-merchant";
 import { specRowsFor, structuredSpecs } from "@/lib/product-specs";
-import { TEST_PRODUCT_SKUS } from "@/lib/test-products";
 import { isBlackNovemberRow } from "@/lib/campaigns/black-november";
 
 // Served from /feeds/, not /api/, on purpose: robots.ts disallows /api for
@@ -26,7 +25,7 @@ export async function GET() {
        ever removes: a product that exists so somebody can put a real card
        through the gateway is purchasable on the site and has no business
        being advertised. See lib/test-products.ts. */
-    where: { ...PUBLIC_PRODUCT_WHERE, sku: { notIn: [...TEST_PRODUCT_SKUS] } },
+    where: FEED_PRODUCT_WHERE,
     select: {
       sku: true,
       slug: true,
