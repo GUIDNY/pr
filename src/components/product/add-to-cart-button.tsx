@@ -1,6 +1,8 @@
 "use client";
 
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { toastAlreadyInCart } from "@/lib/already-in-cart";
 import { ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -35,6 +37,7 @@ export function AddToCartButton({
   const [isPending, startTransition] = useTransition();
   const setCart = useCartStore((s) => s.setCart);
   const openDrawer = useCartStore((s) => s.openDrawer);
+  const router = useRouter();
 
   return (
     <Button
@@ -53,6 +56,10 @@ export function AddToCartButton({
           try {
             const summary = await addToCartReported(productId, qty, { slug, price });
             setCart(summary);
+            if (summary.alreadyInCart) {
+              toastAlreadyInCart(() => router.push("/cart"));
+              return;
+            }
             // Only inside the 3D mall's frame — see lib/mall.ts.
             reportAddedToMall(summary, productId);
             if (openDrawerOnAdd) openDrawer();

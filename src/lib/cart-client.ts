@@ -37,6 +37,11 @@ export async function addToCartReported(productId: string, qty: number, known?: 
     trackVisit("add_to_cart_result", { productSlug: slug, ok: false });
     throw error;
   }
+  if (summary.alreadyInCart) {
+    /* Nothing was added, so nothing is reported to GA or Meta as an add. */
+    trackVisit("add_to_cart_result", { productSlug: slug, ok: true });
+    return summary;
+  }
   const line = summary.items.find((i) => i.productId === productId);
   trackVisit("add_to_cart_result", { productSlug: line?.slug ?? slug, ok: !!line });
   if (line) {
