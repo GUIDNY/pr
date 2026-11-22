@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Phone, MessageCircle } from "lucide-react";
 import { getAbandonedCarts, getAnonymousCarts, DEFAULT_MIN_VALUE } from "@/lib/queries/abandoned-carts";
 import { attributionFromJson, describeTouch } from "@/lib/attribution";
+import { CartWhatsapp } from "@/components/admin/cart-whatsapp";
 import { AbandonedCartActions } from "@/components/admin/abandoned-cart-actions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
@@ -143,7 +144,17 @@ export default async function AbandonedCartsPage({
                       )}
                     </TableCell>
                     <TableCell>
-                      <AbandonedCartActions cartId={cart.id} status={followUpStatus} />
+                      <div className="flex min-w-48 flex-col gap-2">
+                        {cart.contactPhone && followUpStatus === "NEW" && (
+                          <CartWhatsapp
+                            cartId={cart.id}
+                            name={cart.contactName || cart.user?.name || null}
+                            phone={cart.contactPhone}
+                            titles={cart.items.map((i) => i.product.title)}
+                          />
+                        )}
+                        <AbandonedCartActions cartId={cart.id} status={followUpStatus} />
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
