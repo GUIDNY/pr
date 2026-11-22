@@ -29,7 +29,7 @@ const CURRENCY = "ILS";
 // guessed at: a product the site marks DISCONTINUED, DISPLAY_ONLY or
 // NEEDS_REVIEW is one nobody has promised can actually be bought today,
 // and advertising it is how a mismatch penalty starts.
-const AVAILABILITY: Partial<Record<StockStatus, string>> = {
+export const AVAILABILITY: Partial<Record<StockStatus, string>> = {
   IN_STOCK: "in_stock",
   LOW_STOCK: "in_stock",
   SPECIAL_ORDER: "backorder",

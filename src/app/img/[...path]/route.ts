@@ -26,8 +26,12 @@
  * caller controls is a path inside our own public bucket.
  */
 
+import sharp from "sharp";
 import { db } from "@/lib/db";
 import { isBlockedImageHost } from "@/lib/inventory/blocked-image-hosts";
+
+// sharp is native code; this route must not run on the edge.
+export const runtime = "nodejs";
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 
@@ -117,7 +121,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
     return new Response("not found", { status: 404 });
   }
 
-  const upstream = `${SUPABASE_URL}/storage/v1/object/public/${path.map(encodeURIComponent).join("/")}`;
+  /* A `.jpg` beside a migrated `.webp`. Some consumers of our product feeds
+     (ChatGPT's schema names JPEG and PNG) do not take WebP, and the stored
+     files are all WebP. Rather than store a second copy of 3,400 photographs,
+     the `.jpg` address is the same photograph converted on request, and then
+     held by the CDN for a year like every other image here: the path carries
+     the image id, so the bytes behind it never change. Only paths under
+     `migrated/` are derived; an object that really is a `.jpg` anywhere else
+     is served as it always was. */
+  const file = path[path.length - 1];
+  const asJpeg = /\.jpe?g$/i.test(file) && path.includes("migrated");
+  const storedPath = asJpeg ? [...path.slice(0, -1), file.replace(/\.jpe?g$/i, ".webp")] : path;
+
+  const upstream = `${SUPABASE_URL}/storage/v1/object/public/${storedPath.map(encodeURIComponent).join("/")}`;
 
   let res: Response;
   try {
@@ -156,6 +172,30 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
       status: res.status === 404 ? 404 : 502,
       headers: { "Cache-Control": FAILURE_CACHE },
     });
+  }
+
+  if (asJpeg) {
+    try {
+      /* Flattened onto white: JPEG has no alpha, and these photographs were
+         framed on a white canvas when they were migrated, so this changes
+         nothing a shopper could see. */
+      const jpeg = await sharp(Buffer.from(await res.arrayBuffer()))
+        .flatten({ background: "#ffffff" })
+        .jpeg({ quality: 88 })
+        .toBuffer();
+      return new Response(new Uint8Array(jpeg), {
+        status: 200,
+        headers: {
+          "Content-Type": "image/jpeg",
+          "Content-Length": String(jpeg.length),
+          "Cache-Control": CACHE,
+          "CDN-Cache-Control": CACHE,
+          "Vercel-CDN-Cache-Control": CACHE,
+        },
+      });
+    } catch {
+      return new Response("could not convert", { status: 502, headers: { "Cache-Control": FAILURE_CACHE } });
+    }
   }
 
   /* Only the headers that describe the bytes are carried over. Everything

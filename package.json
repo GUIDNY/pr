@@ -105,7 +105,8 @@
     "check:duplicates": "tsx scripts/check-duplicate-listings.ts",
     "check:row-aliases": "tsx scripts/check-row-aliases.ts",
     "check:instagram": "tsx scripts/check-instagram-plan.ts",
-    "check:price-sheets-email": "tsx scripts/check-price-sheets-email.ts"
+    "check:price-sheets-email": "tsx scripts/check-price-sheets-email.ts",
+    "check:chatgpt-feed": "tsx scripts/check-chatgpt-feed.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
