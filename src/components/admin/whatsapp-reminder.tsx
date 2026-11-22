@@ -6,6 +6,7 @@ import { MessageCircle, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { waHref } from "@/lib/notify/whatsapp-link";
 
 /**
@@ -38,6 +39,7 @@ export function WhatsappReminder({
     /* Opened inside the click itself, before anything is awaited, or the
        browser takes it for a popup and blocks it. */
     window.open(href!, "_blank", "noopener,noreferrer");
+    setOpen(false);
     startTransition(async () => {
       const result = await record();
       if (!result.success) toast.error(result.error ?? "לא נרשם שההודעה נשלחה");
@@ -45,38 +47,36 @@ export function WhatsappReminder({
     });
   }
 
-  if (!open) {
-    return (
-      <Button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="h-12 w-full gap-2 bg-green-600 text-base text-white hover:bg-green-700 sm:w-auto"
-      >
-        <MessageCircle className="size-5" /> שלח וואטסאפ
-      </Button>
-    );
-  }
-
   return (
-    <div className="border-border flex w-full max-w-xl flex-col gap-2 rounded-xl border p-3">
-      {optIn === false && (
-        <p className="flex items-start gap-2 rounded-lg bg-yellow-100 px-3 py-2 text-sm text-yellow-900">
-          <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-          הלקוח לא אישר וואטסאפ, עדיף להתקשר
-        </p>
-      )}
-      <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={9} className="text-base" />
-      <Button
-        type="button"
-        onClick={openWhatsapp}
-        disabled={pending || !text.trim()}
-        className="h-12 w-full gap-2 bg-green-600 text-base text-white hover:bg-green-700"
-      >
-        <MessageCircle className="size-5" /> פתח בוואטסאפ
-      </Button>
-      <button type="button" onClick={() => setOpen(false)} className="text-muted-foreground min-h-10 text-sm">
-        סגירה
-      </button>
-    </div>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          className="h-12 w-full gap-2 bg-green-600 text-base text-white hover:bg-green-700 sm:w-auto"
+        >
+          <MessageCircle className="size-5" /> שלח וואטסאפ
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>הודעת וואטסאפ ללקוח</DialogTitle>
+        </DialogHeader>
+        {optIn === false && (
+          <p className="flex items-start gap-2 rounded-lg bg-yellow-100 px-3 py-2 text-sm text-yellow-900">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            הלקוח לא אישר וואטסאפ, עדיף להתקשר
+          </p>
+        )}
+        <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={10} className="text-base" />
+        <Button
+          type="button"
+          onClick={openWhatsapp}
+          disabled={pending || !text.trim()}
+          className="h-12 w-full gap-2 bg-green-600 text-base text-white hover:bg-green-700"
+        >
+          <MessageCircle className="size-5" /> פתח בוואטסאפ
+        </Button>
+      </DialogContent>
+    </Dialog>
   );
 }

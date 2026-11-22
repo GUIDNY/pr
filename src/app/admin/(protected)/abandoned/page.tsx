@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Phone, MessageCircle } from "lucide-react";
 import { getAbandonedCarts, getAnonymousCarts, DEFAULT_MIN_VALUE } from "@/lib/queries/abandoned-carts";
 import { attributionFromJson, describeTouch } from "@/lib/attribution";
+import { cartIdsWithPaymentAttempt } from "@/lib/queries/cart-payment-attempts";
 import { CartWhatsapp } from "@/components/admin/cart-whatsapp";
 import { AbandonedCartActions } from "@/components/admin/abandoned-cart-actions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -42,6 +43,7 @@ export default async function AbandonedCartsPage({
   if (tab === "ANON") return <AnonymousCarts />;
   const status = tab as CartFollowUpStatus | "ALL";
   const { carts, totalValue } = await getAbandonedCarts({ status });
+  const attempted = await cartIdsWithPaymentAttempt(carts);
 
   return (
     <div>
@@ -151,6 +153,7 @@ export default async function AbandonedCartsPage({
                             name={cart.contactName || cart.user?.name || null}
                             phone={cart.contactPhone}
                             titles={cart.items.map((i) => i.product.title)}
+                            paymentAttempted={attempted.has(cart.id)}
                           />
                         )}
                         <AbandonedCartActions cartId={cart.id} status={followUpStatus} />

@@ -129,6 +129,8 @@ export async function checkIn(userId: string) {
 
 /** A mall coupon is good for one paid order; after it, it is switched off. */
 export async function retireGameCoupon(code: string | null | undefined): Promise<void> {
-  if (!code || !code.startsWith("GAME-")) return;
+  /* The owner's one-use thank-you coupons (lib/thanks-coupon.ts) are spent the
+     same way, so one cannot be used twice on an order paid outside the gateway. */
+  if (!code || !(code.startsWith("GAME-") || code.startsWith("TODAY5-"))) return;
   await db.promotion.updateMany({ where: { code }, data: { isActive: false } }).catch(() => {});
 }

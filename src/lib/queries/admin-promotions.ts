@@ -45,7 +45,7 @@ const PAID = ["AUTHORIZED", "CAPTURED"];
 export async function getAdminPromotions(): Promise<{ promotions: AdminPromotion[]; personalCount: number }> {
   const [rows, personalCount] = await Promise.all([
     db.promotion.findMany({
-      where: { OR: [{ code: null }, { code: { not: { startsWith: "GAME-" } } }] },
+      where: { OR: [{ code: null }, { AND: [{ code: { not: { startsWith: "GAME-" } } }, { code: { not: { startsWith: "TODAY5-" } } }] }] },
       orderBy: { createdAt: "desc" },
     }),
     db.promotion.count({ where: { code: { startsWith: "GAME-" } } }),
