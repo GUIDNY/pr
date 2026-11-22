@@ -74,7 +74,12 @@ function money(amount: number): string {
   return `${amount.toFixed(2)} ${CURRENCY}`;
 }
 
-const OWN_IMAGE_PREFIX = `${SITE_URL}/img/`;
+/* The stored addresses are written with whatever SITE_URL was when the image
+   was migrated, which in production is the shop's real domain. The canonical
+   domain is accepted alongside the configured one so that a Preview build,
+   whose NEXT_PUBLIC_SITE_URL points at a branch address, still recognises the
+   photographs the database holds. Anything else is somebody else's. */
+const OWN_IMAGE_PREFIXES = [...new Set([`${SITE_URL}/img/`, "https://buytoday.co.il/img/"])];
 
 /**
  * The address to hand ChatGPT for one of our photographs, or null when it is
@@ -85,7 +90,7 @@ const OWN_IMAGE_PREFIX = `${SITE_URL}/img/`;
  * passed through as it is.
  */
 export function chatgptImageUrl(url: string): string | null {
-  if (!url.startsWith(OWN_IMAGE_PREFIX)) return null;
+  if (!OWN_IMAGE_PREFIXES.some((prefix) => url.startsWith(prefix))) return null;
   if (/\.(jpe?g|png)$/i.test(url)) return url;
   if (/\/migrated\/.+\.webp$/i.test(url)) return url.replace(/\.webp$/i, ".jpg");
   return null;
