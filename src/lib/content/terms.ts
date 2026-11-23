@@ -21,7 +21,7 @@ import type { ArticleBlock } from "@/lib/queries/articles";
  * are the ones that component understands: heading, subheading, paragraph,
  * list, quote. **bold** and [text](href) work inside any of them.
  */
-export const TERMS_UPDATED_AT = "21 בנובמבר 2026";
+export const TERMS_UPDATED_AT = "23 בנובמבר 2026";
 
 /** The same day as a Date, for the sitemap. It used to date this URL with
     RETURNS_POLICY_UPDATED — a different document's timestamp — so a revision
@@ -689,6 +689,22 @@ export const TERMS_BLOCKS: ArticleBlock[] = [
   {
     "type": "paragraph",
     "text": "אם הוראה מסוימת בתקנון תימצא בלתי תקפה או בלתי ניתנת לאכיפה, יתר הוראות התקנון ימשיכו לחול ככל שניתן. אי מימוש זכות מצד Buy Today במקרה מסוים אינו נחשב ויתור על אותה זכות בעתיד. כותרות הסעיפים נועדו להקל על הקריאה ואינן משנות את תוכן ההוראות."
+  },
+  {
+    "type": "heading",
+    "id": "black-november",
+    "text": "תקנון מבצע בלאק נובמבר 2026"
+  },
+  {
+    "type": "list",
+    "items": [
+      "המבצע חל על המוצרים המסומנים במבצע באתר, במחירים שמוצגים באתר בעת ההזמנה.",
+      "המבצע בתוקף עד 30.11.2026 בשעה 23:59, או עד גמר המלאי, המוקדם מביניהם.",
+      "המלאי מוגבל, והחברה רשאית לשנות או להפסיק את המבצע, בכפוף לדין.",
+      "אין כפל מבצעים, אלא אם צוין אחרת באתר.",
+      "ביטול עסקה, משלוחים ואחריות: לפי התקנון הכללי ומדיניות המשלוחים באתר.",
+      "במקרה של סתירה בין פרסום לבין התקנון, התקנון קובע."
+    ]
   },
   {
     "type": "heading",

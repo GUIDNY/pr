@@ -31,5 +31,14 @@ export default async function BlackNovemberPage() {
     );
   }
 
-  return <BlackNovember products={products} layout="grid" heading="h1" />;
+  return (
+    <>
+      <BlackNovember products={products} layout="grid" heading="h1" />
+      <p className="text-muted-foreground mx-auto max-w-7xl px-4 pb-8 text-xs">
+        <Link href="/terms#black-november" className="hover:underline">
+          *עד גמר המלאי ובהתאם לתקנון
+        </Link>
+      </p>
+    </>
+  );
 }
