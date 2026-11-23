@@ -1,4 +1,4 @@
-import { latestInternalNotes } from "@/lib/queries/order-notes";
+import { callbackRequestedIds, latestInternalNotes } from "@/lib/queries/order-notes";
 import "server-only";
 import { bitHoldFrom, paidWith, paidWithFrom, type BitHold, type PaidWith } from "@/lib/pelecard/bit-hold";
 import { db } from "@/lib/db";
@@ -55,6 +55,8 @@ export type SellerOrderSummary = {
   paidWith: PaidWith | null;
   /** Newest internal note, for the list. */
   lastNote?: { body: string; createdAt: Date } | null;
+  /** The customer pressed "call me back" on the payment-failure page. */
+  callbackRequested?: boolean;
 };
 
 export type SellerOrderDetail = SellerOrderSummary & {
@@ -200,8 +202,13 @@ export async function getSellerOrdersByStage(stage: OrderStage): Promise<SellerO
     select: LIST_SELECT,
   });
   const ids = rows.map((r) => r.id);
-  const [how, notes] = await Promise.all([paidWithByOrder(ids), latestInternalNotes(ids)]);
-  return rows.map((row) => ({ ...toSummary(row), paidWith: how.get(row.id) ?? null, lastNote: notes.get(row.id) ?? null }));
+  const [how, notes, callbacks] = await Promise.all([paidWithByOrder(ids), latestInternalNotes(ids), callbackRequestedIds(ids)]);
+  return rows.map((row) => ({
+    ...toSummary(row),
+    paidWith: how.get(row.id) ?? null,
+    lastNote: notes.get(row.id) ?? null,
+    callbackRequested: callbacks.has(row.id),
+  }));
 }
 
 /**

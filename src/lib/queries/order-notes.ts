@@ -21,6 +21,20 @@ export async function latestInternalNotes(orderIds: string[]): Promise<Map<strin
   return out;
 }
 
+/**
+ * Which of these orders the customer asked to be called back about, from the
+ * failure page. The OrderNotification row written when the owner was told is
+ * the record; a note can be buried under later ones, this cannot.
+ */
+export async function callbackRequestedIds(orderIds: string[]): Promise<Set<string>> {
+  if (orderIds.length === 0) return new Set();
+  const rows = await db.orderNotification.findMany({
+    where: { orderId: { in: orderIds }, event: "CALLBACK_REQUEST" },
+    select: { orderId: true },
+  });
+  return new Set(rows.map((r) => r.orderId));
+}
+
 export async function internalNotesFor(orderId: string) {
   const rows = await db.orderNote.findMany({
     where: { orderId },

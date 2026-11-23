@@ -8,7 +8,7 @@
 // below is a row that is in the database today, not an invented string.
 //
 // Run: npx tsx scripts/check-payment-alert.ts
-import { declineText, isBotOrder, DECLINE_REASONS, renderPaymentAlert } from "../src/lib/notify/payment-alert";
+import { declineText, isBotOrder, DECLINE_REASONS, paymentAlertRecipients, renderPaymentAlert, STUCK_AFTER_MINUTES } from "../src/lib/notify/payment-alert";
 
 let failed = 0;
 const fail = (message: string) => {
@@ -110,7 +110,22 @@ if (!plain.subject.startsWith("תשלום תקוע")) fail(`plain stuck subject 
 const cb = renderPaymentAlert(stuckOrder, "CALLBACK", null, "0501234567");
 if (!cb.subject.startsWith("הלקוח מבקש שיחזרו אליו")) fail(`callback subject: ${cb.subject}`);
 if (!cb.subject.includes("0501234567")) fail("callback subject lacks the typed phone");
-const RENDER_CASES = 5;
+// The stuck alert waits 15 minutes and says so in its subject.
+if (STUCK_AFTER_MINUTES !== 15) fail(`stuck threshold is ${STUCK_AFTER_MINUTES}, want 15`);
+if (!plain.subject.startsWith("תשלום תקוע 15 דק'")) fail(`stuck subject does not carry the threshold: ${plain.subject}`);
+// Recipients: team and owner, once each, lower-cased, never empty entries.
+const savedTeam = process.env.TEAM_ALERT_EMAIL;
+const savedOwner = process.env.OWNER_ALERT_EMAIL;
+process.env.TEAM_ALERT_EMAIL = "Team@Example.com, owner@example.com";
+process.env.OWNER_ALERT_EMAIL = "owner@example.com,second@example.com";
+if (JSON.stringify(paymentAlertRecipients()) !== JSON.stringify(["team@example.com", "owner@example.com", "second@example.com"]))
+  fail(`recipients: ${JSON.stringify(paymentAlertRecipients())}`);
+process.env.TEAM_ALERT_EMAIL = "";
+process.env.OWNER_ALERT_EMAIL = "";
+if (paymentAlertRecipients().length !== 0) fail("both empty should be off");
+if (savedTeam === undefined) delete process.env.TEAM_ALERT_EMAIL; else process.env.TEAM_ALERT_EMAIL = savedTeam;
+if (savedOwner === undefined) delete process.env.OWNER_ALERT_EMAIL; else process.env.OWNER_ALERT_EMAIL = savedOwner;
+const RENDER_CASES = 5 + 4;
 
 const total = BOTS.length + HUMANS.length + DECLINES.length + Object.keys(DECLINE_REASONS).length + RENDER_CASES;
 console.log(
