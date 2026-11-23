@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireBackOffice } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { logAudit } from "@/lib/audit";
+import { deletedNoteIds } from "@/lib/queries/order-notes";
 import { orderStatusSchema } from "@/lib/enums";
 
 export async function updateOrderStatusAction(orderId: string, newStatus: string, note?: string) {
@@ -90,7 +91,7 @@ export async function editOrderNoteAction(noteId: string, body: string) {
   if (!text) return { success: false, error: "יש להזין תוכן להערה" };
 
   const note = await db.orderNote.findUnique({ where: { id: noteId }, include: { order: { select: { orderNumber: true } } } });
-  if (!note) return { success: false, error: "ההערה לא נמצאה" };
+  if (!note || (await deletedNoteIds([noteId])).has(noteId)) return { success: false, error: "ההערה לא נמצאה" };
   if (note.authorId !== session.sub && !canManageCatalog(session.role)) {
     return { success: false, error: "רק כותב ההערה או מנהל יכולים לערוך אותה" };
   }
@@ -104,6 +105,29 @@ export async function editOrderNoteAction(noteId: string, body: string) {
     entityType: "OrderNote",
     entityId: noteId,
     metadata: { orderId: note.orderId, previousBody: note.body },
+  });
+
+  revalidatePath(`/admin/orders/${note.order.orderNumber}`);
+  revalidatePath("/admin/orders");
+  return { success: true, error: null };
+}
+
+/* Soft delete: the note leaves every screen, but its text, who deleted it and
+   when stay in the audit log. Same permission as editing. */
+export async function deleteOrderNoteAction(noteId: string) {
+  const session = await requireBackOffice();
+  const note = await db.orderNote.findUnique({ where: { id: noteId }, include: { order: { select: { orderNumber: true } } } });
+  if (!note || (await deletedNoteIds([noteId])).has(noteId)) return { success: false, error: "ההערה לא נמצאה" };
+  if (note.authorId !== session.sub && !canManageCatalog(session.role)) {
+    return { success: false, error: "רק כותב ההערה או מנהל יכולים למחוק אותה" };
+  }
+
+  await logAudit({
+    actorId: session.sub,
+    action: "ORDER_NOTE_DELETED",
+    entityType: "OrderNote",
+    entityId: noteId,
+    metadata: { orderId: note.orderId, body: note.body, authorId: note.authorId },
   });
 
   revalidatePath(`/admin/orders/${note.order.orderNumber}`);

@@ -1,6 +1,17 @@
 import "server-only";
 import { db } from "@/lib/db";
 
+/** Notes soft-deleted from the screens. There is no column for it: the audit
+    trail (ORDER_NOTE_DELETED, with the text, who and when) is the record. */
+export async function deletedNoteIds(noteIds: string[]): Promise<Set<string>> {
+  if (noteIds.length === 0) return new Set();
+  const rows = await db.auditLog.findMany({
+    where: { action: "ORDER_NOTE_DELETED", entityType: "OrderNote", entityId: { in: noteIds } },
+    select: { entityId: true },
+  });
+  return new Set(rows.map((r) => r.entityId));
+}
+
 export type LastNote = { body: string; createdAt: Date };
 
 /**
@@ -14,10 +25,13 @@ export async function latestInternalNotes(orderIds: string[]): Promise<Map<strin
   const rows = await db.orderNote.findMany({
     where: { orderId: { in: orderIds }, isInternal: true },
     orderBy: { createdAt: "desc" },
-    distinct: ["orderId"],
-    select: { orderId: true, body: true, createdAt: true },
+    select: { id: true, orderId: true, body: true, createdAt: true },
   });
-  for (const r of rows) out.set(r.orderId, { body: r.body, createdAt: r.createdAt });
+  const gone = await deletedNoteIds(rows.map((r) => r.id));
+  for (const r of rows) {
+    if (gone.has(r.id) || out.has(r.orderId)) continue;
+    out.set(r.orderId, { body: r.body, createdAt: r.createdAt });
+  }
   return out;
 }
 
@@ -56,7 +70,8 @@ export async function internalNotesFor(orderId: string) {
     select: { id: true, body: true, createdAt: true, authorId: true, author: { select: { name: true } } },
   });
   const edited = await noteEditTimes(rows.map((n) => n.id));
-  return rows.map((n) => ({
+  const gone = await deletedNoteIds(rows.map((n) => n.id));
+  return rows.filter((n) => !gone.has(n.id)).map((n) => ({
     id: n.id,
     body: n.body,
     createdAt: n.createdAt.toISOString(),
