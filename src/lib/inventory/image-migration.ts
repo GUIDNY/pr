@@ -566,6 +566,49 @@ function fetchHeaders(url: string, sourcePageUrl?: string | null): Record<string
   };
 }
 
+/* THE ONE SECRET THIS FILE SENDS, AND WHERE IT MAY GO.
+   prec.co.il is the company's own old shop and answers 403 to every request
+   from Vercel (Cloudflare, by network, whatever the User-Agent). The fix is on
+   their side: a WAF rule that skips bot protection for a request carrying a
+   header only we know. IMAGE_FETCH_TOKEN is that value, set in Vercel by the
+   owner; unset, nothing here changes.
+
+   It is attached to prec.co.il and its subdomains and to nothing else, checked
+   on the parsed hostname (not a substring: "prec.co.il.evil.com" and
+   "notprec.co.il" are other people's), and redirects are followed by hand so
+   that a redirect to another host drops the header instead of carrying a
+   secret to it. */
+const FETCH_TOKEN_HEADER = "x-buytoday-fetch";
+
+export function fetchTokenFor(url: string): string | null {
+  const token = process.env.IMAGE_FETCH_TOKEN?.trim();
+  if (!token) return null;
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return host === "prec.co.il" || host.endsWith(".prec.co.il") ? token : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchImage(target: string, headers: Record<string, string>): Promise<Response> {
+  if (!fetchTokenFor(target)) return fetch(target, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers });
+  let current = target;
+  for (let hop = 0; hop < 4; hop++) {
+    const token = fetchTokenFor(current);
+    const res = await fetch(current, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      headers: token ? { ...headers, [FETCH_TOKEN_HEADER]: token } : headers,
+      redirect: "manual",
+    });
+    if (res.status < 300 || res.status >= 400) return res;
+    const location = res.headers.get("location");
+    if (!location) return res;
+    current = new URL(location, current).toString();
+  }
+  throw new Error("too many redirects");
+}
+
 /** The public entry point: run the migration, and write down a failure so
     the next invocation does not spend its budget rediscovering it. */
 export async function migrateOneImage(image: MigrationCandidate): Promise<MigrationOutcome> {
@@ -633,20 +676,14 @@ async function attemptMigration(image: MigrationCandidate): Promise<MigrationOut
   let input: Buffer;
   try {
     await politeDelay(host);
-    let res = await fetch(target, {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      headers: fetchHeaders(image.url, image.sourcePageUrl),
-    });
+    let res = await fetchImage(target, fetchHeaders(image.url, image.sourcePageUrl));
     // Throttled or blocked: wait longer and ask once more. If the host is
     // rate-limiting, this is what it wanted; if it is genuinely refusing
     // us, the second answer says so and the image is left alone.
     if (res.status === 403 || res.status === 429) {
       await new Promise((r) => setTimeout(r, RETRY_AFTER_MS));
       lastHitAt.set(host, Date.now());
-      res = await fetch(target, {
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        headers: fetchHeaders(image.url, image.sourcePageUrl),
-      });
+      res = await fetchImage(target, fetchHeaders(image.url, image.sourcePageUrl));
     }
     if (res.status === 403) {
       // Said plainly, because "HTTP 403" on 356 rows reads as our bug and
