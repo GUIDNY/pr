@@ -36,6 +36,14 @@
       "schedule": "0 17 * * *"
     },
     {
+      "path": "/api/cron/instagram-stories",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/instagram-stories",
+      "schedule": "0 8 * * *"
+    },
+    {
       "path": "/api/cron/price-sheets-email",
       "schedule": "0 4 * * *"
     },
