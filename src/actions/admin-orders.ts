@@ -81,6 +81,36 @@ export async function addOrderNoteAction(orderId: string, body: string) {
   return { success: true, error: null };
 }
 
+/* Editing a note rewrites its text and nothing else; there is no delete. The
+   previous text is kept in the audit log, and the "edited" mark in the UI is
+   read from that same log. Only the author or a catalog manager may edit. */
+export async function editOrderNoteAction(noteId: string, body: string) {
+  const session = await requireBackOffice();
+  const text = body.trim();
+  if (!text) return { success: false, error: "יש להזין תוכן להערה" };
+
+  const note = await db.orderNote.findUnique({ where: { id: noteId }, include: { order: { select: { orderNumber: true } } } });
+  if (!note) return { success: false, error: "ההערה לא נמצאה" };
+  if (note.authorId !== session.sub && !canManageCatalog(session.role)) {
+    return { success: false, error: "רק כותב ההערה או מנהל יכולים לערוך אותה" };
+  }
+  const next = text.slice(0, 1000);
+  if (next === note.body) return { success: true, error: null };
+
+  await db.orderNote.update({ where: { id: noteId }, data: { body: next } });
+  await logAudit({
+    actorId: session.sub,
+    action: "ORDER_NOTE_EDITED",
+    entityType: "OrderNote",
+    entityId: noteId,
+    metadata: { orderId: note.orderId, previousBody: note.body },
+  });
+
+  revalidatePath(`/admin/orders/${note.order.orderNumber}`);
+  revalidatePath("/admin/orders");
+  return { success: true, error: null };
+}
+
 export async function updateExpectedDeliveryAction(orderId: string, date: string) {
   const session = await requireBackOffice();
   const order = await db.order.update({ where: { id: orderId }, data: { expectedDeliveryAt: new Date(date) } });

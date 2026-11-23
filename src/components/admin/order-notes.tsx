@@ -5,10 +5,17 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { addOrderNoteAction } from "@/actions/admin-orders";
+import { addOrderNoteAction, editOrderNoteAction } from "@/actions/admin-orders";
 import { formatDateTime } from "@/lib/format";
 
-type Note = { id: string; body: string; createdAt: string; authorName: string | null };
+type Note = {
+  id: string;
+  body: string;
+  createdAt: string;
+  authorId: string | null;
+  authorName: string | null;
+  editedAt: string | null;
+};
 
 /** The notes the owner writes most. A tap fills the field, so "טופל על ידי"
     can be finished by hand before it is saved. */
@@ -19,10 +26,22 @@ const QUICK = ["יצאה קבלה", "לא יצאה קבלה", "טופל", "טו�
  * every note as internal, and the customer's own queries read only the
  * others.
  */
-export function OrderNotes({ orderId, initialNotes }: { orderId: string; initialNotes: Note[] }) {
+export function OrderNotes({
+  orderId,
+  initialNotes,
+  viewerId,
+  viewerIsManager,
+}: {
+  orderId: string;
+  initialNotes: Note[];
+  viewerId: string;
+  viewerIsManager: boolean;
+}) {
   const router = useRouter();
   const [body, setBody] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
 
   function submit() {
     if (!body.trim()) return;
@@ -33,6 +52,19 @@ export function OrderNotes({ orderId, initialNotes }: { orderId: string; initial
         return;
       }
       setBody("");
+      router.refresh();
+    });
+  }
+
+  function saveEdit(noteId: string) {
+    if (!draft.trim()) return;
+    startTransition(async () => {
+      const result = await editOrderNoteAction(noteId, draft);
+      if (!result.success) {
+        toast.error(result.error ?? "שגיאה בעריכת ההערה");
+        return;
+      }
+      setEditingId(null);
       router.refresh();
     });
   }
@@ -67,7 +99,38 @@ export function OrderNotes({ orderId, initialNotes }: { orderId: string; initial
               <span className="font-medium">{note.authorName ?? "מערכת"}</span>
               <span className="text-muted-foreground text-xs">{formatDateTime(note.createdAt)}</span>
             </div>
-            <p className="whitespace-pre-wrap">{note.body}</p>
+            {editingId === note.id ? (
+              <div className="flex flex-col gap-2">
+                <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={3} className="text-base" />
+                <div className="flex gap-2">
+                  <Button variant="brand" onClick={() => saveEdit(note.id)} disabled={isPending || !draft.trim()} className="h-10 flex-1">
+                    {isPending ? "שומר…" : "שמירה"}
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditingId(null)} disabled={isPending} className="h-10 flex-1">
+                    ביטול
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="whitespace-pre-wrap">{note.body}</p>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground text-xs">{note.editedAt ? `נערך ${formatDateTime(note.editedAt)}` : ""}</span>
+                  {(viewerIsManager || note.authorId === viewerId) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingId(note.id);
+                        setDraft(note.body);
+                      }}
+                      className="text-brand min-h-8 text-xs underline"
+                    >
+                      עריכה
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </li>
         ))}
       </ul>

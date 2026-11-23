@@ -27,7 +27,7 @@ import { ThanksCoupon } from "@/components/admin/thanks-coupon";
 import { thanksContext } from "@/lib/queries/thanks-coupons";
 import { OrderWhatsapp } from "@/components/admin/order-whatsapp";
 import { paymentReminderContext } from "@/lib/queries/order-whatsapp";
-import { internalNotesFor } from "@/lib/queries/order-notes";
+import { internalNotesFor, noteEditTimes } from "@/lib/queries/order-notes";
 import { getSellerOrderDetail } from "@/lib/queries/seller-orders";
 import { SellerOrderPage } from "@/components/admin/seller-order-page";
 import { OrdersViewSwitch, ordersViewFor } from "@/components/admin/orders-view-switch";
@@ -98,7 +98,7 @@ export default async function AdminOrderDetailPage({
         <ThanksBox orderNumber={orderNumber} />
         <div className="border-border bg-card rounded-xl border p-5">
           <h2 className="mb-3 font-semibold">הערות פנימיות</h2>
-          <OrderNotes orderId={detail.id} initialNotes={await internalNotesFor(detail.id)} />
+          <OrderNotes orderId={detail.id} initialNotes={await internalNotesFor(detail.id)} viewerId={viewer.sub} viewerIsManager={manager} />
         </div>
         <ReferralInvitePanel orderNumber={orderNumber} />
       </div>
@@ -183,12 +183,19 @@ export default async function AdminOrderDetailPage({
             <h2 className="mb-3 font-semibold">הערות פנימיות</h2>
             <OrderNotes
               orderId={order.id}
-              initialNotes={order.notes.map((n) => ({
-                id: n.id,
-                body: n.body,
-                createdAt: n.createdAt.toISOString(),
-                authorName: n.author?.name ?? null,
-              }))}
+              viewerId={viewer.sub}
+              viewerIsManager={manager}
+              initialNotes={await (async () => {
+                const edited = await noteEditTimes(order.notes.map((n) => n.id));
+                return order.notes.map((n) => ({
+                  id: n.id,
+                  body: n.body,
+                  createdAt: n.createdAt.toISOString(),
+                  authorId: n.authorId,
+                  authorName: n.author?.name ?? null,
+                  editedAt: edited.get(n.id) ?? null,
+                }));
+              })()}
             />
           </div>
 
