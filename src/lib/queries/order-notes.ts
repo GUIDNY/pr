@@ -35,16 +35,33 @@ export async function callbackRequestedIds(orderIds: string[]): Promise<Set<stri
   return new Set(rows.map((r) => r.orderId));
 }
 
+/** When each note was last edited, from the audit trail (no column on the
+    note itself: the edit history already lives there, with the old text). */
+export async function noteEditTimes(noteIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (noteIds.length === 0) return out;
+  const rows = await db.auditLog.findMany({
+    where: { action: "ORDER_NOTE_EDITED", entityType: "OrderNote", entityId: { in: noteIds } },
+    orderBy: { createdAt: "asc" },
+    select: { entityId: true, createdAt: true },
+  });
+  for (const r of rows) out.set(r.entityId, r.createdAt.toISOString());
+  return out;
+}
+
 export async function internalNotesFor(orderId: string) {
   const rows = await db.orderNote.findMany({
     where: { orderId },
     orderBy: { createdAt: "desc" },
-    select: { id: true, body: true, createdAt: true, author: { select: { name: true } } },
+    select: { id: true, body: true, createdAt: true, authorId: true, author: { select: { name: true } } },
   });
+  const edited = await noteEditTimes(rows.map((n) => n.id));
   return rows.map((n) => ({
     id: n.id,
     body: n.body,
     createdAt: n.createdAt.toISOString(),
+    authorId: n.authorId,
     authorName: n.author?.name ?? null,
+    editedAt: edited.get(n.id) ?? null,
   }));
 }
