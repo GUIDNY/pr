@@ -1,4 +1,4 @@
-import { latestInternalNotes } from "@/lib/queries/order-notes";
+import { callbackRequestedIds, latestInternalNotes } from "@/lib/queries/order-notes";
 import "server-only";
 import { db } from "@/lib/db";
 import { ORDER_STALE_AFTER_HOURS, type OrderStatus } from "@/lib/enums";
@@ -71,7 +71,8 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
   // about the table that displays it. Measured from the last change, not from
   // when the order was placed — an order moved forward this morning is being
   // handled, however old it is.
-  const notes = await latestInternalNotes(orders.map((o) => o.id));
+  const orderIds = orders.map((o) => o.id);
+  const [notes, callbacks] = await Promise.all([latestInternalNotes(orderIds), callbackRequestedIds(orderIds)]);
   const now = Date.now();
   const withAge = orders.map((order) => {
     const hoursInStatus = (now - order.updatedAt.getTime()) / 3_600_000;
@@ -79,6 +80,7 @@ export async function getAdminOrders(filters: AdminOrderFilters) {
     return {
       ...order,
       lastNote: notes.get(order.id) ?? null,
+      callbackRequested: callbacks.has(order.id),
       hoursInStatus,
       isStale: staleAfter !== null && hoursInStatus > staleAfter,
       /* Both, for the same reason as the seller list: the bin view of this

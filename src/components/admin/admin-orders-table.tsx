@@ -144,6 +144,13 @@ export function AdminOrdersTable({
                           {phone}
                         </a>
                       )}
+                      {order.callbackRequested && (
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-900 dark:bg-orange-950 dark:text-orange-100">
+                            <Phone className="size-3" /> ביקש חזרה
+                          </span>
+                        </div>
+                      )}
                       {order.lastNote && (
                         <div className="mt-1 flex max-w-48 items-center gap-1 text-xs text-amber-800 dark:text-amber-300" title={order.lastNote.body}>
                           <StickyNote className="size-3 shrink-0" />

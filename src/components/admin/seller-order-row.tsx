@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Truck, Store, AlertTriangle, ChevronLeft, StickyNote } from "lucide-react";
+import { Truck, Store, AlertTriangle, ChevronLeft, StickyNote, Phone } from "lucide-react";
 import type { SellerOrderSummary } from "@/lib/queries/seller-orders";
 import { paymentSignal, SIGNAL_DOT, SIGNAL_CHIP } from "@/lib/order-signal";
 import { PAID_WITH_LABELS } from "@/lib/pelecard/bit-hold";
@@ -68,6 +68,13 @@ export function SellerOrderRow({ order }: { order: SellerOrderSummary }) {
             </>
           )}
         </div>
+        {order.callbackRequested && (
+          <div className="mt-1">
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-900 dark:bg-orange-950 dark:text-orange-100">
+              <Phone className="size-3" /> ביקש חזרה בטלפון
+            </span>
+          </div>
+        )}
         {order.lastNote && (
           <div className="mt-1 flex items-center gap-1 text-xs text-amber-800 dark:text-amber-300">
             <StickyNote className="size-3.5 shrink-0" />

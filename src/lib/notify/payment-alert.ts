@@ -2,7 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { SITE_URL } from "@/lib/site-url";
 import { emailChannel } from "./channels";
-import { teamAlertRecipients } from "./owner-alert";
+import { ownerAlertRecipients, teamAlertRecipients } from "./owner-alert";
 
 /**
  * Telling the shop that a payment did not go through.
@@ -82,6 +82,17 @@ export function isBotOrder(order: { guestName: string | null; guestEmail: string
   if (email && (BOT_EMAIL.test(email) || INTERNAL_EMAIL.test(email))) return true;
   const name = order.guestName?.trim().toLowerCase() ?? "";
   return name.length > 0 && BOT_NAMES.has(name);
+}
+
+/**
+ * Who is told about a failed payment: the team address that handles orders
+ * and the owner's, once each. The owner asked (23 November) to be told of
+ * every one of these himself, and until then the mail went only to
+ * TEAM_ALERT_EMAIL. Never the customer: nothing in this file addresses one.
+ * Either variable set empty removes its half, as everywhere else.
+ */
+export function paymentAlertRecipients(): string[] {
+  return [...new Set([...teamAlertRecipients(), ...ownerAlertRecipients()].map((a) => a.toLowerCase()))];
 }
 
 const SELECT = {
@@ -197,7 +208,7 @@ export function renderPaymentAlert(
   const headline =
     flavour === "CALLBACK"
       ? "הלקוח מבקש שיחזרו אליו"
-      : flavour === "FAILED" ? "כישלון תשלום" : paidLater ? "לבדוק חיוב כפול" : "תשלום תקוע 45 דק'";
+      : flavour === "FAILED" ? "כישלון תשלום" : paidLater ? "לבדוק חיוב כפול" : `תשלום תקוע ${STUCK_AFTER_MINUTES} דק'`;
   /* Amount and phone in the subject on purpose: the owner reads this on a
      lock screen and can act without opening anything. */
   const subject = [headline, money(order.total), name, phone].filter(Boolean).join(" · ");
@@ -330,7 +341,7 @@ async function sendOnce(
  */
 export async function notifyPaymentFailed(orderId: string): Promise<void> {
   try {
-    const recipients = teamAlertRecipients();
+    const recipients = paymentAlertRecipients();
     if (recipients.length === 0 || !emailChannel.configured()) return;
     const order = (await db.order.findUnique({ where: { id: orderId }, select: SELECT })) as AlertableOrder | null;
     if (!order || isBotOrder(order)) return;
@@ -353,12 +364,12 @@ export async function notifyCallbackRequested(orderNumber: string, phone: string
     const order = (await db.order.findUnique({ where: { orderNumber }, select: SELECT })) as AlertableOrder | null;
     if (!order || isBotOrder(order)) return false;
     if (!["PAYMENT_FAILED", "PAYMENT_PENDING"].includes(order.status)) return false;
-    const recipients = teamAlertRecipients();
+    const recipients = paymentAlertRecipients();
     if (recipients.length === 0 || !emailChannel.configured()) return false;
     const sent = await sendOnce(order, "CALLBACK", recipients, null, phone);
     if (sent) {
       await db.orderNote.create({
-        data: { orderId: order.id, isInternal: true, body: `הלקוח ביקש שיחזרו אליו מעמוד הכישלון${phone ? ` · טלפון ${phone}` : ""}` },
+        data: { orderId: order.id, isInternal: true, body: `ביקש חזרה בטלפון מעמוד הכישלון${phone ? ` · טלפון ${phone}` : ""}` },
       });
     }
     return sent;
@@ -369,7 +380,7 @@ export async function notifyCallbackRequested(orderNumber: string, phone: string
 }
 
 /** How long a customer may plausibly still be at the gateway. */
-export const STUCK_AFTER_MINUTES = 45;
+export const STUCK_AFTER_MINUTES = 15;
 
 /** A later order in one of these was paid, as far as the gateway told us. */
 const SETTLED_STATUSES = ["AUTHORIZED", "CAPTURED"];
@@ -382,13 +393,18 @@ const SETTLED_STATUSES = ["AUTHORIZED", "CAPTURED"];
  * `pelecardTransactionId` are both empty, which together mean the customer
  * started and we never heard another word.
  *
- * 45 minutes rather than 10, because a customer who goes to check their
- * credit limit and comes back is a real sequence, and an alert about
- * somebody still mid-purchase trains the reader to ignore it.
+ * 15 minutes, since 23 November (it was 45). The owner's reasoning, from
+ * the data: every payment that fails is a buyer who is still at the screen,
+ * and the ones who were rescued were rescued by a phone call in the first
+ * hour, not the third. The cron that calls this runs every 15 minutes, so an
+ * order is reported between 15 and 30 minutes after it opened. A customer who
+ * goes to check their credit limit and comes back is still a real sequence;
+ * the cost of the shorter wait is an occasional alert about somebody who then
+ * pays, and the order's own status says so when it is opened.
  */
 export async function alertStuckPayments(now: Date = new Date()): Promise<{ scanned: number; sent: number; skipped: number }> {
   const cutoff = new Date(now.getTime() - STUCK_AFTER_MINUTES * 60_000);
-  const recipients = teamAlertRecipients();
+  const recipients = paymentAlertRecipients();
   if (recipients.length === 0 || !emailChannel.configured()) return { scanned: 0, sent: 0, skipped: 0 };
 
   const candidates = (await db.order.findMany({

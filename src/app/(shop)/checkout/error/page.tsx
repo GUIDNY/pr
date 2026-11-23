@@ -95,9 +95,18 @@ export default async function CheckoutErrorPage({
         )}
       </div>
 
-      <div className="mt-8 flex flex-col gap-2 sm:flex-row">
+      {order && (
+        <div className="mt-8">
+          <CallbackRequest
+            order={order.orderNumber}
+            needsPhone={!(order.guestPhone?.trim() || order.user?.phone?.trim())}
+          />
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         {allowRetry && (
-          <Button variant="brand" asChild className="h-12 w-full shrink-0 text-base sm:w-auto sm:flex-1">
+          <Button variant="outline" asChild className="h-12 w-full shrink-0 text-base sm:w-auto sm:flex-1">
             <Link href="/checkout">נסו שוב, אפשר גם בביט</Link>
           </Button>
         )}
@@ -105,15 +114,6 @@ export default async function CheckoutErrorPage({
           <Link href={order ? `/track-order?order=${order.orderNumber}` : "/track-order"}>מעקב אחר ההזמנה</Link>
         </Button>
       </div>
-
-      {order && (
-        <div className="mt-3">
-          <CallbackRequest
-            order={order.orderNumber}
-            needsPhone={!(order.guestPhone?.trim() || order.user?.phone?.trim())}
-          />
-        </div>
-      )}
 
       {/* A person, not only a button. Someone whose bank just refused them
           wants to talk to someone, and WhatsApp is where this shop answers. */}
