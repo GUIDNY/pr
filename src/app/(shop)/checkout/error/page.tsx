@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { PELECARD_STATUS_MESSAGES, NO_RETRY_STATUS_CODES } from "@/lib/pelecard/client";
 import { CallbackRequest } from "@/components/checkout/callback-request";
+import { isPhoneOpen } from "@/lib/phone-hours";
 import { BUSINESS } from "@/lib/business";
 import {
   gatewayErrorMessage,
@@ -100,6 +101,7 @@ export default async function CheckoutErrorPage({
           <CallbackRequest
             order={order.orderNumber}
             needsPhone={!(order.guestPhone?.trim() || order.user?.phone?.trim())}
+            phoneOpen={isPhoneOpen()}
           />
         </div>
       )}
