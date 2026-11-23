@@ -33,7 +33,7 @@ export function ContentBlocks({ blocks }: { blocks: ArticleBlock[] }) {
 function Block({ block }: { block: ArticleBlock }) {
   switch (block.type) {
     case "heading":
-      return <h2 className="mt-4 text-xl font-bold text-balance">{renderInline(block.text)}</h2>;
+      return <h2 id={block.id} className="mt-4 scroll-mt-24 text-xl font-bold text-balance">{renderInline(block.text)}</h2>;
     case "subheading":
       return <h3 className="mt-2 text-lg font-bold text-balance">{renderInline(block.text)}</h3>;
     case "list":

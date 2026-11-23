@@ -18,7 +18,7 @@ import { db } from "@/lib/db";
 // be a second, weaker renderer for headings and lists that this file already
 // models properly. See renderInline in the article page.
 export type ArticleBlock =
-  | { type: "heading"; text: string }
+  | { type: "heading"; text: string; id?: string }
   | { type: "subheading"; text: string }
   | { type: "paragraph"; text: string }
   | { type: "list"; items: string[] }

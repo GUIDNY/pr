@@ -28,8 +28,8 @@ export function BlackNovemberBar({ total, lowestPrice }: { total: number; lowest
   if (path.startsWith("/checkout") || path.startsWith("/cart") || path.startsWith("/black-november")) return null;
 
   return (
+    <div data-site-chrome className="bg-black">
     <Link
-      data-site-chrome
       href="/black-november"
       className="border-brand flex justify-center border-b-2 bg-black px-3 py-2 text-[13px] text-white hover:bg-neutral-900 sm:text-sm"
     >
@@ -46,5 +46,12 @@ export function BlackNovemberBar({ total, lowestPrice }: { total: number; lowest
         </span>
       </span>
     </Link>
+    <Link
+      href="/terms#black-november"
+      className="block px-3 pb-1.5 text-center text-[11px] text-white/70 hover:text-white hover:underline"
+    >
+      *עד גמר המלאי ובהתאם לתקנון
+    </Link>
+    </div>
   );
 }
