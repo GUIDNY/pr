@@ -107,7 +107,8 @@
     "check:instagram": "tsx scripts/check-instagram-plan.ts",
     "check:price-sheets-email": "tsx scripts/check-price-sheets-email.ts",
     "check:chatgpt-feed": "tsx scripts/check-chatgpt-feed.ts",
-    "check:image-fetch-token": "tsx scripts/check-image-fetch-token.ts"
+    "check:image-fetch-token": "tsx scripts/check-image-fetch-token.ts",
+    "check:phone-hours": "tsx scripts/check-phone-hours.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
