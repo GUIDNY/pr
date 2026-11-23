@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { addOrderNoteAction, editOrderNoteAction } from "@/actions/admin-orders";
+import { addOrderNoteAction, editOrderNoteAction, deleteOrderNoteAction } from "@/actions/admin-orders";
 import { formatDateTime } from "@/lib/format";
 
 type Note = {
@@ -69,6 +69,18 @@ export function OrderNotes({
     });
   }
 
+  function remove(noteId: string) {
+    if (!window.confirm("למחוק את ההערה?")) return;
+    startTransition(async () => {
+      const result = await deleteOrderNoteAction(noteId);
+      if (!result.success) {
+        toast.error(result.error ?? "שגיאה במחיקת ההערה");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-muted-foreground text-xs">פנימי בלבד. הלקוח לא רואה את ההערות האלה.</p>
@@ -117,6 +129,7 @@ export function OrderNotes({
                 <div className="mt-1 flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-xs">{note.editedAt ? `נערך ${formatDateTime(note.editedAt)}` : ""}</span>
                   {(viewerIsManager || note.authorId === viewerId) && (
+                    <span className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={() => {
@@ -127,6 +140,10 @@ export function OrderNotes({
                     >
                       עריכה
                     </button>
+                    <button type="button" onClick={() => remove(note.id)} disabled={isPending} className="text-destructive min-h-8 text-xs underline">
+                      מחיקה
+                    </button>
+                    </span>
                   )}
                 </div>
               </>

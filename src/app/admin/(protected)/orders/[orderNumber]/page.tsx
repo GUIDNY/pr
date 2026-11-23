@@ -27,7 +27,7 @@ import { ThanksCoupon } from "@/components/admin/thanks-coupon";
 import { thanksContext } from "@/lib/queries/thanks-coupons";
 import { OrderWhatsapp } from "@/components/admin/order-whatsapp";
 import { paymentReminderContext } from "@/lib/queries/order-whatsapp";
-import { internalNotesFor, noteEditTimes } from "@/lib/queries/order-notes";
+import { internalNotesFor, noteEditTimes, deletedNoteIds } from "@/lib/queries/order-notes";
 import { getSellerOrderDetail } from "@/lib/queries/seller-orders";
 import { SellerOrderPage } from "@/components/admin/seller-order-page";
 import { OrdersViewSwitch, ordersViewFor } from "@/components/admin/orders-view-switch";
@@ -186,8 +186,10 @@ export default async function AdminOrderDetailPage({
               viewerId={viewer.sub}
               viewerIsManager={manager}
               initialNotes={await (async () => {
-                const edited = await noteEditTimes(order.notes.map((n) => n.id));
-                return order.notes.map((n) => ({
+                const ids = order.notes.map((n) => n.id);
+                const edited = await noteEditTimes(ids);
+                const gone = await deletedNoteIds(ids);
+                return order.notes.filter((n) => !gone.has(n.id)).map((n) => ({
                   id: n.id,
                   body: n.body,
                   createdAt: n.createdAt.toISOString(),
