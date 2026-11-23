@@ -39,7 +39,7 @@ const line = (label: string, quantity: number, field: ClassifiedField = "WAREHOU
 const HEDERA = sellableStockColumnsFor("small-appliances");
 
 /* ── which workbooks have a rule at all ──────────────────────────────── */
-expect("ליין קטן counts one column", JSON.stringify(HEDERA), JSON.stringify(["מלאי חדרה"]));
+expect("ליין קטן counts the two Hedera warehouse columns", JSON.stringify(HEDERA), JSON.stringify(["מלאי חדרה", "טובים חדרה"]));
 expect("the white-goods workbook was not asked about", sellableStockColumnsFor("white-goods-screens"), null);
 expect("nor was electronics", sellableStockColumnsFor("electronics"), null);
 expect("a record with no source counts everything", sellableStockColumnsFor(null), null);
@@ -47,7 +47,7 @@ expect("a record with no source counts everything", sellableStockColumnsFor(null
 /* ── the nine real columns, each judged ──────────────────────────────── */
 const COUNTS: [string, boolean][] = [
   ["מלאי חדרה", true],
-  ["טובים חדרה", false],   // a Hedera warehouse, but not the column named
+  ["טובים חדרה", true],    // the Hedera good-units warehouse — owner, 24 November
   ["תצוגה חדרה", false],   // a display unit in Hedera
   ["מלאי LUXRY", false],
   ["טובים", false],
@@ -137,8 +137,8 @@ expect("a Ninja product page with nothing in Hedera still sells", isSellableNow(
 expect("and a non-Ninja one beside it does not", isSellableNow({ stockQty: 0, sourceKey: "small-appliances", brand: { name: "Philips" } }), false);
 
 console.log(
-  `${checked - failed}/${checked} passed  (ליין קטן sells from "מלאי חדרה" alone; ` +
-    `the other eight columns and the יתרה total do not re-admit it, and the ` +
+  `${checked - failed}/${checked} passed  (ליין קטן sells from "מלאי חדרה" and "טובים חדרה"; ` +
+    `the other seven columns and the יתרה total do not re-admit it, and the ` +
     `other workbooks count every column as before)`,
 );
 process.exit(failed === 0 ? 0 : 1);

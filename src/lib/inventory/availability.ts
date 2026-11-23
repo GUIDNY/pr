@@ -132,8 +132,13 @@ const STOCK_ONLY_SOURCES = new Set(["electronics", "small-appliances"]);
  * still sold to order unless its workbook is also stock-only. That is why
  * small-appliances joins electronics in the same change.
  */
+/* Widened on 24 November by the owner, "כן", to also count "טובים חדרה" —
+ * the Hedera "good units" warehouse. 33 published products with a photo and
+ * a price sat hidden with stock only there (Bosch BCS711PET: 36 in the sheet,
+ * 41 good in Priority). Display units and the LUXERY locations still do not
+ * count. */
 const SELLABLE_STOCK_COLUMNS: Record<string, readonly string[]> = {
-  "small-appliances": ["מלאי חדרה"],
+  "small-appliances": ["מלאי חדרה", "טובים חדרה"],
 };
 
 /**
