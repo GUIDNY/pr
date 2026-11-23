@@ -3,6 +3,7 @@ import { AlertTriangle, Boxes, Package, Receipt, RotateCcw, ShoppingBag, Shoppin
 import { getDashboardStats } from "@/lib/queries/admin";
 import { getInventorySummary } from "@/lib/queries/admin-inventory";
 import { getAbandonedCartsSummary } from "@/lib/queries/abandoned-carts";
+import { DashboardTrends, KpiComparisonCards, parseTrendParams } from "@/components/admin/dashboard-trends";
 import { RevenueChart } from "@/components/admin/revenue-chart";
 import { formatPrice, formatDate, formatDateTime } from "@/lib/format";
 import { ORDER_STATUS_LABELS, ORDER_STATUS_COLORS, type OrderStatus } from "@/lib/enums";
@@ -12,7 +13,12 @@ import { canManageCatalog } from "@/lib/permissions";
 
 export const metadata = { title: "לוח בקרה | Buy Today Admin" };
 
-export default async function AdminDashboardPage() {
+export default async function AdminDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string; grain?: string; touch?: string }>;
+}) {
+  const trendParams = parseTrendParams(await searchParams);
   /* The dashboard is takings, stock alerts and the day's revenue — a page
      built to answer questions a salesperson was not given. They land on the
      queue instead. */
@@ -37,6 +43,10 @@ export default async function AdminDashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold">לוח בקרה</h1>
+
+      <KpiComparisonCards />
+
+      <DashboardTrends params={trendParams} />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         {tiles.map((t) => (

@@ -22,6 +22,7 @@
     "scan:labels": "tsx scripts/check-energy-labels.ts",
     "check:robots": "tsx scripts/check-robots-txt.ts",
     "check:terms": "tsx scripts/check-terms.ts",
+    "check:dashboard-trends": "tsx scripts/check-dashboard-trends.ts",
     "check:variants": "tsx scripts/group-color-variants.ts",
     "fix:variants": "tsx scripts/group-color-variants.ts --write",
     "check:categories": "tsx scripts/check-category-rules.ts",
