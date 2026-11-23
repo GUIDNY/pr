@@ -356,6 +356,20 @@ export function CheckoutForm({
     }, 0);
     return () => clearTimeout(timer);
   }, []);
+  /* The basket can arrive after the restore above has run (the store fills in
+     from the server), so the under-threshold default is also applied when it
+     does — once, and only while nothing has been chosen or restored. */
+  const cartTotalNow = cart.subtotal - cart.discount;
+  const cartHasLines = cart.items.length > 0;
+  useEffect(() => {
+    if (!restoredTyped.current || methodTouched.current) return;
+    if (cartHasLines && cartTotalNow < FREE_DELIVERY_THRESHOLD) {
+      methodTouched.current = true;
+      // The cart store fills in after mount; this adopts its value once.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setForm((f) => (f.deliveryMethod === "DELIVERY" ? { ...f, deliveryMethod: "PICKUP" } : f));
+    }
+  }, [cartHasLines, cartTotalNow]);
   useEffect(() => {
     // Not before the restore has run: the first render would overwrite what
     // was kept with a form that is still empty.
