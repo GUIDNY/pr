@@ -21,7 +21,7 @@ export const maxDuration = 300;
 
 async function load(date: string, includeUnapproved: boolean) {
   const rows = await db.instagramPost.findMany({
-    where: { scheduledFor: new Date(`${date}T00:00:00Z`), status: "queued" },
+    where: { scheduledFor: new Date(`${date}T00:00:00Z`), status: "queued", type: { not: "STORY_SET" } },
   });
   const posts = includeUnapproved ? rows.map((r) => ({ ...r, rejected: false })) : rows;
   const slugs = [...new Set(posts.map((p) => p.productSlug).filter((s): s is string => !!s))];

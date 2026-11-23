@@ -69,6 +69,25 @@ export async function publishToInstagram(post: Post) {
   return { igMediaId, permalink };
 }
 
+/**
+ * Publishes story frames one by one, in order. Never retries: a failure part-way
+ * throws an error that lists the frames already live, so nothing is posted twice.
+ */
+export async function publishStoryFrames(urls: string[]) {
+  const ids: string[] = [];
+  for (const url of urls) {
+    try {
+      const creationId = String((await graph(`${IG_USER_ID}/media`, { media_type: "STORIES", image_url: url })).id);
+      await waitFinished(creationId);
+      ids.push(String((await graph(`${IG_USER_ID}/media_publish`, { creation_id: creationId })).id));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`frame ${ids.length + 1}/${urls.length} failed after ${ids.length} published (${ids.join(",") || "none"}): ${msg}`);
+    }
+  }
+  return ids;
+}
+
 /** Read-only token test: no container, no publish. */
 export async function checkInstagramAccount() {
   const r = await graph(IG_USER_ID, { fields: "username,media_count,followers_count" }, "GET");
