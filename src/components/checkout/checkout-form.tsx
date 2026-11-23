@@ -311,6 +311,8 @@ export function CheckoutForm({
      (name, email, a saved address) wins, because that is what the shopper
      asked for by signing in. */
   const restoredTyped = useRef(false);
+  /* Set when the shopper picks a method, or one is restored from this tab. */
+  const methodTouched = useRef(false);
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
@@ -326,8 +328,12 @@ export function CheckoutForm({
                 if (!f[key] && typeof value === "string" && value) next[key] = value.slice(0, 200);
               }
               const method = kept.deliveryMethod;
-              if (f.deliveryMethod === "DELIVERY" && (method === "PICKUP_POINT" || method === "PICKUP")) {
+              if (
+                !methodTouched.current &&
+                (method === "DELIVERY" || method === "PICKUP_POINT" || method === "PICKUP")
+              ) {
                 next.deliveryMethod = method;
+                methodTouched.current = true;
               }
               return next;
             });
@@ -335,6 +341,16 @@ export function CheckoutForm({
         }
       } catch {
         /* no storage, or not ours: the form simply starts empty */
+      }
+      /* Nothing kept and nothing chosen: a basket under the free-delivery
+         threshold starts on collecting it, which costs nothing. The door is
+         one tap away and is shown second. A shopper who chose, or whose
+         choice was restored above, is never moved. */
+      if (!methodTouched.current) {
+        const c = useCartStore.getState().cart;
+        if (c.items.length > 0 && c.subtotal - c.discount < FREE_DELIVERY_THRESHOLD) {
+          setForm((f) => (f.deliveryMethod === "DELIVERY" ? { ...f, deliveryMethod: "PICKUP" } : f));
+        }
       }
       restoredTyped.current = true;
     }, 0);
@@ -383,10 +399,15 @@ export function CheckoutForm({
   const deliveryMethod: DeliveryMethod =
     hasBulky && form.deliveryMethod === "PICKUP_POINT" ? "DELIVERY" : form.deliveryMethod;
   const needsAddress = requiresAddress(deliveryMethod);
+  /* Under the free-delivery threshold the free way of getting it is listed
+     first; from the threshold up the door is free too and the order stays as
+     it was. Order only: the prices and the rules are the delivery module's. */
+  const collectFirst = cart.subtotal - cart.discount < FREE_DELIVERY_THRESHOLD;
   const deliveryFee = deliveryMethod === "DELIVERY" ? cart.deliveryFee : 0;
   const orderTotal = Math.max(0, cart.subtotal - cart.discount + deliveryFee);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
+    if (key === "deliveryMethod") methodTouched.current = true;
     setForm((f) => {
       const next = { ...f, [key]: value };
       /* AND THE CARD FORM GOES AWAY IF THIS EDIT LEAVES THE ORDER INCOMPLETE.
@@ -1063,7 +1084,7 @@ export function CheckoutForm({
           >
             <Label
               htmlFor="delivery-home"
-              className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+              className={`${collectFirst ? "order-2 " : ""}border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3`}
             >
               <RadioGroupItem value="DELIVERY" id="delivery-home" />
               <Truck className="size-4" />
@@ -1084,7 +1105,7 @@ export function CheckoutForm({
             {!hasBulky && (
               <Label
                 htmlFor="delivery-point"
-                className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+                className={`${collectFirst ? "order-3 " : ""}border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3`}
               >
                 <RadioGroupItem value="PICKUP_POINT" id="delivery-point" />
                 <MapPin className="size-4" />
@@ -1096,7 +1117,7 @@ export function CheckoutForm({
             )}
             <Label
               htmlFor="delivery-pickup"
-              className="border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3"
+              className={`${collectFirst ? "order-1 " : ""}border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3`}
             >
               <RadioGroupItem value="PICKUP" id="delivery-pickup" />
               <Store className="size-4" />
