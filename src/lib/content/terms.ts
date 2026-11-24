@@ -729,3 +729,15 @@ export const TERMS_BLOCKS: ArticleBlock[] = [
     "text": "© Buy Today — פ.ר. אלקטרוניקה והשקעות (1999) בע\"מ. כל הזכויות שמורות."
   }
 ];
+
+/**
+ * The campaign's own terms, cut out of TERMS_BLOCKS: from its heading up to
+ * the next heading. One source — /terms#black-november and
+ * /black-november/takanon read the same blocks, so they cannot differ.
+ */
+export const BLACK_NOVEMBER_TERMS_BLOCKS: ArticleBlock[] = (() => {
+  const start = TERMS_BLOCKS.findIndex((b) => b.type === "heading" && b.id === "black-november");
+  if (start === -1) return [];
+  const next = TERMS_BLOCKS.findIndex((b, i) => i > start && b.type === "heading");
+  return TERMS_BLOCKS.slice(start + 1, next === -1 ? undefined : next);
+})();
