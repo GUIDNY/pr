@@ -19,6 +19,7 @@ import {
   TicketPercent,
   Coins,
   PartyPopper,
+  Camera,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
@@ -66,6 +67,7 @@ const NAV = [
      price. See lib/campaigns/singles-day-2026.ts. Sellers see it too
      (`seller`), and it leaves the nav at `until`, midnight after 11.11. */
   { href: "/admin/singles-day", label: "יום הרווקים 11.11", icon: PartyPopper, catalog: true, seller: true, until: SINGLES_DAY_ENDS_AT_MS },
+  { href: "/admin/instagram", label: "אינסטגרם", icon: Camera, catalog: true },
   { href: "/admin/suppliers", label: "ספקים", icon: Truck, catalog: true },
   { href: "/admin/chatbot", label: "אלפרד - צ'אט בוט", icon: MessageCircle, catalog: true },
   { href: "/admin/homepage-alfred", label: "אלפרד ממליץ - דף הבית", icon: Sparkles, catalog: true },
