@@ -372,24 +372,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
        A redirect is reversible on the next sync. Until then the page
        answered 200 with "אזל מהמלאי" while this file disowned it, which is
        the page and the sitemap telling Google opposite things. */
-    /* And a product that is sold out for good. The price list still carries
-       it, so it is not the case above, but its row says "סוף דגם" or
-       "אזל אצל הספק — מלאי בלבד" and we have none of it: nobody is restocking
-       it, and its page can only ever say "אזל". On 16 November Search
-       Console had 934 pages "crawled — currently not indexed", 87% of them
-       product pages and a third of the sample sold out, against none sold
-       out among the indexed ones. Offering Google those URLs every day spends
-       its crawl on pages it has already decided not to keep.
+    /* And a product that cannot be sold right now. The rule is the page's own:
+       isSellableNow, the same function product-page-view asks before it draws
+       "אזל מהמלאי" and OutOfStock. A product the price list still orders from a
+       supplier is sellable with nothing in a warehouse (the owner's rule of
+       19 October), so it stays; so does a NINJA, which is always sellable.
 
-       So the argument above — a sold-out page keeps its URL — is narrowed to
-       sold out *for now*. "Expected back" (TEMPORARILY_OUT) and anything the
-       supplier still takes orders for stay. The page itself is untouched and
-       answers 200, and the URL comes back the day it has stock again, since
-       this file is computed on every request. A brand sold without stock
-       (isSellableNow's list) never counts as sold out. */
+       What goes is every product whose page can only say sold out: stock zero
+       and either a price list that sells from stock only (electronics,
+       small-appliances) or a row marked "סוף דגם", "מלאי בלבד" or "אזל זמנית".
+       On 24 November, 501 of the 2,631 product URLs were exactly that, and
+       Search Console held 658 pages "crawled — currently not indexed", most of
+       them products. Offering Google those URLs every day spends its crawl on
+       pages it has already decided not to keep.
+
+       The page is untouched and answers 200, and the URL returns the day it is
+       sellable again, since this file is computed on every request. Before this
+       change only the ended rows (END_OF_LINE, STOCK_ONLY) were dropped, while
+       "expected back" and stock-only sheets stayed: the sitemap offered pages
+       that the page itself called sold out. */
     ...products
       .filter((p) => p.missingFromSourceSince === null)
-      .filter((p) => !soldOutForGood(p))
+      .filter((p) => isSellableNow({ ...p, sourceKey: p.source?.key ?? null }))
       .map((p) => ({
         url: `${BASE_URL}/product/${p.slug}`,
         lastModified: p.updatedAt,
@@ -403,20 +407,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
     })),
   ];
-}
-
-/** The supplier will not supply it again, and we have none: the row says
-    "סוף דגם" or "מלאי בלבד" and the stock is gone. See the product URLs above. */
-const ENDED_AVAILABILITIES = new Set(["END_OF_LINE", "STOCK_ONLY"]);
-
-function soldOutForGood(p: {
-  stockQty: number;
-  sourceAvailability: string;
-  source: { key: string } | null;
-  brand: { name: string } | null;
-}): boolean {
-  if (p.stockQty > 0) return false;
-  if (!ENDED_AVAILABILITIES.has(p.sourceAvailability)) return false;
-  // A brand sold without stock (Ninja) is never sold out, whatever its row says.
-  return !isSellableNow({ ...p, sourceKey: p.source?.key ?? null });
 }
