@@ -114,7 +114,6 @@ export function FunnelTrendChart({ data }: { data: FunnelBucket[] }) {
         />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         <Bar yAxisId="v" dataKey="visitors" name="מבקרים" fill="var(--muted-foreground)" fillOpacity={0.35} radius={[3, 3, 0, 0]} maxBarSize={26} />
-        <Bar yAxisId="v" dataKey="orders" name="הזמנות" fill="var(--brand)" radius={[3, 3, 0, 0]} maxBarSize={26} />
         <Line yAxisId="r" dataKey="rate" name="שיעור המרה" stroke="#111827" strokeWidth={2} dot={{ r: 2 }} connectNulls />
       </ComposedChart>
     </Frame>

@@ -178,7 +178,7 @@ export async function DashboardTrends({ params }: { params: TrendParams }) {
                   <b>{s.n.toLocaleString("he-IL")}</b>
                   {i > 0 && steps[i - 1].n > 0 && (
                     <span className="text-muted-foreground ms-2 text-xs">
-                      {Math.round((s.n / steps[i - 1].n) * 100)}% מהשלב הקודם
+                      <bdi>{Math.round((s.n / steps[i - 1].n) * 100)}%</bdi> מהשלב הקודם
                     </span>
                   )}
                 </span>
