@@ -1,5 +1,5 @@
 // Run: npx tsx scripts/check-product-seo.ts
-import { productSearchSnippet } from "../src/lib/seo/product-seo";
+import { productSearchSnippet, fitSearchTitle, SEARCH_TITLE_MAX, modelCodes } from "../src/lib/seo/product-seo";
 let fail = 0;
 function eq(name: string, got: unknown, want: unknown) {
   if (got !== want) { fail++; console.error(`FAIL ${name}: ${JSON.stringify(got)} !== ${JSON.stringify(want)}`); }
@@ -26,5 +26,28 @@ eq("stale desc", p("טלוויזיה LG OLED77C6 77 אינץ'", "Samsung 65U8000
 eq("no code", p("סט סכו\"ם 24 חלקים שחור", "סט סכו\"ם לשישה סועדים").title, "סט סכו\"ם לשישה סועדים");
 // Blank seoDesc → short description.
 eq("blank desc", p("Samsung 65S90H", "Samsung 65S90H", "  ").description, "קצר");
+
+// fitSearchTitle: the whole title is meant to fit in 60 with " | Buy Today", so 48 here.
+const long1 = "אלקטרולוקס Electrolux EOH6231X תנור בנוי 71 ליטר דיגיטלי";
+eq("short title untouched", fitSearchTitle("טלוויזיה Samsung 65S90H", "Samsung"), "טלוויזיה Samsung 65S90H");
+eq("48 exactly is untouched", fitSearchTitle("א".repeat(48), "x"), "א".repeat(48));
+eq("cut at a word, ends on the measurement", fitSearchTitle(long1, "Electrolux"), "אלקטרולוקס Electrolux EOH6231X תנור בנוי 71 ליטר");
+eq("no ellipsis, no cut word", fitSearchTitle("Sol F3GBCE633 כיריים דומינו גז 29 ס\"מ זכוכית שחורה", "SOL"), "Sol F3GBCE633 כיריים דומינו גז 29 ס\"מ");
+eq("never ends on a bare number", fitSearchTitle("מזגן תדיראן ALPHA PRO INVERTER 370A WIFI 26,551 BTU", "תדיראן"), "מזגן תדיראן ALPHA PRO INVERTER 370A WIFI");
+eq("not inside an English phrase", fitSearchTitle("האייר Haier HOQ-F5AA תנור 72 ליטר Air Fry Full Touch", "Haier"), "האייר Haier HOQ-F5AA תנור 72 ליטר");
+eq("template suffix not doubled", fitSearchTitle("כיריים גז סאוטר Sauter SHG7506B 75 ס\"מ שחור | Buy Today", "Sauter"), "כיריים גז סאוטר Sauter SHG7506B 75 ס\"מ שחור");
+eq("brand repeated is dropped", fitSearchTitle("Sauter Sauter WK994W קומקום זכוכית 1.7 ליטר 2400W לבן שחור", "Sauter"), "Sauter WK994W קומקום זכוכית 1.7 ליטר 2400W");
+// Brand and model are never lost: when they alone do not fit, the title is returned as it was.
+const wide = "מוצר-ארוך-במיוחד-בלי-רווחים-בכלל ABCDEFGH12345678 אביזרים נוספים רבים";
+eq("model kept even when it cannot fit", fitSearchTitle(wide, "Acme", 20), wide);
+// Over a whole set: every model code of the title survives, nothing exceeds the budget unless unavoidable.
+for (const t of [long1, "Sol F3GBCE633 כיריים דומינו גז 29 ס\"מ זכוכית שחורה", "מקפיא אינטגרלי קנדי Candy CMT5518EVWF 220 ליטר No Frost", "ASKO RFC526RNBB1 מקרר מקפיא תחתון 409 ליטר No Frost נירוסטה מושחרת"]) {
+  const out = fitSearchTitle(t, null);
+  for (const c of modelCodes(t)) eq("model survives: " + c, modelCodes(out).includes(c), true);
+  eq("within budget: " + t.slice(0, 20), out.length <= SEARCH_TITLE_MAX, true);
+}
+// productSearchSnippet applies it to the plain and the search title, never to the description.
+eq("snippet plain", productSearchSnippet({ title: long1, seoTitle: null, seoDesc: null, shortDescription: "קצר", description: null, brand: { name: "Electrolux" } }).title, "אלקטרולוקס Electrolux EOH6231X תנור בנוי 71 ליטר");
+eq("snippet seo", productSearchSnippet({ title: "Electrolux EOH6231X", seoTitle: long1, seoDesc: "seo", shortDescription: null, description: null, brand: { name: "Electrolux" } }).title, "אלקטרולוקס Electrolux EOH6231X תנור בנוי 71 ליטר");
 if (fail) process.exit(1);
 console.log("check-product-seo: all passed");
