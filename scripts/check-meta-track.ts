@@ -1,3 +1,4 @@
+export {};
 // A Meta event raised before the pixel exists is held until it does, not
 // dropped — the purchase on the confirmation page was lost to exactly that
 // (lib/analytics/meta.ts).
