@@ -35,7 +35,12 @@ export function isBlackNovemberRow(snapshot: string | null | undefined): boolean
 }
 
 export const BLACK_NOVEMBER_LABEL = "מחיר בלאק נובמבר";
-export const BLACK_NOVEMBER_LIMITED = "לזמן מוגבל";
+/** The campaign's validity line (owner, 24 November). The last words link to
+    the campaign's own terms, /black-november/takanon, wherever this is shown. */
+export const BLACK_NOVEMBER_UNTIL = "עד 30.11";
+export const BLACK_NOVEMBER_TERMS_TEXT = "עד גמר המלאי ובכפוף לתקנון המבצע";
+export const BLACK_NOVEMBER_TERMS_HREF = "/black-november/takanon";
+export const BLACK_NOVEMBER_LIMITED = `${BLACK_NOVEMBER_UNTIL} · ${BLACK_NOVEMBER_TERMS_TEXT}`;
 
 /**
  * What the section may say it is a sale *of*, read off the products in it.

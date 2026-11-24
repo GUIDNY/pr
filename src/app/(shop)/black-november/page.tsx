@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { Button } from "@/components/ui/button";
 import { BlackNovember } from "@/components/home/black-november";
+import { BlackNovemberUntil } from "@/components/campaigns/black-november-until";
 import { getBlackNovemberProducts } from "@/lib/queries/products";
 
 // The campaign's own page: every marked product, where the homepage shows a
@@ -35,9 +36,7 @@ export default async function BlackNovemberPage() {
     <>
       <BlackNovember products={products} layout="grid" heading="h1" />
       <p className="text-muted-foreground mx-auto max-w-7xl px-4 pb-8 text-xs">
-        <Link href="/terms#black-november" className="hover:underline">
-          *עד גמר המלאי ובהתאם לתקנון
-        </Link>
+        <BlackNovemberUntil />
       </p>
     </>
   );

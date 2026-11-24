@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { BLACK_NOVEMBER_LABEL, BLACK_NOVEMBER_LIMITED, isBlackNovemberRow } from "@/lib/campaigns/black-november";
+import { BLACK_NOVEMBER_LABEL, isBlackNovemberRow } from "@/lib/campaigns/black-november";
+import { BlackNovemberUntil } from "@/components/campaigns/black-november-until";
 import { JsonLd } from "@/components/seo/json-ld";
 import { MetaViewContent } from "@/components/analytics/meta-events";
 import { GaViewItem } from "@/components/analytics/ga-events";
@@ -61,6 +62,7 @@ import {
   getProductBySlug,
   getRelatedProducts,
   getBlackNovemberTvsNear,
+  isBlackNovemberReduced,
   SIMILAR_PRICE_BAND,
   getCategoryAttributesFor,
   getProductsByBrandSlug,
@@ -176,13 +178,14 @@ export async function ProductPageView({
   const offSiteForVisitors = !product.isPublished || product.images.length === 0;
   if (offSiteForVisitors && !isAdminViewer) notFound();
 
-  const [related, brandProductsResult, colorVariants, blackNovemberNear] = await Promise.all([
+  const [related, brandProductsResult, colorVariants, blackNovemberNear, blackNovemberReduced] = await Promise.all([
     getRelatedProducts(product.categoryId, product.id, 6, product.price),
     getProductsByBrandSlug(product.brand.slug, { pageSize: 8 }),
     getColorVariants(product),
     /* A television's page offers the campaign's sets of a similar size
        (lib/campaigns/black-november.ts) — the campaign is televisions only. */
     product.category.slug === "tvs" ? getBlackNovemberTvsNear(product.title, product.id) : Promise.resolve([]),
+    isBlackNovemberRow(product.stockBreakdown) ? isBlackNovemberReduced(product.id) : Promise.resolve(false),
   ]);
   const brandProducts = brandProductsResult.products.filter((p) => p.id !== product.id);
   /* The rail says "same price range" only when every card in it is: a short
@@ -654,19 +657,22 @@ export async function ProductPageView({
                   (lib/campaigns/black-november.ts). Said at the price, in
                   the campaign's own words — the price is the ordinary one,
                   named as temporary; no percentage, no struck-through number. */}
-              {isBlackNovemberRow(product.stockBreakdown) && (
-                <Link
-                  href="/black-november"
-                  aria-label={`${BLACK_NOVEMBER_LABEL}, ${BLACK_NOVEMBER_LIMITED} — לכל הדגמים במבצע`}
-                  className="-mt-2 flex w-fit flex-wrap items-center gap-x-2 gap-y-1 text-sm hover:underline"
-                >
-                  <span className="bg-black px-2 py-0.5 text-xs font-black whitespace-nowrap text-white">בלאק נובמבר</span>
-                  <span className="font-medium whitespace-nowrap">מחיר {BLACK_NOVEMBER_LIMITED}</span>
-                  <span className="text-brand inline-flex items-center gap-0.5 font-bold whitespace-nowrap">
-                    לכל הדגמים
-                    <ArrowLeft className="size-3.5" aria-hidden="true" />
-                  </span>
-                </Link>
+              {isBlackNovemberRow(product.stockBreakdown) && blackNovemberReduced && (
+                <div className="-mt-2 flex flex-col gap-1">
+                  <Link
+                    href="/black-november"
+                    aria-label={`${BLACK_NOVEMBER_LABEL} — לכל הדגמים במבצע`}
+                    className="flex w-fit flex-wrap items-center gap-x-2 gap-y-1 text-sm hover:underline"
+                  >
+                    <span className="bg-black px-2 py-0.5 text-xs font-black whitespace-nowrap text-white">בלאק נובמבר</span>
+                    <span className="font-medium whitespace-nowrap">{BLACK_NOVEMBER_LABEL}</span>
+                    <span className="text-brand inline-flex items-center gap-0.5 font-bold whitespace-nowrap">
+                      לכל הדגמים
+                      <ArrowLeft className="size-3.5" aria-hidden="true" />
+                    </span>
+                  </Link>
+                  <BlackNovemberUntil className="text-muted-foreground text-xs" />
+                </div>
               )}
             </div>
           )}

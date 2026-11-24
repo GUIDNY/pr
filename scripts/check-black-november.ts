@@ -2,7 +2,7 @@
 // title and are never guessed — see lib/campaigns/black-november.ts.
 //
 // Run: npx tsx scripts/check-black-november.ts
-import { blackNovemberScope, televisionFacts, televisionSpecFacts, tvSizeBucket } from "../src/lib/campaigns/black-november";
+import { BLACK_NOVEMBER_LIMITED, BLACK_NOVEMBER_TERMS_HREF, blackNovemberScope, televisionFacts, televisionSpecFacts, tvSizeBucket } from "../src/lib/campaigns/black-november";
 
 let failed = 0;
 let total = 0;
@@ -45,6 +45,10 @@ is("unknown size has no bucket", tvSizeBucket(null), null);
 
 is("subject, one brand of televisions", blackNovemberScope([{ title: "טלוויזיה LG", brandName: "LG" }]).subject, "טלוויזיות LG");
 is("subject, mixed", blackNovemberScope([{ title: "טלוויזיה LG", brandName: "LG" }, { title: "מקרר", brandName: "Bosch" }]).subject, "מוצרים נבחרים");
+
+// The validity line (owner, 24 November): a date and the terms, never "limited time".
+is("validity line", BLACK_NOVEMBER_LIMITED, "עד 30.11 · עד גמר המלאי ובכפוף לתקנון המבצע");
+is("terms address", BLACK_NOVEMBER_TERMS_HREF, "/black-november/takanon");
 
 console.log(`${total - failed}/${total} passed`);
 if (failed) process.exit(1);

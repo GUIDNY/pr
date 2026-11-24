@@ -3,6 +3,7 @@ import { FEED_PRODUCT_WHERE } from "@/lib/feeds/feed-where";
 import { renderGoogleMerchantFeed, BENCHMARK_MAX_AGE_DAYS } from "@/lib/feeds/google-merchant";
 import { specRowsFor, structuredSpecs } from "@/lib/product-specs";
 import { isBlackNovemberRow } from "@/lib/campaigns/black-november";
+import { getBlackNovemberReducedIds } from "@/lib/queries/products";
 
 // Served from /feeds/, not /api/, on purpose: robots.ts disallows /api for
 // every crawler, and Merchant Center's fetcher honours robots.txt — a feed
@@ -20,6 +21,7 @@ export async function GET() {
   // PUBLIC_PRODUCT_WHERE rather than a hand-rolled where clause: Google
   // penalises a feed that disagrees with the page it links to, so "what is
   // in the feed" has to be the same predicate as "what is on the site".
+  const reducedIds = await getBlackNovemberReducedIds();
   const products = await db.product.findMany({
     /* The one deliberate departure from PUBLIC_PRODUCT_WHERE, and it only
        ever removes: a product that exists so somebody can put a real card
@@ -27,6 +29,7 @@ export async function GET() {
        being advertised. See lib/test-products.ts. */
     where: FEED_PRODUCT_WHERE,
     select: {
+      id: true,
       sku: true,
       slug: true,
       title: true,
@@ -68,7 +71,7 @@ export async function GET() {
     specs: structuredSpecs(specRowsFor(p).all),
     benchmarkPrice: benchmarkBySku.get(p.sku) ?? null,
     zapMinPrice: zapMinBySku.get(p.sku) ?? null,
-    blackNovember: isBlackNovemberRow(p.stockBreakdown),
+    blackNovember: isBlackNovemberRow(p.stockBreakdown) && reducedIds.has(p.id),
   }));
 
   return new Response(renderGoogleMerchantFeed(rows), {

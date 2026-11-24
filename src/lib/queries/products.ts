@@ -384,12 +384,58 @@ export async function getCatalogSize() {
  * search for lead, then the big screens, then the rest — cheapest first
  * within each group.
  */
-const BLACK_NOVEMBER_WHERE = {
+const BLACK_NOVEMBER_MARKED_WHERE = {
   ...PUBLIC_PRODUCT_WHERE,
   OR: BLACK_NOVEMBER_ROW_MARKS.map((mark) => ({
     stockBreakdown: { contains: mark, mode: "insensitive" as const },
   })),
 };
+
+/* WHAT "REDUCED" MEANS HERE (owner, 24 November: the label may sit only on a
+   product whose price actually came down).
+
+   The base price is what the product cost before the campaign: the
+   `previousValue` of its FIRST price change since 1 October, in the
+   inventory change log. A product is reduced when today's price is lower than
+   that. A product with no price change since then was never reduced — its row
+   being marked by the supplier changes nothing about that — and one whose
+   price is now at or above where it began was not reduced either.
+
+   One raw query for the whole catalogue, kept in memory for five minutes per
+   server instance: the ids move with the sync, twice a day. */
+const BASE_PRICE_SINCE = "2026-10-01";
+let reducedCache: { at: number; ids: Set<string> } | null = null;
+
+export async function getBlackNovemberReducedIds(): Promise<Set<string>> {
+  if (reducedCache && Date.now() - reducedCache.at < 5 * 60 * 1000) return reducedCache.ids;
+  const rows = await db.$queryRaw<{ id: string }[]>`
+    select p.id
+    from "Product" p
+    join (
+      select distinct on ("productId") "productId", "previousValue"
+      from "InventoryChangeEvent"
+      where "changeType" = 'PRICE_CHANGED'
+        and "createdAt" >= ${BASE_PRICE_SINCE}::timestamptz
+        and "productId" is not null
+        and "previousValue" ~ '^[0-9]+(\.[0-9]+)?$'
+      order by "productId", "createdAt" asc
+    ) e on e."productId" = p.id
+    where p.price < e."previousValue"::numeric`;
+  const ids = new Set(rows.map((r) => r.id));
+  reducedCache = { at: Date.now(), ids };
+  return ids;
+}
+
+/** Whether the campaign's price label may be shown on this product. */
+export async function isBlackNovemberReduced(productId: string): Promise<boolean> {
+  return (await getBlackNovemberReducedIds()).has(productId);
+}
+
+/** Marked by the supplier AND really reduced: what the campaign lists. */
+async function blackNovemberWhere() {
+  const ids = [...(await getBlackNovemberReducedIds())];
+  return { AND: [BLACK_NOVEMBER_MARKED_WHERE, { id: { in: ids } }] };
+}
 
 const LEAD_BRANDS = ["samsung", "lg", "sony"];
 
@@ -411,7 +457,7 @@ export async function getBlackNovemberTvsNear(title: string, excludeId: string, 
   const inches = televisionFacts(title).inches;
   if (inches === null) return [];
   const all = await db.product.findMany({
-    where: { ...BLACK_NOVEMBER_WHERE, id: { not: excludeId }, category: { slug: "tvs" } },
+    where: { AND: [await blackNovemberWhere(), { id: { not: excludeId }, category: { slug: "tvs" } }] },
     select: cardSelect,
     take: 300,
   });
@@ -431,13 +477,13 @@ export async function getBlackNovemberTvsNear(title: string, excludeId: string, 
 /* The whole campaign for the shelf's line ("161 דגמים · מ־690 ₪") when the
    row itself shows only the first 24. */
 export async function getBlackNovemberSummary() {
-  const agg = await db.product.aggregate({ where: BLACK_NOVEMBER_WHERE, _count: true, _min: { price: true } });
+  const agg = await db.product.aggregate({ where: await blackNovemberWhere(), _count: true, _min: { price: true } });
   return { total: agg._count, lowestPrice: agg._min.price ?? undefined };
 }
 
 export async function getBlackNovemberProducts(take = 24) {
   const all = await db.product.findMany({
-    where: BLACK_NOVEMBER_WHERE,
+    where: await blackNovemberWhere(),
     select: cardSelect,
     take: 300,
     orderBy: [{ price: "asc" }, { id: "asc" }],
