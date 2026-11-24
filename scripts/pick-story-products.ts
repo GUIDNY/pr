@@ -28,6 +28,8 @@ import { jerusalemNow } from "../src/lib/instagram-plan";
 import { parseStoryProducts } from "../src/lib/instagram-stories";
 
 const SITE = "https://buytoday.co.il";
+// Link sticker for the owner (added by hand in the app); every IG link carries utm: story / post / bio.
+const STORY_LINK = `${SITE}/black-november?utm_source=instagram&utm_medium=story&utm_campaign=alfred-daily`;
 const argv = process.argv.slice(2);
 const dateArg = argv.includes("--date") ? argv[argv.indexOf("--date") + 1] : undefined;
 const AS_JSON = argv.includes("--json");
@@ -105,6 +107,7 @@ async function main() {
     console.log(`\n#${i + 2} ${p.title}\n  slug ${p.slug} | ${p.brand} | ${p.root} > ${p.category} | model ${p.model ?? "-"}\n  price ${p.price} ILS | site stock ${p.stockQty} | Priority good ${p.goodQty}\n  ${p.url}\n  image ${p.image ?? "(none found)"}\n  page description: ${p.description ?? "-"}\n  page specs (advantages must come only from here):\n${p.specs.map((s) => `    - ${s}`).join("\n")}`);
   });
   if (out.length < 3) console.log("\nWARNING: fewer than 3 products satisfy the rules.");
+  console.log(`\nNotes to owner - link sticker for the story: ${STORY_LINK}`);
   console.log(`\nRow for the DB caption: ${JSON.stringify({ products: out.map((p) => ({ slug: p.slug, price: p.price })) })}`);
 }
 
