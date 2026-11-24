@@ -22,6 +22,21 @@ export function OrderStageTabs({
 }) {
   return (
     <div className="border-border flex gap-1 overflow-x-auto border-b" role="tablist">
+      {keepCount !== undefined && (
+        <Link
+          href="/admin/orders?stage=keep"
+          role="tab"
+          aria-selected={active === "keep"}
+          className={`flex shrink-0 items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-bold whitespace-nowrap transition-colors ${
+            active === "keep" ? "border-brand text-brand" : "text-muted-foreground hover:text-foreground border-transparent"
+          }`}
+        >
+          לקוחות ששווה לא לוותר
+          <span className={`rounded-full px-2 py-0.5 text-xs font-black ${active === "keep" ? "bg-brand text-brand-foreground" : "bg-muted text-muted-foreground"}`}>
+            {keepCount}
+          </span>
+        </Link>
+      )}
       {ORDER_STAGES.map((stage) => {
         const on = stage === active;
         return (
@@ -48,21 +63,6 @@ export function OrderStageTabs({
           </Link>
         );
       })}
-      {keepCount !== undefined && (
-        <Link
-          href="/admin/orders?stage=keep"
-          role="tab"
-          aria-selected={active === "keep"}
-          className={`flex shrink-0 items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-bold whitespace-nowrap transition-colors ${
-            active === "keep" ? "border-brand text-brand" : "text-muted-foreground hover:text-foreground border-transparent"
-          }`}
-        >
-          לא לוותר עליהם
-          <span className={`rounded-full px-2 py-0.5 text-xs font-black ${active === "keep" ? "bg-brand text-brand-foreground" : "bg-muted text-muted-foreground"}`}>
-            {keepCount}
-          </span>
-        </Link>
-      )}
     </div>
   );
 }
