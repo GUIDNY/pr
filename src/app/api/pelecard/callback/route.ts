@@ -5,6 +5,7 @@ import { awardPurchase } from "@/lib/game-levels";
 import { emptyPaidOrderFromCart } from "@/lib/paid-cart";
 import { sendPurchaseToGa4 } from "@/lib/analytics/ga4-purchase";
 import { sendPurchaseToOpenAiAds } from "@/lib/analytics/openai-ads-purchase";
+import { sendPurchaseToMetaCapi } from "@/lib/analytics/meta-capi";
 import { recordOrderVisitEvent } from "@/lib/pageview/record.server";
 import { timingSafeEqual as nodeTimingSafeEqual } from "crypto";
 import { db } from "@/lib/db";
@@ -429,6 +430,7 @@ export async function POST(req: Request) {
   if (!held) {
     await sendPurchaseToGa4(orderId);
     await sendPurchaseToOpenAiAds(orderId);
+    await sendPurchaseToMetaCapi(orderId);
   }
 
   /* The payment is real, so the address it was paid for goes into the

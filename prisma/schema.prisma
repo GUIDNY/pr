@@ -801,6 +801,15 @@ model Order {
   adsConversionAttempts Int       @default(0)
   adsConversionError    String?
   gaSessionId        String?
+  /// Meta Conversions API: the visitor's cookie-banner answer at checkout
+  /// (false = refused or never answered, nothing is sent), their _fbp/_fbc
+  /// ids (only with consent), and the once-only guard plus the last error.
+  metaConsent        Boolean   @default(false)
+  metaFbp            String?
+  metaFbc            String?
+  metaCapiSentAt     DateTime?
+  metaCapiAttempts   Int       @default(0)
+  metaCapiError      String?
   /// GA4 Measurement Protocol purchase sent for this order (once only).
   ga4PurchaseSentAt  DateTime?
   /// The customer's answer to "updates on WhatsApp too?" for this order.

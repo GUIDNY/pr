@@ -30,6 +30,7 @@ import { useCartStore } from "@/stores/cart-store";
 import { MetaInitiateCheckout } from "@/components/analytics/meta-events";
 import { GaBeginCheckout } from "@/components/analytics/ga-events";
 import { gaIdsForOrder, readGaIds } from "@/lib/analytics/ga";
+import { metaIdsForOrder } from "@/lib/analytics/meta-ids";
 import { trackVisit } from "@/lib/pageview/track";
 import { createOrderAction, updatePendingOrderDetailsAction } from "@/actions/orders";
 import {
@@ -691,6 +692,9 @@ export function CheckoutForm({
            the browser's and GA4 counts the sale once — see lib/analytics/ga.ts.
            Not personal data: two numbers GA4 minted for this browser. */
         ...gaIdsForOrder(readGaIds(process.env.NEXT_PUBLIC_GA_ID)),
+        /* Meta Conversions API: whether the visitor agreed to be measured,
+           and Meta's own browser ids only if so. See lib/analytics/meta-capi.ts. */
+        ...metaIdsForOrder(),
         confirmPaidOverlap: confirmPaidOverlap.current,
       };
       /* The order already exists and only its details moved: bring it up to

@@ -30,6 +30,10 @@ export const checkoutSchema = z.object({
       present only when the visitor consented to measurement. */
   gaClientId: z.string().max(64).regex(/^[\d.]+$/).nullable().optional(),
   gaSessionId: z.string().max(32).regex(/^\d+$/).nullable().optional(),
+  /** Meta: the cookie banner's answer, and _fbp/_fbc only when it was yes. */
+  metaConsent: z.boolean().optional(),
+  metaFbp: z.string().max(80).regex(/^fb\.\d\.\d+\.\d+$/).nullable().optional(),
+  metaFbc: z.string().max(260).regex(/^fb\.\d\.\d+\.[A-Za-z0-9_-]+$/).nullable().optional(),
 }).refine(
   (data) => data.deliveryMethod !== "DELIVERY" || (data.city && data.street && data.houseNo),
   { message: "יש להזין כתובת מלאה למשלוח", path: ["city"] }
