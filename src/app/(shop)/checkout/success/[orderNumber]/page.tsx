@@ -1,3 +1,4 @@
+import { PICKUP_NOTICE } from "@/lib/notify/messages";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, MapPin, Package, Truck, UserPlus } from "lucide-react";
@@ -130,6 +131,9 @@ export default async function CheckoutSuccessPage({ params }: { params: Promise<
         <p className="text-muted-foreground mt-3 flex items-center gap-2 text-sm">
           <Truck className="size-4" /> {DELIVERY_METHOD_LABELS[order.deliveryMethod as DeliveryMethod]}
         </p>
+        {order.deliveryMethod === "PICKUP" && (
+          <p className="bg-muted mt-3 rounded-lg p-3 text-sm font-semibold">{PICKUP_NOTICE}</p>
+        )}
         {/* Shown back to the customer while they are still on the page and can
             phone about a typo — and it is also the proof the address was
             recorded at all, which for a guest order it previously was not. */}

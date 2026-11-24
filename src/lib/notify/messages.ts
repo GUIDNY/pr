@@ -3,11 +3,19 @@ import { formatPrice } from "@/lib/format";
 import { BUSINESS } from "@/lib/business";
 import { isInternalDelivery } from "@/lib/couriers";
 
+/** Owner's rule, 24.11: a pickup customer must not set out before the shop
+ *  confirms the product is physically there. Said in every pre-collection
+ *  message, never as a promise of timing. */
+export const PICKUP_NOTICE =
+  "חשוב: אין להגיע לאיסוף לפני שתקבלו מאיתנו אישור רשמי שהמוצר מוכן ומחכה לכם בחנות.";
+
 export type OrderForMessage = {
   orderNumber: string;
   customerName: string;
   total: number;
   deliveryToCustomer: boolean;
+  /** Collection from the shop counter (PICKUP), not a carrier point. */
+  pickup?: boolean;
   courierName?: string | null;
   trackingNumber?: string | null;
   trackingUrl?: string | null;
@@ -36,6 +44,7 @@ export function messageFor(event: NotifyEvent, order: OrderForMessage): Message 
         body:
           `היי ${name}, קיבלנו את הזמנה ${order.orderNumber} על סך ${formatPrice(order.total)}.\n` +
           `אנחנו בודקים אותה ומעדכנים אותך ברגע שהיא מאושרת.\n` +
+          (order.pickup ? `${PICKUP_NOTICE}\n` : "") +
           `למעקב: ${order.trackUrl}`,
         // {{1}} name · {{2}} order number · {{3}} total
         template: { event, params: [name, order.orderNumber, formatPrice(order.total)] },
@@ -49,6 +58,7 @@ export function messageFor(event: NotifyEvent, order: OrderForMessage): Message 
           (order.deliveryToCustomer
             ? "נעדכן אותך שוב כשהיא יוצאת למשלוח.\n"
             : "נעדכן אותך שוב כשהיא מוכנה לאיסוף.\n") +
+          (order.pickup ? `${PICKUP_NOTICE}\n` : "") +
           `למעקב: ${order.trackUrl}`,
         // {{1}} name · {{2}} order number · {{3}} what happens next
         template: {

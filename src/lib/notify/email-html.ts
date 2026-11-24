@@ -3,6 +3,7 @@ import { formatPrice } from "@/lib/format";
 import { SITE_URL } from "@/lib/site-url";
 import { BUSINESS, BUSINESS_ADDRESS, BUSINESS_MAP_URL } from "@/lib/business";
 import { isInternalDelivery } from "@/lib/couriers";
+import { PICKUP_NOTICE } from "./messages";
 
 /**
  * The order email, as HTML.
@@ -108,6 +109,7 @@ export type OrderForEmail = {
   deliveryFee: number;
   total: number;
   deliveryToCustomer: boolean;
+  pickup?: boolean;
   address: string | null;
   items: { title: string; quantity: number; price: number }[];
   courierName?: string | null;
@@ -179,6 +181,13 @@ export function renderOrderEmail(event: NotifyEvent, order: OrderForEmail): stri
       ? `<div style="background:${PAGE};border-radius:12px;padding:16px 18px;margin-top:20px;">
             <div style="font-family:${FONT};font-size:12px;color:${MUTED};padding-bottom:5px;">כתובת למשלוח</div>
             <div style="font-family:${FONT};font-size:15px;color:${INK};font-weight:600;line-height:1.5;">${esc(order.address)}</div>
+          </div>`
+      : "";
+
+  const pickupBlock =
+    order.pickup && (event === "ORDER_RECEIVED" || event === "PAYMENT_APPROVED")
+      ? `<div style="background:${BRAND_TINT};border-radius:12px;padding:16px 18px;margin-top:20px;">
+            <div style="font-family:${FONT};font-size:15px;color:${INK};font-weight:700;line-height:1.6;">${esc(PICKUP_NOTICE)}</div>
           </div>`
       : "";
 
@@ -269,8 +278,8 @@ export function renderOrderEmail(event: NotifyEvent, order: OrderForEmail): stri
         </table>
       </td></tr>
 ${
-  addressBlock || courierBlock
-    ? `      <tr><td style="padding:0 30px;">${addressBlock}${courierBlock}</td></tr>\n`
+  addressBlock || courierBlock || pickupBlock
+    ? `      <tr><td style="padding:0 30px;">${addressBlock}${courierBlock}${pickupBlock}</td></tr>\n`
     : ""
 }
       <tr><td align="center" style="text-align:center;padding:28px 30px 0;">
