@@ -136,3 +136,20 @@ export function ChannelWeeksChart({ data }: { data: ChannelWeek[] }) {
     </Frame>
   );
 }
+
+export function DailyProfitChart({ data }: { data: TrendPoint[] }) {
+  const every = data.length > 31 ? Math.ceil(data.length / 12) - 1 : data.length > 10 ? 2 : 0;
+  return (
+    <Frame height={240}>
+      <BarChart data={data} margin={{ top: 8, right: 4, left: 4, bottom: 0 }}>
+        <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
+        <XAxis dataKey="label" tickLine={false} axisLine={false} tick={tick} interval={every} />
+        <YAxis tickLine={false} axisLine={false} tick={tick} width={42} tickFormatter={k} />
+        <Tooltip contentStyle={tooltipStyle} formatter={(v) => formatPrice(Math.round(Number(v ?? 0)))} />
+        <Legend wrapperStyle={{ fontSize: 12 }} />
+        <Bar dataKey="revenue" name="הכנסה" fill="var(--brand)" radius={[3, 3, 0, 0]} maxBarSize={18} />
+        <Bar dataKey="profit" name="רווח גולמי" fill="#16a34a" radius={[3, 3, 0, 0]} maxBarSize={18} />
+      </BarChart>
+    </Frame>
+  );
+}

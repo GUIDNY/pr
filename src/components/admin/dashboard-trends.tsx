@@ -4,7 +4,7 @@ import { formatPrice } from "@/lib/format";
 import { CHANNEL_LABELS } from "@/lib/admin/order-channel";
 import { getChannels, getFunnel, getKpiComparison, getTrend } from "@/lib/queries/admin-trends";
 import { DeltaBadge } from "@/components/admin/delta-badge";
-import { ChannelWeeksChart, FunnelTrendChart, ProfitChart, TrendChart } from "@/components/admin/dashboard-trend-charts";
+import { ChannelWeeksChart, DailyProfitChart, FunnelTrendChart, ProfitChart, TrendChart } from "@/components/admin/dashboard-trend-charts";
 
 export type TrendParams = { range: 7 | 30 | 90; grain: "day" | "week"; touch: "first" | "last" };
 
@@ -137,6 +137,45 @@ export async function DashboardTrends({ params }: { params: TrendParams }) {
           <p className="text-muted-foreground text-xs">הקו המקווקו: אותה תקופה קודמת</p>
         </div>
         <TrendChart data={trend.points} />
+      </div>
+
+      <div className={card}>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="font-semibold">הכנסות ורווח לפי יום</h3>
+          <p className="text-muted-foreground text-xs">רווח גולמי לפי עלות ספק ביום ההזמנה, אחרי הנחות</p>
+        </div>
+        <DailyProfitChart data={trend.points} />
+        <div className="mt-4 max-h-96 overflow-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-card sticky top-0">
+              <tr className="text-muted-foreground text-xs">
+                <th className="py-1 text-start font-medium">תאריך</th>
+                <th className="py-1 text-end font-medium">הזמנות</th>
+                <th className="py-1 text-end font-medium">הכנסה</th>
+                <th className="py-1 text-end font-medium">רווח</th>
+                <th className="py-1 text-end font-medium">% רווח</th>
+              </tr>
+            </thead>
+            <tbody className="divide-border divide-y">
+              {[...trend.points].reverse().map((d) => (
+                <tr key={d.date}>
+                  <td className="py-1.5 whitespace-nowrap">{d.date.slice(8, 10)}/{d.date.slice(5, 7)}</td>
+                  <td className="py-1.5 text-end tabular-nums">{d.orders}</td>
+                  <td className="py-1.5 text-end tabular-nums">{formatPrice(Math.round(d.revenue))}</td>
+                  <td className={`py-1.5 text-end tabular-nums ${d.profit < 0 ? "text-destructive" : ""}`}>
+                    {formatPrice(Math.round(d.profit))}
+                  </td>
+                  <td className="text-muted-foreground py-1.5 text-end tabular-nums">
+                    {d.revenue > 0 ? `${Math.round((d.profit / d.revenue) * 100)}%` : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-muted-foreground mt-2 text-xs">
+          % רווח הוא רווח חלקי הכנסת ההזמנות באותו יום (כולל משלוח). הזמנות ששולמו בלבד, בלי מבוטלות ובלי מחוקות.
+        </p>
       </div>
 
       <div className={card}>
