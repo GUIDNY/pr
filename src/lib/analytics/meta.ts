@@ -83,6 +83,7 @@ export function trackMeta(
   name: MetaEventName,
   params: MetaEventParams,
   eventID?: string,
+  onSent?: () => void,
 ) {
   if (typeof window === "undefined") return;
   // Belt and braces: without consent the pixel was never loaded, so fbq is
@@ -94,5 +95,30 @@ export function trackMeta(
   // promises, and a promise that holds only as long as nobody adds a call
   // site is not one worth making.
   if (isNativeApp()) return;
-  window.fbq?.("track", name, params, eventID ? { eventID } : undefined);
+  /* THE PIXEL IS NOT THERE YET ON THE FIRST COMMIT OF A PAGE LOAD.
+
+     Consent reads "unknown" while the server HTML hydrates and "granted" one
+     render later, and MetaPixel (which installs window.fbq) only renders once
+     it is granted. An event raised from a component's own mount effect — the
+     purchase on the confirmation page above all, which is a full page load
+     coming back from the gateway — therefore ran BEFORE fbq existed, did
+     `window.fbq?.(...)`, and was dropped without a trace. PageView still
+     arrived, because its effect lives inside MetaPixel; the Purchase never
+     did, and Events Manager showed no Purchase at all for 28 days.
+
+     So when fbq is missing, wait for it (it appears within a render or two)
+     and send then. Not for ever: if it has not appeared after ~10 s, the
+     pixel was never loaded on this page and the event is dropped as before.
+     `onSent` runs only when the event was really handed to fbq, so a caller
+     that remembers "already reported" does not remember a drop. */
+  let triesLeft = 40;
+  const attempt = () => {
+    if (window.fbq) {
+      window.fbq("track", name, params, eventID ? { eventID } : undefined);
+      onSent?.();
+      return;
+    }
+    if (--triesLeft > 0) setTimeout(attempt, 250);
+  };
+  attempt();
 }
