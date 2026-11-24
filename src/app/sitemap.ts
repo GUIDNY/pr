@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { db } from "@/lib/db";
 import { SITE_URL as BASE_URL } from "@/lib/site-url";
 import { hasDerivedHashSuffix } from "@/lib/derived-slug";
-import { LISTING_MIN_PRODUCTS, CATEGORY_PAGE_SIZE } from "@/lib/queries/products";
+import { LISTING_MIN_PRODUCTS, CATEGORY_PAGE_SIZE, getBlackNovemberProducts } from "@/lib/queries/products";
 import { RETURNS_POLICY_UPDATED } from "@/lib/returns-policy";
 import { SHIPPING_POLICY_UPDATED } from "@/lib/shipping-policy";
 import { WARRANTY_POLICY_UPDATED } from "@/lib/warranty-policy";
@@ -31,7 +31,7 @@ export const revalidate = 3600;
 // sitemap that claims everything changed this morning is one Google learns
 // to discount wholesale.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const [products, categories, allProducts, articles, brands, aboutPage] = await Promise.all([
+  const [products, categories, allProducts, articles, brands, aboutPage, blackNovemberLive] = await Promise.all([
     // Not PUBLIC_PRODUCT_WHERE: that requires stock, and a sold-out product
     // still has a page. Since it answers 200, its URL belongs here — dropping
     // it is how the URL leaves Google's index and comes back with nothing.
@@ -75,6 +75,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
        policies below it has no constant to read a date from — and inventing
        today's would tell a crawler it changed on every build. */
     db.cmsPage.findUnique({ where: { slug: "about" }, select: { updatedAt: true } }),
+    /* Whether the campaign page has anything on it. It is offered only while
+       it does: the page itself turns noindex when empty (its generateMetadata),
+       and a sitemap that lists it then would say the opposite. */
+    getBlackNovemberProducts(1).then((rows) => rows.length > 0),
   ]);
 
   const newest = (dates: (Date | undefined)[]): Date | undefined => {
@@ -319,6 +323,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "yearly",
       priority: 0.5,
     },
+    /* The Black November campaign (owner, 24 November): its page, while it has
+       products, and its terms, which the page links to and which carry the
+       conditions of the sale. No lastModified: neither has a row to date it
+       from, and no date is a smaller lie than today's. */
+    ...(blackNovemberLive
+      ? [{ url: `${BASE_URL}/black-november`, changeFrequency: "daily" as const, priority: 0.6 }]
+      : []),
+    { url: `${BASE_URL}/black-november/takanon`, changeFrequency: "yearly" as const, priority: 0.3 },
     ...categories
       .filter((c) => sellableInScope(c.id) >= LISTING_MIN_PRODUCTS)
       .flatMap((c) => {
