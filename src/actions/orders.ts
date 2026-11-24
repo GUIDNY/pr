@@ -205,6 +205,10 @@ export async function createOrderAction(input: CheckoutInput) {
       visitSid: await currentVisitSid(),
       gaClientId: data.gaClientId ?? null,
       gaSessionId: data.gaSessionId ?? null,
+      // Meta Conversions API: consent is never assumed, ids only with it.
+      metaConsent: data.metaConsent === true,
+      metaFbp: data.metaConsent === true ? (data.metaFbp ?? null) : null,
+      metaFbc: data.metaConsent === true ? (data.metaFbc ?? null) : null,
       whatsappOptIn: data.whatsappOptIn ?? true,
       // Consent to advertising is never assumed: missing means no.
       marketingOptIn: data.marketingOptIn === true,
