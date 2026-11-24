@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { BlackNovemberLink } from "@/components/campaigns/black-november-link";
 import { formatPrice } from "@/lib/format";
 import {
   BLACK_NOVEMBER_TERMS_HREF,
@@ -37,7 +38,7 @@ export function BlackNovemberBar({ total, lowestPrice }: { total: number; lowest
       className="border-brand flex justify-center border-b-2 bg-black px-3 py-2 text-[12px] text-white sm:text-sm"
     >
       <div className="flex w-full max-w-7xl flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
-        <Link href="/black-november" className="flex items-center gap-2 whitespace-nowrap hover:underline">
+        <BlackNovemberLink from="bar" href="/black-november" className="flex items-center gap-2 whitespace-nowrap hover:underline">
           <span className="font-black">בלאק נובמבר</span>
           <span className="text-white/80">
             · {total.toLocaleString("he-IL")} דגמים
@@ -47,7 +48,7 @@ export function BlackNovemberBar({ total, lowestPrice }: { total: number; lowest
             לכל הדגמים
             <ArrowLeft className="size-4" />
           </span>
-        </Link>
+        </BlackNovemberLink>
         <span className="text-white/80">
           · {BLACK_NOVEMBER_UNTIL} ·{" "}
           <Link href={BLACK_NOVEMBER_TERMS_HREF} className="underline underline-offset-2 hover:no-underline">
