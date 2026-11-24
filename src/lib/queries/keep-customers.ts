@@ -10,6 +10,7 @@ export type KeepCustomer = {
   amount: number;
   attempts: number;
   lastAt: Date;
+  notes: { at: Date; author: string; body: string }[];
   reason: "תשלום נכשל" | "לא השלים תשלום" | "עגלה נטושה";
 };
 
@@ -118,6 +119,20 @@ export async function getKeepCustomers(): Promise<KeepCustomer[]> {
     });
   }
 
+  const noteRows = await db.auditLog.findMany({
+    where: { action: "KEEP_CUSTOMER_NOTE", entityId: { in: [...attempts.keys()] } },
+    orderBy: { createdAt: "desc" },
+    select: { entityId: true, createdAt: true, metadata: true, actor: { select: { name: true } } },
+  });
+  const notesBy = new Map<string, KeepCustomer["notes"]>();
+  for (const n of noteRows) {
+    let body = "";
+    try {
+      body = String((JSON.parse(n.metadata ?? "{}") as { body?: string }).body ?? "");
+    } catch {}
+    if (body) push(notesBy, n.entityId, { at: n.createdAt, author: n.actor?.name ?? "—", body });
+  }
+
   const out: KeepCustomer[] = [];
   for (const [key, list] of attempts) {
     const open = list.filter((a) => !(paid.get(key) ?? []).some((p) => p.at >= a.at && a.products.some((x) => p.ids.has(x.id))));
@@ -135,6 +150,7 @@ export async function getKeepCustomers(): Promise<KeepCustomer[]> {
       titles: [...new Set(last.products.map((p) => p.title))],
       amount: last.amount,
       attempts: open.length,
+      notes: notesBy.get(key) ?? [],
       lastAt: last.at,
       reason: kinds.has("FAILED") ? "תשלום נכשל" : kinds.has("PENDING") ? "לא השלים תשלום" : "עגלה נטושה",
     });

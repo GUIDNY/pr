@@ -1,9 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Phone } from "lucide-react";
-import { dismissKeepCustomerAction } from "@/actions/admin-keep-customers";
+import { addKeepNoteAction, dismissKeepCustomerAction } from "@/actions/admin-keep-customers";
 import { waHref } from "@/lib/notify/whatsapp-link";
 import { formatPrice } from "@/lib/format";
 
@@ -16,11 +16,14 @@ export type KeepRow = {
   attempts: number;
   lastAt: string;
   reason: string;
+  notes: { at: string; author: string; body: string }[];
 };
 
 export function KeepCustomersList({ rows }: { rows: KeepRow[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [text, setText] = useState("");
 
   if (rows.length === 0)
     return <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">אין כרגע לקוחות לטיפול.</p>;
@@ -58,6 +61,9 @@ export function KeepCustomersList({ rows }: { rows: KeepRow[] }) {
                   <Phone className="size-4" /> התקשר
                 </a>
               )}
+              <button type="button" onClick={() => { setOpenKey(openKey === r.key ? null : r.key); setText(""); }} className="border-border h-10 rounded-lg border px-3 text-sm font-semibold">
+                הערה
+              </button>
               {(["HANDLED", "NOT_RELEVANT"] as const).map((why) => (
                 <button
                   key={why}
@@ -69,6 +75,31 @@ export function KeepCustomersList({ rows }: { rows: KeepRow[] }) {
                 </button>
               ))}
             </div>
+            {openKey === r.key && (
+              <div className="mt-3 flex flex-col gap-2">
+                <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} maxLength={1000} className="border-border bg-background w-full rounded-md border p-2 text-sm" />
+                <button
+                  type="button"
+                  disabled={pending || !text.trim()}
+                  onClick={() => start(async () => { await addKeepNoteAction(r.key, text); setText(""); setOpenKey(null); router.refresh(); })}
+                  className="bg-primary text-primary-foreground h-9 w-fit rounded-md px-3 text-sm font-semibold"
+                >
+                  שמירת הערה
+                </button>
+              </div>
+            )}
+            {r.notes.length > 0 && (
+              <ul className="border-border mt-3 space-y-1.5 border-t pt-3 text-sm">
+                {r.notes.map((n, i) => (
+                  <li key={i}>
+                    <span className="text-muted-foreground text-xs">
+                      {n.author} · {new Date(n.at).toLocaleString("he-IL", { timeZone: "Asia/Jerusalem", dateStyle: "short", timeStyle: "short" })}
+                    </span>
+                    <p className="whitespace-pre-wrap">{n.body}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         );
       })}

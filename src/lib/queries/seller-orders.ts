@@ -187,8 +187,12 @@ const LIST_SELECT = {
  * out of the list, present in the badge above it.
  */
 function stageWhere(stage: OrderStage) {
-  if (stage === TRASH_STAGE) return { deletedAt: { not: null } };
-  return { status: { in: statusesInStage(stage) }, deletedAt: null };
+  /* A cancelled order is shown in the bin (owner, 24.11) without being binned:
+     display only, status and deletedAt untouched. The bin's server actions
+     still check deletedAt, so nothing here can be restored or purged by
+     mistake. */
+  if (stage === TRASH_STAGE) return { OR: [{ deletedAt: { not: null } }, { status: "CANCELLED" }] };
+  return { status: { in: statusesInStage(stage).filter((s) => s !== "CANCELLED") }, deletedAt: null };
 }
 
 export async function getSellerOrdersByStage(stage: OrderStage): Promise<SellerOrderSummary[]> {
