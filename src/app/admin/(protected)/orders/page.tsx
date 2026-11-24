@@ -74,7 +74,7 @@ export default async function AdminOrdersPage({
         </div>
         <OrderStageTabs active={keepTab ? "keep" : stage} counts={counts} keepCount={keep?.length} />
         {keepTab && keep ? (
-          <KeepCustomersList rows={keep.map((k) => ({ ...k, lastAt: k.lastAt.toISOString() }))} />
+          <KeepCustomersList rows={keep.map((k) => ({ ...k, lastAt: k.lastAt.toISOString(), notes: k.notes.map((n) => ({ ...n, at: n.at.toISOString() })) }))} />
         ) : (
           <p className="text-muted-foreground text-sm">{STAGE_HINTS[stage]}</p>
         )}

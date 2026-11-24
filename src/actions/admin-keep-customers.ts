@@ -12,3 +12,13 @@ export async function dismissKeepCustomerAction(key: string, why: "HANDLED" | "N
   revalidatePath("/admin/orders");
   return { success: true, error: null };
 }
+
+/** A note on a customer, keyed by the normalised customer key so it survives new attempts. */
+export async function addKeepNoteAction(key: string, body: string) {
+  const session = await requireAdmin();
+  const text = body.trim().slice(0, 1000);
+  if (!/^(p|e|u):.{1,120}$/.test(key) || !text) return { success: false, error: "הערה ריקה" };
+  await logAudit({ actorId: session.sub, action: "KEEP_CUSTOMER_NOTE", entityType: "KeepCustomer", entityId: key, metadata: { body: text } });
+  revalidatePath("/admin/orders");
+  return { success: true, error: null };
+}

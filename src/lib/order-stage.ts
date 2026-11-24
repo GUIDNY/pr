@@ -85,9 +85,9 @@ export const STAGE_LABELS: Record<OrderStage, string> = {
 export const STAGE_HINTS: Record<OrderStage, string> = {
   open: "התשלום נתפס — ממתינות לבדיקה ולאישור",
   processing: "אושרו ויצאו לדרך — מעקב מול השליח",
-  closed: "הסתיימו: נמסרו, בוטלו או זוכו",
+  closed: "הסתיימו: נמסרו או זוכו (מבוטלות בפח)",
   unpaid: "טרם שולם: הלקוח הגיע לתשלום ולא השלים אותו — כאן מתקשרים ומזכירים",
-  trash: "הוצאו מהתור ולא נמחקו. אפשר לשחזר, או למחוק מכאן לצמיתות",
+  trash: "מבוטלות והוצאו מהתור, לא נמחקו. אפשר לשחזר, או למחוק מכאן לצמיתות",
 };
 
 export function isStage(value: string | undefined): value is OrderStage {
