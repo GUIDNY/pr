@@ -58,6 +58,7 @@
     "seed:guides": "tsx scripts/seed-buying-guides.ts",
     "check:delivery-reprice": "tsx scripts/check-delivery-reprice.ts",
     "check:black-november": "tsx scripts/check-black-november.ts",
+    "check:meta-track": "tsx scripts/check-meta-track.ts",
     "check:delivery": "tsx scripts/check-delivery-promise.ts",
     "check:alfred": "tsx scripts/check-alfred-intent.ts",
     "check:seo": "tsx scripts/check-product-seo-live.ts",

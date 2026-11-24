@@ -94,6 +94,11 @@ export const PAYMENT_CAPTURED_EVENT = "prec:payment-captured";
 
 const purchaseKey = (orderNumber: string) => `prec-meta-purchase:${orderNumber}`;
 
+/* Orders whose Purchase is already on its way in this page load: the effect
+   below can run again (the confirmation re-renders as the payment settles)
+   while the first send is still waiting for the pixel. */
+const purchaseInFlight = new Set<string>();
+
 /**
  * A completed purchase — and only a completed one.
  *
@@ -129,9 +134,10 @@ export function MetaPurchase({
 }) {
   useEffect(() => {
     const send = () => {
+      if (purchaseInFlight.has(orderNumber)) return;
+      purchaseInFlight.add(orderNumber);
       try {
         if (window.localStorage.getItem(purchaseKey(orderNumber)) === "1") return;
-        window.localStorage.setItem(purchaseKey(orderNumber), "1");
       } catch {
         // Storage blocked (private window, blocked site data). Reporting the
         // sale once and risking a duplicate on a reload is the better failure
@@ -148,6 +154,16 @@ export function MetaPurchase({
           num_items: contents.reduce((n, c) => n + c.quantity, 0),
         },
         orderNumber,
+        // Remembered only once Meta's pixel really has the event: the key used
+        // to be written first, so a purchase dropped before the pixel loaded
+        // was then never retried on a reload either.
+        () => {
+          try {
+            window.localStorage.setItem(purchaseKey(orderNumber), "1");
+          } catch {
+            // see above
+          }
+        },
       );
     };
 
