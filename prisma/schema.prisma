@@ -1482,3 +1482,20 @@ model InstagramPost {
 
   @@index([scheduledFor, status])
 }
+
+// ---------- Order shifts (/admin/shifts) ----------
+
+/// Who covers orders on a given day. `date` is the Israel calendar day, YYYY-MM-DD.
+model OrderShift {
+  date        String   @id
+  person      String
+  updatedById String?
+  updatedAt   DateTime @default(now()) @updatedAt
+}
+
+/// Key/value for the shifts page: the two phone numbers and reminder markers.
+model ShiftSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt
+}

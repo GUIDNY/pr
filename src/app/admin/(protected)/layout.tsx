@@ -20,6 +20,7 @@ import {
   Coins,
   PartyPopper,
   Camera,
+  CalendarDays,
 } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { LogoutButton } from "@/components/layout/logout-button";
@@ -47,6 +48,7 @@ const NAV = [
      catalog links are a role's business and this one is a named list of
      addresses — see lib/price-list-access.ts. */
   { href: "/admin/prices", label: "מחירים ועלויות", icon: Coins, priceList: true },
+  { href: "/admin/shifts", label: "משמרות הזמנות", icon: CalendarDays, catalog: true },
   { href: "/admin/abandoned", label: "עגלות נטושות", icon: ShoppingCart, catalog: true },
   { href: "/admin/complaints", label: "תלונות", icon: AlertTriangle, catalog: true },
   { href: "/admin/products", label: "מוצרים", icon: Package, catalog: true },
