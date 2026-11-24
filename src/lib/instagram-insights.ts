@@ -145,6 +145,15 @@ export async function loadInsights(): Promise<Insights> {
       (row[key] as number | null) = res[i].value;
       handle(res[i].error, `פוסט ${date}`);
     });
+    // Likes and comments also come with plain media access (instagram_basic), so
+    // they survive a token that lacks instagram_manage_insights.
+    if (row.likes === null || row.comments === null) {
+      try {
+        const m = await graph(id, { fields: "like_count,comments_count" });
+        if (row.likes === null && typeof m.like_count === "number") row.likes = m.like_count;
+        if (row.comments === null && typeof m.comments_count === "number") row.comments = m.comments_count;
+      } catch { /* leave the cells empty; the permission note already explains why */ }
+    }
     out.posts.push(row);
   }
 
