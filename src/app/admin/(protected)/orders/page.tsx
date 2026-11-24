@@ -10,6 +10,8 @@ import { requireBackOffice } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { getSellerOrdersByStage, getSellerStageCounts } from "@/lib/queries/seller-orders";
 import { OrdersBulkList } from "@/components/admin/orders-bulk-list";
+import { getKeepCustomers } from "@/lib/queries/keep-customers";
+import { KeepCustomersList } from "@/components/admin/keep-customers-list";
 import { OrderStageTabs } from "@/components/admin/order-stage-tabs";
 import { isStage, STAGE_HINTS, TRASH_STAGE } from "@/lib/order-stage";
 import { OrdersViewSwitch, ordersViewFor } from "@/components/admin/orders-view-switch";
@@ -49,10 +51,12 @@ export default async function AdminOrdersPage({
   const sp = await searchParams;
   const view = ordersViewFor(manager, sp.view);
   if (view === "handle") {
+    const keepTab = manager && sp.stage === "keep";
     const stage = isStage(sp.stage) ? sp.stage : "open";
-    const [orders, counts] = await Promise.all([
-      getSellerOrdersByStage(stage),
+    const [orders, counts, keep] = await Promise.all([
+      keepTab ? Promise.resolve([]) : getSellerOrdersByStage(stage),
       getSellerStageCounts(),
+      manager ? getKeepCustomers() : Promise.resolve(null),
     ]);
     return (
       <div className="flex flex-col gap-4">
@@ -68,9 +72,13 @@ export default async function AdminOrdersPage({
             )}
           </div>
         </div>
-        <OrderStageTabs active={stage} counts={counts} />
-        <p className="text-muted-foreground text-sm">{STAGE_HINTS[stage]}</p>
-        {orders.length === 0 ? (
+        <OrderStageTabs active={keepTab ? "keep" : stage} counts={counts} keepCount={keep?.length} />
+        {keepTab && keep ? (
+          <KeepCustomersList rows={keep.map((k) => ({ ...k, lastAt: k.lastAt.toISOString() }))} />
+        ) : (
+          <p className="text-muted-foreground text-sm">{STAGE_HINTS[stage]}</p>
+        )}
+        {keepTab ? null : orders.length === 0 ? (
           <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">
             {stage === TRASH_STAGE ? "הפח ריק." : "אין כאן הזמנות כרגע."}
           </p>
