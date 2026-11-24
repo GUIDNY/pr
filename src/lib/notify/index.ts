@@ -62,6 +62,7 @@ type OrderRow = {
 export function buildMessage(order: OrderRow, event: NotifyEvent): Message {
   const customerName = order.user?.name ?? order.guestName ?? "לקוח";
   const toCustomer = order.deliveryMethod === "DELIVERY";
+  const pickup = order.deliveryMethod === "PICKUP";
   const trackUrl = `${SITE_URL}/track-order`;
 
   const message = messageFor(event, {
@@ -69,6 +70,7 @@ export function buildMessage(order: OrderRow, event: NotifyEvent): Message {
     customerName,
     total: order.total,
     deliveryToCustomer: toCustomer,
+    pickup,
     courierName: order.courierName,
     trackingNumber: order.trackingNumber,
     trackingUrl: order.trackingUrl,
@@ -86,6 +88,7 @@ export function buildMessage(order: OrderRow, event: NotifyEvent): Message {
     deliveryFee: order.deliveryFee,
     total: order.total,
     deliveryToCustomer: toCustomer,
+    pickup,
     address: shipAddress(order),
     items: order.items.map((i) => ({ title: i.titleSnap, quantity: i.quantity, price: i.priceSnap })),
     courierName: order.courierName,
