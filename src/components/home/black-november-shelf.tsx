@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { BlackNovemberLink } from "@/components/campaigns/black-november-link";
 import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import type { ProductCardData } from "@/components/product/product-card";
@@ -190,13 +191,14 @@ export function BlackNovemberShelf({
       </div>
 
       {limit && viewAllHref && (total ?? products.length) > shown.length && (
-        <Link
+        <BlackNovemberLink
+          from="home_shelf"
           href={viewAllHref}
           className="mt-3 flex h-11 items-center justify-center gap-2 border border-black text-sm font-bold hover:bg-black hover:text-white"
         >
           לכל {Math.max(total ?? 0, products.length).toLocaleString("he-IL")} הדגמים
           <ArrowLeft className="size-4" />
-        </Link>
+        </BlackNovemberLink>
       )}
     </>
   );

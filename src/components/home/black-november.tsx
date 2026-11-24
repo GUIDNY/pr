@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { BlackNovemberLink } from "@/components/campaigns/black-november-link";
 import type { ProductCardData } from "@/components/product/product-card";
 import { BlackNovemberShelf } from "@/components/home/black-november-shelf";
 import { blackNovemberScope } from "@/lib/campaigns/black-november";
@@ -73,13 +73,14 @@ export function BlackNovember({
           </p>
         </div>
         {viewAllHref && (
-          <Link
+          <BlackNovemberLink
+            from="home_header"
             href={viewAllHref}
             className="text-brand hidden shrink-0 items-center gap-1 text-sm font-bold hover:underline sm:inline-flex"
           >
             לכל הדגמים
             <ArrowLeft className="size-4" />
-          </Link>
+          </BlackNovemberLink>
         )}
       </div>
 

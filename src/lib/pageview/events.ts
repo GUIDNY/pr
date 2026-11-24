@@ -35,6 +35,8 @@ export const VISIT_EVENT_TYPES = [
   // consent_choice(granted) over consent_shown
   "consent_shown",
   "consent_choice",
+  // a press on a link into /black-november from our own pages (bar, home)
+  "bn_link_click",
 ] as const;
 export type VisitEventType = (typeof VISIT_EVENT_TYPES)[number];
 
@@ -55,6 +57,7 @@ const META_KEYS: Record<VisitEventType, Record<string, "string" | "number" | "bo
   form_submit: { form: "string", channel: "string" },
   consent_shown: { variant: "string" },
   consent_choice: { choice: "string", variant: "string" },
+  bn_link_click: { from: "string" },
 };
 
 const MAX_STRING = 120;
