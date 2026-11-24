@@ -162,3 +162,16 @@ async function findGuideWalkingUp(categorySlug: string) {
   }
   return null;
 }
+
+/* The buying guides for the homepage: the newest few, guides only. Articles
+   filed under "טיפים" are general advice and not what a shopper on the front
+   page is looking for. Both spellings of the label exist in the table
+   ("מדריך קנייה" and "מדריכי קנייה"), so both are matched. */
+export async function getHomepageGuides(take = 6) {
+  return db.article.findMany({
+    where: { isPublished: true, category: { in: ["מדריך קנייה", "מדריכי קנייה"] } },
+    orderBy: { publishedAt: "desc" },
+    take,
+    select: { slug: true, title: true, excerpt: true },
+  });
+}

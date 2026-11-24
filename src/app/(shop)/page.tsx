@@ -6,6 +6,8 @@ import { MallPromo } from "@/components/home/mall-promo";
 import { ProductRail } from "@/components/home/product-rail";
 import { BlackNovember } from "@/components/home/black-november";
 import { BrandStrip } from "@/components/home/brand-strip";
+import { GuidesStrip } from "@/components/home/guides-strip";
+import { getHomepageGuides } from "@/lib/queries/articles";
 import { WhyPrec } from "@/components/home/why-prec";
 import {
   getBlackNovemberProducts,
@@ -56,6 +58,7 @@ export default async function HomePage() {
     banners,
     blackNovember,
     blackNovemberSummary,
+    guides,
   ] = await Promise.all([
       getHomepageSection("hero"),
       getDeals(8),
@@ -70,6 +73,7 @@ export default async function HomePage() {
       getPromoBanners(),
       getBlackNovemberProducts(),
       getBlackNovemberSummary(),
+      getHomepageGuides(6),
     ]);
 
   // Admin-curated at /admin/homepage-alfred (payload.productIds). Shown as
@@ -193,6 +197,8 @@ export default async function HomePage() {
           viewAllLabel={`לכל ${d.name}`}
         />
       ))}
+
+      <GuidesStrip guides={guides} />
 
       <ProductRail title="חדש בקטלוג" subtitle="הגיעו אלינו לאחרונה" products={newArrivals} />
 

@@ -85,6 +85,8 @@ import type { SourceAvailability, StockStatus } from "@/lib/enums";
 import { BUSINESS } from "@/lib/business";
 import { maxCartQuantity } from "@/lib/cart-merge";
 import { isSellableNow, sellableWithoutStock } from "@/lib/inventory/availability";
+import { getArticleByCategorySlug } from "@/lib/queries/articles";
+import { RelatedGuide } from "@/components/product/related-guide";
 import { needsPaidInstallation, INSTALLATION_NOT_INCLUDED, INSTALLATION_ARRANGED_SEPARATELY } from "@/lib/installation";
 
 /**
@@ -178,7 +180,7 @@ export async function ProductPageView({
   const offSiteForVisitors = !product.isPublished || product.images.length === 0;
   if (offSiteForVisitors && !isAdminViewer) notFound();
 
-  const [related, brandProductsResult, colorVariants, blackNovemberNear, blackNovemberReduced] = await Promise.all([
+  const [related, brandProductsResult, colorVariants, blackNovemberNear, blackNovemberReduced, relatedGuide] = await Promise.all([
     getRelatedProducts(product.categoryId, product.id, 6, product.price),
     getProductsByBrandSlug(product.brand.slug, { pageSize: 8 }),
     getColorVariants(product),
@@ -186,6 +188,7 @@ export async function ProductPageView({
        (lib/campaigns/black-november.ts) — the campaign is televisions only. */
     product.category.slug === "tvs" ? getBlackNovemberTvsNear(product.title, product.id) : Promise.resolve([]),
     isBlackNovemberRow(product.stockBreakdown) ? isBlackNovemberReduced(product.id) : Promise.resolve(false),
+    getArticleByCategorySlug(product.category.slug),
   ]);
   const brandProducts = brandProductsResult.products.filter((p) => p.id !== product.id);
   /* The rail says "same price range" only when every card in it is: a short
@@ -1152,6 +1155,10 @@ export async function ProductPageView({
             )}
           </TabsContent>
         </Tabs>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4">
+        <RelatedGuide guide={relatedGuide} />
       </div>
 
       {!isSoldOut && (
