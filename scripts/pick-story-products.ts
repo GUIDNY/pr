@@ -11,6 +11,9 @@
 //   - at least 2 good units in Priority (PriorityStockBySku.goodQty >= 2)
 //   - 3 different categories (compared at the top-level category)
 //   - a product does not come back within 14 days (earlier STORY_SET rows)
+//   - actually cheaper (owner, 24.11): Product.price < previousValue of the FIRST
+//     PRICE_CHANGED InventoryChangeEvent since 2026-10-01; no such event = out.
+//     The frame shows only the current price: no "before", no percentages.
 //   - no Frigidaire; no product whose price a person set by hand
 //     (Product.priceManualAt is not null) — "frozen" is read that way, say so
 //     if the owner meant something else
@@ -59,7 +62,12 @@ async function main() {
       and b."goodQty" >= 2
       and p."priceManualAt" is null
       and p.price > 0
-      and br.name not ilike '%frigidaire%'`;
+      and br.name not ilike '%frigidaire%'
+      and p.price < (
+        select nullif(regexp_replace(e."previousValue", '[^0-9.]', '', 'g'), '')::float8
+        from "InventoryChangeEvent" e
+        where e."productId" = p.id and e."changeType" = 'PRICE_CHANGED' and e."createdAt" >= '2026-10-01'
+        order by e."createdAt" asc limit 1)`;
   const eligible = rows.filter((r) => !used.has(r.slug)).sort((a, z) => rank(a.slug).localeCompare(rank(z.slug)));
 
   const picked: Cand[] = [];
