@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 
 /**
  * Read-only Instagram numbers for /admin/instagram and /api/admin/instagram-insights.
- * The token lives only in process.env.IG_ACCESS_TOKEN: it is read inside graph(),
+ * The token lives only in process.env.IG_INSIGHTS_TOKEN (falling back to IG_ACCESS_TOKEN); it is read inside graph(),
  * sent to Graph and never returned, logged or put in an error message.
  *
  * Everything here tolerates a missing permission or a metric Instagram does not
@@ -25,8 +25,9 @@ export class GraphError extends Error {
 }
 
 async function graph(path: string, params: Record<string, string> = {}): Promise<GraphJson> {
-  const token = process.env.IG_ACCESS_TOKEN;
-  if (!token) throw new GraphError("IG_ACCESS_TOKEN is not set on this deployment", null);
+  // A read-only token for Insights, if one is set, so the publishing token is never touched; otherwise the publishing token.
+  const token = process.env.IG_INSIGHTS_TOKEN || process.env.IG_ACCESS_TOKEN;
+  if (!token) throw new GraphError("neither IG_INSIGHTS_TOKEN nor IG_ACCESS_TOKEN is set on this deployment", null);
   const qs = new URLSearchParams({ ...params, access_token: token });
   const res = await fetch(`${GRAPH}/${path}?${qs}`, { cache: "no-store" });
   const json = (await res.json().catch(() => ({}))) as GraphJson;
