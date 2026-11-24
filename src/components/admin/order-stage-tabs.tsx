@@ -57,7 +57,7 @@ export function OrderStageTabs({
             active === "keep" ? "border-brand text-brand" : "text-muted-foreground hover:text-foreground border-transparent"
           }`}
         >
-          לא לוותר עליהם
+          לקוחות ששווה לא לוותר
           <span className={`rounded-full px-2 py-0.5 text-xs font-black ${active === "keep" ? "bg-brand text-brand-foreground" : "bg-muted text-muted-foreground"}`}>
             {keepCount}
           </span>
