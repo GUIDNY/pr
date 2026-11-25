@@ -684,7 +684,8 @@ export async function ProductPageView({
               carry its own price and the choice is made between the two. */}
           <ColorVariantPicker variants={colorVariants} />
 
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 max-md:-order-1">
+          {/* max-lg:pe-14 keeps the line clear of the fixed accessibility launcher (bottom corner, size-11) */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 max-lg:pe-14 max-md:-order-1">
             <StockBadge status={shownStockStatus} />
             {/* The delivery cost said at the price, where the decision is
                 made — the one fee shoppers most often first meet at checkout. */}
@@ -808,7 +809,7 @@ export async function ProductPageView({
               the shop's own configuration, not copy. */}
           {!isSoldOut && (
             <ul className="border-border bg-muted/40 divide-border divide-y rounded-xl border text-sm">
-              <li className="flex items-center gap-2.5 px-3.5 py-2.5">
+              <li className="flex items-center gap-2.5 px-3.5 py-2.5 max-lg:pe-14">
                 <Truck className="text-brand size-4 shrink-0" />
                 <span>
                   {deliveryFee === 0 ? (
