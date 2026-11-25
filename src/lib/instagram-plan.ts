@@ -1,5 +1,8 @@
 /** Pure decision logic for the daily Instagram post. No I/O, so it is testable. */
 export const PUBLISH_HOUR = 19;
+/** Catch-up window: a post missed at 19:00 (e.g. awaiting approval) may still go out until 22:59. */
+export const PUBLISH_LAST_HOUR = 22;
+export const inPublishWindow = (hour: number) => hour >= PUBLISH_HOUR && hour <= PUBLISH_LAST_HOUR;
 const TZ = "Asia/Jerusalem";
 
 export type InstagramPostRow = {
@@ -54,8 +57,8 @@ export function planTodayPost(
   opts: { ignoreHour?: boolean; date?: string } = {},
 ): Plan {
   const j = jerusalemNow(now);
-  if (!opts.ignoreHour && j.hour !== PUBLISH_HOUR)
-    return { action: "wait", reason: "not 19:00 in Asia/Jerusalem", now: j };
+  if (!opts.ignoreHour && !inPublishWindow(j.hour))
+    return { action: "wait", reason: "outside 19:00-22:59 in Asia/Jerusalem", now: j };
   const date = opts.date ?? j.date;
   const post = posts
     .filter((p) => p.scheduledFor.toISOString().slice(0, 10) === date && !p.rejected && p.status === "queued")

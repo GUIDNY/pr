@@ -36,6 +36,10 @@
       "schedule": "0 17 * * *"
     },
     {
+      "path": "/api/cron/instagram-publish",
+      "schedule": "*/15 17-20 * * *"
+    },
+    {
       "path": "/api/cron/instagram-stories",
       "schedule": "0 7 * * *"
     },

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { checkInstagramAccount, describePlan, publishToInstagram } from "@/lib/instagram-publish";
-import { jerusalemNow, planTodayPost, type ProductFacts } from "@/lib/instagram-plan";
+import { inPublishWindow, jerusalemNow, planTodayPost, type ProductFacts } from "@/lib/instagram-plan";
 
 /**
  * Daily 19:00 (Asia/Jerusalem) Instagram post. vercel.json fires at 16:00 and
@@ -54,7 +54,17 @@ export async function GET(request: Request) {
   const now = jerusalemNow(nowD);
   const date = (dryRun && url.searchParams.get("date")) || now.date;
 
-  if (!dryRun && now.hour !== 19) return NextResponse.json({ ok: true, skipped: "not 19:00 in Asia/Jerusalem", now });
+  if (!dryRun && !inPublishWindow(now.hour)) return NextResponse.json({ ok: true, skipped: "outside 19:00-22:59 in Asia/Jerusalem", now });
+
+  // At most one feed post a day: the catch-up window must not add a second one.
+  if (!dryRun) {
+    const recent = await db.instagramPost.findMany({
+      where: { status: "published", type: { not: "STORY_SET" }, publishedAt: { gte: new Date(nowD.getTime() - 48 * 3600_000) } },
+      select: { publishedAt: true },
+    });
+    if (recent.some((r) => r.publishedAt && jerusalemNow(r.publishedAt).date === now.date))
+      return NextResponse.json({ ok: true, published: null, reason: "already published today", now });
+  }
 
   const { posts, products, rawRejected } = await load(date, dryRun && url.searchParams.get("includeUnapproved") === "1");
   const plan = planTodayPost(nowD, posts, products, { ignoreHour: dryRun, date });
