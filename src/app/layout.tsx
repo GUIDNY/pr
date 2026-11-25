@@ -35,7 +35,7 @@ const heebo = Heebo({
 
 const SITE_NAME = "Buy Today";
 const SITE_DESCRIPTION =
-  "Buy Today - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.";
+  "Buy Today - חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות מלאה.";
 
 export const metadata: Metadata = {
   // Required for the Open Graph image to resolve to an absolute URL. Without

@@ -45,7 +45,7 @@ export function AuthShell({ mode, children }: { mode: "login" | "register"; chil
               <Image src="/brand/logo-sm.webp" alt="Buy Today" width={512} height={512} className="size-11 rounded-[22%]" />
               <div>
                 <p className="text-lg leading-tight font-black">Buy Today</p>
-                <p className="text-primary-foreground/70 text-xs">מוצרי חשמל · יבואן רשמי</p>
+                <p className="text-primary-foreground/70 text-xs">מוצרי חשמל · אחריות מלאה</p>
               </div>
             </div>
             <div className="my-8">

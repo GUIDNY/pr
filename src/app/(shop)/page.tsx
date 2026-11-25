@@ -128,7 +128,7 @@ export default async function HomePage() {
         <div className="order-1">
           <HeroBand
             title={hero?.title || "מוצרי חשמל מיבואן רשמי, במחיר טוב"}
-            subtitle={hero?.subtitle || "משלוח עד הבית, אחריות יבואן רשמי ושירות לקוחות אמיתי"}
+            subtitle={hero?.subtitle || "משלוח עד הבית, אחריות מלאה ושירות לקוחות אמיתי"}
             ctaLabel={hero ? (hero.payload as { ctaLabel: string }).ctaLabel : undefined}
             ctaHref={hero ? (hero.payload as { ctaHref: string }).ctaHref : undefined}
             departments={departmentCounts}

@@ -69,7 +69,7 @@ export function categoryMetaDescription(name: string, facts: CategoryFacts, page
     parts.push(`${name} ב-Buy Today`);
   }
   const lead = parts.join(" — ");
-  const tail = "משלוח עד הבית ואחריות יבואן רשמי.";
+  const tail = "משלוח עד הבית ואחריות מלאה.";
   const pageNote = page > 1 ? ` עמוד ${page}.` : "";
   const text = `${lead}. ${tail}${pageNote}`;
   return text.length <= 160 ? text : `${lead}.${pageNote}`;
