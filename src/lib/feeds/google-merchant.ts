@@ -308,6 +308,15 @@ export function priceCompetitiveness(
   return null;
 }
 
+/* g:id is the SKU, and it has to stay the SKU wherever the SKU is a real one
+   (GA and Meta item ids are the same string). A SKU with no letter or digit
+   in it, such as the single ";" one product carries, is not an identifier
+   Merchant Center accepts, so that item falls back to its slug, which is
+   unique and never changes. The SKU itself is not touched. */
+export function feedItemId(p: { sku: string; slug: string }): string {
+  return /[A-Za-z0-9\u0590-\u05FF]/.test(p.sku ?? "") ? p.sku : p.slug;
+}
+
 export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
   const items: string[] = [];
 
@@ -326,7 +335,7 @@ export function renderGoogleMerchantFeed(products: FeedProduct[]): string {
       // title, link and description without the g: prefix — RSS 2.0 defines
       // those three itself, and Google's own RSS sample uses the plain
       // elements for them and reserves g: for everything it adds.
-      tag("g:id", p.sku),
+      tag("g:id", feedItemId(p)),
       tag("title", title),
       tag("description", description),
       tag("link", `${SITE_URL}/product/${p.slug}`),

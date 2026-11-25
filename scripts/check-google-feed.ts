@@ -14,7 +14,7 @@
 // ASCII quotes for ס"מ and אינץ', an "A&I" in the body text.
 //
 // Run: npx tsx scripts/check-google-feed.ts
-import { priceBand, priceCompetitiveness, renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
+import { feedItemId, priceBand, priceCompetitiveness, renderGoogleMerchantFeed, toPlainText, type FeedProduct } from "../src/lib/feeds/google-merchant";
 import { SITE_URL } from "../src/lib/site-url";
 import { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE, HANDLING_DAYS, TRANSIT_DAYS, STANDARD_DELIVERY_DAYS } from "../src/lib/delivery";
 
@@ -135,6 +135,8 @@ function check(name: string, ok: boolean, detail = "") {
 
 // A stray & is not a bad item, it is a bad *file*: Google can't parse any
 // of it and the whole feed goes stale at its last good version.
+check("a real SKU stays the id", feedItemId({ sku: "0902", slug: "x-y" }) === "0902");
+check("a SKU with no letter or digit falls back to the slug", feedItemId({ sku: ";", slug: "premier-freezers-bd300" }) === "premier-freezers-bd300");
 check("no unescaped ampersand", !/&(?!amp;|lt;|gt;|quot;|apos;)/.test(xml));
 check("no markup left in any value", !/<(?:p|br|h[1-6]|ul|ol|li|strong|em|div|span)\b/i.test(xml));
 check("no control characters", !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(xml));
