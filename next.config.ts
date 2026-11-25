@@ -1,7 +1,32 @@
 import type { NextConfig } from "next";
 import path from "node:path";
 
+/* Security headers for every route.
+
+   frame-ancestors, not X-Frame-Options: the 3D mall (play.buytoday.co.il, and
+   the same page at /mall) opens product pages in an <iframe name="bt-mall-embed"
+   (lib/mall.ts), and X-Frame-Options cannot name a second origin. The iOS app
+   is a top-level WebView, not a frame. Pelecard's payment frame is the shop
+   embedding them, which frame-ancestors does not govern.
+
+   The full CSP is report-only on purpose: it only logs to the browser console
+   what it would block (Meta pixel, GA, Clarity, Pelecard) and enforces nothing.
+   Tighten and enforce only after reading those reports. */
+const CSP_REPORT_ONLY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+  "style-src 'self' 'unsafe-inline' https:",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https:",
+  "connect-src 'self' https: wss:",
+  "frame-src https:",
+  "media-src 'self' blob: https:",
+  "object-src 'none'",
+  "base-uri 'self'",
+].join("; ");
+
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   // The shop moved to buytoday.co.il, and pr-ayam.vercel.app is still live:
   // Vercel always keeps that alias and it cannot be given up. Left alone it
   // is a second, complete copy of the shop at a different address — which is
@@ -92,6 +117,15 @@ const nextConfig: NextConfig = {
      play.buytoday.co.il is the one that should be found. */
   async headers() {
     return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'self' https://play.buytoday.co.il" },
+          { key: "Content-Security-Policy-Report-Only", value: CSP_REPORT_ONLY },
+        ],
+      },
       { source: "/mall", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
       { source: "/mall/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
     ];
