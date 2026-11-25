@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { MessageCircle, Phone } from "lucide-react";
-import { addKeepNoteAction, dismissKeepCustomerAction } from "@/actions/admin-keep-customers";
+import { addKeepNoteAction, dismissKeepCustomerAction, setKeepContactedAction } from "@/actions/admin-keep-customers";
 import { waHref } from "@/lib/notify/whatsapp-link";
 import { formatPrice } from "@/lib/format";
 
@@ -16,6 +16,9 @@ export type KeepRow = {
   attempts: number;
   lastAt: string;
   reason: string;
+  contacted: boolean;
+  contactedBy: string | null;
+  contactedAt: string | null;
   notes: { at: string; author: string; body: string }[];
 };
 
@@ -28,9 +31,25 @@ export function KeepCustomersList({ rows }: { rows: KeepRow[] }) {
   if (rows.length === 0)
     return <p className="text-muted-foreground border-border rounded-xl border border-dashed p-8 text-center text-sm">אין כרגע לקוחות לטיפול.</p>;
 
+  const fresh = rows.filter((r) => !r.contacted);
+  const done = rows.filter((r) => r.contacted);
+  return (
+    <div className="space-y-6">
+      <section>
+        <h2 className="mb-2 font-bold">חדשים ({fresh.length})</h2>
+        {fresh.length === 0 ? <p className="text-muted-foreground text-sm">אין חדשים.</p> : renderList(fresh)}
+      </section>
+      <section>
+        <h2 className="text-muted-foreground mb-2 font-bold">דיברנו כבר ({done.length})</h2>
+        {done.length === 0 ? <p className="text-muted-foreground text-sm">עדיין לא סומנו.</p> : renderList(done)}
+      </section>
+    </div>
+  );
+
+  function renderList(list: KeepRow[]) {
   return (
     <ul className="space-y-3">
-      {rows.map((r) => {
+      {list.map((r) => {
         const first = r.name?.trim().split(/\s+/)[0] || "שלום";
         const product = r.titles[0] ? (r.titles.length > 1 ? `${r.titles[0]} ועוד ${r.titles.length - 1}` : r.titles[0]) : "המוצר שבחרת";
         const wa = waHref(r.phone, `שלום ${first}, כאן Buy Today. ראינו שניסית להזמין ${product} ולא הסתיים התשלום. אפשר לעזור?`);
@@ -47,6 +66,11 @@ export function KeepCustomersList({ rows }: { rows: KeepRow[] }) {
             <p className="mt-2 text-sm">
               {r.titles.join(", ")} · <b className="tabular-nums">{formatPrice(r.amount)}</b>
             </p>
+            {r.contacted && r.contactedAt && (
+              <p className="text-xs font-semibold text-green-700">
+                דיברנו · {r.contactedBy ?? "—"} · {new Date(r.contactedAt).toLocaleString("he-IL", { timeZone: "Asia/Jerusalem", dateStyle: "short", timeStyle: "short" })}
+              </p>
+            )}
             <p className="text-muted-foreground text-xs">
               {r.attempts} ניסיונות · אחרון {new Date(r.lastAt).toLocaleString("he-IL", { timeZone: "Asia/Jerusalem", dateStyle: "short", timeStyle: "short" })}
             </p>
@@ -63,6 +87,13 @@ export function KeepCustomersList({ rows }: { rows: KeepRow[] }) {
               )}
               <button type="button" onClick={() => { setOpenKey(openKey === r.key ? null : r.key); setText(""); }} className="border-border h-10 rounded-lg border px-3 text-sm font-semibold">
                 הערה
+              </button>
+              <button
+                disabled={pending}
+                onClick={() => start(async () => { await setKeepContactedAction(r.key, !r.contacted); router.refresh(); })}
+                className="border-border h-10 rounded-lg border px-3 text-sm font-semibold"
+              >
+                {r.contacted ? "החזר לחדשים" : "דיברנו כבר"}
               </button>
               {(["HANDLED", "NOT_RELEVANT"] as const).map((why) => (
                 <button
@@ -105,4 +136,5 @@ export function KeepCustomersList({ rows }: { rows: KeepRow[] }) {
       })}
     </ul>
   );
+  }
 }
