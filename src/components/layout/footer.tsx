@@ -162,6 +162,11 @@ export async function Footer() {
               </Link>
             </li>
             <li>
+              <Link href="/cancel-order" className="text-primary-foreground/60 hover:text-primary-foreground text-sm">
+                ביטול עסקה
+              </Link>
+            </li>
+            <li>
               {/* The second page Merchant Center looks for from the footer,
                   and for the same reason: a shopper must be able to find what
                   delivery costs without starting a checkout. */}

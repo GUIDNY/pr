@@ -842,7 +842,7 @@ export async function ProductPageView({
                 <li className="flex items-center gap-2.5 px-3.5 py-2.5">
                   <ShieldCheck className="text-brand size-4 shrink-0" />
                   <span>
-                    <span className="font-semibold">אחריות יבואן רשמי</span>
+                    <span className="font-semibold">אחריות מלאה</span>
                     <span className="text-muted-foreground"> · {product.warrantyMonths} חודשים</span>
                   </span>
                 </li>
@@ -1063,7 +1063,7 @@ export async function ProductPageView({
                 <ShieldCheck className="size-5" />
               </span>
               <div>
-                <p className="font-bold">אחריות יבואן רשמי</p>
+                <p className="font-bold">אחריות מלאה</p>
                 <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
                   {product.warrantyMonths} חודשים מיום הרכישה, ישירות מול היבואן בישראל.
                 </p>

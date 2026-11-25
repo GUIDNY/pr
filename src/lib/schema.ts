@@ -62,7 +62,7 @@ export function organizationSchema() {
     logo: absoluteUrl("/brand/logo-buytoday-v2.png"),
     email: BUSINESS.email,
     description:
-      "חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות יבואן רשמי.",
+      "חנות מוצרי חשמל, אלקטרוניקה וקולנוע ביתי. מקררים, מכונות כביסה, טלוויזיות ועוד, עם משלוח עד הבית ואחריות מלאה.",
     /* Two ways in, said separately, because they are open at different
        times. One contactPoint carrying both the number and "always open"
        would be a claim that the phone is answered at 02:00.

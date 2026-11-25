@@ -38,12 +38,12 @@ for (const [n, f] of [["מיקרוגלים", { count: 26, minPrice: 1100, topBra
 
 console.log("\ndescriptions");
 const d1 = categoryMetaDescription("מיקרוגל", microwaves);
-is("count, price and three makers", d1, "60 דגמי מיקרוגל במלאי החל מ-299 ₪ — Samsung, LG, Bosch. משלוח עד הבית ואחריות יבואן רשמי.");
+is("count, price and three makers", d1, "60 דגמי מיקרוגל במלאי החל מ-299 ₪ — Samsung, LG, Bosch. משלוח עד הבית ואחריות מלאה.");
 is("fits a result", d1.length <= 160, true);
 is("page 2 differs from page 1", categoryMetaDescription("מיקרוגל", microwaves, 2) !== d1, true);
 is("page 2 names the page", categoryMetaDescription("מיקרוגל", microwaves, 2).endsWith("עמוד 2."), true);
-is("no price when none", categoryMetaDescription("אוזניות", { count: 2, minPrice: null, topBrands: ["Sony"] }), "2 דגמי אוזניות במלאי — Sony. משלוח עד הבית ואחריות יבואן רשמי.");
-is("empty shelf still says something", categoryMetaDescription("טאבונים", { count: 0, minPrice: null, topBrands: [] }), "טאבונים ב-Buy Today. משלוח עד הבית ואחריות יבואן רשמי.");
+is("no price when none", categoryMetaDescription("אוזניות", { count: 2, minPrice: null, topBrands: ["Sony"] }), "2 דגמי אוזניות במלאי — Sony. משלוח עד הבית ואחריות מלאה.");
+is("empty shelf still says something", categoryMetaDescription("טאבונים", { count: 0, minPrice: null, topBrands: [] }), "טאבונים ב-Buy Today. משלוח עד הבית ואחריות מלאה.");
 const long = categoryMetaDescription("מקררים ומקפיאים אינטגרליים לבית ולמשרד", { count: 1234, minPrice: 12345, topBrands: ["Schaub Lorenz International", "Fratelli Onofri Deluxe", "Morphy Richards Professional"] });
 is("a long one drops the tail rather than overflow", long.length <= 160, true);
 is("…but keeps the facts", long.startsWith("1,234 דגמי"), true);
@@ -53,16 +53,16 @@ console.log("\nbrand descriptions");
 /* /brand/trust on 15 November: three products, fans and kettles, under a
    sentence that said refrigerators, washing machines, ovens and televisions. */
 const trust = brandMetaDescription("TRUST", 3, ["מאווררים", "קומקומים ומיחמים", "מעבדי מזון"]);
-is("names what the brand really sells", trust, "3 מוצרי TRUST במלאי ב-Buy Today — מאווררים, קומקומים ומיחמים, מעבדי מזון. מחירים מעודכנים, משלוח עד הבית ואחריות יבואן רשמי.");
+is("names what the brand really sells", trust, "3 מוצרי TRUST במלאי ב-Buy Today — מאווררים, קומקומים ומיחמים, מעבדי מזון. מחירים מעודכנים, משלוח עד הבית ואחריות מלאה.");
 is("and no longer the shelf it does not have", trust.includes("מקררים"), false);
 is("two brands no longer share a middle", brandMetaDescription("AEG", 56, ["תנור בנוי", "מדיח כלים"]).includes("מאווררים"), false);
 is("at most four categories", brandMetaDescription("X", 9, ["מקררים", "תנורים", "כיריים", "מדיחים", "FIFTH", "SIXTH"]).includes("FIFTH"), false);
 is("…and the fourth is kept", brandMetaDescription("X", 9, ["מקררים", "תנורים", "כיריים", "מדיחים", "FIFTH"]).includes("מדיחים"), true);
-is("nothing to name, nothing invented", brandMetaDescription("NOVIS", 1, []), "1 מוצרי NOVIS במלאי ב-Buy Today. מחירים מעודכנים, משלוח עד הבית ואחריות יבואן רשמי.");
-is("an empty brand still says something", brandMetaDescription("NOVIS", 0), "מוצרי NOVIS ב-Buy Today. מחירים מעודכנים, משלוח עד הבית ואחריות יבואן רשמי.");
+is("nothing to name, nothing invented", brandMetaDescription("NOVIS", 1, []), "1 מוצרי NOVIS במלאי ב-Buy Today. מחירים מעודכנים, משלוח עד הבית ואחריות מלאה.");
+is("an empty brand still says something", brandMetaDescription("NOVIS", 0), "מוצרי NOVIS ב-Buy Today. מחירים מעודכנים, משלוח עד הבית ואחריות מלאה.");
 const longBrand = brandMetaDescription("Schaub Lorenz International", 1234, ["נגני בלוריי, DVD וסטרימרים", "מיקרופונים ומערכות אלחוטיות", "מקררים ומקפיאים אינטגרליים", "מכונת כביסה משולבת מייבש"]);
 is("long names drop categories rather than overflow", longBrand.length <= 160, true);
-is("…and never end on a cut-off word", longBrand.endsWith("ואחריות יבואן רשמי."), true);
+is("…and never end on a cut-off word", longBrand.endsWith("ואחריות מלאה."), true);
 
 console.log("\nbrand titles");
 is("says how many are on the shelf", brandPageTitle("AEG", 56), "AEG – 56 מוצרים במלאי");

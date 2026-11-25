@@ -26,7 +26,7 @@
  * in, most first, from getBrandTopCategories. With none to name it says
  * nothing rather than something untrue.
  */
-const TAIL = "מחירים מעודכנים, משלוח עד הבית ואחריות יבואן רשמי.";
+const TAIL = "מחירים מעודכנים, משלוח עד הבית ואחריות מלאה.";
 
 /**
  * The title of a brand page.

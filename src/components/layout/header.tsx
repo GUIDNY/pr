@@ -42,7 +42,7 @@ export async function Header() {
         <div className="flex w-full max-w-7xl items-center justify-center gap-3 px-4 sm:gap-4 md:justify-between">
           <div className="flex items-center gap-3 whitespace-nowrap sm:gap-4">
             <span className="flex items-center gap-1">
-              <ShieldCheck className="text-brand size-3.5" /> <span className="hidden sm:inline">אחריות </span>יבואן רשמי
+              <ShieldCheck className="text-brand size-3.5" /> <span className="hidden sm:inline">אחריות </span>יבואן רשמי על רוב המוצרים
             </span>
             <span className="flex items-center gap-1">
               {/* From the constant, not typed. This line sat on every page
@@ -139,7 +139,7 @@ export async function Header() {
             />
             <span className="flex flex-col leading-none">
               <span className="text-lg font-black tracking-tight">Buy Today</span>
-              <span className="text-muted-foreground mt-1 text-[11px] font-medium">מוצרי חשמל · יבואן רשמי</span>
+              <span className="text-muted-foreground mt-1 text-[11px] font-medium">מוצרי חשמל · אחריות מלאה</span>
             </span>
           </Link>
 
