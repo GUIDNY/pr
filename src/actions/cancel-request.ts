@@ -97,7 +97,7 @@ export async function submitCancelRequestAction(_prev: CancelState, form: FormDa
     const tail = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").slice(-9);
     const known = tail(order?.guestPhone) || tail(order?.user?.phone);
     const mismatch = Boolean(order && known && tail(d.phone) !== known);
-    const ownerBody = `${mismatch ? "⚠️ הטלפון בטופס לא תואם לטלפון בהזמנה\n\n" : ""}בקשת ביטול עסקה חדשה\n\nשם: ${d.name}\nטלפון: ${d.phone}\nמספר הזמנה: ${d.order}${order ? "" : " (לא נמצאה הזמנה בשם הזה)"}\nמה מבטלים: ${what}\n${to ? "נשלח אישור ללקוח." : "לא נשלח אישור ללקוח: אין כתובת מייל בהזמנה."}`;
+    const ownerBody = `${mismatch ? "⚠️ הטלפון בטופס לא תואם לטלפון בהזמנה\n\n" : ""}בקשת ביטול עסקה חדשה\n\nשם: ${d.name}\nטלפון: ${d.phone}\nמספר הזמנה: ${d.order}${order ? "" : " (לא נמצאה הזמנה בשם הזה)"}\nמה מבטלים: ${what}\n${to ? "נשלח אישור ללקוח." : "לא נשלח אישור ללקוח: אין כתובת מייל בהזמנה."}\n\nלפני ביטול או החזר: להתקשר לטלפון ששמור בהזמנה, לא לזה שבטופס.`;
     for (const owner of ownerAlertRecipients()) {
       jobs.push(
         emailChannel.send(owner, {
