@@ -1,6 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
 import { z } from "zod";
+import { rateLimit } from "@/lib/rate-limit";
+import { loginKey, isLocked, recordFailure } from "@/lib/login-guard";
 import { db } from "@/lib/db";
 import { getSession, createSession, clearSession, consumeReauth, hashPassword, verifyPassword } from "@/lib/auth";
 import { claimGuestCart } from "@/lib/cart";
@@ -86,6 +89,15 @@ export async function loginAction(input: { identifier: string; password: string 
   const { identifier, password } = parsed.data;
   const WRONG = { success: false as const, error: "הפרטים שהוזנו אינם נכונים" };
 
+  /* Throttle first, answering exactly like a wrong password. 5 per 10 minutes
+     per address and per login name (counted per instance, see rate-limit.ts;
+     the account lockout below is the shared, database-backed half). */
+  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const phoneForKey = looksLikePhone(identifier) ? normalizeIsraeliPhone(identifier) : null;
+  const key = loginKey(phoneForKey ?? identifier);
+  if (!rateLimit(`login-ip:${ip}`, 5, 10 * 60_000).ok || !rateLimit(`login-id:${key}`, 5, 10 * 60_000).ok) return WRONG;
+  if (await isLocked(key)) return WRONG;
+
   let user;
   if (looksLikePhone(identifier)) {
     const phone = normalizeIsraeliPhone(identifier);
@@ -102,10 +114,16 @@ export async function loginAction(input: { identifier: string; password: string 
     user = await db.user.findUnique({ where: { email: identifier.toLowerCase() } });
   }
 
-  if (!user) return WRONG;
+  if (!user) {
+    await recordFailure(key, null);
+    return WRONG;
+  }
 
   const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) return WRONG;
+  if (!valid) {
+    await recordFailure(key, user);
+    return WRONG;
+  }
 
   await createSession({ sub: user.id, role: user.role as never, name: user.name });
   await claimGuestOrders(user.id, user.email);
