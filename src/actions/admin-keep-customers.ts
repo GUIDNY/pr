@@ -22,3 +22,12 @@ export async function addKeepNoteAction(key: string, body: string) {
   revalidatePath("/admin/orders");
   return { success: true, error: null };
 }
+
+/** "דיברנו כבר" / "החזר לחדשים": moves the customer between the two areas. AuditLog only. */
+export async function setKeepContactedAction(key: string, contacted: boolean) {
+  const session = await requireAdmin();
+  if (!/^(p|e|u):.{1,120}$/.test(key)) return { success: false, error: "לקוח לא תקין" };
+  await logAudit({ actorId: session.sub, action: contacted ? "KEEP_CUSTOMER_CONTACTED" : "KEEP_CUSTOMER_REOPENED", entityType: "KeepCustomer", entityId: key, metadata: {} });
+  revalidatePath("/admin/orders");
+  return { success: true, error: null };
+}

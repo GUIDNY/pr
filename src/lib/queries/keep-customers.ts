@@ -10,6 +10,9 @@ export type KeepCustomer = {
   amount: number;
   attempts: number;
   lastAt: Date;
+  contacted: boolean;
+  contactedBy: string | null;
+  contactedAt: Date | null;
   notes: { at: Date; author: string; body: string }[];
   reason: "תשלום נכשל" | "לא השלים תשלום" | "עגלה נטושה";
 };
@@ -119,6 +122,19 @@ export async function getKeepCustomers(): Promise<KeepCustomer[]> {
     });
   }
 
+  const contactRows = await db.auditLog.findMany({
+    where: { action: { in: ["KEEP_CUSTOMER_CONTACTED", "KEEP_CUSTOMER_REOPENED"] }, entityId: { in: [...attempts.keys()] } },
+    orderBy: { createdAt: "desc" },
+    select: { entityId: true, action: true, createdAt: true, actor: { select: { name: true } } },
+  });
+  const contactBy = new Map<string, { at: Date; by: string | null }>();
+  const seenContact = new Set<string>();
+  for (const c of contactRows) {
+    if (seenContact.has(c.entityId)) continue;
+    seenContact.add(c.entityId);
+    if (c.action === "KEEP_CUSTOMER_CONTACTED") contactBy.set(c.entityId, { at: c.createdAt, by: c.actor?.name ?? null });
+  }
+
   const noteRows = await db.auditLog.findMany({
     where: { action: "KEEP_CUSTOMER_NOTE", entityId: { in: [...attempts.keys()] } },
     orderBy: { createdAt: "desc" },
@@ -151,6 +167,10 @@ export async function getKeepCustomers(): Promise<KeepCustomer[]> {
       amount: last.amount,
       attempts: open.length,
       notes: notesBy.get(key) ?? [],
+      // contacted only counts while no attempt is newer than the mark
+      contacted: !!contactBy.get(key) && contactBy.get(key)!.at >= last.at,
+      contactedBy: contactBy.get(key)?.by ?? null,
+      contactedAt: contactBy.get(key)?.at ?? null,
       lastAt: last.at,
       reason: kinds.has("FAILED") ? "תשלום נכשל" : kinds.has("PENDING") ? "לא השלים תשלום" : "עגלה נטושה",
     });
