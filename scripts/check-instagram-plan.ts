@@ -23,6 +23,8 @@ is("summer 16:00Z is hour 19", jerusalemNow(summer), { date: "2026-07-15", hour:
 is("summer 17:00Z is not 19", jerusalemNow(new Date("2026-07-15T17:00:00Z")).hour, 20);
 is("approved post publishes", planTodayPost(winter, [post()], prod).action, "publish");
 is("summer publishes", planTodayPost(summer, [post({ scheduledFor: new Date("2026-07-15T00:00:00Z") })], prod).action, "publish");
+is("21:00 IST still publishes (catch-up window)", planTodayPost(new Date("2026-11-26T19:00:00Z"), [post()], prod).action, "publish");
+is("23:00 IST waits", planTodayPost(new Date("2026-11-26T21:00:00Z"), [post()], prod).action, "wait");
 is("wrong hour waits", planTodayPost(new Date("2026-11-26T16:00:00Z"), [post()], prod).action, "wait");
 is("price changed skips", (planTodayPost(winter, [post()], { tv: { ...prod.tv, price: 2600 } }) as { reason: string }).reason, "price changed: site 2600, expected 2500");
 is("stock 0 skips", planTodayPost(winter, [post()], { tv: { ...prod.tv, stockQty: 0 } }).action, "skip");
