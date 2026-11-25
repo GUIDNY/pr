@@ -60,7 +60,7 @@ export async function submitCancelRequestAction(_prev: CancelState, form: FormDa
   const what = d.scope === "ALL" ? "את כל ההזמנה" : `מוצר מסוים: ${d.item}`;
   const order = await db.order.findUnique({
     where: { orderNumber: d.order },
-    select: { id: true, guestEmail: true, user: { select: { email: true } } },
+    select: { id: true, guestEmail: true, guestPhone: true, user: { select: { email: true, phone: true } } },
   });
 
   await db.auditLog.create({
@@ -93,7 +93,11 @@ export async function submitCancelRequestAction(_prev: CancelState, form: FormDa
         }),
       );
     }
-    const ownerBody = `בקשת ביטול עסקה חדשה\n\nשם: ${d.name}\nטלפון: ${d.phone}\nמספר הזמנה: ${d.order}${order ? "" : " (לא נמצאה הזמנה בשם הזה)"}\nמה מבטלים: ${what}\n${to ? "נשלח אישור ללקוח." : "לא נשלח אישור ללקוח: אין כתובת מייל בהזמנה."}`;
+    /* Internal only: compare the last 9 digits so +972/0 prefixes do not matter. */
+    const tail = (v: string | null | undefined) => (v ?? "").replace(/\D/g, "").slice(-9);
+    const known = tail(order?.guestPhone) || tail(order?.user?.phone);
+    const mismatch = Boolean(order && known && tail(d.phone) !== known);
+    const ownerBody = `${mismatch ? "⚠️ הטלפון בטופס לא תואם לטלפון בהזמנה\n\n" : ""}בקשת ביטול עסקה חדשה\n\nשם: ${d.name}\nטלפון: ${d.phone}\nמספר הזמנה: ${d.order}${order ? "" : " (לא נמצאה הזמנה בשם הזה)"}\nמה מבטלים: ${what}\n${to ? "נשלח אישור ללקוח." : "לא נשלח אישור ללקוח: אין כתובת מייל בהזמנה."}`;
     for (const owner of ownerAlertRecipients()) {
       jobs.push(
         emailChannel.send(owner, {
