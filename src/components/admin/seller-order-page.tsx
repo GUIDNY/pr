@@ -991,6 +991,7 @@ function PriorityStockNote({
 }: {
   stock:
     | { by: "sku"; stock: PriorityStockShape }
+    | { by: "ambiguous"; candidates: { sku: string; description: string | null }[] }
     | { by: "model"; matches: { sku: string; stock: PriorityStockShape }[]; partial: string | null }
     | null;
   syncedAt: Date | null;
@@ -1002,6 +1003,13 @@ function PriorityStockNote({
     return (
       <span className="text-muted-foreground block text-xs">
         פריוריטי: לא נמצא בפריוריטי לפי מק&quot;ט {updated}
+      </span>
+    );
+  }
+  if (stock.by === "ambiguous") {
+    return (
+      <span className="block text-xs font-semibold text-amber-700">
+        פריוריטי: לא ודאי — כמה מק&quot;טים דומים: {stock.candidates.map((c) => `${c.sku}${c.description ? ` (${c.description})` : ""}`).join(" · ")} {updated}
       </span>
     );
   }
