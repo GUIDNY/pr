@@ -119,6 +119,14 @@ export default function AccessibilityPage() {
         </section>
 
         <section>
+          <h2 className="text-foreground mb-2 text-lg font-semibold">הקניון התלת־ממדי</h2>
+          <p>
+            הקניון התלת־ממדי הוא חוויה משלימה. כל המוצרים, המחירים והמבצעים שבו זמינים גם באתר הנגיש. האפליקציה
+            מציגה את האתר עצמו ולכן נגישה באותה רמה.
+          </p>
+        </section>
+
+        <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">פנייה בנושא נגישות — רכז הנגישות</h2>
           <p className="mb-2">
             נתקלתם בקושי, בתקלה או בעמוד שאינו נגיש? נשמח לשמוע. פנייה מפורטת — העמוד שבו נתקלתם בבעיה, סוג הדפדפן

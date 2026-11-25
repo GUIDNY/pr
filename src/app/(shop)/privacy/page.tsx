@@ -10,7 +10,7 @@ import { BUSINESS } from "@/lib/business";
    הנתונים, את ספקי הצד השלישי או את העוגיות, מעדכנים גם את העמוד הזה ואת
    תאריך העדכון שבראשו. */
 
-const LAST_UPDATED = "28.08.2026";
+const LAST_UPDATED = "25.11.2026";
 
 export const metadata: Metadata = {
   title: "מדיניות פרטיות",
@@ -22,7 +22,10 @@ export default function PrivacyPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
       <h1 className="mb-2 text-3xl font-bold">מדיניות פרטיות</h1>
-      <p className="text-muted-foreground mb-8 text-sm">עודכנה לאחרונה: {LAST_UPDATED}</p>
+      <p className="text-muted-foreground mb-2 text-sm">עודכנה לאחרונה: {LAST_UPDATED}</p>
+      <p className="text-muted-foreground mb-8 text-sm">
+        {BUSINESS.legalName}, ח.פ. {BUSINESS.companyId}
+      </p>
 
       <div className="text-muted-foreground flex flex-col gap-8 text-sm leading-relaxed">
         <section>
@@ -31,7 +34,7 @@ export default function PrivacyPage() {
             Buy Today (&quot;החברה&quot;, &quot;אנחנו&quot;) מכבדת את פרטיות המשתמשים באתר. מדיניות זו מסבירה
             אילו פרטים נאספים בעת השימוש באתר, לשם מה הם משמשים, למי הם נמסרים וכיצד ניתן לממש את הזכויות הנתונות
             לכם לפי חוק הגנת הפרטיות, התשמ&quot;א-1981 והתקנות מכוחו. המדיניות מנוסחת בלשון זכר מטעמי נוחות בלבד
-            ומתייחסת לכל המגדרים. השימוש באתר מהווה הסכמה לתנאים המפורטים בה.
+            ומתייחסת לכל המגדרים.
           </p>
         </section>
 
@@ -112,6 +115,9 @@ export default function PrivacyPage() {
               העוזר החכם &quot;אלפרד&quot;: תוכן ההודעות שאתם כותבים בצ&apos;אט מועבר לצורך יצירת התשובה לשירות
               בינה מלאכותית של Google. אין לשלוח בצ&apos;אט פרטים אישיים או פרטי תשלום, ושיחות הצ&apos;אט אינן
               נשמרות במאגר האתר
+            </li>
+            <li>
+              נותני שירות: Google, Apple (sign-in) · WhatsApp (Meta) · Tripo (3D scan) · Supabase, Vercel
             </li>
             <li>רשויות מוסמכות או צד שלישי — ככל שנידרש לכך על פי דין, צו שיפוטי, או לשם הגנה על זכויותינו</li>
           </ul>
@@ -226,8 +232,18 @@ export default function PrivacyPage() {
         <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">קטינים</h2>
           <p>
-            האתר אינו מיועד לשימוש ילדים מתחת לגיל 18. ביצוע רכישה מחייב כשירות משפטית להתקשר בחוזה, וקטין הזקוק
-            לכך יעשה זאת באישור אחראי מטעמו.
+            קנייה באתר מגיל 18, או בהסכמת הורה. הקניון התלת־ממדי פתוח לכל הגילים. מתחת לגיל 18 אנחנו לא אוספים
+            פרטים מעבר לכינוי והתקדמות במשחק, וסריקת פנים חסומה.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-foreground mb-2 text-lg font-semibold">הקניון התלת־ממדי</h2>
+          <p>
+            בקניון נשמרים הכינוי שלכם, ההתקדמות, המטבעות והדמות. הצ&apos;אט ציבורי וכל מי שבחדר רואה אותו, אז אל
+            תכתבו בו פרטים אישיים. סריקת פנים היא שירות רשות מגיל 18: התמונות נשלחות לשירות חיצוני בחו&quot;ל
+            ליצירת הדמות, אנחנו שומרים רק את הדמות המוגמרת, ואפשר למחוק אותה בכל רגע בכפתור &quot;מחיקת הדמות
+            שלי&quot;. אנחנו לא משתמשים בדמות לזיהוי פנים.
           </p>
         </section>
 
