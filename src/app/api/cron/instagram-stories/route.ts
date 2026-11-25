@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
@@ -22,6 +23,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+/** Bearer check without a timing side channel; a wrong length is a wrong secret. */
+function bearerMatches(header: string | null, secret: string): boolean {
+  const a = Buffer.from(header ?? "");
+  const b = Buffer.from(`Bearer ${secret}`);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 async function load(date: string, includeUnapproved: boolean) {
   const rows = await db.instagramPost.findMany({
     where: { scheduledFor: new Date(`${date}T00:00:00Z`), status: "queued", type: "STORY_SET" },
@@ -40,7 +48,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const dryRun = url.searchParams.get("dryRun") === "1";
   const secret = process.env.CRON_SECRET;
-  if (!(secret && request.headers.get("authorization") === `Bearer ${secret}`)) {
+  if (!(secret && bearerMatches(request.headers.get("authorization"), secret))) {
     const session = dryRun ? await getSession() : null;
     if (!session || !canManageCatalog(session.role))
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
