@@ -16,7 +16,10 @@ import { db } from "@/lib/db";
  * so rather than showing a number.
  *
  * Priority's SKUs carry a leading zero the site's do not (0170623 / 170623),
- * so both sides are matched without leading zeros.
+ * so both sides are matched without leading zeros — but only as a fallback:
+ * the exact Priority SKU wins, and a leading-zero-less form that names several
+ * Priority SKUs (0120813 LG / 120813 Starck) is "ambiguous", never a merged
+ * number. The "PriorityStockBySku" view merges them, so nothing here uses it.
  */
 
 export type PriorityStockLine = { warehouse: string; warehouseName: string | null; status: string; qty: number };
@@ -41,6 +44,10 @@ export const normalizeSku = (sku: string) => sku.trim().replace(/^0+(?=\d)/, "")
  */
 export type PriorityLookup =
   | { by: "sku"; stock: PriorityStock }
+  /** Several Priority SKUs share this SKU once leading zeros are dropped
+      (0120813 is an LG, 120813 a Starck) and nothing settles which is ours:
+      no number is shown, only the candidates. */
+  | { by: "ambiguous"; candidates: { sku: string; description: string | null }[] }
   | { by: "model"; matches: { sku: string; stock: PriorityStock }[]; partial: string | null }
   | null;
 
@@ -106,6 +113,47 @@ async function findByModel(
   return { matches: [], partial: null };
 }
 
+type RawRow = { sku: string; skuNorm: string; description: string | null; totalQty: unknown; lines: PriorityStockLine[] };
+
+/** One row per RAW Priority SKU — never merged across leading zeros, which
+ *  is what the "PriorityStockBySku" view does. Read-only. */
+async function rawRowsFor(keys: string[]): Promise<RawRow[]> {
+  if (!keys.length) return [];
+  return db.$queryRaw<RawRow[]>`
+    select l.sku, l."skuNorm", max(l.description) as description, sum(l.qty) as "totalQty",
+           jsonb_agg(jsonb_build_object('warehouse', l.warehouse, 'warehouseName', w.name, 'status', l.status, 'qty', l.qty) order by l.warehouse) as lines
+    from "PriorityStockLine" l left join "PriorityWarehouse" w on w.code = l.warehouse
+    where l."skuNorm" = any(${keys})
+    group by l.sku, l."skuNorm"`;
+}
+
+const asStock = (r: RawRow): PriorityStock => ({ totalQty: Number(r.totalQty), lines: r.lines });
+
+/**
+ * Exact SKU first. Only when Priority has no row under exactly that SKU is
+ * the leading-zero-less form tried, and then only if it names ONE Priority
+ * SKU — or, failing that, one whose description carries the product's model.
+ * Anything else is "ambiguous", never a number.
+ */
+export function pickPriorityRow(
+  sku: string,
+  model: string | null,
+  rows: RawRow[],
+): { kind: "match"; row: RawRow } | { kind: "ambiguous"; rows: RawRow[] } | { kind: "none" } {
+  const exact = rows.find((r) => r.sku.trim().toUpperCase() === sku.trim().toUpperCase());
+  if (exact) return { kind: "match", row: exact };
+  const cand = rows.filter((r) => r.skuNorm === normalizeSku(sku));
+  if (cand.length === 0) return { kind: "none" };
+  if (cand.length === 1) return { kind: "match", row: cand[0] };
+  const pat = modelPattern(model);
+  if (pat) {
+    const re = new RegExp(pat.replace(/\[\[:space:\]-\]/g, "[\\s-]"));
+    const hit = cand.filter((r) => re.test((r.description ?? "").toUpperCase()));
+    if (hit.length === 1) return { kind: "match", row: hit[0] };
+  }
+  return { kind: "ambiguous", rows: cand };
+}
+
 /**
  * The lookup the order page uses: by SKU first, and only where that finds
  * nothing, by the product's model in Priority's description. Read-only.
@@ -113,12 +161,25 @@ async function findByModel(
 export async function getPriorityStockForItems(
   items: { sku: string; model: string | null }[],
 ): Promise<{ syncedAt: Date | null; lookups: PriorityLookup[] }> {
-  const { syncedAt, bySku } = await getPriorityStock(items.map((i) => i.sku));
+  let syncedAt: Date | null = null;
+  let rows: RawRow[] = [];
+  try {
+    const keys = [...new Set(items.map((i) => normalizeSku(i.sku)).filter(Boolean))];
+    const [r, sync] = await Promise.all([
+      rawRowsFor(keys),
+      db.$queryRaw<{ finishedAt: Date }[]>`select "finishedAt" from "PriorityStockSync" where ok order by id desc limit 1`,
+    ]);
+    rows = r;
+    syncedAt = sync[0]?.finishedAt ?? null;
+  } catch {
+    return { syncedAt: null, lookups: items.map(() => null) };
+  }
   if (!syncedAt) return { syncedAt, lookups: items.map(() => null) };
   const lookups = await Promise.all(
     items.map(async (item): Promise<PriorityLookup> => {
-      const stock = bySku.get(normalizeSku(item.sku));
-      if (stock) return { by: "sku", stock };
+      const pick = pickPriorityRow(item.sku, item.model, rows);
+      if (pick.kind === "match") return { by: "sku", stock: asStock(pick.row) };
+      if (pick.kind === "ambiguous") return { by: "ambiguous", candidates: pick.rows.map((r) => ({ sku: r.sku, description: r.description })) };
       try {
         const { matches, partial } = await findByModel(item.model);
         return matches.length ? { by: "model", matches, partial } : null;
@@ -128,23 +189,4 @@ export async function getPriorityStockForItems(
     }),
   );
   return { syncedAt, lookups };
-}
-
-export async function getPriorityStock(skus: string[]): Promise<PriorityStockResult> {
-  const keys = [...new Set(skus.map(normalizeSku).filter(Boolean))];
-  const bySku = new Map<string, PriorityStock>();
-  try {
-    const [rows, sync] = await Promise.all([
-      keys.length
-        ? db.$queryRaw<{ skuNorm: string; totalQty: unknown; lines: PriorityStockLine[] }[]>`
-            select "skuNorm", "totalQty", lines from "PriorityStockBySku" where "skuNorm" = any(${keys})`
-        : Promise.resolve([]),
-      db.$queryRaw<{ finishedAt: Date }[]>`
-        select "finishedAt" from "PriorityStockSync" where ok order by id desc limit 1`,
-    ]);
-    for (const r of rows) bySku.set(r.skuNorm, { totalQty: Number(r.totalQty), lines: r.lines });
-    return { syncedAt: sync[0]?.finishedAt ?? null, bySku };
-  } catch {
-    return { syncedAt: null, bySku };
-  }
 }

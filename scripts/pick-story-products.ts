@@ -51,17 +51,31 @@ async function main() {
   const used = new Set(recent.flatMap((r) => (parseStoryProducts(r.caption) ?? []).map((p) => p.slug)));
 
   const rows = await db.$queryRaw<Cand[]>`
+    with b as (
+      select g.*, count(*) over (partition by g."skuNorm") as nraw
+      from (select l.sku, l."skuNorm", sum(l.qty) filter (where l.status = 'טובים') as "goodQty"
+            from "PriorityStockLine" l group by l.sku, l."skuNorm") g
+    ), pk as (
+      select p.id, upper(regexp_replace(p.sku, '[^A-Za-z0-9]', '', 'g')) as k from "Product" p
+    ), m as (
+      -- per RAW Priority sku (never merged across leading zeros: 0120813 is an LG,
+      -- 120813 a Starck). Exact sku first; the leading-zero-less form counts only
+      -- when it names ONE Priority sku, otherwise the product is not eligible.
+      select pk.id, b."goodQty" from pk join b on upper(b.sku) = pk.k
+      union
+      select pk.id, b."goodQty" from pk join b on b.nraw = 1 and upper(b."skuNorm") = regexp_replace(pk.k, '^0+(?=[0-9])', '')
+    )
     select p.slug, p.title, p.price::float8 as price, p."stockQty"::int as "stockQty",
-           b."goodQty"::int as "goodQty", br.name as brand, c.name as category,
+           m."goodQty"::int as "goodQty", br.name as brand, c.name as category,
            coalesce(rc.name, c.name) as root, p.model
     from "Product" p
-    join "PriorityStockBySku" b on upper(b."skuNorm") = upper(regexp_replace(p.sku, '[^A-Za-z0-9]', '', 'g'))
+    join m on m.id = p.id
     join "Brand" br on br.id = p."brandId"
     join "Category" c on c.id = p."categoryId"
     left join "Category" rc on rc.id = c."parentId"
     where p."isPublished" = true
       and p."stockQty" > 0
-      and b."goodQty" >= 2
+      and m."goodQty" >= 2
       and p."priceManualAt" is null
       and p.price > 0
       and br.name not ilike '%frigidaire%'
