@@ -256,7 +256,7 @@ function SloganStrip({ slogan, light }: { slogan: string; light: boolean }) {
         <ShieldCheck
           className={cn("size-3.5", light ? "text-brand" : "text-brand")}
         />
-        יבואן רשמי
+        יבואן רשמי על רוב המוצרים
       </span>
       <span
         className={cn(
@@ -297,7 +297,7 @@ function Slide({
         <div className="relative flex flex-col items-start gap-3">
           <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1">
             <ShieldCheck className="text-brand size-3.5" />
-            יבואן רשמי
+            יבואן רשמי על רוב המוצרים
           </span>
           {/* Styled as the headline, but a <p>: the page's <h1> is in the
               desktop banner, which is only hidden below lg:, and a second

@@ -148,7 +148,7 @@ export function HeroBand({
                   <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                     <span className="bg-primary-foreground/10 ring-primary-foreground/15 inline-flex items-center gap-1.5 rounded-full px-3 py-1 ring-1">
                       <ShieldCheck className="text-brand size-3.5" />
-                      יבואן רשמי
+                      יבואן רשמי על רוב המוצרים
                     </span>
                   </div>
 
