@@ -24,6 +24,7 @@ import { join } from "path";
 import {
   BALANCE_TYPES,
   CASHBACK_CATEGORY_MULTIPLIER,
+  CASHBACK_DAYS,
   CASHBACK_PENDING_RULE,
   cashbackHeadline,
   CASHBACK_FALLBACK_RELEASE_DAYS,
@@ -321,6 +322,21 @@ async function main() {
     const order = ["if (!session) return", "if (!cashbackV2Enabled()) return", "rateLimit(", "cashbackSummary(session.sub)"].map((x) => code.indexOf(x));
     is("signed out, then the flag, then the limit, then the tables", order.every((x, i) => x > 0 && (i === 0 || x > order[i - 1])), true);
     is("answers through the game's CORS headers", /gameJson as json/.test(code) && /gameCorsHeaders\(\)/.test(code), true);
+  }
+
+  console.log("\nThe terms draft says the numbers the code uses");
+  {
+    const draft = readFileSync(join(import.meta.dirname, "../TERMS-CASHBACK-V2-DRAFT.md"), "utf8");
+    is("marked as a draft for the lawyer", draft.startsWith("# DRAFT FOR THE LAWYER"), true);
+    is("agent 06's sentence, unchanged", draft.includes(CASHBACK_PENDING_RULE), true);
+    is(`minimum ₪${MIN_CASHBACK}`, draft.includes(`מגיעה ל־${MIN_CASHBACK} ש"ח או יותר`), true);
+    is(`fallback ${CASHBACK_FALLBACK_RELEASE_DAYS} days`, draft.includes(`${CASHBACK_FALLBACK_RELEASE_DAYS} יום אחרי התשלום`), true);
+    is(`coupon good for ${CASHBACK_DAYS} days`, draft.includes(`תקף ${CASHBACK_DAYS} יום מיום ההנפקה`), true);
+    is(`gift good for ${GIFT_DAYS} days`, draft.includes(`קוד המתנה תקף ${GIFT_DAYS} יום`), true);
+    const missing = TIERS.filter((t) => t.cashback && !draft.includes(`| ${t.level} | ${t.spend <= 1 ? "מהקנייה הראשונה" : `${t.spend.toLocaleString("en-US")} ש"ח`} | ${t.cashback}% |`));
+    is("every level's rate", missing.map((t) => t.level), []);
+    const gifts = TIERS.filter((t) => t.gift && !draft.includes(`${t.gift.value} ש"ח בקנייה מעל ${t.gift.min.toLocaleString("en-US")} ש"ח`));
+    is("every level gift", gifts.map((t) => t.level), []);
   }
 
   console.log("\nThe level table is the one the shop has always used");
