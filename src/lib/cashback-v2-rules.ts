@@ -86,6 +86,22 @@ export const CASHBACK_MIN_CART_FACTOR = 0;
  */
 export const CASHBACK_CATEGORY_MULTIPLIER: Record<string, number> = {};
 
+// ---------- what the customer is told ----------
+
+/**
+ * The club page's headline for a member's own rate. "On every purchase" is
+ * only true when no credit is dropped, which is v2: v1 issues nothing under
+ * ₪5, and agent 06 (ECONOMY-V2-LAW-2026-11-25 s.5) ruled the phrase out for
+ * as long as that is so.
+ */
+export function cashbackHeadline(rate: number, v2: boolean): string {
+  return v2 ? `${rate}% קאשבק על כל קנייה` : `${rate}% קאשבק ברכישות לחברי מועדון`;
+}
+
+/** Agent 06's sentence for the terms, word for word, with the number of days
+    taken from the constant so the page cannot drift from the code. */
+export const CASHBACK_PENDING_RULE = `הזיכוי ניתן בתנאי שההזמנה לא בוטלה. הוא נכנס לשימוש ${CASHBACK_RELEASE_DAYS} יום אחרי המסירה. אם ההזמנה בוטלה או הוחזרה לפני כן, הזיכוי מבוטל.`;
+
 // ---------- how much ----------
 
 export type CashbackLine = {

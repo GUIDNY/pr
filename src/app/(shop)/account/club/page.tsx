@@ -16,8 +16,10 @@ import { checkinStatus, REWARDS, COUPON_DAYS } from "@/lib/game-wheel";
 import { memberCouponHistory } from "@/lib/member-coupons";
 import { cashbackSummary } from "@/lib/cashback-v2";
 import {
+  CASHBACK_PENDING_RULE,
   CASHBACK_RELEASE_DAYS,
   MIN_CASHBACK,
+  cashbackHeadline,
   cashbackV2Enabled,
 } from "@/lib/cashback-v2-rules";
 import { parseGameProgress } from "@/lib/game-progress";
@@ -63,9 +65,8 @@ export default async function ClubPage() {
   ]);
   const coins = parseGameProgress(game?.progress)?.coins ?? 0;
   // cashback v2 only; off, the tables are not read and nothing below shows
-  const v2 = cashbackV2Enabled()
-    ? await cashbackSummary(session.sub).catch(() => null)
-    : null;
+  const v2On = cashbackV2Enabled();
+  const v2 = v2On ? await cashbackSummary(session.sub).catch(() => null) : null;
   const tier = lv.tiers[lv.level - 1];
   const next = lv.tiers[lv.level] ?? null;
   const pct = next
@@ -111,7 +112,7 @@ export default async function ClubPage() {
             <div>
               <p className="text-lg font-bold">
                 {tier.cashback
-                  ? `${tier.cashback}% קאשבק על כל קנייה`
+                  ? cashbackHeadline(tier.cashback, v2On)
                   : "עוד לא התחלתם לצבור"}
               </p>
               <p className="text-sm opacity-85">
@@ -133,24 +134,32 @@ export default async function ClubPage() {
           <p className="mt-2 text-sm font-medium">
             {next
               ? `עוד ${formatPrice(Math.max(0, next.spend - lv.spent))} לרמה ${next.level}: ${next.cashback}% קאשבק${next.gift ? ` + ₪${next.gift.value} מתנה` : ""}`
-              : "הגעתם לרמה הגבוהה ביותר. 5% קאשבק על כל קנייה"}
+              : `הגעתם לרמה הגבוהה ביותר. ${cashbackHeadline(tier.cashback, v2On)}`}
           </p>
         </div>
       </section>
 
-      {v2 && (v2.balance !== 0 || v2.pending > 0) && (
+      {v2On && (
         <section className="border-border rounded-xl border p-4 text-sm">
           <p className="font-semibold">הקאשבק שלכם</p>
-          {v2.pending > 0 && (
+          {v2 && v2.pending > 0 && (
             <p className="text-muted-foreground mt-1">
               {`${formatPrice(v2.pending / 100, { decimals: true })} בהמתנה: נכנס ליתרה ${CASHBACK_RELEASE_DAYS} יום אחרי המסירה, אם ההזמנה לא בוטלה.`}
             </p>
           )}
-          {v2.balance !== 0 && (
+          {v2 && v2.pendingGifts > 0 && (
+            <p className="text-muted-foreground mt-1">
+              {`מתנת רמה של ${formatPrice(v2.pendingGifts / 100)} בהמתנה: נשלחת לכאן כקופון ${CASHBACK_RELEASE_DAYS} יום אחרי המסירה, אם ההזמנה לא בוטלה.`}
+            </p>
+          )}
+          {v2 && v2.balance !== 0 && (
             <p className="text-muted-foreground mt-1">
               {`יתרה צבורה: ${formatPrice(v2.balance / 100, { decimals: true })}. קופון נשלח לכאן כשהיתרה מגיעה ל־₪${MIN_CASHBACK}.`}
             </p>
           )}
+          <p className="text-muted-foreground mt-2 text-xs leading-relaxed">
+            {CASHBACK_PENDING_RULE}
+          </p>
         </section>
       )}
 
@@ -223,8 +232,9 @@ export default async function ClubPage() {
       <section>
         <h2 className="mb-1 font-semibold">הרמות במועדון</h2>
         <p className="text-muted-foreground mb-3 text-xs">
-          הרמה עולה רק מקניות ששולמו. הקאשבק ניתן אחרי כל הזמנה, כקוד אישי
-          לקנייה הבאה.
+          {v2On
+            ? `הרמה עולה רק מקניות ששולמו. הקאשבק נצבר מכל הזמנה ששולמה, וכשהיתרה מגיעה ל־₪${MIN_CASHBACK} הוא נשלח כקוד אישי לקנייה הבאה.`
+            : "הרמה עולה רק מקניות ששולמו. הקאשבק ניתן אחרי כל הזמנה, כקוד אישי לקנייה הבאה."}
         </p>
         <div className="border-border overflow-hidden rounded-xl border">
           <table className="w-full text-sm">

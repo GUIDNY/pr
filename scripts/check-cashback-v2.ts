@@ -24,6 +24,8 @@ import { join } from "path";
 import {
   BALANCE_TYPES,
   CASHBACK_CATEGORY_MULTIPLIER,
+  CASHBACK_PENDING_RULE,
+  cashbackHeadline,
   CASHBACK_FALLBACK_RELEASE_DAYS,
   CASHBACK_RELEASE_DAYS,
   MIN_CASHBACK,
@@ -287,6 +289,18 @@ async function main() {
     is("the next cashback pays the debt first", await store.balance(U), 300);
     is("and no coupon until it is back over the minimum", coupons.length, 1);
     is("balance equals the ledger", ledgerSum(U), 300);
+  }
+
+  console.log("\nWhat the club page says");
+  {
+    const page = readFileSync(join(import.meta.dirname, "../src/app/(shop)/account/club/page.tsx"), "utf8");
+    is("flag off: no 'on every purchase'", cashbackHeadline(2.5, false), "2.5% קאשבק ברכישות לחברי מועדון");
+    is("flag on: small credits add up, so it is every purchase", cashbackHeadline(2.5, true), "2.5% קאשבק על כל קנייה");
+    is("the page takes both headlines from there", (page.match(/cashbackHeadline\(tier\.cashback, v2On\)/g) ?? []).length, 2);
+    is("and no longer says it by itself", /קאשבק על כל קנייה/.test(page), false);
+    is("agent 06's sentence, with the days from the constant", CASHBACK_PENDING_RULE, "הזיכוי ניתן בתנאי שההזמנה לא בוטלה. הוא נכנס לשימוש 14 יום אחרי המסירה. אם ההזמנה בוטלה או הוחזרה לפני כן, הזיכוי מבוטל.");
+    is("shown only inside the flag's block", /\{v2On && \(\s*<section[\s\S]*?\{CASHBACK_PENDING_RULE\}[\s\S]*?<\/section>\s*\)\}/.test(page), true);
+    is("the summary is not read with the flag off", /v2On \? await cashbackSummary\(session\.sub\)/.test(page), true);
   }
 
   console.log("\nThe level table is the one the shop has always used");
