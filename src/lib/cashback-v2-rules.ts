@@ -102,6 +102,30 @@ export function cashbackHeadline(rate: number, v2: boolean): string {
     taken from the constant so the page cannot drift from the code. */
 export const CASHBACK_PENDING_RULE = `הזיכוי ניתן בתנאי שההזמנה לא בוטלה. הוא נכנס לשימוש ${CASHBACK_RELEASE_DAYS} יום אחרי המסירה. אם ההזמנה בוטלה או הוחזרה לפני כן, הזיכוי מבוטל.`;
 
+/**
+ * What /api/game/cashback tells the mall about the signed-in member. Whole
+ * agorot throughout. `toNextCredit` is how much more has to be released
+ * before a coupon is issued; a balance in debt makes it larger than the
+ * minimum, and it is never negative.
+ */
+export function mallCashbackView(
+  summary: { balance: number; pending: number; pendingGifts: number },
+  level: number,
+  percent: number,
+) {
+  const minCredit = MIN_CASHBACK * 100;
+  return {
+    balance: summary.balance,
+    pending: summary.pending,
+    pendingGifts: summary.pendingGifts,
+    level,
+    percent,
+    minCredit,
+    toNextCredit: Math.max(0, minCredit - summary.balance),
+    releaseDays: CASHBACK_RELEASE_DAYS,
+  };
+}
+
 // ---------- how much ----------
 
 export type CashbackLine = {

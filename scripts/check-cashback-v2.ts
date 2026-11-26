@@ -38,6 +38,7 @@ import {
   settleGift,
   fallbackReleaseDays,
   issueIfDue,
+  mallCashbackView,
   orderMultiplier,
   planCashback,
   settlePending,
@@ -301,6 +302,25 @@ async function main() {
     is("agent 06's sentence, with the days from the constant", CASHBACK_PENDING_RULE, "הזיכוי ניתן בתנאי שההזמנה לא בוטלה. הוא נכנס לשימוש 14 יום אחרי המסירה. אם ההזמנה בוטלה או הוחזרה לפני כן, הזיכוי מבוטל.");
     is("shown only inside the flag's block", /\{v2On && \(\s*<section[\s\S]*?\{CASHBACK_PENDING_RULE\}[\s\S]*?<\/section>\s*\)\}/.test(page), true);
     is("the summary is not read with the flag off", /v2On \? await cashbackSummary\(session\.sub\)/.test(page), true);
+  }
+
+  console.log("\nThe mall's read-only view (/api/game/cashback)");
+  {
+    is("a member part of the way", mallCashbackView({ balance: 380, pending: 300, pendingGifts: 2000 }, 3, 1.5), {
+      balance: 380, pending: 300, pendingGifts: 2000, level: 3, percent: 1.5, minCredit: 500, toNextCredit: 120, releaseDays: 14,
+    });
+    is("nothing yet", mallCashbackView({ balance: 0, pending: 0, pendingGifts: 0 }, 1, 0).toNextCredit, 500);
+    is("in debt: further to go", mallCashbackView({ balance: -2000, pending: 0, pendingGifts: 0 }, 4, 2).toNextCredit, 2500);
+    is("never negative", mallCashbackView({ balance: 900, pending: 0, pendingGifts: 0 }, 4, 2).toNextCredit, 0);
+    const route = readFileSync(join(import.meta.dirname, "../src/app/api/game/cashback/route.ts"), "utf8");
+    const code = route.replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    is("GET and the preflight, nothing that writes", (code.match(/export async function (\w+)/g) ?? []).map((x) => x.split(" ").pop()), ["OPTIONS", "GET"]);
+    is("GET takes no request: no id, query or body can name another account", /export async function GET\(\)/.test(code), true);
+    is("every read is for the session's own id", (code.match(/\((session\.sub)\)/g) ?? []).length, 2);
+    is("no other id is in reach", /params|searchParams|userId|request/i.test(code), false);
+    const order = ["if (!session) return", "if (!cashbackV2Enabled()) return", "rateLimit(", "cashbackSummary(session.sub)"].map((x) => code.indexOf(x));
+    is("signed out, then the flag, then the limit, then the tables", order.every((x, i) => x > 0 && (i === 0 || x > order[i - 1])), true);
+    is("answers through the game's CORS headers", /gameJson as json/.test(code) && /gameCorsHeaders\(\)/.test(code), true);
   }
 
   console.log("\nThe level table is the one the shop has always used");
