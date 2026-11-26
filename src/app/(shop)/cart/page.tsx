@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { ProductImagePlaceholder } from "@/components/product/product-image-placeholder";
 import { useCartStore } from "@/stores/cart-store";
 import { formatPrice } from "@/lib/format";
-import { freeCollectionNote } from "@/lib/delivery";
+import { PICKUP_ENABLED, freeCollectionNote } from "@/lib/delivery";
 import { cartHasBulky } from "@/lib/bulky";
 import { CheckoutCta } from "@/components/cart/checkout-cta";
 import {
@@ -168,8 +168,12 @@ export default function CartPage() {
                 </div>
                 <p className="text-muted-foreground text-xs">
                   עד הבית <span className="tabular-nums">{formatPrice(cart.deliveryFee)}</span>
-                  {" · "}
-                  <span className="text-success font-medium">{freeCollectionNote(cartHasBulky(cart.items))}</span>
+                  {PICKUP_ENABLED && (
+                    <>
+                      {" · "}
+                      <span className="text-success font-medium">{freeCollectionNote(cartHasBulky(cart.items))}</span>
+                    </>
+                  )}
                 </p>
               </>
             )}

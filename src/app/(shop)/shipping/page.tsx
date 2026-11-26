@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SHIPPING_POLICY_UPDATED_LABEL } from "@/lib/shipping-policy";
 import { BUSINESS, BUSINESS_ADDRESS } from "@/lib/business";
 import {
+  PICKUP_ENABLED,
   DELIVERY_ZONES,
   DOOR_REMOVAL_FEE,
   EXTRA_FLOOR_FEE,
@@ -36,7 +37,7 @@ import { formatPrice } from "@/lib/format";
 
 export const metadata: Metadata = {
   title: "מדיניות משלוחים ואספקה",
-  description: `מדיניות המשלוחים של Buy Today — משלוח עד הבית, נקודת איסוף ואיסוף עצמי מחדרה. משלוח חינם בהזמנה מעל ${FREE_DELIVERY_THRESHOLD} ש"ח, זמני אספקה והובלת מוצרים גדולים.`,
+  description: `מדיניות המשלוחים של Buy Today — משלוח עד הבית לכל הארץ. משלוח חינם בהזמנה מעל ${FREE_DELIVERY_THRESHOLD} ש"ח, זמני אספקה והובלת מוצרים גדולים.`,
   alternates: { canonical: "/shipping" },
 };
 
@@ -70,6 +71,8 @@ export default function ShippingPage() {
                   <td className="text-foreground px-3 py-2 font-medium">{formatPrice(HOME_DELIVERY_FEE)}</td>
                   <td className="text-success px-3 py-2 font-medium">חינם</td>
                 </tr>
+                {PICKUP_ENABLED && (
+                  <>
                 <tr className="border-border border-t">
                   <td className="px-3 py-2">נקודת איסוף</td>
                   <td className="text-success px-3 py-2 font-medium">חינם</td>
@@ -80,6 +83,8 @@ export default function ShippingPage() {
                   <td className="text-success px-3 py-2 font-medium">חינם</td>
                   <td className="text-success px-3 py-2 font-medium">חינם</td>
                 </tr>
+                  </>
+                )}
               </tbody>
             </table>
           </div>
@@ -132,6 +137,8 @@ export default function ShippingPage() {
           </p>
         </section>
 
+        {PICKUP_ENABLED && (
+          <>
         <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">נקודת איסוף</h2>
           <p>
@@ -156,6 +163,9 @@ export default function ShippingPage() {
           </p>
           <p className="mt-2">איסוף עצמי — מהחנות או מהמחסן — אינו כרוך בדמי משלוח.</p>
         </section>
+
+          </>
+        )}
 
         <section>
           <h2 className="text-foreground mb-2 text-lg font-semibold">הובלת מוצרים גדולים</h2>
@@ -186,7 +196,7 @@ export default function ShippingPage() {
           </ul>
           <p className="mt-2">
             אם הספק או חברת ההובלה אינם יכולים לבצע את ההובלה לכתובת שנמסרה, מכל סיבה שהיא, נציע לכם מקום חלופי
-            לאיסוף המוצר, או נבטל את העסקה ונשיב לכם את מלוא התשלום.
+            למסירת המוצר, או נבטל את העסקה ונשיב לכם את מלוא התשלום.
           </p>
           <p className="mt-2">
             <strong className="text-foreground">באחריות הלקוח לוודא מראש שקיימת גישה סבירה</strong> להכנסת המוצר.

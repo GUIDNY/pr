@@ -2,7 +2,7 @@
 
 import { formatPrice } from "@/lib/format";
 import { BUSINESS } from "@/lib/business";
-import { computeDeliveryFee } from "@/lib/delivery";
+import { PICKUP_ENABLED, computeDeliveryFee } from "@/lib/delivery";
 import { maxPaymentsFor } from "@/lib/pelecard/instalments";
 import { AddToCartButton } from "@/components/product/add-to-cart-button";
 import { useProductQtyStore } from "@/stores/product-qty-store";
@@ -70,7 +70,9 @@ export function MobileBuyBar({
                 is the first and often the only place the cost is read. */}
             {/* Where, too (17 November): a free collection is only an answer
                 to the fee for someone who knows the branch is in reach. */}
-            <span className="text-success text-[11px] font-medium whitespace-nowrap">או איסוף חינם ב{BUSINESS.city}</span>
+            {PICKUP_ENABLED && (
+              <span className="text-success text-[11px] font-medium whitespace-nowrap">או איסוף חינם ב{BUSINESS.city}</span>
+            )}
           </>
         )}
       </span>

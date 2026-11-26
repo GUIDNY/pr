@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Minus, Plus, ShoppingCart, Trash2, Truck, X } from "lucide-react";
-import { FREE_DELIVERY_THRESHOLD, freeCollectionNote } from "@/lib/delivery";
+import { FREE_DELIVERY_THRESHOLD, PICKUP_ENABLED, freeCollectionNote } from "@/lib/delivery";
 import { cartHasBulky } from "@/lib/bulky";
 import {
   Sheet,
@@ -237,8 +237,12 @@ export function CartDrawer() {
                     </div>
                     <p className="text-muted-foreground text-xs">
                       עד הבית <span className="tabular-nums">{formatPrice(cart.deliveryFee)}</span>
-                      {" · "}
-                      <span className="text-success font-medium">{freeCollectionNote(cartHasBulky(cart.items))}</span>
+                      {PICKUP_ENABLED && (
+                        <>
+                          {" · "}
+                          <span className="text-success font-medium">{freeCollectionNote(cartHasBulky(cart.items))}</span>
+                        </>
+                      )}
                     </p>
                   </>
                 )}
