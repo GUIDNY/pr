@@ -14,6 +14,12 @@ import { formatDate, formatPrice } from "@/lib/format";
 import { purchaseLevel, CASHBACK_DAYS, GIFT_DAYS } from "@/lib/game-levels";
 import { checkinStatus, REWARDS, COUPON_DAYS } from "@/lib/game-wheel";
 import { memberCouponHistory } from "@/lib/member-coupons";
+import { cashbackSummary } from "@/lib/cashback-v2";
+import {
+  CASHBACK_RELEASE_DAYS,
+  MIN_CASHBACK,
+  cashbackV2Enabled,
+} from "@/lib/cashback-v2-rules";
 import { parseGameProgress } from "@/lib/game-progress";
 import { MallAnchor } from "@/components/layout/mall-link";
 import { ClubCouponActions } from "@/components/account/club-coupon";
@@ -56,6 +62,10 @@ export default async function ClubPage() {
     }),
   ]);
   const coins = parseGameProgress(game?.progress)?.coins ?? 0;
+  // cashback v2 only; off, the tables are not read and nothing below shows
+  const v2 = cashbackV2Enabled()
+    ? await cashbackSummary(session.sub).catch(() => null)
+    : null;
   const tier = lv.tiers[lv.level - 1];
   const next = lv.tiers[lv.level] ?? null;
   const pct = next
@@ -127,6 +137,22 @@ export default async function ClubPage() {
           </p>
         </div>
       </section>
+
+      {v2 && (v2.balance !== 0 || v2.pending > 0) && (
+        <section className="border-border rounded-xl border p-4 text-sm">
+          <p className="font-semibold">הקאשבק שלכם</p>
+          {v2.pending > 0 && (
+            <p className="text-muted-foreground mt-1">
+              {`${formatPrice(v2.pending / 100, { decimals: true })} בהמתנה: נכנס ליתרה ${CASHBACK_RELEASE_DAYS} יום אחרי המסירה, אם ההזמנה לא בוטלה.`}
+            </p>
+          )}
+          {v2.balance !== 0 && (
+            <p className="text-muted-foreground mt-1">
+              {`יתרה צבורה: ${formatPrice(v2.balance / 100, { decimals: true })}. קופון נשלח לכאן כשהיתרה מגיעה ל־₪${MIN_CASHBACK}.`}
+            </p>
+          )}
+        </section>
+      )}
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[

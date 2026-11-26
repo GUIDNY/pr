@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import type { PromotionType } from "@/lib/enums";
+import { cashbackV2Enabled } from "@/lib/cashback-v2-rules";
 
 export { FREE_DELIVERY_THRESHOLD, HOME_DELIVERY_FEE, computeDeliveryFee } from "@/lib/delivery";
 
@@ -67,6 +68,17 @@ export async function resolveCoupon(
   const now = new Date();
   if (promo.startsAt && now < promo.startsAt) return refuse("הקופון עדיין לא פעיל");
   if (promo.endsAt && now > promo.endsAt) return refuse("תוקף הקופון פג");
+
+  /* Cashback v2 only (CASHBACK_V2_ENABLED): a club coupon is its owner's.
+     Balances now add up into larger coupons, and until here nothing tied a
+     GAME- code to the account it was issued to — whoever typed it got it.
+     The referral link is the one MemberCoupon meant for somebody else. */
+  if (cashbackV2Enabled()) {
+    const owned = await db.memberCoupon.findUnique({ where: { code: promo.code! }, select: { userId: true, kind: true } });
+    if (owned && owned.kind !== "ref-link" && owned.userId !== customer.userId) {
+      return refuse("הקופון אישי — התחברו לחשבון שקיבל אותו כדי להשתמש בו");
+    }
+  }
 
   const subtotal = computeCartSubtotal(lines);
   if (promo.minCartAmount && subtotal < promo.minCartAmount) {

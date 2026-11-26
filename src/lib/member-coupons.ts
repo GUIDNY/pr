@@ -10,7 +10,7 @@ import { db } from "@/lib/db";
  * the order that used it is final.
  */
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-function newCode(): string {
+export function newMemberCouponCode(): string {
   return "GAME-" + Array.from(randomBytes(6), (x) => CODE_ALPHABET[x % CODE_ALPHABET.length]).join("");
 }
 
@@ -30,8 +30,8 @@ export type MemberCouponSpec = {
 export type IssuedCoupon = { code: string; label: string; rule: string; min: number; endsAt: string };
 
 export async function issueMemberCoupon(spec: MemberCouponSpec): Promise<IssuedCoupon> {
-  let code = newCode();
-  for (let i = 0; i < 5 && (await db.promotion.findUnique({ where: { code } })); i++) code = newCode();
+  let code = newMemberCouponCode();
+  for (let i = 0; i < 5 && (await db.promotion.findUnique({ where: { code } })); i++) code = newMemberCouponCode();
   const endsAt = new Date(Date.now() + spec.days * 86_400_000);
   await db.memberCoupon.create({ data: { code, userId: spec.userId, kind: spec.kind, orderId: spec.orderId ?? null } });
   await db.promotion.create({
@@ -51,9 +51,13 @@ export async function issueMemberCoupon(spec: MemberCouponSpec): Promise<IssuedC
   return { code, label: spec.label, rule: spec.rule, min: spec.min ?? 0, endsAt: endsAt.toISOString() };
 }
 
+/* Rows that are not coupons: the referral link, and cashback v2's "this order
+   has its credit" mark (lib/cashback-v2.ts). */
+const NOT_COUPONS = ["ref-link", "cashback-pending"];
+
 /** The account's coupons that can still be used. */
 export async function listMemberCoupons(userId: string) {
-  const mine = await db.memberCoupon.findMany({ where: { userId, kind: { not: "ref-link" } }, select: { code: true, kind: true } });
+  const mine = await db.memberCoupon.findMany({ where: { userId, kind: { notIn: NOT_COUPONS } }, select: { code: true, kind: true } });
   if (!mine.length) return [];
   const kinds = new Map(mine.map((m) => [m.code, m.kind]));
   const promos = await db.promotion.findMany({
@@ -78,7 +82,7 @@ export type CouponState = "active" | "used" | "expired";
 
 /** Every club coupon the account was ever given, newest first, and what became of it. */
 export async function memberCouponHistory(userId: string, take = 30) {
-  const mine = await db.memberCoupon.findMany({ where: { userId, kind: { not: "ref-link" } }, orderBy: { createdAt: "desc" }, take, select: { code: true, kind: true, createdAt: true } });
+  const mine = await db.memberCoupon.findMany({ where: { userId, kind: { notIn: NOT_COUPONS } }, orderBy: { createdAt: "desc" }, take, select: { code: true, kind: true, createdAt: true } });
   if (!mine.length) return [];
   const promos = await db.promotion.findMany({
     where: { code: { in: mine.map((m) => m.code) } },

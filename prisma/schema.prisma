@@ -80,6 +80,8 @@ model User {
   gameProfile       GameProfile?
   gameSpins         GameSpin[]
   memberCoupons     MemberCoupon[]
+  cashbackAccount   CashbackAccount?
+  cashbackLedger    CashbackLedger[]
   /// חבר מביא חבר: the account whose link brought this one (lib/referral.ts).
   /// Kept on the account so the friend's discount works from any device.
   referredById String?
@@ -1330,6 +1332,47 @@ model MemberCoupon {
 /// first-party path log (lib/pageview): no IP, no raw user-agent, no visitor
 /// id, query string by allow-list only. Raw rows live 90 days
 /// (api/internal/pv-rollup) and are folded into PageViewDaily.
+/// Cashback v2 (lib/cashback-v2.ts), behind CASHBACK_V2_ENABLED. One row per
+/// club member: the cashback that is theirs to use, in agorot. It is the sum
+/// of the balance rows of CashbackLedger and is only ever moved in the same
+/// transaction as the ledger row that explains the move. It may be negative:
+/// an order refunded after its cashback was already spent leaves a debt that
+/// the next cashback pays off first, and nothing is taken from the refund.
+model CashbackAccount {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Int      @default(0) // agorot
+  updatedAt DateTime @updatedAt
+}
+
+/// Append-only. Rows are written and never changed; `key` is what makes
+/// every step happen once however often a callback or the cron is replayed:
+///   earn:<orderId>      EARN        credit recorded at payment, pending — not in the balance
+///   settle:<orderId>    RELEASE     the pending credit became usable (+balance), or
+///                       VOID        the order was cancelled/returned first (no balance change);
+///                                   one key for both, so an order can only ever get one of them
+///   clawback:<orderId>  CLAWBACK    refunded after release (-balance, may go below zero)
+///   issue:<code>        ISSUE       balance turned into a coupon (-balance)
+///   couponvoid:<code>   COUPON_VOID an unused coupon taken back to cover a debt (+balance)
+model CashbackLedger {
+  id         String   @id @default(cuid())
+  key        String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type       String // EARN | RELEASE | VOID | CLAWBACK | ISSUE | COUPON_VOID
+  amount     Int // agorot, signed as it moves the balance; EARN and VOID are informational
+  // No relation to Order on purpose: an order can be hard-deleted by the back
+  // office, and a ledger must outlive what it describes.
+  orderId    String?
+  couponCode String?
+  note       String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([type, createdAt])
+  @@index([orderId])
+}
+
 model PageView {
   id        String   @id @default(cuid())
   sid       String

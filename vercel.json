@@ -28,6 +28,10 @@
       "schedule": "7,22,37,52 * * * *"
     },
     {
+      "path": "/api/internal/cashback-release",
+      "schedule": "40 2 * * *"
+    },
+    {
       "path": "/api/cron/instagram-publish",
       "schedule": "0 16 * * *"
     },

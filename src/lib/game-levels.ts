@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { DESTRUCTIVE_ORDER_STATUSES } from "@/lib/enums";
 import { hasMemberCoupon, issueMemberCoupon } from "@/lib/member-coupons";
 import { awardReferral } from "@/lib/referral";
+import { CASHBACK_DAYS, cashbackV2Enabled, planCashback } from "@/lib/cashback-v2-rules";
+import { recordPendingCashback } from "@/lib/cashback-v2";
 
 /**
  * The BuyToday club in the 3D mall: levels that come from purchases, and
@@ -31,9 +33,8 @@ export const TIERS: Tier[] = [
   { level: 10, spend: 20000, cashback: 5, gift: { value: 250, min: 1500 } },
 ];
 export const LEVEL_SPEND = TIERS.map((t) => t.spend);
-export const CASHBACK_DAYS = 90;
+export { CASHBACK_DAYS };
 export const GIFT_DAYS = 30;
-const MIN_CASHBACK = 5;
 
 const levelFor = (spent: number) => [...TIERS].reverse().find((t) => spent >= t.spend && (t.spend > 0 || spent === 0 || t.level === 1))!.level;
 
@@ -64,13 +65,21 @@ export async function awardPurchase(orderId: string): Promise<void> {
     const { spent } = await purchaseLevel(order.userId);
     const after = levelFor(spent), before = levelFor(Math.max(0, spent - Math.round(order.total)));
     const rate = TIERS[after - 1].cashback;
-    const credit = Math.floor((order.total * rate) / 100);
-    if (credit >= MIN_CASHBACK) {
-      await issueMemberCoupon({
-        userId: order.userId, kind: "cashback", orderId: order.id,
-        label: `₪${credit} קאשבק`, rule: `${rate}% מהזמנה ${order.orderNumber}`,
-        type: "FIXED", value: credit, days: CASHBACK_DAYS,
-      });
+    /* CASHBACK_V2_ENABLED (off unless set to "true"): the credit is recorded
+       as pending and accumulates instead of becoming a coupon now — see
+       cashback-v2-rules.ts. Off, this is what it has always been: a coupon
+       at once, and nothing under MIN_CASHBACK. */
+    if (cashbackV2Enabled()) {
+      await recordPendingCashback({ ...order, userId: order.userId }, rate);
+    } else {
+      const plan = planCashback(order.total, rate, false);
+      if (plan.mode === "v1-coupon") {
+        await issueMemberCoupon({
+          userId: order.userId, kind: "cashback", orderId: order.id,
+          label: `₪${plan.credit} קאשבק`, rule: `${rate}% מהזמנה ${order.orderNumber}`,
+          type: "FIXED", value: plan.credit, days: CASHBACK_DAYS,
+        });
+      }
     }
     for (const t of TIERS) {
       if (!t.gift || t.level <= before || t.level > after) continue;
