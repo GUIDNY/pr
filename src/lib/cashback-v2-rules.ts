@@ -42,6 +42,32 @@ export const MIN_CASHBACK = 5;
 export const CASHBACK_DAYS = 90;
 /** Days after delivery until a pending credit can be used. */
 export const CASHBACK_RELEASE_DAYS = 14;
+/**
+ * The way out for an order nobody ever marks as delivered. "Delivered" is a
+ * click in the back office (closeOrderAction), and an order that is paid,
+ * handed over and never closed would keep its credit pending for ever. So a
+ * credit whose order is still paid, not cancelled or refunded, and has no
+ * delivery time is released this many days after the payment. It is longer
+ * than any delivery plus the 14 days, so an order still inside its return
+ * window is not what this catches. An order that is DELIVERED with a delivery
+ * time always waits for CASHBACK_RELEASE_DAYS after it and never takes this
+ * road.
+ *
+ * The env var of the same name overrides it: a whole number of days, at
+ * least CASHBACK_RELEASE_DAYS; "0" or "off" switches the fallback off.
+ * Anything else is ignored and the default stands.
+ */
+export const CASHBACK_FALLBACK_RELEASE_DAYS = 45;
+export const CASHBACK_FALLBACK_FLAG = "CASHBACK_FALLBACK_RELEASE_DAYS";
+/** Days after payment, or null when the fallback is switched off. */
+export function fallbackReleaseDays(env: Record<string, string | undefined> = process.env): number | null {
+  const raw = env[CASHBACK_FALLBACK_FLAG]?.trim().toLowerCase();
+  if (raw === undefined || raw === "") return CASHBACK_FALLBACK_RELEASE_DAYS;
+  if (raw === "0" || raw === "off") return null;
+  if (!/^\d{1,4}$/.test(raw)) return CASHBACK_FALLBACK_RELEASE_DAYS;
+  const days = Number(raw);
+  return days >= CASHBACK_RELEASE_DAYS ? days : CASHBACK_FALLBACK_RELEASE_DAYS;
+}
 /** A v2 coupon of ₪X needs a cart of at least X × this. 0 = no minimum,
     which is what a v1 cashback coupon has today. */
 export const CASHBACK_MIN_CART_FACTOR = 0;
@@ -122,14 +148,29 @@ export function isReversed(order: OrderState): boolean {
   );
 }
 
-export function decideSettlement(
-  order: OrderState,
-  now: Date,
-  days: number = CASHBACK_RELEASE_DAYS,
-): "release" | "void" | "wait" {
+export type SettleOptions = {
+  /** Days after delivery; CASHBACK_RELEASE_DAYS unless a check says otherwise. */
+  days?: number;
+  /** When the credit was recorded, which is when the order was paid. */
+  earnedAt?: Date | null;
+  /** Days after `earnedAt` for an order with no delivery time; null = never.
+      Left out, there is no fallback: the caller has to ask for it. */
+  fallbackDays?: number | null;
+};
+
+export function decideSettlement(order: OrderState, now: Date, options: SettleOptions = {}): "release" | "void" | "wait" {
+  const { days = CASHBACK_RELEASE_DAYS, earnedAt = null, fallbackDays = null } = options;
   if (isReversed(order)) return "void";
-  if (order!.status !== "DELIVERED" || !order!.deliveredAt) return "wait";
-  return now.getTime() - order!.deliveredAt.getTime() >= days * 86_400_000 ? "release" : "wait";
+  if (order!.status === "DELIVERED" && order!.deliveredAt) {
+    return now.getTime() - order!.deliveredAt.getTime() >= days * 86_400_000 ? "release" : "wait";
+  }
+  /* Paid, not reversed, and not delivered as far as the shop's records go:
+     still on its way, DELIVERED from the old status menu with no time
+     anywhere, or a delivery that was undone and never marked again. */
+  if (fallbackDays != null && earnedAt && now.getTime() - earnedAt.getTime() >= fallbackDays * 86_400_000) {
+    return "release";
+  }
+  return "wait";
 }
 
 // ---------- the ledger ----------
@@ -177,7 +218,13 @@ export interface CashbackStore {
   reclaimCoupon(userId: string): Promise<number | null>;
 }
 
-export type PendingEntry = { orderId: string; userId: string; amount: number };
+export type PendingEntry = {
+  orderId: string;
+  userId: string;
+  amount: number;
+  /** When the EARN row was written; needed only for the never-delivered fallback. */
+  earnedAt?: Date | null;
+};
 
 /** At payment. Not in the balance yet. */
 export async function earnCashback(
@@ -218,8 +265,9 @@ export async function settlePending(
   entry: PendingEntry,
   order: OrderState,
   now: Date,
+  fallbackDays: number | null = null,
 ): Promise<"released" | "voided" | "waiting" | "already"> {
-  const decision = decideSettlement(order, now);
+  const decision = decideSettlement(order, now, { earnedAt: entry.earnedAt, fallbackDays });
   if (decision === "wait") return "waiting";
   const key = cashbackKey.settle(entry.orderId);
   if (decision === "void") {

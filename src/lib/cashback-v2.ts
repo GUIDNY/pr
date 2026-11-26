@@ -9,6 +9,7 @@ import {
   cashbackKey,
   clawBack,
   earnCashback,
+  fallbackReleaseDays,
   issueIfDue,
   orderMultiplier,
   planCashback,
@@ -182,6 +183,7 @@ type SettleRow = {
   orderId: string;
   userId: string;
   amount: number;
+  earnedAt?: Date | null;
   missing: boolean;
   status: string | null;
   paymentStatus: string | null;
@@ -201,6 +203,8 @@ const stateOf = (r: SettleRow): OrderState =>
  *
  *   pending + cancelled / refunded / deleted            -> VOID
  *   pending + DELIVERED for CASHBACK_RELEASE_DAYS       -> RELEASE (+ coupon when the balance reaches the minimum)
+ *   pending + paid, never given a delivery time, for
+ *             CASHBACK_FALLBACK_RELEASE_DAYS since payment -> RELEASE, so a credit is not stuck for ever
  *   released + cancelled / refunded afterwards          -> CLAWBACK
  *
  * "Delivered" is Order.deliveredAt, which closeOrderAction writes. The older
@@ -210,11 +214,16 @@ const stateOf = (r: SettleRow): OrderState =>
 export async function runCashbackSettlement(now: Date = new Date(), limit = 500) {
   const reversed = Prisma.join(DESTRUCTIVE_ORDER_STATUSES as string[]);
   const result = { released: 0, voided: 0, waiting: 0, clawed: 0, issued: 0, errors: 0 };
+  const fallbackDays = fallbackReleaseDays();
+  /* Credits recorded before this moment are old enough for the fallback. With
+     it switched off the date is one no row is older than. */
+  const fallbackBefore = new Date(fallbackDays == null ? 0 : now.getTime() - fallbackDays * 86_400_000);
 
   /* Pending credits whose order can have something to say: not the ones
      still on their way to the customer, which would otherwise fill the batch. */
   const pending = await db.$queryRaw<SettleRow[]>`
-    SELECT e."orderId", e."userId", e."amount", (o."id" IS NULL) AS "missing", o."status", o."paymentStatus",
+    SELECT e."orderId", e."userId", e."amount", e."createdAt" AS "earnedAt",
+           (o."id" IS NULL) AS "missing", o."status", o."paymentStatus",
            COALESCE(o."deliveredAt", (
              SELECT max(h."createdAt") FROM "OrderStatusHistory" h
              WHERE h."orderId" = o."id" AND h."toStatus" = 'DELIVERED'
@@ -224,12 +233,13 @@ export async function runCashbackSettlement(now: Date = new Date(), limit = 500)
     WHERE e."type" = 'EARN' AND e."orderId" IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM "CashbackLedger" s WHERE s."key" = 'settle:' || e."orderId")
       AND (o."id" IS NULL OR o."status" = 'DELIVERED' OR o."status" IN (${reversed})
-           OR o."paymentStatus" NOT IN ('CAPTURED', 'AUTHORIZED'))
+           OR o."paymentStatus" NOT IN ('CAPTURED', 'AUTHORIZED')
+           OR e."createdAt" <= ${fallbackBefore})
     ORDER BY e."createdAt" ASC
     LIMIT ${limit}`;
   for (const row of pending) {
     try {
-      const outcome = await settlePending(store, row, stateOf(row), now);
+      const outcome = await settlePending(store, row, stateOf(row), now, fallbackDays);
       if (outcome === "released") result.released++;
       else if (outcome === "voided") result.voided++;
       else if (outcome === "waiting") result.waiting++;

@@ -23,12 +23,14 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import {
   CASHBACK_CATEGORY_MULTIPLIER,
+  CASHBACK_FALLBACK_RELEASE_DAYS,
   CASHBACK_RELEASE_DAYS,
   MIN_CASHBACK,
   cashbackV2Enabled,
   clawBack,
   decideSettlement,
   earnCashback,
+  fallbackReleaseDays,
   issueIfDue,
   orderMultiplier,
   planCashback,
@@ -147,6 +149,43 @@ async function main() {
   is("refunded", decideSettlement(refunded, after(30)), "void");
   is("payment failed after all", decideSettlement({ ...paid!, paymentStatus: "FAILED" }, after(1)), "void");
   is("the order row is gone", decideSettlement(null, after(1)), "void");
+
+  console.log("\nAn order nobody marks as delivered does not keep its credit for ever");
+  {
+    const F = CASHBACK_FALLBACK_RELEASE_DAYS;
+    const fb = { earnedAt: T0, fallbackDays: F };
+    is("the default is 45 days", F, 45);
+    is("and it is longer than the pending period", F > CASHBACK_RELEASE_DAYS, true);
+    is("no fallback unless the caller asks", decideSettlement(paid, after(400)), "wait");
+    is("paid 44 days ago, never delivered", decideSettlement(paid, after(F - 1), fb), "wait");
+    is("paid 45 days ago, never delivered", decideSettlement(paid, after(F), fb), "release");
+    is("shipped counts the same", decideSettlement({ ...paid!, status: "SHIPPED" }, after(F), fb), "release");
+    is("authorised, not yet captured, is paid", decideSettlement({ ...paid!, paymentStatus: "AUTHORIZED" }, after(F), fb), "release");
+    is("DELIVERED with no time anywhere", decideSettlement({ ...delivered!, deliveredAt: null }, after(F), fb), "release");
+    is("a delivery that was undone", decideSettlement({ ...paid!, deliveredAt: T0 }, after(F), fb), "release");
+    is("cancelled is void however old", decideSettlement({ ...paid!, status: "CANCELLED" }, after(400), fb), "void");
+    is("refunded is void however old", decideSettlement(refunded, after(400), fb), "void");
+    is("never paid is void, not released", decideSettlement({ ...paid!, paymentStatus: "PENDING" }, after(400), fb), "void");
+    const late = { ...delivered!, deliveredAt: after(40) };
+    is("delivered on day 40: the 14 days run from the delivery", decideSettlement(late, after(F), fb), "wait");
+    is("and end on day 54", decideSettlement(late, after(54), fb), "release");
+    is("no payment time, no fallback", decideSettlement(paid, after(400), { fallbackDays: F }), "wait");
+    is("switched off", decideSettlement(paid, after(400), { earnedAt: T0, fallbackDays: null }), "wait");
+    is("env: unset", fallbackReleaseDays({}), 45);
+    is("env: 60", fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: " 60 " }), 60);
+    is("env: off", [fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "0" }), fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "OFF" })], [null, null]);
+    is("env: shorter than the pending period is ignored", fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "7" }), 45);
+    is("env: nonsense is ignored", [fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "soon" }), fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "-3" }), fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "4.5" })], [45, 45, 45]);
+
+    const { store, coupons } = memoryStore();
+    await earnCashback(store, { id: "f1", userId: U }, 900);
+    const e = { ...entry("f1", 900), earnedAt: T0 };
+    is("day 44: waiting", await settlePending(store, e, paid, after(F - 1), F), "waiting");
+    is("day 45: released", await settlePending(store, e, paid, after(F), F), "released");
+    is("coupon as usual", [coupons.map((c) => c.valueNis), await store.balance(U)], [[9], 0]);
+    is("once", await settlePending(store, e, paid, after(F + 1), F), "already");
+    is("refunded afterwards: clawed back like any other", await clawBack(store, e, refunded), "clawed");
+  }
 
   console.log("\nA small order accumulates instead of being dropped");
   {

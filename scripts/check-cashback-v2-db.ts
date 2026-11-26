@@ -7,7 +7,8 @@
  * and rolling its whole batch back, timestamps surviving the round trip
  * whatever the server's time zone, and two settlement runs at once.
  *
- * It WRITES: users, orders, coupons. So it refuses to start unless
+ * It WRITES: users, orders, coupons, and it EMPTIES the two cashback tables
+ * before it starts. So it refuses to start unless
  * DATABASE_URL points at a database on this machine whose name starts with
  * "cbtest" — it cannot be aimed at the shop's database by accident.
  *
@@ -80,6 +81,11 @@ async function main() {
     const r = await runCashbackSettlement(new Date(process.argv[childAt + 1]));
     process.exit(r.errors ? 1 : 0);
   }
+
+  /* The settlement looks at every pending credit there is, so what an earlier
+     run left behind would be counted by this one. The database is a throwaway
+     by the check at the top; start from an empty ledger. */
+  await db.$executeRaw`TRUNCATE "CashbackLedger", "CashbackAccount"`;
 
   const run = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
   let seq = 0;
@@ -252,6 +258,28 @@ async function main() {
     is("14 days after delivery day 0 is too early", (await settle(at(14, 1))).released, 0);
     is("14 days after the history row", (await settle(at(16, 1))).released, 1);
     is("credited", await cashbackStore.balance(u), 250);
+  }
+
+  console.log("\nPaid and never marked delivered: released 45 days after payment");
+  {
+    const u = await newUser();
+    const stuck = await paidOrder(u, 900); // level 3: 1.5% = 1350
+    const late = await paidOrder(u, 100); // level 4: 2% = 200, delivered on day 40
+    const dead = await paidOrder(u, 300); // 600, cancelled: never released
+    await db.order.update({ where: { id: stuck }, data: { status: "SHIPPED" } });
+    await deliver(late, at(40));
+    await db.order.update({ where: { id: dead }, data: { status: "CANCELLED" } });
+    is("the cancelled one is voided", (await settle(at(1))).voided, 1);
+    is("day 44 and 23½ hours", (await settle(at(45, -30))).released, 0);
+    is("day 45", (await settle(at(45, 30))).released, 1);
+    is("only the never-delivered one", [await rowsOf(u, "RELEASE"), (await coupons(u)).map((p) => p.value), await cashbackSummary(u)], [[1350], [13], { balance: 50, pending: 200 }]);
+    is("delivered on day 40 waits for day 54", (await settle(at(53))).released, 0);
+    is("day 54", (await settle(at(54, 1))).released, 1);
+    process.env.CASHBACK_FALLBACK_RELEASE_DAYS = "off";
+    await db.order.update({ where: { id: await paidOrder(u, 500) }, data: { status: "PROCESSING" } });
+    is("fallback switched off: it waits", (await settle(at(400))).released, 0);
+    delete process.env.CASHBACK_FALLBACK_RELEASE_DAYS;
+    is("switched back on", (await settle(at(400))).released, 1);
   }
 
   console.log("\nRefunded after release: clawed back from the balance");
