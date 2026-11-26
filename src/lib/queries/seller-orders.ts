@@ -68,6 +68,8 @@ export type SellerOrderDetail = SellerOrderSummary & {
     shipNo: string | null;
     error: string | null;
     requestedAt: Date | null;
+    stage: string | null;
+    stageAt: Date | null;
     packages: number;
     cargoCode: number;
     /** True when some line is a fridge, machine, TV… — suggests the heavy code. */
@@ -288,6 +290,8 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
       chitaShipNo: true,
       chitaError: true,
       chitaRequestedAt: true,
+      chitaStage: true,
+      chitaStageAt: true,
       chitaPackages: true,
       chitaCargoCode: true,
       chitaCity: true,
@@ -345,6 +349,8 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
       shipNo: row.chitaShipNo,
       error: row.chitaError,
       requestedAt: row.chitaRequestedAt,
+      stage: row.chitaStage,
+      stageAt: row.chitaStageAt,
       packages: row.chitaPackages ?? 1,
       cargoCode: row.chitaCargoCode ?? suggestedCargoCode(anyBulky),
       anyBulky,

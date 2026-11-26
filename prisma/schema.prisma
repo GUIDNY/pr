@@ -763,6 +763,10 @@ model Order {
   chitaShipNo        String?
   chitaError         String?
   chitaUpdatedAt     DateTime?
+  /// Chita's own "שלב" text, polled by the bot (/api/chita/track); informational only.
+  chitaStage         String?
+  chitaStageAt       DateTime?
+  chitaDeliveredAt   DateTime?
   chitaPackages      Int?
   chitaCargoCode     Int?
   chitaCity          String?
