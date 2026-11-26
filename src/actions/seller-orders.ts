@@ -13,6 +13,7 @@ import { removalRule, binActionAllowed, type BinDirection } from "@/lib/queries/
 import { INTERNAL_DELIVERY_NAME } from "@/lib/couriers";
 import { MANUAL_PAYMENT_METHOD_LABELS, manualPaymentMethodSchema, type ManualPaymentMethod } from "@/lib/enums";
 import { undoableStep } from "@/lib/order-undo";
+import { parseChitaRequest, canRequestChita } from "@/lib/chita";
 import { sendPurchaseToGa4 } from "@/lib/analytics/ga4-purchase";
 import { sendPurchaseToOpenAiAds } from "@/lib/analytics/openai-ads-purchase";
 import { sendPurchaseToMetaCapi } from "@/lib/analytics/meta-capi";
@@ -817,6 +818,60 @@ export async function resendNotificationAction(
   if (!order) return { success: false, error: "הזמנה לא נמצאה" };
 
   await notifyOrder(order.id, event, { force: true });
+  revalidateSellerViews(orderNumber);
+  return { success: true, error: null };
+}
+
+/**
+ * "שלח לצ'יטה" — put the order on the Chita bot's queue.
+ *
+ * Only records the request (REQUESTED plus the address and cargo the person
+ * confirmed in the modal); the bot on the Mac mini does the rest. Sending is
+ * refused while a request is in flight or done, so a double click or a second
+ * tab cannot open two shipments; only a failed (ERROR) one can be retried.
+ * The claim is one conditional UPDATE, so two presses cannot both win.
+ */
+export async function sendToChitaAction(orderNumber: string, form: unknown): Promise<Result> {
+  const session = await requireBackOffice();
+  const parsed = parseChitaRequest(form);
+  if (!parsed.ok) return { success: false, error: parsed.error };
+  const v = parsed.value;
+
+  const order = await db.order.findUnique({ where: { orderNumber }, select: { id: true, chitaStatus: true } });
+  if (!order) return { success: false, error: "הזמנה לא נמצאה" };
+  if (!canRequestChita(order.chitaStatus)) {
+    return { success: false, error: "כבר נשלח לצ'יטה — אי אפשר לשלוח שוב" };
+  }
+
+  const now = new Date();
+  const won = await db.order.updateMany({
+    where: { id: order.id, OR: [{ chitaStatus: null }, { chitaStatus: "ERROR" }] },
+    data: {
+      chitaStatus: "REQUESTED",
+      chitaRequestedAt: now,
+      chitaUpdatedAt: now,
+      chitaError: null,
+      chitaShipNo: null,
+      chitaPackages: v.packages,
+      chitaCargoCode: v.cargoCode,
+      chitaCity: v.city,
+      chitaStreet: v.street,
+      chitaHouse: v.house || null,
+      chitaEntrance: v.entrance || null,
+      chitaFloor: v.floor || null,
+      chitaApartment: v.apartment || null,
+      chitaNote: v.note || null,
+    },
+  });
+  if (won.count === 0) return { success: false, error: "כבר נשלח לצ'יטה — אי אפשר לשלוח שוב" };
+
+  await logAudit({
+    actorId: session.sub,
+    action: "ORDER_CHITA_REQUESTED",
+    entityType: "Order",
+    entityId: order.id,
+    metadata: { packages: v.packages, cargoCode: v.cargoCode },
+  });
   revalidateSellerViews(orderNumber);
   return { success: true, error: null };
 }

@@ -753,6 +753,25 @@ model Order {
   shipStreet         String?
   shipHouseNo        String?
   shipApartment      String?
+  /// Chita (courier) shipment queue. The site only keeps the queue; a bot on
+  /// the Mac mini fills Chita's own form (no API token exists). Status:
+  /// REQUESTED | CLAIMED | DONE | ERROR, null = never sent. The chita* address
+  /// fields override ship* for this one shipment (the address is sometimes
+  /// elsewhere in the UI); null means "use ship*".
+  chitaStatus        String?
+  chitaRequestedAt   DateTime?
+  chitaShipNo        String?
+  chitaError         String?
+  chitaUpdatedAt     DateTime?
+  chitaPackages      Int?
+  chitaCargoCode     Int?
+  chitaCity          String?
+  chitaStreet        String?
+  chitaHouse         String?
+  chitaEntrance      String?
+  chitaFloor         String?
+  chitaApartment     String?
+  chitaNote          String?
   // Set when the account that placed this order closed it. The row then looks
   // exactly like a guest order — userId null, contact details in the guest
   // fields — and this is the only thing that tells them apart, so registering
