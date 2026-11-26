@@ -30,6 +30,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProductGallery } from "@/components/product/product-gallery";
 import { PriceBlock } from "@/components/product/price-block";
+import { SaleCountdown } from "@/components/campaign/sale-countdown";
 import { FriendPriceLine } from "@/components/referral/friend-discount";
 import { ProductPriceEditor } from "@/components/product/product-price-editor";
 import { ProductTitleEditor } from "@/components/product/product-title-editor";
@@ -649,6 +650,7 @@ export async function ProductPageView({
                 installmentMonths={product.installmentMonths}
                 size="lg"
               />
+              <SaleCountdown sku={product.sku} />
               {instalmentsNote(product.price) && (
                 <p className="text-muted-foreground -mt-2 flex items-center gap-1.5 text-sm">
                   <CreditCard className="size-4 shrink-0" aria-hidden="true" />
