@@ -3,9 +3,8 @@ export const PUBLISH_HOUR = 19;
 /** Catch-up window: a post missed at 19:00 (e.g. awaiting approval) may still go out until 22:59. */
 export const PUBLISH_LAST_HOUR = 22;
 export const inPublishWindow = (hour: number) => hour >= PUBLISH_HOUR && hour <= PUBLISH_LAST_HOUR;
-/** A post whose scheduledFor carries a time of day (not 00:00:00.000Z) is a timed post: it goes out at that instant, with a catch-up of TIMED_CATCHUP_HOURS. */
+/** A post with goLiveAt is a timed post: it goes out from that instant, with a catch-up of TIMED_CATCHUP_HOURS. Without it: the 19:00-22:59 window. */
 export const TIMED_CATCHUP_HOURS = 3;
-export const isTimed = (d: Date) => d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0 || d.getUTCSeconds() !== 0 || d.getUTCMilliseconds() !== 0;
 const TZ = "Asia/Jerusalem";
 
 export type InstagramPostRow = {
@@ -19,6 +18,7 @@ export type InstagramPostRow = {
   approved: boolean;
   rejected: boolean;
   status: string;
+  goLiveAt?: Date | null;
   createdAt: Date;
 };
 export type ProductFacts = { price: number; stockQty: number; isPublished: boolean };
@@ -63,8 +63,8 @@ export function planTodayPost(
   const date = opts.date ?? j.date;
   const dueNow = (p: InstagramPostRow) => {
     if (opts.ignoreHour) return true;
-    if (isTimed(p.scheduledFor)) {
-      const t = p.scheduledFor.getTime();
+    if (p.goLiveAt) {
+      const t = p.goLiveAt.getTime();
       return now.getTime() >= t && now.getTime() < t + TIMED_CATCHUP_HOURS * 3600_000;
     }
     return inPublishWindow(j.hour);
