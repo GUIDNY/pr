@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSinglesDayClock } from "@/components/campaign/countdown";
 
 /**
@@ -16,10 +17,19 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export function SaleCountdown({ sku }: { sku: string }) {
   const endIso = SALE_COUNTDOWNS[sku];
   const now = useSinglesDayClock();
-  if (!endIso || now === null) return null;
+  if (!endIso) return null;
   const end = Date.parse(endIso);
-  const s = Math.floor((end - now) / 1000);
-  if (!(s > 0)) return null;
+  const s = now === null ? 0 : Math.floor((end - now) / 1000);
+  if (now !== null && !(s > 0)) return null;
+  const note = (
+    <p className="mt-2 text-sm leading-snug font-semibold text-neutral-800">
+      עד 30.11 · עד גמר המלאי ו
+      <Link href="/black-november/takanon" className="text-brand underline underline-offset-2">
+        בכפוף לתקנון המבצע
+      </Link>
+    </p>
+  );
+  if (now === null) return <div>{note}</div>;
   const cells: [string, string][] = [
     [String(Math.floor(s / 86400)), "ימים"],
     [pad(Math.floor((s % 86400) / 3600)), "שעות"],
@@ -40,6 +50,7 @@ export function SaleCountdown({ sku }: { sku: string }) {
           </div>
         ))}
       </div>
+      {note}
     </div>
   );
 }
