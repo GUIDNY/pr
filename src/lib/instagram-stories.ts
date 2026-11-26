@@ -10,6 +10,9 @@ import { guardProduct, jerusalemNow, type InstagramPostRow, type ProductFacts } 
  *   rejected  = true until the owner approves (approval gate, same as posts).
  */
 export const STORY_PUBLISH_HOUR = 10;
+/** Catch-up window: a set missed at 10:00 may still go out until 13:59. */
+export const STORY_LAST_HOUR = 13;
+export const inStoryWindow = (hour: number) => hour >= STORY_PUBLISH_HOUR && hour <= STORY_LAST_HOUR;
 export const STORY_TYPE = "STORY_SET";
 
 export type StoryProductRef = { slug: string; price: number };
@@ -52,8 +55,8 @@ export function planTodayStories(
   opts: { ignoreHour?: boolean; date?: string } = {},
 ): StoryPlan {
   const j = jerusalemNow(now);
-  if (!opts.ignoreHour && j.hour !== STORY_PUBLISH_HOUR)
-    return { action: "wait", reason: "not 10:00 in Asia/Jerusalem", now: j };
+  if (!opts.ignoreHour && !inStoryWindow(j.hour))
+    return { action: "wait", reason: "outside 10:00-13:59 in Asia/Jerusalem", now: j };
   const date = opts.date ?? j.date;
   const post = posts
     .filter((p) => p.type === STORY_TYPE && p.scheduledFor.toISOString().slice(0, 10) === date && !p.rejected && p.status === "queued")

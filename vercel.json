@@ -48,6 +48,10 @@
       "schedule": "0 8 * * *"
     },
     {
+      "path": "/api/cron/instagram-stories",
+      "schedule": "*/15 8-11 * * *"
+    },
+    {
       "path": "/api/cron/price-sheets-email",
       "schedule": "0 4 * * *"
     },
