@@ -38,7 +38,9 @@ const prismaCode = (e: unknown) => (e as { code?: string } | null)?.code;
     coupon. */
 export const PENDING_MARK_KIND = "cashback-pending";
 
-const store: CashbackStore = {
+/** Exported for scripts/check-cashback-v2-db.ts, which walks it against a
+    local Postgres; the application reaches it only through the functions below. */
+export const cashbackStore: CashbackStore = {
   async append(row, balanceDelta) {
     try {
       const create = db.cashbackLedger.create({ data: row });
@@ -139,6 +141,7 @@ const store: CashbackStore = {
     return null;
   },
 };
+const store = cashbackStore;
 
 /** The order's category multiplier; no query at all while the table is empty. */
 async function multiplierFor(orderId: string): Promise<number> {
@@ -218,7 +221,7 @@ export async function runCashbackSettlement(now: Date = new Date(), limit = 500)
            )) AS "deliveredAt"
     FROM "CashbackLedger" e
     LEFT JOIN "Order" o ON o."id" = e."orderId"
-    WHERE e."type" = 'EARN'
+    WHERE e."type" = 'EARN' AND e."orderId" IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM "CashbackLedger" s WHERE s."key" = 'settle:' || e."orderId")
       AND (o."id" IS NULL OR o."status" = 'DELIVERED' OR o."status" IN (${reversed})
            OR o."paymentStatus" NOT IN ('CAPTURED', 'AUTHORIZED'))
@@ -241,7 +244,7 @@ export async function runCashbackSettlement(now: Date = new Date(), limit = 500)
            o."deliveredAt"
     FROM "CashbackLedger" r
     LEFT JOIN "Order" o ON o."id" = r."orderId"
-    WHERE r."type" = 'RELEASE'
+    WHERE r."type" = 'RELEASE' AND r."orderId" IS NOT NULL
       AND (o."id" IS NULL OR o."status" IN (${reversed}) OR o."paymentStatus" NOT IN ('CAPTURED', 'AUTHORIZED'))
       AND NOT EXISTS (SELECT 1 FROM "CashbackLedger" c WHERE c."key" = 'clawback:' || r."orderId")
     ORDER BY r."createdAt" ASC
