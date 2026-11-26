@@ -25,9 +25,10 @@ import {
   approveOrderAction, closeOrderAction, markShippedAction, logManualWhatsappAction,
   undoLastStatusAction, deleteOrderAction, resendNotificationAction, markPaidManuallyAction, trashOrdersAction,
   restoreOrdersAction,
-  setDeliveryCostAction,
+  setDeliveryCostAction, sendToChitaAction,
 } from "@/actions/seller-orders";
 import { COURIERS } from "@/lib/couriers";
+import { CHITA_CARGO_LABELS, CHITA_CARGO_PARCEL, CHITA_CARGO_HEAVY, canRequestChita } from "@/lib/chita";
 import { describeTouch } from "@/lib/attribution";
 import { PAID_WITH_LABELS, daysSince } from "@/lib/pelecard/bit-hold";
 import { checkPelecardStatusAction, type StatusResult } from "@/actions/pelecard-status";
@@ -54,6 +55,14 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
   const whatsappAuto = order.readiness.some((c) => c.id === "WHATSAPP" && c.configured);
   const [error, setError] = useState<string | null>(null);
   const [shipOpen, setShipOpen] = useState(false);
+  /* "שלח לצ'יטה": the address starts as the order's own but is editable,
+     because the real address is sometimes elsewhere in the system. */
+  const [chitaOpen, setChitaOpen] = useState(false);
+  const [chitaForm, setChitaForm] = useState({
+    ...order.chita.address,
+    packages: order.chita.packages,
+    cargoCode: order.chita.cargoCode,
+  });
   const [courier, setCourier] = useState({ name: "", trackingNumber: "", trackingUrl: "" });
   /* Who is carrying it. "internal" is our own driver: there is no company to
      name and no consignment to track, so the three fields below go away
@@ -86,6 +95,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
       else {
         setShipOpen(false);
         setManualOpen(false);
+        setChitaOpen(false);
       }
     });
   }
@@ -93,6 +103,8 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
   const bitHold = order.paid?.bit ?? null;
   const needsApproval = stage === "open" && (order.paymentStatus === "AUTHORIZED" || order.paymentStatus === "CAPTURED");
   const canShip = stage === "processing" && order.status !== "SHIPPED" && order.paymentStatus === "CAPTURED";
+  const chitaStatus = order.chita.status;
+  const canSendChita = stage !== "unpaid" && order.status !== "CANCELLED";
   const canClose = stage === "processing" && order.paymentStatus === "CAPTURED";
   /* The customer paid some other way — over the phone, a transfer, bit,
      cash — and the gateway never heard of it. Offered wherever no payment
@@ -260,6 +272,15 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
               <Truck className="size-4" /> יצא למשלוח
             </button>
           )}
+          {canSendChita && canRequestChita(chitaStatus) && !chitaOpen && (
+            <button
+              type="button"
+              onClick={() => setChitaOpen(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-orange-500 px-5 py-3 text-sm font-bold text-white hover:bg-orange-600 sm:w-auto sm:py-2.5"
+            >
+              <Send className="size-4" /> {chitaStatus === "ERROR" ? "נסה שוב בצ'יטה" : "שלח לצ'יטה"}
+            </button>
+          )}
           {canClose && (
             <button
               type="button"
@@ -287,6 +308,104 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
             </button>
           )}
         </div>
+
+        {chitaStatus && (
+          <p
+            className={`mt-3 rounded-lg px-3 py-2 text-sm font-bold ${
+              chitaStatus === "ERROR"
+                ? "bg-red-50 text-red-900 dark:bg-red-950 dark:text-red-100"
+                : chitaStatus === "DONE"
+                  ? "bg-green-50 text-green-900 dark:bg-green-950 dark:text-green-100"
+                  : "bg-orange-50 text-orange-900 dark:bg-orange-950 dark:text-orange-100"
+            }`}
+          >
+            {"צ'יטה: "}
+            {chitaStatus === "DONE"
+              ? `נקלט – משלוח #${order.chita.shipNo ?? ""}`
+              : chitaStatus === "ERROR"
+                ? `שגיאה: ${order.chita.error ?? "לא ידועה"}`
+                : "ממתין לבוט"}
+          </p>
+        )}
+
+        {chitaOpen && (
+          <div className="border-border mt-3 flex flex-col gap-2 rounded-xl border p-3">
+            <p className="text-sm font-bold">{"שליחה לצ'יטה — אשר את הכתובת"}</p>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["city", "עיר"],
+                  ["street", "רחוב"],
+                  ["house", "מספר בית"],
+                  ["entrance", "כניסה"],
+                  ["floor", "קומה"],
+                  ["apartment", "דירה"],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="flex flex-col gap-1 text-xs font-medium">
+                  {label}
+                  <input
+                    value={chitaForm[key]}
+                    onChange={(e) => setChitaForm({ ...chitaForm, [key]: e.target.value })}
+                    className="border-border rounded-lg border px-3 py-2 text-sm font-normal"
+                  />
+                </label>
+              ))}
+            </div>
+            <label className="flex flex-col gap-1 text-xs font-medium">
+              הערה לשליח
+              <input
+                value={chitaForm.note}
+                onChange={(e) => setChitaForm({ ...chitaForm, note: e.target.value })}
+                className="border-border rounded-lg border px-3 py-2 text-sm font-normal"
+                maxLength={300}
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="flex flex-col gap-1 text-xs font-medium">
+                מספר אריזות
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={chitaForm.packages}
+                  onChange={(e) => setChitaForm({ ...chitaForm, packages: Number(e.target.value) })}
+                  className="border-border rounded-lg border px-3 py-2 text-sm font-normal"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium">
+                סוג מטען
+                <select
+                  value={chitaForm.cargoCode}
+                  onChange={(e) => setChitaForm({ ...chitaForm, cargoCode: Number(e.target.value) })}
+                  className="border-border rounded-lg border px-3 py-2 text-sm font-normal"
+                >
+                  {[CHITA_CARGO_PARCEL, CHITA_CARGO_HEAVY].map((code) => (
+                    <option key={code} value={code}>
+                      {CHITA_CARGO_LABELS[code]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {order.chita.anyBulky && (
+              <p className="text-muted-foreground text-xs">{'בהזמנה מוצר גדול (מקרר / מכונה / טלוויזיה) — מוצע "משקל חריג".'}</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={pending || !chitaForm.city.trim() || !chitaForm.street.trim()}
+                onClick={() => run(() => sendToChitaAction(order.orderNumber, chitaForm))}
+                className="rounded-lg bg-orange-500 px-4 py-2 text-sm font-bold text-white hover:bg-orange-600 disabled:opacity-50"
+              >
+                {pending ? "שולח…" : "אשר ושלח לצ'יטה"}
+              </button>
+              <button type="button" onClick={() => setChitaOpen(false)} className="border-border rounded-lg border px-4 py-2 text-sm">
+                ביטול
+              </button>
+            </div>
+          </div>
+        )}
 
         {manualOpen && (
           <div className="border-border mt-3 flex flex-col gap-3 rounded-xl border p-3">

@@ -17,6 +17,8 @@ import { channelReadiness } from "@/lib/notify";
 import { attributionFromJson, type Attribution } from "@/lib/attribution";
 import { orderProblems, type OrderProblem } from "@/lib/order-problems";
 import { undoTargetStatus } from "@/lib/order-undo";
+import { isBulkyCategory } from "@/lib/bulky";
+import { suggestedCargoCode, type ChitaAddress } from "@/lib/chita";
 import { getPriorityStockForItems, type PriorityLookup } from "@/lib/queries/priority-stock";
 
 /**
@@ -60,6 +62,18 @@ export type SellerOrderSummary = {
 };
 
 export type SellerOrderDetail = SellerOrderSummary & {
+  /** The Chita shipment queue state, plus what the request form starts from. */
+  chita: {
+    status: string | null;
+    shipNo: string | null;
+    error: string | null;
+    requestedAt: Date | null;
+    packages: number;
+    cargoCode: number;
+    /** True when some line is a fridge, machine, TV… — suggests the heavy code. */
+    anyBulky: boolean;
+    address: ChitaAddress;
+  };
   customerEmail: string | null;
   /** Where the customer came from, as the browser recorded it. Null for
       orders placed before the shop started keeping it. */
@@ -261,9 +275,28 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
           quantity: true,
           priceSnap: true,
           costSnap: true,
-          product: { select: { stockQty: true, model: true } },
+          product: {
+            select: {
+              stockQty: true,
+              model: true,
+              category: { select: { slug: true, parent: { select: { slug: true } } } },
+            },
+          },
         },
       },
+      chitaStatus: true,
+      chitaShipNo: true,
+      chitaError: true,
+      chitaRequestedAt: true,
+      chitaPackages: true,
+      chitaCargoCode: true,
+      chitaCity: true,
+      chitaStreet: true,
+      chitaHouse: true,
+      chitaEntrance: true,
+      chitaFloor: true,
+      chitaApartment: true,
+      chitaNote: true,
       guestEmail: true,
       attribution: true,
       customerNote: true,
@@ -302,8 +335,30 @@ export async function getSellerOrderDetail(orderNumber: string): Promise<SellerO
   );
   const live = row.payments.find((p) => p.status === "AUTHORIZED" || p.status === "CAPTURED");
 
+  const anyBulky = row.items.some((i) =>
+    i.product?.category ? isBulkyCategory(i.product.category.slug, i.product.category.parent?.slug ?? null) : false,
+  );
   return {
     ...summary,
+    chita: {
+      status: row.chitaStatus,
+      shipNo: row.chitaShipNo,
+      error: row.chitaError,
+      requestedAt: row.chitaRequestedAt,
+      packages: row.chitaPackages ?? 1,
+      cargoCode: row.chitaCargoCode ?? suggestedCargoCode(anyBulky),
+      anyBulky,
+      /* The order's own address unless a previous request overrode it. */
+      address: {
+        city: row.chitaCity ?? row.shipCity ?? "",
+        street: row.chitaStreet ?? row.shipStreet ?? "",
+        house: row.chitaHouse ?? row.shipHouseNo ?? "",
+        entrance: row.chitaEntrance ?? "",
+        floor: row.chitaFloor ?? "",
+        apartment: row.chitaApartment ?? row.shipApartment ?? "",
+        note: row.chitaNote ?? "",
+      },
+    },
     paidWith: live?.provider === "PELECARD" ? paidWithFrom(live.rawResponse) : null,
     customerEmail: row.user?.email ?? row.guestEmail ?? null,
     attribution: attributionFromJson(row.attribution),
