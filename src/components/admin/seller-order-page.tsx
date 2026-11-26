@@ -321,7 +321,15 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
           >
             {"צ'יטה: "}
             {chitaStatus === "DONE"
-              ? `נקלט – משלוח #${order.chita.shipNo ?? ""}`
+              ? `נקלט – משלוח #${order.chita.shipNo ?? ""}${
+                  order.chita.stage
+                    ? ` · ${order.chita.stage}${
+                        order.chita.stageAt
+                          ? ` · עודכן ${order.chita.stageAt.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" })}`
+                          : ""
+                      }`
+                    : ""
+                }`
               : chitaStatus === "ERROR"
                 ? `שגיאה: ${order.chita.error ?? "לא ידועה"}`
                 : "ממתין לבוט"}

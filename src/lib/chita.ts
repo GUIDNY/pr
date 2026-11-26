@@ -88,3 +88,14 @@ export type ChitaJob = {
   packages: number;
   cargoCode: number;
 };
+
+/** Chita's "שלב" text means delivered when it says נמסר and not לא נמסר. */
+export function stageMeansDelivered(stage: string): boolean {
+  return stage.includes("נמסר") && !stage.includes("לא נמסר");
+}
+
+/** DD/MM/YYYY in Israel time — the date format Chita's screen filters by. */
+export function israelDay(d: Date): string {
+  const p = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Jerusalem", day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+  return p; // en-GB gives DD/MM/YYYY
+}
