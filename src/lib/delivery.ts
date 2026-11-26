@@ -156,6 +156,14 @@ export const BUSINESS_DAY_NAMES = [
  * small basket, and it is the one most shoppers under the threshold should
  * be choosing.
  */
+/**
+ * Owner's order, 26.11: no collection of any kind (branch counter or carrier
+ * point) — the door is the only way to receive an order. A switch rather than
+ * a deletion, so bringing it back is one line. Orders already placed with
+ * PICKUP / PICKUP_POINT are untouched; only new choices are closed.
+ */
+export const PICKUP_ENABLED = false;
+
 export type DeliveryMethod = "DELIVERY" | "PICKUP_POINT" | "PICKUP";
 
 /**
@@ -200,6 +208,7 @@ export function computeDeliveryFee(subtotal: number, method: DeliveryMethod = "D
  * group draws, in the checkout's own words.
  */
 export function freeCollectionNote(hasBulky: boolean): string {
+  if (!PICKUP_ENABLED) return "";
   return hasBulky ? "איסוף מהסניף — חינם" : "נקודת איסוף או איסוף מהסניף — חינם";
 }
 

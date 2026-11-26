@@ -15,6 +15,7 @@ import {
   BUSINESS_DAY_NAMES,
   deliveryPromiseText,
   freeCollectionNote,
+  PICKUP_ENABLED,
 } from "@/lib/delivery";
 import { isBulkyCategory } from "@/lib/bulky";
 import { instalmentsNote } from "@/lib/pelecard/instalments";
@@ -719,7 +720,7 @@ export async function ProductPageView({
           {!isSoldOut && (
             <p className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm max-md:-order-1">
               <Store className="size-4 shrink-0" aria-hidden="true" />
-              <span>איסוף חינם מהסניף ב{BUSINESS.city}</span>
+              <span>{PICKUP_ENABLED ? `איסוף חינם מהסניף ב${BUSINESS.city}` : `חנות ב${BUSINESS.city}`}</span>
               <span aria-hidden="true">·</span>
               <a href={BUSINESS.phoneHref} className="text-foreground font-medium underline-offset-2 hover:underline" dir="ltr">
                 {BUSINESS.phone}
@@ -832,11 +833,13 @@ export async function ProductPageView({
                       {/* The fee is the door's; collecting is free, and a
                           product under the threshold is the one whose buyer
                           needs to hear it before the basket does the sum. */}
-                      <span className="text-success block font-medium">
-                        {freeCollectionNote(
-                          isBulkyCategory(product.category.slug, product.category.parent?.slug ?? null),
-                        )}
-                      </span>
+                      {PICKUP_ENABLED && (
+                        <span className="text-success block font-medium">
+                          {freeCollectionNote(
+                            isBulkyCategory(product.category.slug, product.category.parent?.slug ?? null),
+                          )}
+                        </span>
+                      )}
                     </>
                   )}
                 </span>
@@ -1057,7 +1060,7 @@ export async function ProductPageView({
               <div>
                 <p className="font-bold">משלוח עד הבית</p>
                 <p className="text-muted-foreground mt-0.5 text-sm leading-relaxed">
-                  {deliveryPromiseText(product)} בכל הארץ. ניתן גם לאסוף עצמאית מהסניף בחדרה.
+                  {deliveryPromiseText(product)} בכל הארץ.{PICKUP_ENABLED ? " ניתן גם לאסוף עצמאית מהסניף בחדרה." : ""}
                 </p>
               </div>
             </div>

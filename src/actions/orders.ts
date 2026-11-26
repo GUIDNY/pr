@@ -7,7 +7,7 @@ import { getSession, getCurrentUser } from "@/lib/auth";
 import { buildCartSummary } from "@/lib/cart-summary";
 import { checkoutSchema, type CheckoutInput } from "@/lib/order-schema";
 import { generateOrderNumber } from "@/lib/pricing";
-import { computeDeliveryFee, deliveryFeeAfterMethodChange, requiresAddress } from "@/lib/delivery";
+import { PICKUP_ENABLED, computeDeliveryFee, deliveryFeeAfterMethodChange, requiresAddress } from "@/lib/delivery";
 import { cartHasBulky, isBulkyCategory } from "@/lib/bulky";
 import { verifyOrderAccess } from "@/lib/queries/orders";
 import { paymentLaneFor } from "@/lib/pelecard/config";
@@ -95,8 +95,11 @@ export async function createOrderAction(input: CheckoutInput) {
       isBulky: isBulkyCategory(i.product.category.slug, i.product.category.parent?.slug ?? null),
     })),
   );
-  const deliveryMethod =
-    data.deliveryMethod === "PICKUP_POINT" && basketIsBulky ? "DELIVERY" : data.deliveryMethod;
+  const deliveryMethod = !PICKUP_ENABLED
+    ? "DELIVERY"
+    : data.deliveryMethod === "PICKUP_POINT" && basketIsBulky
+      ? "DELIVERY"
+      : data.deliveryMethod;
 
   const keepsAddress = requiresAddress(deliveryMethod);
 

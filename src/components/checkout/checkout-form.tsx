@@ -48,6 +48,7 @@ import {
   DELIVERY_ZONES,
   FREE_DELIVERY_THRESHOLD,
   HOME_DELIVERY_FEE,
+  PICKUP_ENABLED,
   requiresAddress,
   type DeliveryMethod,
 } from "@/lib/delivery";
@@ -331,7 +332,7 @@ export function CheckoutForm({
               const method = kept.deliveryMethod;
               if (
                 !methodTouched.current &&
-                (method === "DELIVERY" || method === "PICKUP_POINT" || method === "PICKUP")
+                (method === "DELIVERY" || (PICKUP_ENABLED && (method === "PICKUP_POINT" || method === "PICKUP")))
               ) {
                 next.deliveryMethod = method;
                 methodTouched.current = true;
@@ -349,7 +350,7 @@ export function CheckoutForm({
          choice was restored above, is never moved. */
       if (!methodTouched.current) {
         const c = useCartStore.getState().cart;
-        if (c.items.length > 0 && c.subtotal - c.discount < FREE_DELIVERY_THRESHOLD) {
+        if (PICKUP_ENABLED && c.items.length > 0 && c.subtotal - c.discount < FREE_DELIVERY_THRESHOLD) {
           setForm((f) => (f.deliveryMethod === "DELIVERY" ? { ...f, deliveryMethod: "PICKUP" } : f));
         }
       }
@@ -364,7 +365,7 @@ export function CheckoutForm({
   const cartHasLines = cart.items.length > 0;
   useEffect(() => {
     if (!restoredTyped.current || methodTouched.current) return;
-    if (cartHasLines && cartTotalNow < FREE_DELIVERY_THRESHOLD) {
+    if (PICKUP_ENABLED && cartHasLines && cartTotalNow < FREE_DELIVERY_THRESHOLD) {
       methodTouched.current = true;
       // The cart store fills in after mount; this adopts its value once.
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -411,8 +412,11 @@ export function CheckoutForm({
      cannot: there is no moment where the selected method is one the order
      would refuse. createOrder applies the same rule, so the screen and the
      charge agree. */
-  const deliveryMethod: DeliveryMethod =
-    hasBulky && form.deliveryMethod === "PICKUP_POINT" ? "DELIVERY" : form.deliveryMethod;
+  const deliveryMethod: DeliveryMethod = !PICKUP_ENABLED
+    ? "DELIVERY"
+    : hasBulky && form.deliveryMethod === "PICKUP_POINT"
+      ? "DELIVERY"
+      : form.deliveryMethod;
   const needsAddress = requiresAddress(deliveryMethod);
   /* Under the free-delivery threshold the free way of getting it is listed
      first; from the threshold up the door is free too and the order stays as
@@ -1120,7 +1124,7 @@ export function CheckoutForm({
             {/* Absent rather than disabled when the basket is bulky: a
                 greyed-out radio invites a click and then explains itself,
                 and the sentence under the group already says why. */}
-            {!hasBulky && (
+            {PICKUP_ENABLED && !hasBulky && (
               <Label
                 htmlFor="delivery-point"
                 className={`${collectFirst ? "order-3 " : ""}border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3`}
@@ -1133,6 +1137,7 @@ export function CheckoutForm({
                 </span>
               </Label>
             )}
+            {PICKUP_ENABLED && (
             <Label
               htmlFor="delivery-pickup"
               className={`${collectFirst ? "order-1 " : ""}border-input has-[[data-state=checked]]:border-brand has-[[data-state=checked]]:bg-brand/5 flex cursor-pointer items-center gap-3 rounded-lg border p-3`}
@@ -1144,9 +1149,10 @@ export function CheckoutForm({
                 <span className="text-success block text-xs font-medium">חינם</span>
               </span>
             </Label>
+            )}
           </RadioGroup>
 
-          {hasBulky && (
+          {PICKUP_ENABLED && hasBulky && (
             <p className="text-muted-foreground mb-3 flex items-start gap-2 text-sm leading-relaxed">
               <PackageOpen className="mt-0.5 size-4 shrink-0" />
               <span>
