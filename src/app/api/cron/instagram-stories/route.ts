@@ -5,10 +5,10 @@ import { getSession } from "@/lib/auth";
 import { canManageCatalog } from "@/lib/permissions";
 import { publishStoryFrames } from "@/lib/instagram-publish";
 import { jerusalemNow, type ProductFacts } from "@/lib/instagram-plan";
-import { parseStoryProducts, planTodayStories } from "@/lib/instagram-stories";
+import { inStoryWindow, parseStoryProducts, planTodayStories } from "@/lib/instagram-stories";
 
 /**
- * Daily 10:00 (Asia/Jerusalem) Instagram story set ("3 הדילים של אלפרד להיום").
+ * Daily 10:00-13:59 window (Asia/Jerusalem) Instagram story set ("3 הדילים של אלפרד להיום").
  * vercel.json fires at 07:00 and 08:00 UTC so one of the two lands on 10:00 in
  * both summer and winter time; the other is a no-op. Logic: lib/instagram-stories.ts.
  *
@@ -57,7 +57,17 @@ export async function GET(request: Request) {
   const nowD = new Date();
   const now = jerusalemNow(nowD);
   const date = (dryRun && url.searchParams.get("date")) || now.date;
-  if (!dryRun && now.hour !== 10) return NextResponse.json({ ok: true, skipped: "not 10:00 in Asia/Jerusalem", now });
+  if (!dryRun && !inStoryWindow(now.hour)) return NextResponse.json({ ok: true, skipped: "outside 10:00-13:59 in Asia/Jerusalem", now });
+
+  // One story set a day: the catch-up window must not add a second one.
+  if (!dryRun) {
+    const recent = await db.instagramPost.findMany({
+      where: { status: "published", type: "STORY_SET", publishedAt: { gte: new Date(nowD.getTime() - 48 * 3600_000) } },
+      select: { publishedAt: true },
+    });
+    if (recent.some((r) => r.publishedAt && jerusalemNow(r.publishedAt).date === now.date))
+      return NextResponse.json({ ok: true, published: null, reason: "already published today", now });
+  }
 
   const { posts, products, rawRejected } = await load(date, dryRun && url.searchParams.get("includeUnapproved") === "1");
   const plan = planTodayStories(nowD, posts, products, { ignoreHour: dryRun, date });

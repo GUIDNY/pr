@@ -19,6 +19,8 @@ const ten = new Date("2026-11-24T08:00:00Z");
 
 is("10:00 publishes", planTodayStories(ten, [set()], ok).action, "publish");
 is("09:00 waits", planTodayStories(new Date("2026-11-24T07:00:00Z"), [set()], ok).action, "wait");
+is("12:00 still publishes (catch-up)", planTodayStories(new Date("2026-11-24T10:00:00Z"), [set()], ok).action, "publish");
+is("14:00 waits", planTodayStories(new Date("2026-11-24T12:00:00Z"), [set()], ok).action, "wait");
 is("held (rejected) set does not go", planTodayStories(ten, [set({ rejected: true })], ok).action, "none");
 is("already published does not go", planTodayStories(ten, [set({ status: "published" })], ok).action, "none");
 is("other day does not go", planTodayStories(ten, [set({ scheduledFor: new Date("2026-11-25T00:00:00Z") })], ok).action, "none");
