@@ -139,6 +139,12 @@ async function main() {
     });
     return promos;
   };
+  /** Level gift coupons, oldest first. */
+  const gifts = async (userId: string) => {
+    const mine = await db.memberCoupon.findMany({ where: { userId, kind: { startsWith: "level" } }, select: { code: true, kind: true } });
+    const promos = await db.promotion.findMany({ where: { code: { in: mine.map((m) => m.code) } }, orderBy: { createdAt: "asc" } });
+    return promos.map((p) => ({ ...p, kind: mine.find((m) => m.code === p.code)!.kind }));
+  };
   const settle = (now: Date) => runCashbackSettlement(now);
 
   console.log("\nThe tables are the ones the schema describes");
@@ -186,7 +192,7 @@ async function main() {
   {
     const o1 = await paidOrder(A, 80);
     is("₪80 at level 2 is 80 agorot, pending", await rowsOf(A, "EARN"), [80]);
-    is("not in the balance", await cashbackSummary(A), { balance: 0, pending: 80 });
+    is("not in the balance", await cashbackSummary(A), { balance: 0, pending: 80, pendingGifts: 0 });
     await awardPurchase(o1);
     await awardPurchase(o1);
     is("the payment callback again changes nothing", await rowsOf(A, "EARN"), [80]);
@@ -195,7 +201,7 @@ async function main() {
     await deliver(o1);
     is("13 days and 23½ hours after delivery", (await settle(at(14, -30))).released, 0);
     is("14 days after delivery", (await settle(at(14, 1))).released, 1);
-    is("80 agorot kept, no coupon under ₪5", [await cashbackSummary(A), (await coupons(A)).length], [{ balance: 80, pending: 0 }, 0]);
+    is("80 agorot kept, no coupon under ₪5", [await cashbackSummary(A), (await coupons(A)).length], [{ balance: 80, pending: 0, pendingGifts: 0 }, 0]);
     is("the cron again", (await settle(at(15))).released, 0);
 
     const o2 = await paidOrder(A, 300);
@@ -212,7 +218,7 @@ async function main() {
     is("released, and the balance crossed ₪5", [r.released, r.errors], [1, 0]);
     const mine = await coupons(A);
     is("one coupon for the whole shekels", mine.map((p) => p.value), [7]);
-    is("the agorot stay", await cashbackSummary(A), { balance: 80, pending: 0 });
+    is("the agorot stay", await cashbackSummary(A), { balance: 80, pending: 0, pendingGifts: 0 });
     is("balance equals the ledger", await squares(A), true);
     is("the cron a third time", await settle(at(40)).then((x) => [x.released, x.issued, x.voided, x.clawed]), [0, 0, 0, 0]);
     is("still one coupon", (await coupons(A)).length, 1);
@@ -229,10 +235,10 @@ async function main() {
   {
     const u = await newUser();
     const o = await paidOrder(u, 1000);
-    is("₪1,000 at level 4 is ₪20 pending", await cashbackSummary(u), { balance: 0, pending: 2000 });
+    is("₪1,000 at level 4 is ₪20 pending, and the level 3 gift with it", await cashbackSummary(u), { balance: 0, pending: 2000, pendingGifts: 2000 });
     await db.order.update({ where: { id: o }, data: { status: "CANCELLED" } });
-    is("voided", (await settle(at(1))).voided, 1);
-    is("nothing pending, nothing usable", await cashbackSummary(u), { balance: 0, pending: 0 });
+    is("voided, the gift too", await settle(at(1)).then((x) => [x.voided, x.giftsVoided]), [1, 1]);
+    is("nothing pending, nothing usable", await cashbackSummary(u), { balance: 0, pending: 0, pendingGifts: 0 });
     await deliver(o);
     is("revived and delivered: a void is final", await settle(at(30)).then((x) => [x.released, x.voided]), [0, 0]);
     is("still nothing", [await cashbackStore.balance(u), (await coupons(u)).length], [0, 0]);
@@ -246,7 +252,7 @@ async function main() {
     const gone = await paidOrder(u, 400);
     await db.order.delete({ where: { id: gone } });
     is("the order row deleted: void", (await settle(at(20))).voided, 1);
-    is("nothing reached the balance", await cashbackSummary(u), { balance: 0, pending: 0 });
+    is("nothing reached the balance", await cashbackSummary(u), { balance: 0, pending: 0, pendingGifts: 0 });
   }
 
   console.log("\nDelivered from the status menu (no deliveredAt): the history row's time");
@@ -272,7 +278,7 @@ async function main() {
     is("the cancelled one is voided", (await settle(at(1))).voided, 1);
     is("day 44 and 23½ hours", (await settle(at(45, -30))).released, 0);
     is("day 45", (await settle(at(45, 30))).released, 1);
-    is("only the never-delivered one", [await rowsOf(u, "RELEASE"), (await coupons(u)).map((p) => p.value), await cashbackSummary(u)], [[1350], [13], { balance: 50, pending: 200 }]);
+    is("only the never-delivered one", [await rowsOf(u, "RELEASE"), (await coupons(u)).map((p) => p.value), await cashbackSummary(u)], [[1350], [13], { balance: 50, pending: 200, pendingGifts: 0 }]);
     is("delivered on day 40 waits for day 54", (await settle(at(53))).released, 0);
     is("day 54", (await settle(at(54, 1))).released, 1);
     process.env.CASHBACK_FALLBACK_RELEASE_DAYS = "off";
@@ -327,6 +333,99 @@ async function main() {
     is("a coupon in a checkout is not pulled from under it", [(await coupons(u))[0].isActive, await cashbackStore.balance(u)], [true, -2000]);
   }
 
+  console.log("\nLevel gifts: pending, then a coupon 14 days after delivery");
+  {
+    const u = await newUser();
+    const o = await paidOrder(u, 600); // level 3: ₪20 gift, cart of ₪200
+    is("recorded, not issued", [await rowsOf(u, "GIFT_EARN"), (await gifts(u)).length], [[2000], 0]);
+    is("shown as waiting", (await cashbackSummary(u)).pendingGifts, 2000);
+    await awardPurchase(o);
+    is("the callback again", await rowsOf(u, "GIFT_EARN"), [2000]);
+    await deliver(o);
+    is("13 days and 23½ hours", (await settle(at(14, -30))).giftsReleased, 0);
+    is("14 days", (await settle(at(14, 1))).giftsReleased, 1);
+    const [g] = await gifts(u);
+    is("the coupon v1 would have given, members only", [g.kind, g.type, g.value, g.minCartAmount, g.membersOnly, g.isActive, Math.round((g.endsAt!.getTime() - g.startsAt!.getTime()) / day)], ["level3", "FIXED", 20, 200, true, true, 30]);
+    is("named as v1 names it", g.name, "מועדון BuyToday · ₪20 מתנה · מתנת רמה 3");
+    is("no longer waiting", (await cashbackSummary(u)).pendingGifts, 0);
+    is("the cron again", (await settle(at(15))).giftsReleased, 0);
+    is("a gift never moves the balance", await squares(u), true);
+    await paidOrder(u, 100);
+    is("a later order at the same level earns no second gift", await rowsOf(u, "GIFT_EARN"), [2000]);
+
+    await refund(o);
+    const r = await settle(at(20));
+    is("the first order refunded: unused gift coupon switched off", [r.giftsTakenBack, r.giftsSpent, (await gifts(u))[0].isActive], [1, 0, false]);
+    is("the cron again", (await settle(at(21))).giftsTakenBack, 0);
+    await paidOrder(u, 500); // ₪600 paid again: crosses level 3 again
+    is("crossing the level again earns the gift again", await rowsOf(u, "GIFT_EARN"), [2000, 2000]);
+  }
+  {
+    const u = await newUser();
+    const o = await paidOrder(u, 2500); // crosses level 3 and level 5
+    is("one order, two gifts", (await rowsOf(u, "GIFT_EARN")).sort(), [2000, 5000]);
+    await db.order.update({ where: { id: o }, data: { status: "CANCELLED" } });
+    is("cancelled before release: both void", (await settle(at(2))).giftsVoided, 2);
+    await deliver(o);
+    is("void is final", (await settle(at(30))).giftsReleased, 0);
+    is("no gift coupon was ever made", (await gifts(u)).length, 0);
+    await db.order.update({ where: { id: o }, data: { status: "CANCELLED" } });
+    const again = await paidOrder(u, 2500);
+    is("a new order that crosses them earns them", (await ledger(u, "GIFT_EARN")).filter((r) => r.orderId === again).length, 2);
+  }
+  {
+    const u = await newUser();
+    const o = await paidOrder(u, 600);
+    await deliver(o);
+    await settle(at(14, 1));
+    const [g] = await gifts(u);
+    await db.promotion.update({ where: { code: g.code! }, data: { isActive: false } }); // spent
+    await refund(o);
+    const r = await settle(at(20));
+    is("refunded after the gift was spent: recorded, nothing taken", [r.giftsTakenBack, r.giftsSpent], [0, 1]);
+    is("and no debt: a gift is not part of the balance", [await cashbackStore.balance(u) <= 0, await squares(u)], [true, true]);
+    await paidOrder(u, 600);
+    is("the level crossed again: they had their gift", (await ledger(u, "GIFT_EARN")).length, 1);
+  }
+  {
+    const u = await newUser();
+    const o = await paidOrder(u, 600);
+    await deliver(o);
+    await settle(at(14, 1));
+    const [g] = await gifts(u);
+    const checkout = await db.order.create({ data: { orderNumber: `CB-${run}-${++seq}`, userId: u, subtotal: 300, total: 280, couponCode: g.code, status: "PAYMENT_PENDING" }, select: { id: true } });
+    await refund(o);
+    let r = await settle(at(20));
+    is("a gift coupon in a checkout is left alone", [r.giftsTakenBack, r.giftsSpent, (await gifts(u))[0].isActive], [0, 0, true]);
+    await db.order.update({ where: { id: checkout.id }, data: { paymentStatus: "FAILED" } });
+    r = await settle(at(21));
+    is("that payment failed: taken back on the next run", [r.giftsTakenBack, (await gifts(u))[0].isActive], [1, false]);
+  }
+  {
+    const u = await newUser();
+    const o = await paidOrder(u, 5200); // never delivered; level 7
+    await db.order.update({ where: { id: o }, data: { status: "PROCESSING" } });
+    await settle(at(45, -30));
+    const early = (await gifts(u)).length;
+    await settle(at(45, 30));
+    is("never delivered: three gifts with the cashback on day 45", [early, (await gifts(u)).length], [0, 3]);
+    is("each its own coupon", (await gifts(u)).map((g) => [g.kind, g.value, g.minCartAmount]).sort(), [["level3", 20, 200], ["level5", 50, 400], ["level7", 100, 700]]);
+  }
+
+  console.log("\nFlag off: gifts and cashback exactly as before");
+  {
+    process.env.CASHBACK_V2_ENABLED = "false";
+    const u = await newUser();
+    const before = await db.cashbackLedger.count();
+    await paidOrder(u, 600);
+    process.env.CASHBACK_V2_ENABLED = "true";
+    is("the ledger is not touched", (await db.cashbackLedger.count()) - before, 0);
+    is("the level gift is a coupon at once", (await gifts(u)).map((g) => [g.kind, g.value, g.minCartAmount, g.membersOnly, g.isActive]), [["level3", 20, 200, false, true]]);
+    is("and the ₪9 cashback coupon with it", (await coupons(u)).map((p) => [p.value, p.membersOnly]), [[9, false]]);
+    await paidOrder(u, 1500); // flag back on, level 5
+    is("switched on later: the level 3 gift they hold is not given again", await rowsOf(u, "GIFT_EARN"), [5000]);
+  }
+
   console.log("\nTwo settlement runs at once");
   {
     const users: string[] = [];
@@ -340,9 +439,9 @@ async function main() {
     is("three runs, two of them other processes, no errors", codes, [0, 0, 0]);
     const state = [];
     for (const u of users) {
-      state.push([await rowsOf(u, "RELEASE"), (await coupons(u)).map((p) => p.value), await cashbackStore.balance(u), await squares(u)]);
+      state.push([await rowsOf(u, "RELEASE"), (await coupons(u)).map((p) => p.value), await cashbackStore.balance(u), await squares(u), (await gifts(u)).map((g) => g.kind)]);
     }
-    is("each order released once, one coupon each", state, users.map(() => [[2000], [20], 0, true]));
+    is("each order released once, one coupon and one level gift each", state, users.map(() => [[2000], [20], 0, true, ["level3"]]));
   }
   {
     // the narrow one: many issuers racing for one balance

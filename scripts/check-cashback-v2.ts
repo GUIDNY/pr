@@ -22,14 +22,18 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import {
+  BALANCE_TYPES,
   CASHBACK_CATEGORY_MULTIPLIER,
   CASHBACK_FALLBACK_RELEASE_DAYS,
   CASHBACK_RELEASE_DAYS,
   MIN_CASHBACK,
   cashbackV2Enabled,
   clawBack,
+  clawBackGift,
   decideSettlement,
   earnCashback,
+  earnGift,
+  settleGift,
   fallbackReleaseDays,
   issueIfDue,
   orderMultiplier,
@@ -39,6 +43,7 @@ import {
   type LedgerRow,
   type OrderState,
 } from "../src/lib/cashback-v2-rules";
+import { GIFT_DAYS, TIERS, levelFor } from "../src/lib/club-tiers";
 
 let failed = 0;
 const is = (name: string, got: unknown, want: unknown) => {
@@ -52,6 +57,8 @@ function memoryStore() {
   const rows: LedgerRow[] = [];
   const balances = new Map<string, number>();
   const coupons: { code: string; userId: string; valueNis: number; minCart: number; active: boolean }[] = [];
+  /** Level gift coupons. `busy` = sitting on an order that is being paid. */
+  const gifts: { code: string; userId: string; level: number; valueNis: number; active: boolean; busy: boolean }[] = [];
   const store: CashbackStore = {
     async append(row, delta) {
       if (rows.some((r) => r.key === row.key)) return false;
@@ -78,13 +85,32 @@ function memoryStore() {
       balances.set(userId, (balances.get(userId) ?? 0) + c.valueNis * 100);
       return c.valueNis * 100;
     },
+    async releaseGift({ key, userId, orderId, level, agorot }) {
+      if (rows.some((r) => r.key === key)) return null;
+      const code = `GAME-GIFT${gifts.length + 1}`;
+      gifts.push({ code, userId, level, valueNis: agorot / 100, active: true, busy: false });
+      rows.push({ key, userId, type: "GIFT_RELEASE", amount: agorot, orderId, couponCode: code });
+      return code;
+    },
+    async takeBackGift({ key, userId, orderId, couponCode, agorot }) {
+      if (rows.some((r) => r.key === key)) return "already";
+      const g = gifts.find((x) => x.code === couponCode);
+      if (g?.active && g.busy) return "busy";
+      if (g?.active) {
+        g.active = false;
+        rows.push({ key, userId, type: "GIFT_CLAWBACK", amount: -agorot, orderId, couponCode });
+        return "taken";
+      }
+      rows.push({ key, userId, type: "GIFT_CLAWBACK", amount: 0, orderId });
+      return "spent";
+    },
   };
   /** The balance must always be what the ledger's balance rows add up to. */
   const ledgerSum = (userId: string) =>
     rows
-      .filter((r) => r.userId === userId && r.type !== "EARN" && r.type !== "VOID")
+      .filter((r) => r.userId === userId && BALANCE_TYPES.includes(r.type))
       .reduce((s, r) => s + r.amount, 0);
-  return { store, rows, coupons, ledgerSum };
+  return { store, rows, coupons, gifts, ledgerSum };
 }
 
 const day = 86_400_000;
@@ -261,6 +287,68 @@ async function main() {
     is("the next cashback pays the debt first", await store.balance(U), 300);
     is("and no coupon until it is back over the minimum", coupons.length, 1);
     is("balance equals the ledger", ledgerSum(U), 300);
+  }
+
+  console.log("\nThe level table is the one the shop has always used");
+  is("rates", TIERS.map((t) => t.cashback), [0, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5]);
+  is("gifts", TIERS.filter((t) => t.gift).map((t) => [t.level, t.gift!.value, t.gift!.min]), [[3, 20, 200], [5, 50, 400], [7, 100, 700], [10, 250, 1500]]);
+  is("gift coupons last 30 days", GIFT_DAYS, 30);
+  is("levels by spend", [0, 1, 499, 500, 1999, 2000, 20000].map(levelFor), [1, 2, 2, 3, 4, 5, 10]);
+  is("v1 gifts are still issued at once when the flag is off", /if \(cashbackV2Enabled\(\)\) \{\s+await recordPendingGift\([^)]*\);\s+continue;\s+\}\s+const kind = `level\$\{t\.level\}`;\s+if \(await hasMemberCoupon/.test(levels), true);
+
+  console.log("\nA level gift waits like the cashback of the order that earned it");
+  {
+    const { store, gifts, coupons, ledgerSum } = memoryStore();
+    const g = { orderId: "g1", userId: U, level: 3, amount: 2000, earnedAt: T0 };
+    is("recorded at payment", await earnGift(store, { id: "g1", userId: U }, 3, 20), true);
+    is("the callback again", await earnGift(store, { id: "g1", userId: U }, 3, 20), false);
+    is("no coupon yet", gifts.length, 0);
+    is("not delivered", await settleGift(store, g, paid, after(20)), "waiting");
+    is("13 days after delivery", await settleGift(store, g, delivered, after(13)), "waiting");
+    is("14 days after delivery: the coupon", await settleGift(store, g, delivered, after(14)), "released");
+    is("₪20 for level 3", gifts.map((x) => [x.level, x.valueNis, x.active]), [[3, 20, true]]);
+    is("once", await settleGift(store, g, delivered, after(15)), "already");
+    is("a gift is not cashback: balance and cashback coupons untouched", [await store.balance(U), coupons.length, ledgerSum(U)], [0, 0, 0]);
+    is("order still fine", await clawBackGift(store, { ...g, couponCode: gifts[0].code }, delivered), "kept");
+    is("refunded later: the unused coupon is switched off", await clawBackGift(store, { ...g, couponCode: gifts[0].code }, refunded), "taken");
+    is("off", gifts[0].active, false);
+    is("the cron's second look", await clawBackGift(store, { ...g, couponCode: gifts[0].code }, refunded), "already");
+    is("still no debt", await store.balance(U), 0);
+  }
+  {
+    const { store, gifts } = memoryStore();
+    const g = { orderId: "g2", userId: U, level: 5, amount: 5000, earnedAt: T0 };
+    await earnGift(store, { id: "g2", userId: U }, 5, 50);
+    is("cancelled before release: void", await settleGift(store, g, refunded, after(3)), "voided");
+    is("no coupon", gifts.length, 0);
+    is("void is final", await settleGift(store, g, delivered, after(30)), "already");
+    is("still no coupon", gifts.length, 0);
+  }
+  {
+    const { store, gifts } = memoryStore();
+    const g = { orderId: "g3", userId: U, level: 7, amount: 10000, earnedAt: T0 };
+    await earnGift(store, { id: "g3", userId: U }, 7, 100);
+    is("never delivered: with the cashback, 45 days after payment", [
+      await settleGift(store, g, paid, after(44), 45),
+      await settleGift(store, g, paid, after(45), 45),
+    ], ["waiting", "released"]);
+    gifts[0].busy = true;
+    is("refunded while the coupon sits in a checkout: not now", await clawBackGift(store, { ...g, couponCode: gifts[0].code }, refunded), "busy");
+    gifts[0].busy = false;
+    gifts[0].active = false; // that order was paid: the coupon is spent
+    is("spent: recorded, nothing taken", await clawBackGift(store, { ...g, couponCode: gifts[0].code }, refunded), "spent");
+    is("and no debt for a gift", await store.balance(U), 0);
+    is("once", await clawBackGift(store, { ...g, couponCode: gifts[0].code }, refunded), "already");
+  }
+  {
+    const { store, gifts } = memoryStore();
+    // one big order crossing two gift levels
+    await earnGift(store, { id: "g4", userId: U }, 3, 20);
+    await earnGift(store, { id: "g4", userId: U }, 5, 50);
+    for (const [level, amount] of [[3, 2000], [5, 5000]]) {
+      await settleGift(store, { orderId: "g4", userId: U, level, amount }, delivered, after(14));
+    }
+    is("each level its own gift", gifts.map((x) => [x.level, x.valueNis]), [[3, 20], [5, 50]]);
   }
 
   if (failed) {

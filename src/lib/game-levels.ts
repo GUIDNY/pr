@@ -4,7 +4,8 @@ import { DESTRUCTIVE_ORDER_STATUSES } from "@/lib/enums";
 import { hasMemberCoupon, issueMemberCoupon } from "@/lib/member-coupons";
 import { awardReferral } from "@/lib/referral";
 import { CASHBACK_DAYS, cashbackV2Enabled, planCashback } from "@/lib/cashback-v2-rules";
-import { recordPendingCashback } from "@/lib/cashback-v2";
+import { recordPendingCashback, recordPendingGift } from "@/lib/cashback-v2";
+import { GIFT_DAYS, LEVEL_SPEND, TIERS, levelFor, type Tier } from "@/lib/club-tiers";
 
 /**
  * The BuyToday club in the 3D mall: levels that come from purchases, and
@@ -18,25 +19,8 @@ import { recordPendingCashback } from "@/lib/cashback-v2";
  * a benefit that follows from a purchase is a loyalty programme, not a
  * lottery (see game-wheel.ts for why that line matters).
  */
-export type Tier = { level: number; spend: number; cashback: number; gift?: { value: number; min: number } };
-
-export const TIERS: Tier[] = [
-  { level: 1, spend: 0, cashback: 0 },
-  { level: 2, spend: 1, cashback: 1 },
-  { level: 3, spend: 500, cashback: 1.5, gift: { value: 20, min: 200 } },
-  { level: 4, spend: 1000, cashback: 2 },
-  { level: 5, spend: 2000, cashback: 2.5, gift: { value: 50, min: 400 } },
-  { level: 6, spend: 3500, cashback: 3 },
-  { level: 7, spend: 5000, cashback: 3.5, gift: { value: 100, min: 700 } },
-  { level: 8, spend: 8000, cashback: 4 },
-  { level: 9, spend: 12000, cashback: 4.5 },
-  { level: 10, spend: 20000, cashback: 5, gift: { value: 250, min: 1500 } },
-];
-export const LEVEL_SPEND = TIERS.map((t) => t.spend);
+export { TIERS, LEVEL_SPEND, GIFT_DAYS, type Tier };
 export { CASHBACK_DAYS };
-export const GIFT_DAYS = 30;
-
-const levelFor = (spent: number) => [...TIERS].reverse().find((t) => spent >= t.spend && (t.spend > 0 || spent === 0 || t.level === 1))!.level;
 
 const PAID = { paymentStatus: { in: ["CAPTURED", "AUTHORIZED"] }, status: { notIn: DESTRUCTIVE_ORDER_STATUSES } };
 
@@ -83,6 +67,13 @@ export async function awardPurchase(orderId: string): Promise<void> {
     }
     for (const t of TIERS) {
       if (!t.gift || t.level <= before || t.level > after) continue;
+      /* v2: the gift waits out the same pending period as the cashback of the
+         order that earned it, and is lost with it if that order is cancelled
+         or returned first — see settleGift in cashback-v2-rules.ts. */
+      if (cashbackV2Enabled()) {
+        await recordPendingGift({ id: order.id, userId: order.userId }, t.level);
+        continue;
+      }
       const kind = `level${t.level}`;
       if (await hasMemberCoupon(order.userId, kind)) continue;
       await issueMemberCoupon({

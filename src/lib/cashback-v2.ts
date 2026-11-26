@@ -3,12 +3,16 @@ import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
 import { DESTRUCTIVE_ORDER_STATUSES } from "@/lib/enums";
 import { newMemberCouponCode } from "@/lib/member-coupons";
+import { GIFT_DAYS, TIERS } from "@/lib/club-tiers";
 import {
   CASHBACK_CATEGORY_MULTIPLIER,
   MIN_CASHBACK,
   cashbackKey,
   clawBack,
+  clawBackGift,
   earnCashback,
+  earnGift,
+  settleGift,
   fallbackReleaseDays,
   issueIfDue,
   orderMultiplier,
@@ -141,8 +145,118 @@ export const cashbackStore: CashbackStore = {
     }
     return null;
   },
+
+  async releaseGift({ key, userId, orderId, level, agorot }) {
+    const gift = TIERS.find((t) => t.level === level)?.gift;
+    // the value that was promised at payment, even if the table changed since
+    const valueNis = agorot / 100;
+    let code = newMemberCouponCode();
+    for (let i = 0; i < 5 && (await db.promotion.findUnique({ where: { code } })); i++) code = newMemberCouponCode();
+    const now = new Date();
+    try {
+      await db.$transaction([
+        // first, so a gift that was already settled refuses (P2002) before anything else is written
+        db.cashbackLedger.create({
+          data: { key, userId, type: "GIFT_RELEASE", amount: agorot, orderId, couponCode: code },
+        }),
+        db.memberCoupon.create({ data: { code, userId, kind: giftKind(level) } }),
+        db.promotion.create({
+          data: {
+            name: `מועדון BuyToday · ₪${valueNis} מתנה · מתנת רמה ${level}`,
+            code,
+            type: "FIXED",
+            value: valueNis,
+            scope: "CART",
+            minCartAmount: gift?.min || null,
+            startsAt: now,
+            endsAt: new Date(now.getTime() + GIFT_DAYS * 86_400_000),
+            isActive: true,
+            membersOnly: true,
+          },
+        }),
+      ]);
+      return code;
+    } catch (e) {
+      if (prismaCode(e) === "P2002") return null;
+      throw e;
+    }
+  },
+
+  async takeBackGift({ key, userId, orderId, couponCode, agorot }) {
+    if (await db.cashbackLedger.findUnique({ where: { key }, select: { id: true } })) return "already";
+    const promo = couponCode
+      ? await db.promotion.findUnique({ where: { code: couponCode }, select: { isActive: true } })
+      : null;
+    if (couponCode && promo?.isActive) {
+      // as in reclaimCoupon: a code on an order that is being paid is not unused
+      const inUse = await db.order.count({
+        where: { couponCode, status: { notIn: DESTRUCTIVE_ORDER_STATUSES }, paymentStatus: { not: "FAILED" } },
+      });
+      if (inUse) return "busy";
+      try {
+        await db.$transaction([
+          // refuses (P2025) if the coupon was used in the meantime
+          db.promotion.update({ where: { code: couponCode, isActive: true }, data: { isActive: false } }),
+          /* couponCode is set on this row only when the coupon really was
+             taken back: that is what lets the level be earned again. */
+          db.cashbackLedger.create({
+            data: { key, userId, type: "GIFT_CLAWBACK", amount: -agorot, orderId, couponCode, note: "unused coupon switched off" },
+          }),
+        ]);
+        return "taken";
+      } catch (e) {
+        if (prismaCode(e) === "P2002") return "already";
+        if (prismaCode(e) !== "P2025") throw e;
+      }
+    }
+    const wrote = await cashbackStore.append(
+      { key, userId, type: "GIFT_CLAWBACK", amount: 0, orderId, note: "coupon already used: nothing to take back" },
+      0,
+    );
+    return wrote ? "spent" : "already";
+  },
 };
 const store = cashbackStore;
+
+const giftKind = (level: number) => `level${level}`;
+
+/** Does the account hold this level's gift, or have it on the way? A gift
+    that was voided, or whose unused coupon was taken back, does not count:
+    the level can be crossed again by a later order and earn it again. */
+async function hasLiveGift(userId: string, level: number): Promise<boolean> {
+  const held = await db.memberCoupon.findMany({ where: { userId, kind: giftKind(level) }, select: { code: true } });
+  if (held.length) {
+    const takenBack = await db.cashbackLedger.count({
+      where: { userId, type: "GIFT_CLAWBACK", couponCode: { in: held.map((h) => h.code) } },
+    });
+    if (held.length > takenBack) return true;
+  }
+  const earned = await db.cashbackLedger.findMany({
+    where: { userId, type: "GIFT_EARN", key: { endsWith: `:${level}` } },
+    select: { orderId: true },
+  });
+  for (const e of earned) {
+    if (!e.orderId) continue;
+    const settled = await db.cashbackLedger.findUnique({
+      where: { key: cashbackKey.giftSettle(e.orderId, level) },
+      select: { type: true },
+    });
+    if (!settled) return true; // pending
+  }
+  return false;
+}
+
+/**
+ * Called by awardPurchase, when the flag is on, for each gift level a paid
+ * order crosses, instead of issuing the gift coupon at once. Safe to call any
+ * number of times.
+ */
+export async function recordPendingGift(order: { id: string; userId: string }, level: number): Promise<void> {
+  const gift = TIERS.find((t) => t.level === level)?.gift;
+  if (!gift) return;
+  if (await hasLiveGift(order.userId, level)) return;
+  await earnGift(store, order, level, gift.value);
+}
 
 /** The order's category multiplier; no query at all while the table is empty. */
 async function multiplierFor(orderId: string): Promise<number> {
@@ -180,6 +294,9 @@ export async function recordPendingCashback(
 }
 
 type SettleRow = {
+  /** gift rows only: the ledger key, whose tail is the level */
+  key?: string;
+  couponCode?: string | null;
   orderId: string;
   userId: string;
   amount: number;
@@ -189,6 +306,8 @@ type SettleRow = {
   paymentStatus: string | null;
   deliveredAt: Date | null;
 };
+
+const levelOf = (r: SettleRow) => Number(r.key?.split(":").pop());
 
 const stateOf = (r: SettleRow): OrderState =>
   r.missing || !r.status || !r.paymentStatus
@@ -207,13 +326,21 @@ const stateOf = (r: SettleRow): OrderState =>
  *             CASHBACK_FALLBACK_RELEASE_DAYS since payment -> RELEASE, so a credit is not stuck for ever
  *   released + cancelled / refunded afterwards          -> CLAWBACK
  *
+ * Level gifts (GIFT_EARN rows) go down the same three roads on the same
+ * dates; released means the gift's coupon is created, and a clawback switches
+ * that coupon off if it is still unused.
+ *
  * "Delivered" is Order.deliveredAt, which closeOrderAction writes. The older
  * admin status menu (updateOrderStatusAction) can set DELIVERED without it,
  * so the time of the last DELIVERED step in the status history stands in.
  */
 export async function runCashbackSettlement(now: Date = new Date(), limit = 500) {
   const reversed = Prisma.join(DESTRUCTIVE_ORDER_STATUSES as string[]);
-  const result = { released: 0, voided: 0, waiting: 0, clawed: 0, issued: 0, errors: 0 };
+  const result = {
+    released: 0, voided: 0, waiting: 0, clawed: 0, issued: 0,
+    giftsReleased: 0, giftsVoided: 0, giftsTakenBack: 0, giftsSpent: 0,
+    errors: 0,
+  };
   const fallbackDays = fallbackReleaseDays();
   /* Credits recorded before this moment are old enough for the fallback. With
      it switched off the date is one no row is older than. */
@@ -268,6 +395,61 @@ export async function runCashbackSettlement(now: Date = new Date(), limit = 500)
     }
   }
 
+  /* The same two looks, for level gifts. A gift's settle and clawback keys
+     are its earn key with another prefix ("giftearn:" is 9 characters,
+     "giftsettle:" 11). */
+  const pendingGifts = await db.$queryRaw<SettleRow[]>`
+    SELECT e."key", e."orderId", e."userId", e."amount", e."createdAt" AS "earnedAt",
+           (o."id" IS NULL) AS "missing", o."status", o."paymentStatus",
+           COALESCE(o."deliveredAt", (
+             SELECT max(h."createdAt") FROM "OrderStatusHistory" h
+             WHERE h."orderId" = o."id" AND h."toStatus" = 'DELIVERED'
+           )) AS "deliveredAt"
+    FROM "CashbackLedger" e
+    LEFT JOIN "Order" o ON o."id" = e."orderId"
+    WHERE e."type" = 'GIFT_EARN' AND e."orderId" IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM "CashbackLedger" s WHERE s."key" = 'giftsettle:' || substr(e."key", 10))
+      AND (o."id" IS NULL OR o."status" = 'DELIVERED' OR o."status" IN (${reversed})
+           OR o."paymentStatus" NOT IN ('CAPTURED', 'AUTHORIZED')
+           OR e."createdAt" <= ${fallbackBefore})
+    ORDER BY e."createdAt" ASC
+    LIMIT ${limit}`;
+  for (const row of pendingGifts) {
+    try {
+      const outcome = await settleGift(store, { ...row, level: levelOf(row) }, stateOf(row), now, fallbackDays);
+      if (outcome === "released") result.giftsReleased++;
+      else if (outcome === "voided") result.giftsVoided++;
+    } catch (error) {
+      result.errors++;
+      console.error("[cashback] could not settle gift", row.key, error);
+    }
+  }
+
+  const refundedGifts = await db.$queryRaw<SettleRow[]>`
+    SELECT r."key", r."orderId", r."userId", r."amount", r."couponCode",
+           (o."id" IS NULL) AS "missing", o."status", o."paymentStatus", o."deliveredAt"
+    FROM "CashbackLedger" r
+    LEFT JOIN "Order" o ON o."id" = r."orderId"
+    WHERE r."type" = 'GIFT_RELEASE' AND r."orderId" IS NOT NULL
+      AND (o."id" IS NULL OR o."status" IN (${reversed}) OR o."paymentStatus" NOT IN ('CAPTURED', 'AUTHORIZED'))
+      AND NOT EXISTS (SELECT 1 FROM "CashbackLedger" c WHERE c."key" = 'giftclaw:' || substr(r."key", 12))
+    ORDER BY r."createdAt" ASC
+    LIMIT ${limit}`;
+  for (const row of refundedGifts) {
+    try {
+      const outcome = await clawBackGift(
+        store,
+        { ...row, level: levelOf(row), couponCode: row.couponCode ?? null },
+        stateOf(row),
+      );
+      if (outcome === "taken") result.giftsTakenBack++;
+      else if (outcome === "spent") result.giftsSpent++;
+    } catch (error) {
+      result.errors++;
+      console.error("[cashback] could not take back gift", row.key, error);
+    }
+  }
+
   /* A balance at or over the minimum with no coupon yet: a release that lost
      its race to another, or a run that stopped between the two steps. */
   const due = await db.cashbackAccount.findMany({
@@ -286,15 +468,23 @@ export async function runCashbackSettlement(now: Date = new Date(), limit = 500)
   return result;
 }
 
-/** For the account pages: what can be used, and what is still waiting. Agorot. */
-export async function cashbackSummary(userId: string): Promise<{ balance: number; pending: number }> {
+/** For the account pages: what can be used, and what is still waiting —
+    cashback, and level gifts that are not coupons yet. Agorot. */
+export async function cashbackSummary(
+  userId: string,
+): Promise<{ balance: number; pending: number; pendingGifts: number }> {
   const [balance, rows] = await Promise.all([
     store.balance(userId),
-    db.$queryRaw<{ pending: bigint | null }[]>`
-      SELECT sum(e."amount") AS "pending"
+    db.$queryRaw<{ type: string; total: bigint | null }[]>`
+      SELECT e."type", sum(e."amount") AS "total"
       FROM "CashbackLedger" e
-      WHERE e."userId" = ${userId} AND e."type" = 'EARN'
-        AND NOT EXISTS (SELECT 1 FROM "CashbackLedger" s WHERE s."key" = 'settle:' || e."orderId")`,
+      WHERE e."userId" = ${userId} AND e."orderId" IS NOT NULL
+        AND ((e."type" = 'EARN'
+              AND NOT EXISTS (SELECT 1 FROM "CashbackLedger" s WHERE s."key" = 'settle:' || e."orderId"))
+          OR (e."type" = 'GIFT_EARN'
+              AND NOT EXISTS (SELECT 1 FROM "CashbackLedger" s WHERE s."key" = 'giftsettle:' || substr(e."key", 10))))
+      GROUP BY e."type"`,
   ]);
-  return { balance, pending: Number(rows[0]?.pending ?? 0) };
+  const total = (type: string) => Number(rows.find((r) => r.type === type)?.total ?? 0);
+  return { balance, pending: total("EARN"), pendingGifts: total("GIFT_EARN") };
 }

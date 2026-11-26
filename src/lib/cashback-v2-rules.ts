@@ -23,8 +23,14 @@ import { DESTRUCTIVE_ORDER_STATUSES } from "@/lib/enums";
  * lib/cashback-v2.ts implements it over Prisma, scripts/check-cashback-v2.ts
  * implements it in memory and walks the rules without a database.
  *
- * The percentages per level are not here and did not change: TIERS in
- * game-levels.ts.
+ *   4. A level gift (₪20 at level 3 and so on) follows the same road as the
+ *      cashback of the order that crossed the level: pending at payment, a
+ *      coupon 14 days after delivery, nothing if the order is cancelled or
+ *      returned first. A gift never touches the balance — it is its own
+ *      coupon with its own minimum cart, as in v1.
+ *
+ * The percentages and gifts per level are not here and did not change: TIERS
+ * in club-tiers.ts.
  */
 
 // ---------- configuration ----------
@@ -175,7 +181,22 @@ export function decideSettlement(order: OrderState, now: Date, options: SettleOp
 
 // ---------- the ledger ----------
 
-export type LedgerType = "EARN" | "RELEASE" | "VOID" | "CLAWBACK" | "ISSUE" | "COUPON_VOID";
+export type LedgerType =
+  | "EARN"
+  | "RELEASE"
+  | "VOID"
+  | "CLAWBACK"
+  | "ISSUE"
+  | "COUPON_VOID"
+  /* Level gifts. None of these moves the balance; `amount` is the gift's
+     value in agorot, for the record. */
+  | "GIFT_EARN"
+  | "GIFT_RELEASE"
+  | "GIFT_VOID"
+  | "GIFT_CLAWBACK";
+
+/** The rows CashbackAccount.balance is the sum of. */
+export const BALANCE_TYPES: LedgerType[] = ["RELEASE", "CLAWBACK", "ISSUE", "COUPON_VOID"];
 
 export type LedgerRow = {
   key: string;
@@ -195,6 +216,12 @@ export const cashbackKey = {
   clawback: (orderId: string) => `clawback:${orderId}`,
   issue: (code: string) => `issue:${code}`,
   couponVoid: (code: string) => `couponvoid:${code}`,
+  /* A gift is keyed by the order that crossed the level AND the level: one
+     big order can cross several. The three share their tail on purpose — the
+     settlement query finds a gift's settle row by swapping the prefix. */
+  giftEarn: (orderId: string, level: number) => `giftearn:${orderId}:${level}`,
+  giftSettle: (orderId: string, level: number) => `giftsettle:${orderId}:${level}`,
+  giftClawback: (orderId: string, level: number) => `giftclaw:${orderId}:${level}`,
 };
 
 export interface CashbackStore {
@@ -216,6 +243,22 @@ export interface CashbackStore {
   /** Switch off one of the account's unused v2 coupons and put its value
       back on the balance. Returns the agorot returned, null if none is left. */
   reclaimCoupon(userId: string): Promise<number | null>;
+  /** Create the level's gift coupon and its GIFT_RELEASE row under `key`,
+      together. Null when the key exists: this gift was already settled. */
+  releaseGift(spec: { key: string; userId: string; orderId: string; level: number; agorot: number }): Promise<string | null>;
+  /** A released gift whose order was refunded: switch its coupon off if it is
+      still unused and write the GIFT_CLAWBACK row under `key`, together.
+      "spent" — it was used already (or ran out), only the row is written;
+      "busy"  — it sits on an order on its way to being paid, nothing is
+                written and the next run looks again;
+      "already" — the key exists. */
+  takeBackGift(spec: {
+    key: string;
+    userId: string;
+    orderId: string;
+    couponCode: string | null;
+    agorot: number;
+  }): Promise<"taken" | "spent" | "busy" | "already">;
 }
 
 export type PendingEntry = {
@@ -315,4 +358,85 @@ export async function clawBack(
   // a reclaimed coupon may have been worth more than the debt
   await issueIfDue(store, entry.userId);
   return "clawed";
+}
+
+// ---------- level gifts ----------
+
+export type GiftEntry = {
+  orderId: string;
+  userId: string;
+  level: number;
+  /** the gift's value, agorot */
+  amount: number;
+  earnedAt?: Date | null;
+};
+
+/** At payment, by the order that crossed the level. Not a coupon yet. */
+export async function earnGift(
+  store: CashbackStore,
+  order: { id: string; userId: string },
+  level: number,
+  valueNis: number,
+): Promise<boolean> {
+  if (!(valueNis > 0)) return false;
+  return store.append(
+    {
+      key: cashbackKey.giftEarn(order.id, level),
+      userId: order.userId,
+      type: "GIFT_EARN",
+      amount: Math.round(valueNis * 100),
+      orderId: order.id,
+      note: `מתנת רמה ${level}`,
+    },
+    0,
+  );
+}
+
+/** A pending gift and its order today — the same decision as its cashback. */
+export async function settleGift(
+  store: CashbackStore,
+  entry: GiftEntry,
+  order: OrderState,
+  now: Date,
+  fallbackDays: number | null = null,
+): Promise<"released" | "voided" | "waiting" | "already"> {
+  const decision = decideSettlement(order, now, { earnedAt: entry.earnedAt, fallbackDays });
+  if (decision === "wait") return "waiting";
+  const key = cashbackKey.giftSettle(entry.orderId, entry.level);
+  if (decision === "void") {
+    const wrote = await store.append(
+      { key, userId: entry.userId, type: "GIFT_VOID", amount: entry.amount, orderId: entry.orderId },
+      0,
+    );
+    return wrote ? "voided" : "already";
+  }
+  const code = await store.releaseGift({
+    key,
+    userId: entry.userId,
+    orderId: entry.orderId,
+    level: entry.level,
+    agorot: entry.amount,
+  });
+  return code ? "released" : "already";
+}
+
+/**
+ * A released gift whose order was refunded afterwards. If its coupon is still
+ * unused it is switched off. If it was already spent, that is recorded and
+ * nothing else happens: a gift is not part of the balance, so it leaves no
+ * debt, and the customer's refund is never touched.
+ */
+export async function clawBackGift(
+  store: CashbackStore,
+  entry: GiftEntry & { couponCode: string | null },
+  order: OrderState,
+): Promise<"taken" | "spent" | "busy" | "kept" | "already"> {
+  if (!isReversed(order)) return "kept";
+  return store.takeBackGift({
+    key: cashbackKey.giftClawback(entry.orderId, entry.level),
+    userId: entry.userId,
+    orderId: entry.orderId,
+    couponCode: entry.couponCode,
+    agorot: entry.amount,
+  });
 }
