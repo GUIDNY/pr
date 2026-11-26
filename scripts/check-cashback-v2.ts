@@ -202,6 +202,7 @@ async function main() {
     is("no payment time, no fallback", decideSettlement(paid, after(400), { fallbackDays: F }), "wait");
     is("switched off", decideSettlement(paid, after(400), { earnedAt: T0, fallbackDays: null }), "wait");
     is("env: unset", fallbackReleaseDays({}), 45);
+    is("env: empty, as .env.example ships it", fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "" }), 45);
     is("env: 60", fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: " 60 " }), 60);
     is("env: off", [fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "0" }), fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "OFF" })], [null, null]);
     is("env: shorter than the pending period is ignored", fallbackReleaseDays({ CASHBACK_FALLBACK_RELEASE_DAYS: "7" }), 45);
