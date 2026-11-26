@@ -1496,6 +1496,8 @@ model InstagramPost {
   permalink     String?
   error         String?
   publishedAt   DateTime?
+  /// Exact moment this post should go out (timed post). Null = the old 19:00-22:59 window.
+  goLiveAt      DateTime? @db.Timestamptz(3)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
