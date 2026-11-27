@@ -54,16 +54,6 @@ export async function GET(request: Request) {
   const now = jerusalemNow(nowD);
   const date = (dryRun && url.searchParams.get("date")) || now.date;
 
-  // At most one feed post a day: the catch-up window must not add a second one.
-  if (!dryRun) {
-    const recent = await db.instagramPost.findMany({
-      where: { status: "published", type: { not: "STORY_SET" }, publishedAt: { gte: new Date(nowD.getTime() - 48 * 3600_000) } },
-      select: { publishedAt: true },
-    });
-    if (recent.some((r) => r.publishedAt && jerusalemNow(r.publishedAt).date === now.date))
-      return NextResponse.json({ ok: true, published: null, reason: "already published today", now });
-  }
-
   const { posts, products, rawRejected } = await load(date, dryRun && url.searchParams.get("includeUnapproved") === "1");
   const plan = planTodayPost(nowD, posts, products, { ignoreHour: dryRun, date });
 
@@ -81,6 +71,18 @@ export async function GET(request: Request) {
 
   if (plan.action === "none" || plan.action === "wait") return NextResponse.json({ ok: true, published: null, reason: plan.reason, now });
   const post = plan.post;
+
+  // At most one UNTIMED feed post a day: the 19:00 catch-up window must not add a second one.
+  // A post with its own goLiveAt (explicitly scheduled by the owner) is exempt.
+  if (!dryRun && !plan.post.goLiveAt) {
+    const recent = await db.instagramPost.findMany({
+      where: { status: "published", type: { not: "STORY_SET" }, publishedAt: { gte: new Date(nowD.getTime() - 48 * 3600_000) } },
+      select: { publishedAt: true },
+    });
+    if (recent.some((r) => r.publishedAt && jerusalemNow(r.publishedAt).date === now.date))
+      return NextResponse.json({ ok: true, published: null, reason: "already published today", now });
+  }
+
 
   // Claim it so an overlapping run cannot post twice.
   const claim = await db.instagramPost.updateMany({ where: { id: post.id, status: "queued" }, data: { status: "publishing" } });
