@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -58,6 +58,15 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
   /* "שלח לצ'יטה": the address starts as the order's own but is editable,
      because the real address is sometimes elsewhere in the system. */
   const [chitaOpen, setChitaOpen] = useState(false);
+  /* Every press of the approve button asks first, in the page's own dialog —
+     not window.confirm, which gets dismissed by habit. Esc closes it. */
+  const [approveOpen, setApproveOpen] = useState(false);
+  useEffect(() => {
+    if (!approveOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setApproveOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [approveOpen]);
   const [chitaForm, setChitaForm] = useState({
     ...order.chita.address,
     packages: order.chita.packages,
@@ -235,14 +244,7 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
             <button
               type="button"
               disabled={pending}
-              onClick={() => {
-                if (bitHold && order.paymentStatus === "AUTHORIZED") {
-                  if (!window.confirm("לאשר רק אם העסקה כבר הושלמה בממשק פלאקארד. הכפתור לא גובה כסף – הוא רק רושם שהושלם.")) return;
-                  run(() => approveOrderAction(order.orderNumber, { bitCompletedInPelecard: true }));
-                  return;
-                }
-                run(() => approveOrderAction(order.orderNumber));
-              }}
+              onClick={() => setApproveOpen(true)}
               className="bg-brand text-brand-foreground hover:bg-brand-hover flex w-full items-center justify-center gap-1.5 rounded-lg px-5 py-3 text-sm font-bold disabled:opacity-60 sm:w-auto sm:py-2.5"
             >
               {pending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
@@ -308,6 +310,61 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
             </button>
           )}
         </div>
+
+        {approveOpen && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setApproveOpen(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="approve-title"
+              onClick={(e) => e.stopPropagation()}
+              className="bg-background w-full max-w-md rounded-2xl p-5 shadow-xl"
+            >
+              <h2 id="approve-title" className="text-lg font-black">
+                לאשר את התשלום?
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed">
+                האם אתה בטוח שאתה רוצה לאשר את התשלום של {order.customerName} על סך {formatPrice(order.total)} (הזמנה{" "}
+                {order.orderNumber})?
+              </p>
+              {order.paymentStatus === "AUTHORIZED" && !bitHold && (
+                <p className="mt-2 text-sm font-bold">הכסף ייגבה מהכרטיס עכשיו.</p>
+              )}
+              {order.paymentStatus === "AUTHORIZED" && bitHold && (
+                <p className="mt-2 text-sm font-bold">
+                  לאשר רק אם העסקה כבר הושלמה בממשק פלאקארד. הכפתור לא גובה כסף – הוא רק רושם שהושלם.
+                </p>
+              )}
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApproveOpen(false);
+                    if (bitHold && order.paymentStatus === "AUTHORIZED") {
+                      run(() => approveOrderAction(order.orderNumber, { bitCompletedInPelecard: true }));
+                    } else {
+                      run(() => approveOrderAction(order.orderNumber));
+                    }
+                  }}
+                  className="rounded-lg bg-orange-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-orange-600"
+                >
+                  כן, אשר
+                </button>
+                <button
+                  type="button"
+                  autoFocus
+                  onClick={() => setApproveOpen(false)}
+                  className="border-border hover:bg-muted rounded-lg border px-5 py-2.5 text-sm font-bold"
+                >
+                  ביטול
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {chitaStatus && (
           <p
