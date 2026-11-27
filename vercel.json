@@ -41,7 +41,7 @@
     },
     {
       "path": "/api/cron/instagram-publish",
-      "schedule": "*/15 9-12 * * *"
+      "schedule": "*/15 9-16 * * *"
     },
     {
       "path": "/api/cron/instagram-stories",
