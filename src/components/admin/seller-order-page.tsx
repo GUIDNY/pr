@@ -327,8 +327,8 @@ export function SellerOrderPage({ order }: { order: SellerOrderDetail }) {
                 לאשר את התשלום?
               </h2>
               <p className="mt-2 text-sm leading-relaxed">
-                האם אתה בטוח שאתה רוצה לאשר את התשלום של {order.customerName} על סך {formatPrice(order.total)} (הזמנה{" "}
-                {order.orderNumber})?
+                האם אתה בטוח שאתה רוצה לאשר את התשלום של <bdi>{order.customerName}</bdi> על סך{" "}
+                <bdi dir="ltr">{formatPrice(order.total)}</bdi>? (הזמנה <bdi>{order.orderNumber}</bdi>)
               </p>
               {order.paymentStatus === "AUTHORIZED" && !bitHold && (
                 <p className="mt-2 text-sm font-bold">הכסף ייגבה מהכרטיס עכשיו.</p>
