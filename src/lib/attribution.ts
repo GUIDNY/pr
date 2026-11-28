@@ -141,3 +141,32 @@ export function gclidOf(a: Attribution | null | undefined): string | null {
   const first = a?.first.gclid;
   return isRealClickId(first) ? first : null;
 }
+
+/** One Google Ads click, by exactly one of its ids — which is how Google
+    takes a click conversion: a gclid, or a gbraid, or a wbraid. */
+export type AdClick = { gclid: string } | { gbraid: string } | { wbraid: string };
+
+/**
+ * The click a sale is reported against.
+ *
+ * `gclid` — the order's own column — wins when it is set, so nothing that
+ * was reported before is reported differently. When it is empty the
+ * attribution is asked for the other two ids, the most recent touch first.
+ *
+ * Those two are not an edge case. An ad click from an iPhone often arrives
+ * with a gbraid or a wbraid and no gclid at all, and until 15 November such
+ * an order had nothing in its gclid column and was never reported: of the
+ * five carts that came from a paid click between 10 and 14 November, two
+ * were exactly that. The ids were already kept on the touch (see the schema
+ * above), so no column is needed to read them back.
+ */
+export function adClickOf(gclid: string | null | undefined, attribution: unknown): AdClick | null {
+  if (gclid) return { gclid };
+  const a = attributionFromJson(attribution);
+  for (const touch of [a?.last, a?.first]) {
+    if (touch?.gclid) return { gclid: touch.gclid };
+    if (touch?.gbraid) return { gbraid: touch.gbraid };
+    if (touch?.wbraid) return { wbraid: touch.wbraid };
+  }
+  return null;
+}
