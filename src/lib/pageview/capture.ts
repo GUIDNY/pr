@@ -54,8 +54,25 @@ const SKIP_PREFIXES = ["/_next/", "/api/", "/feeds/", "/img/", "/admin", "/favic
 const SKIP_EXTENSIONS =
   /\.(?:ico|png|jpe?g|gif|webp|avif|svg|css|js|mjs|map|txt|xml|json|webmanifest|woff2?|ttf|otf|mp4|webm|pdf)$/i;
 
-/** Only these survive from the query string. */
-const KEPT_PARAMS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "srsltid", "gclid"];
+/** Only these survive from the query string.
+
+    gbraid and wbraid are Google Ads click ids exactly as gclid is — what an
+    ad click from an iPhone carries when it may not carry a gclid. They were
+    not here, so such a visit was logged with no query at all and counted as
+    an ordinary one: of the five carts that arrived from a paid click between
+    10 and 14 November, two had a gbraid or a wbraid and no gclid, and any
+    "visits from ads" count read off this log was short by that share. */
+const KEPT_PARAMS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "srsltid",
+  "gclid",
+  "gbraid",
+  "wbraid",
+];
 
 /* And these two, from a closed list only: which order shoppers pick on a
    category page and how deep they page, which nothing else records (16

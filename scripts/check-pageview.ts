@@ -53,6 +53,27 @@ const view = pageViewFromRequest({
 })!;
 is("marketing parameters, by allow-list", view.query, "utm_source=google&utm_medium=cpc&gclid=abc");
 is("an email or a token in the address is dropped", view.query?.includes("example.com") || view.query?.includes("secret"), false);
+/* An ad click from an iPhone: no gclid, a gbraid or a wbraid in its place.
+   Without these two in the allow-list the visit was logged with no query
+   and could not be told from an unpaid one. */
+is(
+  "an ad click with a gbraid and no gclid is still an ad click",
+  pageViewFromRequest({
+    pathname: "/product/x",
+    search: "?gad_source=1&gad_campaignid=24440224023&gbraid=0AAAAAtest",
+    headers: headers({ ...html, "user-agent": IPHONE }),
+  })?.query,
+  "gbraid=0AAAAAtest",
+);
+is(
+  "and with a wbraid",
+  pageViewFromRequest({
+    pathname: "/product/x",
+    search: "?gad_campaignid=24440224023&wbraid=CkwKtest",
+    headers: headers({ ...html, "user-agent": IPHONE }),
+  })?.query,
+  "wbraid=CkwKtest",
+);
 is("the referrer keeps host and path, never its query", view.referrer, "www.google.com/search");
 is("country from Vercel's header, upper-cased", view.country, "IL");
 is("device is a class, not the agent string", view.device, "mobile");
