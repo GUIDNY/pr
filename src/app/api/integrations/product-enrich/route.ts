@@ -3,6 +3,8 @@ import { looksLikeEnergyLabelUrl } from "@/lib/inventory/import-guards";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { logAudit } from "@/lib/audit";
+import { submitUrls, productPaths } from "@/lib/indexnow";
+import { PUBLIC_PRODUCT_WHERE } from "@/lib/queries/products";
 import {
   reconcileUrgentMissingMedia,
   reconcileMissingImage,
@@ -859,6 +861,50 @@ export async function POST(request: Request) {
        a sync, and a sync is pressed by hand — which is how 59 products ended
        up listed as "waiting" while they were being sold. */
     await reconcileNewFromSource();
+
+    /* And tell Bing, once for the batch.
+       Every other way a product page changes already does: the sync
+       submits the rows whose stock moved, and the admin form, the deals
+       page and the price list each submit on save. This endpoint did not —
+       and it is the one through which a product gets its title, its
+       description and its photograph, which is to say the one through
+       which it becomes a page at all. A product enriched here and never
+       touched by a stock movement was never announced to anybody.
+       Measured on 15 November: verified bingbot had read 193 of 2,116 live
+       products in 21 days and was adding about nine a day, a rate at which
+       the catalogue takes most of a year; ChatGPT and Copilot answer from
+       that index (see lib/indexnow.ts).
+       After the reconcilers on purpose, so a product this batch has just
+       made public is included, and filtered through the public predicate
+       for the reason the sync gives: asking Bing to fetch a page that is
+       not on the site is how a submitter's URLs stop being trusted. Only
+       items that changed what the page shows: an item that matched and
+       applied nothing is not a change, and neither is one that only
+       recorded where a description or a photograph came from — the sync's
+       own comment on this is that a submitter announcing unchanged pages
+       as changed is deprioritised. submitUrls never throws and is a no-op
+       outside production. */
+    const PROVENANCE_ONLY = /^(descriptionSourceUrl|specSourceUrl)$|^images\[.*\]\.source$/;
+    const changedSlugs = [
+      ...new Set(
+        results.flatMap((r) =>
+          "slug" in r &&
+          typeof r.slug === "string" &&
+          "applied" in r &&
+          Array.isArray(r.applied) &&
+          r.applied.some((field) => typeof field === "string" && !PROVENANCE_ONLY.test(field))
+            ? [r.slug]
+            : [],
+        ),
+      ),
+    ];
+    if (changedSlugs.length > 0) {
+      const live = await db.product.findMany({
+        where: { ...PUBLIC_PRODUCT_WHERE, slug: { in: changedSlugs } },
+        select: { slug: true },
+      });
+      if (live.length > 0) await submitUrls(productPaths(live.map((p) => p.slug)));
+    }
   }
 
   return NextResponse.json({ dryRun, count: results.length, published, results });
