@@ -219,6 +219,8 @@ export async function ProductPageView({
   // Chips under the title. Ranked by what the product is chosen on rather
   // than by the category's table order — see pickChips.
   const keySpecs = pickChips(specRows);
+  // Whether the "מפרט טכני" tab has anything in it — see the tab list.
+  const hasSpecsTab = isAdminViewer || specRows.length > 0 || dimensionRows.length > 0;
   // The highlight strip is drawn from the same list the spec table shows in
   // full, so the two can never disagree — but not simply its first six rows:
   // a yes/no row ("סאב-ווופר אלחוטי") carries no meaning as a bare value.
@@ -905,7 +907,18 @@ export async function ProductPageView({
               >
                 {[
                   { value: "overview", label: "סקירה כללית" },
-                  { value: "specs", label: "מפרט טכני" },
+                  /* Not offered when there is nothing behind it. A product
+                     with no attribute values, no free-text specs and
+                     nothing parsed out of its description still had this
+                     tab, and tapping it opened one grey sentence — "אין
+                     עדיין מפרט טכני למוצר זה". Clarity's summary of 45
+                     recordings of visits from Google ads (9–14 November)
+                     names exactly that: a shopper on a wine fridge or an
+                     oven reaching for the specifications and finding an
+                     empty tab. A tab is a promise that there is something
+                     to read. The admin keeps it always, because for the
+                     admin it is the editor — the only way to fill it. */
+                  ...(hasSpecsTab ? [{ value: "specs", label: "מפרט טכני" }] : []),
                   { value: "delivery", label: "משלוח ואחריות" },
                   // "(0)" advertises that nobody has reviewed it; the count
                   // appears once there is one.
