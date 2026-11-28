@@ -55,7 +55,14 @@ const RANGES = new Map<string, readonly string[]>([
     "google",
     [
       "66.249.65.160/27", // the real Googlebot in the log
-      "66.249.64.0/19",
+      /* From user-triggered-fetchers-google.json, the fourth Google file.
+         A `66.249.64.0/19` used to sit here and is in none of Google's
+         files; it covered these by accident, which is how a fixture can
+         pass for a source the code never reads. */
+      "66.249.83.128/27",
+      "66.249.83.0/27",
+      "66.249.93.128/27",
+      "142.250.32.0/27",
       "2001:4860:4801:10::/64", // and its IPv6, from the same file
       "216.239.33.96/27",
     ],
@@ -87,6 +94,13 @@ const CASES: [string, string | null, boolean | null, string][] = [
   ["PerplexityBot", "18.97.9.101", true, "Perplexity, 57 rows and all of them real"],
   ["bingbot", "40.77.167.149", true, "bingbot"],
   ["AhrefsBot", "51.81.103.248", true, "Ahrefs, from its own published list"],
+
+  // Real Google, and called a forgery for three weeks: the addresses are in
+  // the one Google file that was not being read. 138 rows in the log.
+  ["Storebot-Google", "66.249.83.134", true, "Storebot-Google, from the fourth Google file"],
+  ["Storebot-Google", "66.249.83.2", true, "same crawler, a second /27"],
+  ["Storebot-Google", "66.249.93.129", true, "and a third"],
+  ["Storebot-Google", "142.250.32.7", true, "and outside 66.249 altogether"],
 
   // Our own probe traffic, wearing four different names. THE FOUNDING CASE.
   ["Googlebot", "160.79.106.129", false, "our probe calling itself Googlebot"],
@@ -251,6 +265,21 @@ for (const source of CRAWLER_RANGE_SOURCES) {
   }
   checked++;
   if (!source.url.startsWith("https://")) fail(`source ${source.url} is not https`);
+}
+/* All four of Google's files, by name. The fixture above can only say what
+   the arithmetic does with a prefix; it cannot say the prefix is ever
+   fetched, and the fourth file was missing for three weeks while every
+   check here passed. */
+for (const file of [
+  "common-crawlers.json",
+  "special-crawlers.json",
+  "user-triggered-fetchers.json",
+  "user-triggered-fetchers-google.json",
+]) {
+  checked++;
+  if (!CRAWLER_RANGE_SOURCES.some((s) => s.vendor === "google" && s.url.endsWith(`/${file}`))) {
+    fail(`Google's ${file} is not read, so every crawler in it is reported as a forgery`);
+  }
 }
 /* Every fixture vendor must be a real one, or the cases above are testing
    a map the code never builds. */

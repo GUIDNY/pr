@@ -65,6 +65,17 @@ export type CrawlerRangeSource = {
  * `/search/apis/ipranges/googlebot.json` now 301s to
  * `/crawling/ipranges/common-crawlers.json`, so the new paths are the ones
  * here and a 301 is followed anyway.
+ *
+ * And they are four, not three. `user-triggered-fetchers-google.json` is a
+ * separate file from `user-triggered-fetchers.json`, and until 15 November
+ * it was not read: 138 Storebot-Google rows between 26 October and
+ * 8 November, from twenty addresses in 66.249.83.x, 66.249.93.x and
+ * 142.250.32.x, were all marked `false` — every one of those addresses is
+ * in that file and in none of the other three. The log was saying Google's
+ * shopping crawler had never visited, in the same breath as the header
+ * above warns that a false accusation against a real crawler is the
+ * expensive error. Checked by hand against the four files as published on
+ * 13 November.
  */
 export const CRAWLER_RANGE_SOURCES: readonly CrawlerRangeSource[] = [
   {
@@ -80,6 +91,11 @@ export const CRAWLER_RANGE_SOURCES: readonly CrawlerRangeSource[] = [
   {
     vendor: "google",
     url: "https://developers.google.com/static/crawling/ipranges/user-triggered-fetchers.json",
+    shape: "prefixes",
+  },
+  {
+    vendor: "google",
+    url: "https://developers.google.com/static/crawling/ipranges/user-triggered-fetchers-google.json",
     shape: "prefixes",
   },
   { vendor: "openai", url: "https://openai.com/searchbot.json", shape: "prefixes" },

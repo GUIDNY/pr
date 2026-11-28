@@ -37,8 +37,8 @@ export type LoadReport = {
  * Read every source.
  *
  * A vendor is only usable when **every** one of its files was read: Google
- * splits its addresses over three, and judging Googlebot against two of
- * them would mark the third file's crawlers as forgeries. One 500 at
+ * splits its addresses over four, and judging Googlebot against three of
+ * them would mark the fourth file's crawlers as forgeries. One 500 at
  * Google is not evidence about anybody.
  */
 export async function loadCrawlerRanges(timeoutMs = 10_000): Promise<LoadReport> {
@@ -90,6 +90,8 @@ export type VerifyReport = {
   rejected: number;
   /** Decided nothing: no address to read, or the vendor was not available. */
   skipped: number;
+  /** Rows an earlier run rejected that the lists read this run do contain. */
+  reinstated: number;
   loaded: string[];
   failures: { url: string; reason: string }[];
   /** bot → how many of its rows were rejected this run. The report that matters. */
@@ -141,13 +143,53 @@ export async function verifyPendingCrawlerHits(limit = 5_000): Promise<VerifyRep
     await db.crawlerHit.updateMany({ where: { id: { in: bad } }, data: { verified: false } });
   }
 
+  const reinstated = await reinstateRejectedCrawlerHits(ranges, limit);
+
   return {
     considered: pending.length,
     verified: good.length,
     rejected: bad.length,
     skipped: pending.length - good.length - bad.length,
+    reinstated,
     loaded,
     failures,
     rejectedByBot,
   };
+}
+
+/**
+ * Ask again about the rows an earlier run rejected — in one direction only.
+ *
+ * `false` means "the vendor's list, as we read it that day, did not hold
+ * this address". Both halves of that can change without the row changing:
+ * the vendor adds a range, or we were not reading all of the vendor's files
+ * — which is what happened to Storebot-Google, see CRAWLER_RANGE_SOURCES.
+ * Pending is `verified IS NULL`, so without this a row rejected once stays
+ * rejected for ever, and fixing the list of sources would correct tomorrow's
+ * rows and leave every existing one calling a real crawler a forgery.
+ *
+ * Only ever false → true. A `true` is never re-opened: an address a vendor
+ * has since retired was still the vendor's on the day it crawled, and the
+ * row is a record of that day.
+ *
+ * Bounded to the last 30 days and to `limit` rows, newest first, because a
+ * forger's rows are re-read every night for as long as they are in the
+ * window and that has to stay a cheap question.
+ */
+async function reinstateRejectedCrawlerHits(ranges: CrawlerRanges, limit: number): Promise<number> {
+  if (ranges.size === 0) return 0;
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const rejected = await db.crawlerHit.findMany({
+    where: { verified: false, bot: { in: [...VERIFIABLE_CRAWLERS] }, createdAt: { gte: since } },
+    select: { id: true, bot: true, ip: true },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  const real = rejected
+    .filter((hit) => classifyCrawlerIp(hit.bot, hit.ip, ranges) === true)
+    .map((hit) => hit.id);
+  if (real.length) {
+    await db.crawlerHit.updateMany({ where: { id: { in: real } }, data: { verified: true } });
+  }
+  return real.length;
 }
