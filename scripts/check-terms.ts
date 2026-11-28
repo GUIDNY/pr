@@ -44,7 +44,7 @@ const KNOWN = new Set(["heading", "subheading", "paragraph", "list", "quote", "t
 check("every block has a type the renderer knows", TERMS_BLOCKS.every((b) => KNOWN.has(b.type)));
 check("no empty paragraph", !TERMS_BLOCKS.some((b) => "text" in b && !b.text?.trim()));
 check("no empty list item", !TERMS_BLOCKS.some((b) => b.type === "list" && b.items.some((i) => !i.trim())));
-check("the document is numbered 1..40", TERMS_BLOCKS.filter((b) => b.type === "heading" && /^\d+\./.test(b.text)).length === 40);
+check("the document is numbered 1..41", TERMS_BLOCKS.filter((b) => b.type === "heading" && /^\d+\./.test(b.text)).length === 41);
 check("the Black November section is there, anchored", TERMS_BLOCKS.some((b) => b.type === "heading" && b.id === "black-november"));
 
 // The numbers the shop is held to.
