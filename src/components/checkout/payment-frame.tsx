@@ -85,7 +85,18 @@ const LOAD_DEADLINE_MS = 12_000;
    scrolling there was no way to tell a wrong number from a class that was
    never emitted. A rule written out cannot go missing. */
 
-export function PaymentFrame({ src, orderNumber }: { src: string; orderNumber?: string }) {
+export function PaymentFrame({
+  src,
+  orderNumber,
+  onTouch,
+}: {
+  src: string;
+  orderNumber?: string;
+  /* Told once, the first time the customer puts the cursor into the form.
+     The checkout uses it to decide whether a form about to time out can be
+     replaced quietly or has something typed in it. */
+  onTouch?: () => void;
+}) {
   const [state, setState] = useState<"loading" | "ready" | "blocked">("loading");
   const loaded = useRef(false);
   const frame = useRef<HTMLIFrameElement>(null);
@@ -105,6 +116,13 @@ export function PaymentFrame({ src, orderNumber }: { src: string; orderNumber?: 
      payment_result, written by the gateway's callback, says how the ones who
      did submit ended. No field of the form is readable from here, so nothing
      about the card can be recorded even by mistake. */
+  /* The latest callback, without making the effect below re-run (and report
+     the form as closed) every time the parent re-renders. */
+  const onTouchRef = useRef(onTouch);
+  useEffect(() => {
+    onTouchRef.current = onTouch;
+  }, [onTouch]);
+
   useEffect(() => {
     if (!orderNumber) return;
     const openedAt = Date.now();
@@ -117,6 +135,7 @@ export function PaymentFrame({ src, orderNumber }: { src: string; orderNumber?: 
       setTimeout(() => {
         if (touched || document.activeElement !== frame.current) return;
         touched = true;
+        onTouchRef.current?.();
         trackVisit("payment_form_touch", { orderNumber, secondsOpen: secondsOpen() });
       }, 0);
     };
